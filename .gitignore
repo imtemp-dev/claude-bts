@@ -1,0 +1,33 @@
+# Build
+bin/
+dist/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Dependencies
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# bts state (per-project, not committed)
+.bts/state/
+
+# Prototype data
+data/test-turns.json
+data/eval-*.json
+
+# Environment
+.env
