@@ -1,0 +1,15 @@
+{
+  "name": "context-sync",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "extract": "tsx scripts/extract-turns.ts",
+    "select": "tsx scripts/select-turns.ts",
+    "evaluate": "tsx scripts/run-evaluation.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.5",
+    "tsx": "^4.19"
+  }
+}
