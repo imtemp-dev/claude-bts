@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,11 +11,12 @@ import (
 
 func init() {
 	rootCmd.AddCommand(verifyCmd)
+	verifyCmd.Flags().Bool("no-code", false, "Skip code reference checks (for from-scratch specs)")
 }
 
 var verifyCmd = &cobra.Command{
 	Use:     "verify <file>",
-	Short:   "Deterministic fact-check a document against source code",
+	Short:   "Check document consistency, assess level, and verify references",
 	Args:    cobra.ExactArgs(1),
 	GroupID: "tools",
 	RunE:    runVerify,
@@ -24,32 +24,35 @@ var verifyCmd = &cobra.Command{
 
 func runVerify(cmd *cobra.Command, args []string) error {
 	docPath := args[0]
+	noCode, _ := cmd.Flags().GetBool("no-code")
 
-	// Find project root (cwd by default)
 	projectRoot, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("get cwd: %w", err)
 	}
 
-	// Make doc path absolute if relative
 	if !filepath.IsAbs(docPath) {
 		docPath = filepath.Join(projectRoot, docPath)
 	}
 
-	result, err := engine.VerifyFile(docPath, projectRoot)
+	// If --no-code, skip code reference checks
+	root := projectRoot
+	if noCode {
+		root = ""
+	}
+
+	result, err := engine.VerifyDocument(docPath, root)
 	if err != nil {
 		return fmt.Errorf("verify: %w", err)
 	}
 
-	// Output as JSON (machine-readable for skills to parse)
-	data, err := json.MarshalIndent(result, "", "  ")
+	output, err := engine.FormatResult(result)
 	if err != nil {
-		return fmt.Errorf("marshal: %w", err)
+		return fmt.Errorf("format: %w", err)
 	}
 
-	fmt.Println(string(data))
+	fmt.Println(output)
 
-	// Exit code based on results
 	if result.Summary.Critical > 0 || result.Summary.Major > 0 {
 		os.Exit(1)
 	}

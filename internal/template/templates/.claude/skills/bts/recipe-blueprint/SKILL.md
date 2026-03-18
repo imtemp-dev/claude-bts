@@ -1,127 +1,132 @@
 ---
 name: bts-recipe-blueprint
 description: >
-  Create a Level 3 implementation spec — detailed enough for AI to generate
-  code with high accuracy. Includes verification loop until all checks pass.
+  Create a Level 3 implementation spec through an adaptive loop of research,
+  drafting, debate, simulation, and verification. The loop continues until
+  the document is bulletproof.
 user-invocable: true
 allowed-tools: Read Write Edit Grep Glob Bash Agent
 argument-hint: "\"feature description\""
 ---
 
-# Recipe: Blueprint (Level 3 Implementation Spec)
+# Recipe: Blueprint
 
 Create a bulletproof implementation spec for: $ARGUMENTS
 
-## Resume Protocol
+## Resume Check
 
-Before starting, check if this recipe has been started before:
+Before starting, check for an existing recipe:
 ```bash
 bts recipe status
 ```
-If a recipe is in progress, read its state file and resume from the saved step/iteration.
+If active, read `.bts/state/{id}/manifest.json` and `changelog.jsonl` to understand
+what has been done. Resume from where it left off.
 
-## Step 1: Research
+## Adaptive Loop
 
-Use Skill("bts-research") to investigate the codebase:
-- What files exist related to this feature?
-- What functions, types, and patterns are already in place?
-- What dependencies are involved?
-- What constraints exist?
+This recipe does NOT follow a fixed sequence. Instead, it runs an adaptive loop:
 
-Save results to `.bts/state/{id}/01-research.md`.
-
-Log progress:
-```bash
-bts recipe log {id} --step research --status complete
+```
+ASSESS → decide action → execute → VERIFY (mandatory after any change) → ASSESS → ...
 ```
 
-## Step 2: Draft Level 3 Spec
+ASSESS determines what to do next based on the document's current state.
 
-Using research results, write a detailed implementation spec that includes:
+### Loop Protocol
 
-For EACH file to be created or modified:
-- **Exact file path** (e.g., `src/auth/oauth.ts`)
-- **Action**: create / modify
-- **Function signatures**: name, parameters with types, return type
-- **Connection points**: which existing function calls this, or this calls
-- **Error handling**: what errors can occur, how each is handled
-- **Edge cases**: empty input, null, concurrent access, etc.
-- **Scaffolding**: code skeleton showing structure
+**ALWAYS after modifying the document:**
+1. Save as new version: `drafts/vN.md` (never overwrite previous versions)
+2. Run /verify on the new version
+3. Log the change: `bts recipe log {id} --action [action] --output drafts/vN.md`
+4. Run /assess to determine the next action
 
-For the overall feature:
-- **Data flow**: input → processing → output chain
-- **State changes**: what state is modified and how
-- **Test scenarios**: happy path + error paths with expected results
+**Starting from scratch (no existing code):**
+1. /research — investigate the technology, best practices, libraries
+2. Write initial draft (Level 1) → drafts/v1.md → /verify
+3. /assess → loop begins
 
-Save to `.bts/state/{id}/02-draft.md`.
+**Starting with existing code:**
+1. /research — explore existing codebase
+2. Write initial draft referencing existing code → drafts/v1.md → /verify
+3. /assess → loop begins
 
-```bash
-bts recipe log {id} --step draft --status complete
+### ASSESS Decision Tree
+
+After each /assess, execute the recommended action:
+
+| Assessment | Action | Details |
+|------------|--------|---------|
+| "Information insufficient" | /research | Use plan mode. Investigate docs, APIs, libraries |
+| "Technical decision needed" | /debate | 3 experts, multiple rounds. Save state |
+| "Gaps may exist" | /simulate | Design 5+ scenarios. Walk through spec |
+| "Content missing for next level" | IMPROVE | Add specific items. Save as new draft version |
+| "Contradictions suspected" | /verify | Check internal consistency |
+| "Completeness uncertain" | /audit | Review for missing cases |
+| "Level 3 achieved" | /sync-check | Final cross-document verification |
+
+### Quality Rules
+
+1. **Every document modification → /verify.** No exceptions.
+2. **Every debate conclusion → update draft → /verify.**
+3. **Every simulation gap found → update draft → /verify.**
+4. **/simulate at least once** before declaring Level 3.
+5. **/debate for every uncertain technical choice.** Don't guess.
+6. **/sync-check before finalizing.** All documents must be in sync.
+
+### Version Management
+
+Every draft version is preserved. Never overwrite.
+```
+.bts/state/{id}/
+├── manifest.json            # Document relationships
+├── changelog.jsonl           # Every action logged
+├── research/v1.md
+├── drafts/
+│   ├── v1.md                # Initial draft
+│   ├── v2.md                # After debate-001
+│   ├── v3.md                # After simulation gaps
+│   └── v4.md                # After audit items
+├── debates/001-topic/
+│   ├── meta.json
+│   ├── round-1.md
+│   └── round-2.md
+├── simulations/001-scenarios.md
+├── verifications/draft-v1.md
+└── final.md
 ```
 
-## Step 3: Verify Loop
-
-Repeat the following (max 3 iterations):
-
-### 3a. Factual Cross-Check
-Use Skill("bts-cross-check") on the draft:
-- Are all file paths real?
-- Do referenced functions exist?
-- Are line numbers correct?
-- Do import paths resolve?
-
-### 3b. Logical Verification
-Use Skill("bts-verify") on the draft:
-- Any contradictions?
-- Any unsupported claims?
-- Any causal errors?
-
-### 3c. Completeness Audit
-Use Skill("bts-audit") on the draft:
-- Missing error cases?
-- Missing edge cases?
-- Hidden assumptions?
-
-### 3d. Evaluate Results
-
-Collect all findings. Log iteration:
+After each action, update manifest.json:
 ```bash
-bts recipe log {id} --iteration N --critical X --major Y --minor Z
+bts recipe log {id} --action [type] --output [path] --based-on [deps]
 ```
 
-**If critical > 0 OR major > 0:**
-- Fix all critical and major issues in the draft
-- Go back to 3a (next iteration)
+### Finalization
 
-**If critical = 0 AND major = 0:**
-- Proceed to Step 4
+When /assess declares Level 3 achieved AND /sync-check passes:
+1. Copy current draft to `final.md`
+2. Output `<bts>DONE</bts>`
+3. Stop hook will verify:
+   - verify-log last entry: critical=0, major=0
+   - All sync checks passed
 
-**If max iterations reached with remaining issues:**
-- Report [CONVERGENCE FAILED] to the user
-- List remaining issues
-- Ask for guidance
+### Human Intervention Points
 
-## Step 4: Decision (if needed)
+The loop runs automatically. It pauses ONLY when:
+- **[DECISION REQUIRED]**: A technical choice needs human judgment
+- **[CONVERGENCE FAILED]**: Same issues persist after N iterations
+- **[DEBATE DEADLOCK]**: Experts can't agree after 3 rounds
 
-If the spec contains uncertain technical choices:
-- Use Skill("bts-debate") to evaluate alternatives
-- After debate conclusion, update the spec
-- Go back to Step 3 for re-verification (iteration counter resets, log preserved)
+## Output Target
 
-If no decisions are needed, skip to Step 5.
+The final document should contain, for every component:
+- Exact file paths (create/modify)
+- Function signatures (name, params with types, return type)
+- Data types and interfaces
+- Connection points to other components
+- Error handling for every failure mode
+- Edge cases enumerated
+- Code scaffolding (skeleton structure)
+- Test scenarios (happy + error + edge)
 
-## Step 5: Finalize
-
-1. Copy the verified draft to `.bts/state/{id}/final.md`
-2. Output `<bts>DONE</bts>` to signal completion
-
-The Stop hook will verify that the last iteration in verify-log has
-critical=0 and major=0 before allowing completion.
-
----
-
-## Output Quality Target
-
-The final spec should be detailed enough that giving it to Claude Opus
-produces working code with minimal iteration. Every file path, function
-signature, type, and connection point should be verified against actual code.
+When this document is given to Claude Opus, it should generate working code
+with minimal additional iteration.

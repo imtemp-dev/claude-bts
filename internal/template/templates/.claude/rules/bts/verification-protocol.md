@@ -7,20 +7,27 @@ paths:
 
 ## Core Principle
 
-Never verify your own output in the same context. Verification uses:
-1. **Deterministic checks** (bts binary): file existence, symbol names, line counts
-2. **Independent agents** (separate context): logical and completeness review
+Never verify your own output in the same context.
+
+- **Internal consistency**: Checked by `bts verify` (deterministic) + Agent(verifier) (separate context)
+- **Completeness**: Checked by Agent(auditor) (separate context)
+- **Scenario coverage**: Checked by Agent(simulator) or /simulate (separate context)
+- **Code references**: Checked by `bts verify` when code exists (deterministic, optional)
+
+## Mandatory Verification Rule
+
+**Every time a document is modified, /verify MUST run immediately after.**
+This is non-negotiable. The recipe protocol enforces this.
 
 ## Severity Classification
 
-- **critical**: References non-existent files, functions, or types. Must be 0 for completion.
-- **major**: Logical inconsistency, missing error handling, incorrect signatures. Must be 0 for completion.
-- **minor**: Imprecise wording, approximate numbers. Allowed in final document as annotations.
-- **info**: Style suggestions. Ignored for convergence.
+- **critical**: Internal contradiction, undefined behavior in scenarios, impossible claims
+- **major**: Missing error handling, incomplete data flow, unresolved design questions
+- **minor**: Ambiguous wording, approximate descriptions, style issues
+- **info**: Improvement suggestions, alternative approaches
 
-## Convergence Rules
+## Convergence
 
-- Maximum 3 verification iterations per recipe step
-- critical + major must reach 0 for convergence
-- If 2 consecutive iterations have identical errors → strategy change or human input
-- After max iterations with remaining issues → [CONVERGENCE FAILED] → ask user
+- critical + major must reach 0 for Level 3
+- max 3 iterations per improvement cycle
+- If same issues persist for 2 iterations → change strategy or ask human

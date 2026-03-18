@@ -1,43 +1,42 @@
 ---
 name: bts-cross-check
 description: >
-  Cross-check a document's factual claims against actual source code.
-  Use when you need to verify file paths, function names, types, and line counts.
+  Check internal consistency of a document — terms used consistently,
+  interfaces match between sections, no contradictions. Optionally checks
+  against source code if it exists.
 user-invocable: true
 allowed-tools: Read Grep Glob Bash Agent
 argument-hint: "[file-path]"
 ---
 
-# Factual Cross-Check
+# Internal Consistency Check
 
-Verify the specified document's factual claims against source code.
+Check the document for internal contradictions and inconsistencies.
 
 ## Steps
 
-1. Run deterministic fact-checking via the bts binary:
+1. Run consistency check via bts binary:
    ```bash
    bts verify $ARGUMENTS
    ```
-   This checks: file existence, symbol names, line counts, import paths.
-
-2. Spawn Agent(cross-checker) for semantic fact-checking:
-
-   ```
-   You are a fact-checking specialist. Read the document at $ARGUMENTS and the
-   bts verify results. For each claim in the document that references code:
-
-   - Verify the claim matches reality by reading the actual source file
-   - Check function signatures match (parameter names, types, return types)
-   - Check described behavior matches actual implementation
-   - Check dependency versions if mentioned
-
-   For each mismatch, classify:
-   - critical: References something that does not exist
-   - major: Exists but described incorrectly
-   - minor: Approximately correct but imprecise (e.g., line count ±10%)
-
-   Output findings as a numbered list with severity tags.
+   For from-scratch specs (no existing code), add `--no-code`:
+   ```bash
+   bts verify --no-code $ARGUMENTS
    ```
 
-3. Merge binary results + agent findings
-4. Report combined results with severity counts
+2. Read the document yourself and check:
+   - **Term consistency**: Is the same concept called the same name everywhere?
+     (e.g., "session" vs "token" vs "auth state" for the same thing)
+   - **Interface consistency**: If Section A defines `createUser(name, email)` but
+     Section B calls `addUser(username)`, that's a mismatch.
+   - **Type consistency**: If a field is `string` in one place and `number` in another.
+   - **Flow consistency**: If the data flow says A→B→C but the component section
+     describes C receiving from D.
+   - **Assumption consistency**: If one section assumes Redis and another assumes PostgreSQL.
+
+3. Classify findings:
+   - critical: Same entity described differently in incompatible ways
+   - major: Inconsistent naming or interface that would cause implementation errors
+   - minor: Slightly different terminology but meaning is clear
+
+4. Report findings with severity counts.
