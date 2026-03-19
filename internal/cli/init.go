@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -62,6 +63,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("deploy templates: %w", err)
 	}
 
+	// Merge statusline config into .claude/settings.local.json
+	if err := mergeStatusLineSettings(absRoot); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not configure statusline: %v\n", err)
+	}
+
 	fmt.Printf("\nbts initialized successfully.\n")
 	fmt.Printf("  Files created: %d\n", len(created))
 	fmt.Printf("  Skills:        .claude/skills/bts/\n")
@@ -73,4 +79,41 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\nStart Claude Code and try: /recipe blueprint \"your feature\"\n")
 
 	return nil
+}
+
+// mergeStatusLineSettings adds statusLine config to .claude/settings.local.json.
+func mergeStatusLineSettings(projectRoot string) error {
+	settingsPath := filepath.Join(projectRoot, ".claude", "settings.local.json")
+
+	// Read existing settings or start empty
+	var settings map[string]interface{}
+	data, err := os.ReadFile(settingsPath)
+	if err == nil {
+		if err := json.Unmarshal(data, &settings); err != nil {
+			settings = make(map[string]interface{})
+		}
+	} else {
+		settings = make(map[string]interface{})
+	}
+
+	// Only add if not already configured
+	if _, exists := settings["statusLine"]; exists {
+		return nil
+	}
+
+	settings["statusLine"] = map[string]interface{}{
+		"type":    "command",
+		"command": ".bts/status_line.sh",
+	}
+
+	out, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0755); err != nil {
+		return err
+	}
+
+	return os.WriteFile(settingsPath, out, 0644)
 }

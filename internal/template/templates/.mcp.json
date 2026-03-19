@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "context7": {
+      "$comment": "Up-to-date library documentation and code examples via Context7",
+      "command": "/bin/bash",
+      "args": ["-l", "-c", "exec npx -y @upstash/context7-mcp@latest"]
+    }
+  }
+}

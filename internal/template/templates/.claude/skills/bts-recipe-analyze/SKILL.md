@@ -4,7 +4,7 @@ description: >
   Analyze an existing system or codebase. Produces a verified Level 1
   (understanding) document.
 user-invocable: true
-allowed-tools: Read Write Edit Grep Glob Bash Agent
+allowed-tools: Read Write Edit Grep Glob Bash Agent mcp__context7__resolve-library-id mcp__context7__get-library-docs
 argument-hint: "\"what to analyze\""
 ---
 

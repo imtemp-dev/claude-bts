@@ -5,7 +5,7 @@ description: >
   drafting, debate, simulation, and verification. The loop continues until
   the document is bulletproof.
 user-invocable: true
-allowed-tools: Read Write Edit Grep Glob Bash Agent
+allowed-tools: Read Write Edit Grep Glob Bash Agent mcp__context7__resolve-library-id mcp__context7__get-library-docs
 argument-hint: "\"feature description\""
 ---
 
@@ -120,6 +120,9 @@ bts recipe log {id} --phase scoping
 
 Phase is now `research`. Only after scope Status is CONFIRMED, proceed to the adaptive loop.
 
+> **Checkpoint**: Scope confirmed. If context is heavy from codebase exploration,
+> consider `/clear` before the adaptive loop. Work state is saved automatically.
+
 ### Scope Re-opening
 
 If the user requests a fundamental direction change during the adaptive loop
@@ -156,6 +159,7 @@ After each /assess, update phase and execute the recommended action:
 
 | Assessment | Phase | Action | Details |
 |------------|-------|--------|---------|
+| "Scope issue found" | scoping | Scope Re-opening | Research flagged infeasible/missing scope items |
 | "Information insufficient" | research | /research | Investigate docs, APIs, libraries |
 | "Technical decision needed" | debate | /debate → /adjudicate | 3 experts, then evaluate conclusion |
 | "Gaps may exist" | simulate | /simulate | Design 5+ scenarios. Walk through spec |
@@ -242,6 +246,9 @@ When /assess declares Level 3 achieved AND /sync-check passes:
 3. Stop hook will verify:
    - verify-log last entry: critical=0, major=0
    - All sync checks passed
+
+> **Checkpoint**: Blueprint finalized. Run `/clear` before `/implement` to
+> maximize context window for code generation. Work state is saved automatically.
 
 ### Human Intervention Points
 

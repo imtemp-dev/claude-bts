@@ -16,6 +16,9 @@ type HookInput struct {
 	CWD           string `json:"cwd"`
 	HookEventName string `json:"hook_event_name"`
 
+	// Session source (if Claude Code sends it)
+	Source string `json:"source,omitempty"` // "startup", "resume", "clear", "compact"
+
 	// Stop hook fields
 	StopHookContent string `json:"content,omitempty"`
 

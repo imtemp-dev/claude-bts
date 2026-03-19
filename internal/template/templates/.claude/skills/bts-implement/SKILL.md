@@ -4,7 +4,7 @@ description: >
   Implement code from a finalized Level 3 spec (final.md). Uses an adaptive loop
   with build verification — the same ASSESS→action→VERIFY pattern as spec creation.
 user-invocable: true
-allowed-tools: Read Write Edit Grep Glob Bash Agent
+allowed-tools: Read Write Edit Grep Glob Bash Agent mcp__context7__resolve-library-id mcp__context7__get-library-docs
 argument-hint: "[recipe-id]"
 ---
 
@@ -107,6 +107,11 @@ Do NOT proceed to task implementation if the build environment is broken.
 
 ## Step 3: Implementation Loop
 
+**Reservations check**: If `.bts/state/recipes/{id}/reservations.md` exists,
+read it before starting. When implementing a file listed in the "Affected Files"
+section, warn: "[RESERVATION] This area has unresolved concerns from debate:
+{concern}. Proceed with extra caution."
+
 For each task in dependency order:
 
 **Dependency check**: If a task's `depends_on` includes a blocked or skipped task,
@@ -165,6 +170,9 @@ Review task status:
   - If [1] → mark blocked as `skipped`, continue
   - If [2] → reset retry_count, set status to `pending`, go back to Step 3
   - If [3] → stop and report details
+
+> **Checkpoint**: Implementation tasks complete. Consider `/clear` before testing
+> to free context for test generation. Work state is saved automatically.
 
 ## Step 5: Test
 

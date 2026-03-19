@@ -20,13 +20,18 @@ func (h *sessionEndHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return &HookOutput{}, nil
 	}
 
-	// Save any active recipe state
+	// Save recipe state
 	recipe, err := state.GetActiveRecipe(btsRoot)
 	if err != nil || recipe == nil {
 		return &HookOutput{}, nil
 	}
-
 	_ = state.SaveRecipeState(btsRoot, recipe)
+
+	// Build and save work state for cross-session resume
+	ws, err := state.BuildWorkState(btsRoot)
+	if err == nil && ws != nil {
+		_ = state.SaveWorkState(btsRoot, ws)
+	}
 
 	return &HookOutput{}, nil
 }

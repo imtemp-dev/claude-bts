@@ -4,7 +4,7 @@ description: >
   Generate and run tests based on final.md test scenarios. Runs an adaptive loop:
   execute tests, analyze failures, fix implementation code, re-run until all pass.
 user-invocable: true
-allowed-tools: Read Write Edit Grep Glob Bash Agent
+allowed-tools: Read Write Edit Grep Glob Bash Agent mcp__context7__resolve-library-id mcp__context7__get-library-docs
 argument-hint: "[recipe-id]"
 ---
 

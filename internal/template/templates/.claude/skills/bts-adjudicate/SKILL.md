@@ -5,7 +5,7 @@ description: >
   Decides whether to accept the conclusion or drive another debate round with
   targeted preparation (web search, code analysis, repo exploration).
 user-invocable: true
-allowed-tools: Read Write Edit Grep Glob Bash Agent WebSearch WebFetch
+allowed-tools: Read Write Edit Grep Glob Bash Agent WebSearch WebFetch mcp__context7__resolve-library-id mcp__context7__get-library-docs
 argument-hint: "[debate-id or recipe-id]"
 ---
 
@@ -155,12 +155,26 @@ If this is the 3rd extension (3 follow-up debates exist):
 VERDICT: ACCEPT WITH RESERVATIONS
 ```
 
-Accept the best available conclusion. List remaining concerns as conditions
-for revisiting. Do NOT extend further — diminishing returns.
+Accept the best available conclusion. Do NOT extend further — diminishing returns.
+
+**Save reservations** to `.bts/state/recipes/{id}/reservations.md`:
+```markdown
+# Reservations: {debate topic}
+
+These concerns were not fully resolved after 3 debate extensions.
+Review them during implementation if working in these areas.
+
+## Unresolved Concerns
+1. [Concern with context]
+2. [Concern with context]
+
+## Affected Files/Areas
+- [file or area that touches this concern]
+```
 
 Log:
 ```bash
-bts recipe log {id} --action adjudicate --result "accepted with reservations after max extensions"
+bts recipe log {id} --action adjudicate --output reservations.md --result "accepted with reservations after max extensions"
 ```
 
 ## Output

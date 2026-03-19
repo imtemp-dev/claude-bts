@@ -58,11 +58,12 @@ Spec defines it but code doesn't have it.
 - Record in deviation report
 - Severity: major (if core functionality) or minor (if optional)
 
-### Spec Addition Needed
+### Spec Addition Needed (non-blocking)
 Code has it but spec doesn't mention it.
 - This happens when implementation required additional helpers, utilities, or types
-- Record in deviation report
-- Add to final.md
+- Record in deviation report for traceability
+- Add to final.md — once added, this is resolved
+- These do NOT block completion (sync already updated the spec)
 
 ### Deviation
 Both exist but differ (different signature, different behavior).
@@ -122,9 +123,13 @@ Recipe: {id}
    ```
    Also manually register `final.pre-sync.md` in manifest.json as type `"draft"`.
 
-2. Validate:
+2. Validate schema:
    ```bash
    bts validate
    ```
+
+3. If final.md was modified (any Spec Addition or Deviation resolved by updating spec),
+   run /verify on the updated final.md to ensure no contradictions were introduced.
+   This satisfies the "every modification → /verify" rule.
 
 Output `<bts>SYNC DONE</bts>` when complete.

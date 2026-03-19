@@ -20,21 +20,27 @@ func (h *preCompactHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return &HookOutput{}, nil
 	}
 
-	// Save current recipe state as snapshot before compaction
+	// Save recipe state
 	recipe, err := state.GetActiveRecipe(btsRoot)
 	if err != nil || recipe == nil {
 		return &HookOutput{}, nil
 	}
+	_ = state.SaveRecipeState(btsRoot, recipe)
 
-	// Re-save to ensure UpdatedAt is current
-	if err := state.SaveRecipeState(btsRoot, recipe); err != nil {
-		// Non-fatal: log but don't block compaction
-		return &HookOutput{}, nil
+	// Build and save work state snapshot
+	ws, err := state.BuildWorkState(btsRoot)
+	if err != nil || ws == nil {
+		return &HookOutput{
+			HookSpecificOutput: &HookSpecificOutput{
+				AdditionalContext: "[bts] Recipe state saved before compaction.",
+			},
+		}, nil
 	}
+	_ = state.SaveWorkState(btsRoot, ws)
 
 	return &HookOutput{
 		HookSpecificOutput: &HookSpecificOutput{
-			AdditionalContext: "[bts] Recipe state saved before compaction.",
+			AdditionalContext: "[bts] Context snapshot saved. " + ws.Summary,
 		},
 	}, nil
 }

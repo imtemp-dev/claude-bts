@@ -4,7 +4,7 @@ description: >
   Design a feature or system. Produces a verified Level 2 (design) document.
   Can be followed by /recipe blueprint to reach Level 3.
 user-invocable: true
-allowed-tools: Read Write Edit Grep Glob Bash Agent
+allowed-tools: Read Write Edit Grep Glob Bash Agent mcp__context7__resolve-library-id mcp__context7__get-library-docs
 argument-hint: "\"what to design\""
 ---
 
