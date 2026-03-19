@@ -20,7 +20,13 @@ Implement the spec for recipe: $ARGUMENTS
    ```
    If not found → "Run /recipe blueprint first."
 
-2. Check recipe phase:
+2. Verify spec quality gate:
+   - Check `verify-log.jsonl` exists and last entry has critical=0, major=0
+   - If verify-log is missing or last entry has critical/major > 0 →
+     "Spec not verified. Run /recipe blueprint to complete verification before implementing."
+   - This prevents implementing from unverified or manually-created specs.
+
+3. Check recipe phase:
    ```bash
    bts recipe status
    ```
@@ -171,6 +177,11 @@ bts recipe log {id} --phase test
 ```
 
 Use Skill("bts-test") with arguments: {id}
+
+**If tests fail** (bts-test does not output `<bts>TESTS PASS</bts>`):
+- Do NOT proceed to sync. Stop here.
+- Report: "Tests failed. Fix implementation and re-run /implement {id} to retry from Step 5."
+- The recipe stays in phase "test" for resume.
 
 ## Step 6: Sync
 

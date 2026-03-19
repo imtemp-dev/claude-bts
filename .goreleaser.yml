@@ -1,0 +1,41 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: ./cmd/bts/
+    binary: bts
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/jlim/bts/pkg/version.Version={{.Version}}
+      - -X github.com/jlim/bts/pkg/version.Commit={{.Commit}}
+      - -X github.com/jlim/bts/pkg/version.Date={{.Date}}
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+
+release:
+  github:
+    owner: jlim
+    name: bts

@@ -12,7 +12,7 @@ type RecipeState struct {
 	ID           string  `json:"id"`
 	Type         string  `json:"type"`          // analyze, design, blueprint
 	Topic        string  `json:"topic"`         // user's description
-	Phase        string  `json:"phase"`         // research, draft, assess, improve, verify, debate, simulate, audit, finalize, cancelled, implement, test, sync, status, complete
+	Phase        string  `json:"phase"`         // scoping, research, draft, assess, improve, verify, debate, simulate, audit, finalize, cancelled, implement, test, sync, status, complete
 	Iteration    int     `json:"iteration"`     // current verify iteration
 	DraftVersion int     `json:"draft_version"` // current draft version number (v1, v2, ...)
 	Level        float64 `json:"level"`         // assessed document level (0.0 ~ 3.0)
@@ -141,7 +141,7 @@ func GetActiveRecipe(btsRoot string) (*RecipeState, error) {
 		if err != nil {
 			continue
 		}
-		if state.Phase != "finalize" && state.Phase != "complete" && state.Phase != "" {
+		if state.Phase != "finalize" && state.Phase != "complete" && state.Phase != "cancelled" && state.Phase != "" {
 			return state, nil
 		}
 	}

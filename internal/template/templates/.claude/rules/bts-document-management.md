@@ -21,7 +21,7 @@ Every action is logged to `changelog.jsonl`:
 ```
 bts recipe log {id} --action [type] --output [path]
 ```
-Actions: research, draft, improve, verify, debate, simulate, audit, assess, sync-check, finalize, implement, test, sync, status
+Actions: research, draft, improve, verify, debate, simulate, audit, assess, sync-check, finalize, implement, test, sync, status, adjudicate
 
 ## Manifest
 `manifest.json` tracks document relationships:

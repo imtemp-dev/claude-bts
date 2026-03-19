@@ -43,7 +43,9 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 	}
 
 	var hint string
-	if state.IsImplementPhase(recipe.Phase) {
+	if recipe.Phase == "scoping" {
+		hint = fmt.Sprintf("Scope alignment in progress. Read .bts/state/recipes/%s/scope.md and confirm or adjust.", recipe.ID)
+	} else if state.IsImplementPhase(recipe.Phase) {
 		hint = fmt.Sprintf("Run /implement %s to continue, or /recipe cancel to abort.", recipe.ID)
 	} else {
 		hint = "Run /recipe resume to continue, or /recipe cancel to abort."

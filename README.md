@@ -57,11 +57,27 @@ The **blueprint** recipe produces a spec with exact file paths, function signatu
 ## Install
 
 ```bash
-# Build from source (Go 1.22+)
+# One-line install (macOS / Linux)
+curl -fsSL https://raw.githubusercontent.com/jlim/bts/main/install.sh | bash
+
+# Or build from source (Go 1.22+)
 git clone https://github.com/jlim/bts.git
 cd bts
-make build
-./bin/bts init your-project
+make install    # installs to ~/go/bin/bts
+```
+
+PATH에 `~/go/bin`이 없으면 `.zshrc` 또는 `.bashrc`에 추가:
+```bash
+export PATH="$HOME/go/bin:$PATH"
+```
+
+업데이트도 동일:
+```bash
+# 릴리스 버전
+curl -fsSL https://raw.githubusercontent.com/jlim/bts/main/install.sh | bash
+
+# 소스에서
+git pull && make install
 ```
 
 ## Quick Start

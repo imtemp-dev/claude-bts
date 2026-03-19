@@ -82,7 +82,7 @@ Required fields:
 - `id` (string): unique recipe identifier
 - `type` (string): "analyze", "design", or "blueprint"
 - `topic` (string): what the recipe is about
-- `phase` (string): current phase — "research", "draft", "assess", "improve", "verify", "debate", "simulate", "audit", "finalize", "cancelled", "implement", "test", "sync", "status", "complete"
+- `phase` (string): current phase — "scoping", "research", "draft", "assess", "improve", "verify", "debate", "simulate", "audit", "finalize", "cancelled", "implement", "test", "sync", "status", "complete"
 - `iteration` (number): current verify iteration count
 - `draft_version` (number): current draft version number
 - `level` (number): assessed document level 0.0-3.0
@@ -105,7 +105,7 @@ Each line is a JSON object:
 
 Required fields:
 - `time` (string): ISO 8601 timestamp. **Key name is "time", not "timestamp".**
-- `action` (string): one of "research", "draft", "improve", "verify", "debate", "simulate", "audit", "assess", "sync-check", "finalize", "implement", "test", "sync", "status"
+- `action` (string): one of "research", "draft", "improve", "verify", "debate", "simulate", "audit", "assess", "sync-check", "finalize", "implement", "test", "sync", "status", "adjudicate"
 
 Optional fields:
 - `input` (string): what was acted on

@@ -23,7 +23,8 @@ ASSESS → decide action → execute → VERIFY (mandatory) → ASSESS → ...
 4. **Log every action**: `bts recipe log {id}` after every step.
 5. **Simulate at least once**: Before declaring Level 3, run /simulate with 5+ scenarios.
 6. **Debate uncertain choices**: Don't guess. Use /debate for technology decisions.
-7. **Sync-check before finalizing**: All debates reflected, all gaps resolved, all drafts verified.
+7. **Adjudicate every debate**: After /debate, ALWAYS run /adjudicate to evaluate the conclusion. Never accept a debate result without adjudication.
+8. **Sync-check before finalizing**: All debates reflected, all gaps resolved, all drafts verified.
 
 ## Human Intervention
 

@@ -107,6 +107,7 @@ func validateRecipeJSON(path string) []ValidationError {
 	// Validate phase enum
 	if p, ok := raw["phase"].(string); ok {
 		valid := map[string]bool{
+			"scoping": true,
 			"research": true, "draft": true, "assess": true, "improve": true,
 			"verify": true, "debate": true, "simulate": true, "audit": true,
 			"finalize": true, "cancelled": true,
@@ -222,6 +223,7 @@ func validateChangelogJSONL(path string) []ValidationError {
 				"debate": true, "simulate": true, "audit": true, "assess": true,
 				"sync-check": true, "finalize": true,
 				"implement": true, "test": true, "sync": true, "status": true,
+			"adjudicate": true,
 			}
 			if !validActions[action] {
 				errs = append(errs, ValidationError{File: "changelog.jsonl", Field: fmt.Sprintf("line %d.action", lineNum), Message: fmt.Sprintf("invalid action '%s'", action)})

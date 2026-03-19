@@ -253,6 +253,8 @@ func actionToDocType(action string) string {
 		return "test-result"
 	case "sync":
 		return "deviation"
+	case "adjudicate":
+		return "verification"
 	default:
 		return action
 	}
