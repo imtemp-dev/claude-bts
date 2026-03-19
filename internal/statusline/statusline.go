@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jlim/bts/internal/state"
+	"github.com/jlim/bts/pkg/version"
 )
 
 // StdinData is the JSON Claude Code sends to the statusline hook.
@@ -43,7 +44,7 @@ func Render(stdin io.Reader, btsRoot string) string {
 	}
 
 	var segments []string
-	segments = append(segments, "bts")
+	segments = append(segments, "bts "+version.GetVersion())
 
 	// Recipe info
 	if btsRoot != "" {
