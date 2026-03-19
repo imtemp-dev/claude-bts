@@ -87,4 +87,6 @@ final.pre-sync.md                 # Original final.md before sync
 tasks.json                        # Implementation tasks
 test-results.json                 # Test execution results
 deviation.md                      # Spec↔code deviation report
+diagnosis.md                      # Bug fix: symptom, root cause, impact
+fix-spec.md                       # Bug fix: change specification
 ```

@@ -50,6 +50,11 @@ Output `<bts>IMPLEMENT DONE</bts>` only when:
 deviation.md is a **report**, not a gate. Deviations and not-implemented items
 are recorded for follow-up but do NOT block completion.
 
+### Fix Completion
+Output `<bts>FIX DONE</bts>` only when:
+1. fix-spec.md exists (fix documented)
+2. test-results.json shows status=pass
+
 ### Follow-up After Completion
 After a recipe reaches `complete`, its deviation.md feeds the next cycle:
 - Not-implemented items → new recipe or manual fix
