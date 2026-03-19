@@ -142,7 +142,15 @@ If VERDICT is EXTEND DEBATE:
    - Use Skill("bts-debate") with this combined context as arguments
    - Save the follow-up debate in a new directory: `debates/{next-seq}-{topic}-followup/`
 
-## Step 5: Max Extensions Check
+5. **Re-evaluate**: After the follow-up debate concludes, go back to Step 1
+   and evaluate the NEW conclusion. This is a self-loop:
+   ```
+   adjudicate → EXTEND → prep → debate → adjudicate (re-evaluate) → ACCEPT or EXTEND again
+   ```
+   Do NOT exit adjudicate after kicking off a debate. Wait for the debate to
+   finish, then re-evaluate its conclusion before returning a final verdict.
+
+## Step 6: Max Extensions Check
 
 Track extension count by counting follow-up debate directories in
 `.bts/state/recipes/{id}/debates/` that contain "-followup" in their name.

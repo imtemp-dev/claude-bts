@@ -176,8 +176,8 @@ Review task status:
   - If [2] → reset retry_count, set status to `pending`, go back to Step 3
   - If [3] → stop and report details
 
-> **Checkpoint**: Implementation tasks complete. Consider `/clear` before testing
-> to free context for test generation. Work state is saved automatically.
+> **Checkpoint**: Implementation tasks complete. Proceed directly to testing
+> if context window has room. Only `/clear` if context is above 80%.
 
 ## Step 5: Test
 
