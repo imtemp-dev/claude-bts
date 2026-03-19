@@ -63,20 +63,16 @@ curl -fsSL https://raw.githubusercontent.com/jlim/bts/main/install.sh | bash
 # Or build from source (Go 1.22+)
 git clone https://github.com/jlim/bts.git
 cd bts
-make install    # installs to ~/go/bin/bts
+make install    # installs to ~/.local/bin/bts
 ```
 
-PATH에 `~/go/bin`이 없으면 `.zshrc` 또는 `.bashrc`에 추가:
+PATH에 `~/.local/bin`이 없으면 `.zshrc` 또는 `.bashrc`에 추가:
 ```bash
-export PATH="$HOME/go/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
-업데이트도 동일:
+업데이트:
 ```bash
-# 릴리스 버전
-curl -fsSL https://raw.githubusercontent.com/jlim/bts/main/install.sh | bash
-
-# 소스에서
 git pull && make install
 ```
 

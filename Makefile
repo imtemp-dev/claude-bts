@@ -10,8 +10,10 @@ LDFLAGS := -ldflags "-s -w -X $(MODULE)/pkg/version.Version=$(VERSION) -X $(MODU
 build: ## Build the binary
 	go build $(LDFLAGS) -o bin/$(BINARY_NAME) ./cmd/bts
 
-install: ## Install to GOPATH/bin
-	go install $(LDFLAGS) ./cmd/bts
+install: build ## Install to ~/.local/bin
+	@mkdir -p $(HOME)/.local/bin
+	cp bin/$(BINARY_NAME) $(HOME)/.local/bin/$(BINARY_NAME)
+	@echo "Installed to ~/.local/bin/$(BINARY_NAME) ($(VERSION) $(COMMIT))"
 
 test: ## Run tests
 	go test -race ./...
