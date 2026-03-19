@@ -80,7 +80,7 @@ DocumentEntry optional fields:
 
 Required fields:
 - `id` (string): unique recipe identifier
-- `type` (string): "analyze", "design", or "blueprint"
+- `type` (string): "analyze", "design", "blueprint", or "fix"
 - `topic` (string): what the recipe is about
 - `phase` (string): current phase — "scoping", "research", "draft", "assess", "improve", "verify", "debate", "simulate", "audit", "finalize", "cancelled", "implement", "test", "sync", "status", "complete"
 - `iteration` (number): current verify iteration count
@@ -88,6 +88,20 @@ Required fields:
 - `level` (number): assessed document level 0.0-3.0
 - `started_at` (string): ISO 8601 timestamp
 - `updated_at` (string): ISO 8601 timestamp
+
+Optional fields:
+- `ref_recipe` (string): referenced recipe ID (for fix recipes that reference the original)
+
+## diagnosis.md (fix recipe)
+
+Located at `.bts/state/recipes/{id}/diagnosis.md`. Markdown format with sections:
+Symptom, Reproduction, Root Cause, Affected Files, Impact, Related Recipe.
+
+## fix-spec.md (fix recipe)
+
+Located at `.bts/state/recipes/{id}/fix-spec.md`. Markdown format with sections:
+Current Behavior, Expected Behavior, Changes (per file: function, current, fixed, rationale),
+Edge Cases, Regression Test.
 
 ## changelog.jsonl
 

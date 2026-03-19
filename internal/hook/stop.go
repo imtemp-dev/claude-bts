@@ -32,6 +32,11 @@ func (h *stopHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return &HookOutput{}, nil
 	}
 
+	// Check for fix completion marker
+	if strings.Contains(input.StopHookContent, "<bts>FIX DONE</bts>") {
+		return h.handleFixDone(btsRoot, recipe)
+	}
+
 	// Check for implementation completion marker
 	if strings.Contains(input.StopHookContent, "<bts>IMPLEMENT DONE</bts>") {
 		return h.handleImplementDone(btsRoot, recipe)
@@ -132,6 +137,34 @@ func (h *stopHandler) handleImplementDone(btsRoot string, recipe *state.RecipeSt
 	// deviation.md content is a REPORT, not a gate.
 	// Deviations and not-implemented items become follow-up work,
 	// not blockers for the current recipe's completion.
+
+	// All clear — mark as complete
+	recipe.Phase = "complete"
+	_ = state.SaveRecipeState(btsRoot, recipe)
+
+	return &HookOutput{}, nil
+}
+
+// handleFixDone validates fix recipe completion via fix-spec.md + test-results.json.
+func (h *stopHandler) handleFixDone(btsRoot string, recipe *state.RecipeState) (*HookOutput, error) {
+	// 1. Check fix-spec.md exists
+	fixSpecPath := filepath.Join(state.RecipeDir(btsRoot, recipe.ID), "fix-spec.md")
+	if _, err := os.Stat(fixSpecPath); os.IsNotExist(err) {
+		return blockOutput("No fix-spec.md found. Create fix spec before completing."), nil
+	}
+
+	// 2. Check test-results.json
+	testResults, err := state.LoadTestResults(btsRoot, recipe.ID)
+	if err != nil {
+		return blockOutput("No test-results.json found. Run tests before completing fix."), nil
+	}
+
+	if testResults.Status != "pass" {
+		return blockOutput(fmt.Sprintf(
+			"Tests not passing: %d failed out of %d. Fix and re-test.",
+			testResults.Failed, testResults.Total,
+		)), nil
+	}
 
 	// All clear — mark as complete
 	recipe.Phase = "complete"

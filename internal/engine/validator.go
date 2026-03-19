@@ -98,7 +98,7 @@ func validateRecipeJSON(path string) []ValidationError {
 
 	// Validate type enum
 	if t, ok := raw["type"].(string); ok {
-		valid := map[string]bool{"analyze": true, "design": true, "blueprint": true}
+		valid := map[string]bool{"analyze": true, "design": true, "blueprint": true, "fix": true}
 		if !valid[t] {
 			errs = append(errs, ValidationError{File: "recipe.json", Field: "type", Message: fmt.Sprintf("invalid value '%s', must be analyze/design/blueprint", t)})
 		}

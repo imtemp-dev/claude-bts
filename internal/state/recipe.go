@@ -18,6 +18,7 @@ type RecipeState struct {
 	Level        float64 `json:"level"`         // assessed document level (0.0 ~ 3.0)
 	StartedAt    string  `json:"started_at"`
 	UpdatedAt    string  `json:"updated_at"`
+	RefRecipe    string  `json:"ref_recipe,omitempty"` // referenced recipe ID (for fix recipes)
 }
 
 // TaskState represents the tasks.json file for implementation tracking.
