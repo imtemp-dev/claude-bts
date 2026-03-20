@@ -119,7 +119,7 @@ Each line is a JSON object:
 
 Required fields:
 - `time` (string): ISO 8601 timestamp. **Key name is "time", not "timestamp".**
-- `action` (string): one of "research", "draft", "improve", "verify", "debate", "simulate", "audit", "assess", "sync-check", "finalize", "implement", "test", "sync", "status", "adjudicate"
+- `action` (string): one of "research", "draft", "improve", "verify", "debate", "simulate", "audit", "assess", "sync-check", "finalize", "implement", "test", "sync", "status", "adjudicate", "review"
 
 Optional fields:
 - `input` (string): what was acted on

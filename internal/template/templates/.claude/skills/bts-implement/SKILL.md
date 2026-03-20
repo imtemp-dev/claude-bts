@@ -202,6 +202,9 @@ for the list of implemented files.
 - Report: "Tests failed. Fix implementation and re-run /implement {id} to retry from Step 5."
 - The recipe stays in phase "test" for resume.
 
+> After tests pass, consider running `/bts-review` for code quality check.
+> Optional but recommended. Use `/bts-review security` for security-focused review.
+
 ## Step 6: Sync
 
 Always run sync (even if deviation.md exists from a previous run — code may have

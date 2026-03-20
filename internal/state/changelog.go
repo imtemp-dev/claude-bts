@@ -8,7 +8,7 @@ import (
 // ChangelogEntry records one action in the recipe evolution.
 type ChangelogEntry struct {
 	Timestamp    string   `json:"time"`
-	Action       string   `json:"action"`               // research, draft, improve, verify, debate, simulate, audit, assess, sync-check, finalize, implement, test, sync, status, adjudicate
+	Action       string   `json:"action"`               // research, draft, improve, verify, debate, simulate, audit, assess, sync-check, finalize, implement, test, sync, status, adjudicate, review
 	Input        string   `json:"input,omitempty"`       // what was acted on
 	Output       string   `json:"output,omitempty"`      // what was produced
 	BasedOn      []string `json:"based_on,omitempty"`    // dependencies
