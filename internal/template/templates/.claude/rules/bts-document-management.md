@@ -91,4 +91,5 @@ diagnosis.md                      # Bug fix: symptom, root cause, impact
 fix-spec.md                       # Bug fix: change specification
 review.md                         # Code review findings report
 perspectives.md                   # Debug: multi-perspective analysis
+architecture.md                   # System architecture (auto-synced by /status)
 ```

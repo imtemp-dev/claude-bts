@@ -170,9 +170,11 @@ bts recipe log {id} --phase test --action test --output test-results.json --resu
 ## Step 8: Complete
 
 When tests pass:
-- Verify fix-spec.md exists
-- Verify test-results.json shows pass
-- Output `<bts>FIX DONE</bts>`
+1. Run Skill("bts-status") with arguments: {id}
+   This updates project-status.md and architecture.md with the fix changes.
+2. Verify fix-spec.md exists
+3. Verify test-results.json shows pass
+4. Output `<bts>FIX DONE</bts>`
 
 The original recipe's final.md is NOT modified. fix-spec.md is the
 independent record of what was changed and why. Project history:

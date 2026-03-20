@@ -76,15 +76,17 @@ bts recipe log {id} --phase scoping
 
 **1. Analyze the request**: Parse the feature description. Identify ambiguities.
 
-**2. Scan existing context**: Quick codebase scan AND recipe history:
-   - Current tech stack (language, framework, dependencies)
-   - Existing patterns and conventions
-   - Related code that already exists
-   - **Previous recipes**: List `.bts/state/recipes/` directories.
-     For each completed recipe, read its scope.md to understand what
-     was already built. Previous final.md files contain design decisions
-     that should inform this new feature's scope. If deviation.md has
-     follow-up items relevant to this feature, note them.
+**2. Scan existing context**:
+   - **Read architecture.md** (at `.bts/state/architecture.md`) for the
+     current system overview: tech stack, file structure, data model,
+     API endpoints, key patterns. This is the single-document view of
+     the entire project — read this instead of N individual final.md files.
+   - If architecture.md is stale (completed recipes not in its synced list)
+     → update it first by running `/bts-status`.
+   - If architecture.md doesn't exist but code exists → create it via `/bts-status`.
+   - Scan codebase for anything architecture.md might have missed
+     (manual changes outside bts)
+   - Check recent deviation.md files for follow-up items relevant to this feature
 
 **3. Propose scope**: Present to the user:
    ```

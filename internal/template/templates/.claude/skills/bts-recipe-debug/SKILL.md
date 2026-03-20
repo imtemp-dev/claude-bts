@@ -49,10 +49,12 @@ Map all modules/functions involved in the failing path:
 - Identify any recently changed dependencies
 
 ### 1.3 Design Intent
-Read the original recipe's final.md (if exists):
-- What was the INTENDED behavior?
-- How does the spec describe this functionality?
-- Where does actual behavior diverge from spec?
+Read `.bts/state/architecture.md` for the system-wide view (how modules
+connect, overall structure). Then read the specific recipe's final.md
+(via ref_recipe) for the detailed design of the affected feature.
+- architecture.md: overall structure, module relationships
+- final.md: specific feature's intended behavior
+- Where does actual behavior diverge from the design?
 
 ### 1.4 Runtime Context
 Check the execution environment:
