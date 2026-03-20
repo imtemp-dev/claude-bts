@@ -58,7 +58,12 @@ ASSESS determines what to do next based on the document's current state.
 3. Append to `changelog.jsonl` (use key `"time"`, not `"timestamp"`)
 4. Run `bts validate` to verify
 5. Run /verify on the new version
-6. Run /assess to determine the next action
+6. Record verify results to verify-log:
+   ```bash
+   bts recipe log {id} --iteration N --critical X --major Y --minor Z
+   ```
+   This writes to verify-log.jsonl which the stop hook checks at completion.
+7. Run /assess to determine the next action
 
 **Refer to `.claude/rules/bts-schema.md` for exact JSON field names, types, and structures.**
 
