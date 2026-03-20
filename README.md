@@ -25,8 +25,12 @@ Iterate on the **document**, not the code. Documents are free to change — no b
   → Scoping → Research → Draft → Verify Loop → Simulate → Debate → Finalize
   → /implement → Build Loop → /test → /sync → Complete
 
-/recipe fix "bug description"
+/recipe fix "known bug"
   → Diagnose → Fix Spec → Simulate → Expert Review → Verify → Implement → Test → Complete
+
+/recipe debug "unknown symptom"
+  → 6 Perspectives → Cross-Reference → Hypothesis → Simulate → Debate → Verify
+  → /implement → Test → Sync → Complete
 ```
 
 bts covers **Planning → Build → Verify** as a single automated pipeline.
@@ -56,7 +60,6 @@ git pull && make install
 버전 확인:
 ```bash
 bts --version
-# bts v0.1.0 (commit: abc1234, date: 2026-03-20T10:00:00Z)
 ```
 
 ## Quick Start
@@ -71,13 +74,18 @@ claude
 # Create a bulletproof spec
 /recipe blueprint "add OAuth2 authentication"
 
-# Fix a bug (lightweight)
+# Fix a known bug
 /recipe fix "login bcrypt hash comparison fails"
 
-# Or use individual skills
-/bts-verify docs/spec.md
-/bts-simulate docs/spec.md
-/bts-debate "Redis vs Memcached for session store"
+# Debug an unknown issue
+/recipe debug "session drops after 5 minutes"
+
+# Review code quality
+/bts-review
+/bts-review security src/auth/
+
+# Check project health
+bts doctor
 ```
 
 ## Recipes
@@ -87,7 +95,8 @@ claude
 | `/recipe analyze` | Understand existing system | Level 1 analysis doc |
 | `/recipe design` | Design a feature | Level 2 design doc |
 | `/recipe blueprint` | Full implementation spec | Level 3 spec → code → tests |
-| `/recipe fix` | Bug diagnosis and fix | Fix spec → code → tests |
+| `/recipe fix` | Known bug fix (lightweight) | Fix spec → code → tests |
+| `/recipe debug` | Unknown bug investigation | 6-perspective analysis → spec → code |
 
 ### Blueprint Flow
 
@@ -105,45 +114,45 @@ Scoping (user alignment)
   → Complete
 ```
 
-### Fix Flow
+### Debug Flow
 
 ```
-Diagnose (root cause analysis)
-  → Fix Spec (document-first change description)
-  → Simulate (impact analysis)
-  → Expert Review (1-round debate)
-  → Verify Loop
-  → Implement (direct code fix)
-  → Test (existing + regression)
-  → Complete
+Collect 6 Perspectives:
+  Data Flow │ Dependencies │ Design Intent
+  Runtime Context │ Change History │ Impact Map
+  → Cross-reference → Ranked hypotheses
+  → Fix spec draft → Simulate → Debate → Verify
+  → /implement → Test → Sync → Complete
 ```
 
-## Skills (17)
+## Skills (19)
 
 | Category | Skills |
 |----------|--------|
-| **Recipes** | blueprint, design, analyze, fix |
+| **Recipes** | blueprint, design, analyze, fix, debug |
 | **Verification** | verify, cross-check, audit, assess, sync-check |
 | **Analysis** | research, simulate, debate, adjudicate |
 | **Implementation** | implement, test, sync, status |
+| **Quality** | review (basic / security / performance / patterns) |
 
 ## Architecture
 
 ```
 Go binary (bts)                    Claude Code
-├── bts init        deploy →       .claude/skills/     (17 skills)
+├── bts init        deploy →       .claude/skills/     (19 skills)
 ├── bts validate    schema →       .claude/agents/     (3 agents)
-├── bts hook        lifecycle      .claude/hooks/      (6 hooks)
-├── bts recipe      state mgmt    .claude/rules/      (6 rules)
-├── bts statusline  display       .claude/commands/    (1 dispatcher)
-└── bts debate      state mgmt    .mcp.json           (Context7)
+├── bts doctor      health →       .claude/hooks/      (6 hooks)
+├── bts hook        lifecycle      .claude/rules/      (6 rules)
+├── bts recipe      state mgmt    .claude/commands/    (1 dispatcher)
+├── bts statusline  display       .mcp.json           (Context7)
+└── bts debate      state mgmt    .bts/status_line.sh (statusline)
 ```
 
 ### Hooks
 
 | Hook | Purpose |
 |------|---------|
-| session-start | Context injection (source-aware: resume/compact/startup) |
+| session-start | Source-aware context injection (resume/compact/startup) |
 | pre-compact | Work state snapshot before context compaction |
 | session-end | Work state persistence for cross-session resume |
 | stop | Completion gates (DONE / IMPLEMENT DONE / FIX DONE) |
@@ -157,6 +166,14 @@ bts v0.1.0 │ JWT auth │ implement 3/5 │ ctx 60%
 bts v0.1.0 │ bcrypt fix │ test │ ctx 30%
 ```
 
+### Project Map
+
+Lightweight project overview, auto-synced on recipe completion:
+```
+.bts/state/project-map.md     — Level 0: layer paths + build/test commands
+.bts/state/layers/{name}.md   — Level 1: on-demand detail per layer
+```
+
 ## Key Principles
 
 - **Document first**: Iterate on the spec, not the code
@@ -164,11 +181,13 @@ bts v0.1.0 │ bcrypt fix │ test │ ctx 30%
 - **Context as glue**: Skills provide situational awareness, not rigid rules
 - **Deviation = follow-up**: Spec-code differences are reports, not gates
 - **Crash resilient**: Work state persists via tasks.json + work-state.json
+- **Hierarchical map**: Lightweight project overview, detail on demand
 
 ## CLI
 
 ```
 bts init [dir]              Initialize project
+bts doctor [recipe-id]      Recipe health check (documents, manifest, flow)
 bts validate [recipe-id]    Check JSON schema compliance
 bts recipe status           Show active recipe
 bts recipe list             All recipes
