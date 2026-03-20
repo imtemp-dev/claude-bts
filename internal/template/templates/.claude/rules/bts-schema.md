@@ -80,7 +80,7 @@ DocumentEntry optional fields:
 
 Required fields:
 - `id` (string): unique recipe identifier
-- `type` (string): "analyze", "design", "blueprint", or "fix"
+- `type` (string): "analyze", "design", "blueprint", "fix", or "debug"
 - `topic` (string): what the recipe is about
 - `phase` (string): current phase — "scoping", "research", "draft", "assess", "improve", "verify", "debate", "simulate", "audit", "finalize", "cancelled", "implement", "test", "sync", "status", "complete"
 - `iteration` (number): current verify iteration count
