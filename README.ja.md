@@ -3,23 +3,19 @@
 [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md)
 
 ```
-  ╔══════════════════════════════════════════════════════════════════╗
-  ║                                                                  ║
-  ║   🔄 ラルフモード              📋 リサモード                     ║
-  ║                                                                  ║
-  ║   コード → 失敗                仕様 → 検証                      ║
-  ║     → コード → 失敗              → 仕様 → 検証                  ║
-  ║       → コード → 失敗              → 仕様 → 検証                ║
-  ║         → コード → 失敗              → 完璧な仕様               ║
-  ║           → ...                        → コード                 ║
-  ║             → 動く？                     → 動く。初回で。       ║
-  ║                                                                  ║
-  ║   コードをループ（高コスト）    ドキュメントをループ（ゼロコスト）║
-  ║   ビルド、テスト、副作用        ビルドなし、テストなし、コストなし║
-  ║                                                                  ║
-  ║                  btsはリサモードです。                            ║
-  ║                                                                  ║
-  ╚══════════════════════════════════════════════════════════════════╝
+    Ralph Mode                    Lisa Mode
+    ----------                    ---------
+    code -> fail                  spec -> verify
+      -> code -> fail               -> spec -> verify
+        -> code -> fail               -> spec -> verify
+          -> code -> fail               -> bulletproof spec
+            -> ...                        -> code
+              -> works?                     -> works. first try.
+
+    Loop the CODE (expensive)     Loop the DOCS (free)
+    builds, tests, side effects   no builds, no tests, no cost
+
+                      bts is Lisa Mode.
 ```
 
 > **ラルフはコードをループする。リサはドキュメントをループする。**

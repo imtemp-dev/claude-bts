@@ -3,23 +3,19 @@
 [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md)
 
 ```
-  ╔══════════════════════════════════════════════════════════════════╗
-  ║                                                                  ║
-  ║   🔄 Ralph 模式              📋 Lisa 模式                       ║
-  ║                                                                  ║
-  ║   代码 → 失败                 规范 → 验证                       ║
-  ║     → 代码 → 失败               → 规范 → 验证                  ║
-  ║       → 代码 → 失败               → 规范 → 验证                ║
-  ║         → 代码 → 失败               → 完美规范                 ║
-  ║           → ...                        → 代码                  ║
-  ║             → 能行？                     → 行了。一次搞定。    ║
-  ║                                                                  ║
-  ║   循环代码（成本高）           循环文档（零成本）                ║
-  ║   构建、测试、副作用           无构建、无测试、无成本            ║
-  ║                                                                  ║
-  ║                  bts 就是 Lisa 模式。                             ║
-  ║                                                                  ║
-  ╚══════════════════════════════════════════════════════════════════╝
+    Ralph Mode                    Lisa Mode
+    ----------                    ---------
+    code -> fail                  spec -> verify
+      -> code -> fail               -> spec -> verify
+        -> code -> fail               -> spec -> verify
+          -> code -> fail               -> bulletproof spec
+            -> ...                        -> code
+              -> works?                     -> works. first try.
+
+    Loop the CODE (expensive)     Loop the DOCS (free)
+    builds, tests, side effects   no builds, no tests, no cost
+
+                      bts is Lisa Mode.
 ```
 
 > **Ralph 循环代码。Lisa 循环文档。**

@@ -3,23 +3,19 @@
 [English](README.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
 ```
-  ╔══════════════════════════════════════════════════════════════════╗
-  ║                                                                  ║
-  ║   🔄 랄프 모드                📋 리사 모드                       ║
-  ║                                                                  ║
-  ║   코드 → 실패                 스펙 → 검증                       ║
-  ║     → 코드 → 실패               → 스펙 → 검증                  ║
-  ║       → 코드 → 실패               → 스펙 → 검증                ║
-  ║         → 코드 → 실패               → 완벽한 스펙              ║
-  ║           → ...                        → 코드                  ║
-  ║             → 될까?                      → 된다. 첫 시도에.    ║
-  ║                                                                  ║
-  ║   코드를 루프 (비용 높음)      문서를 루프 (비용 제로)           ║
-  ║   빌드, 테스트, 부작용         빌드 없음, 테스트 없음, 비용 없음 ║
-  ║                                                                  ║
-  ║                  bts는 리사 모드입니다.                           ║
-  ║                                                                  ║
-  ╚══════════════════════════════════════════════════════════════════╝
+    Ralph Mode                    Lisa Mode
+    ----------                    ---------
+    code -> fail                  spec -> verify
+      -> code -> fail               -> spec -> verify
+        -> code -> fail               -> spec -> verify
+          -> code -> fail               -> bulletproof spec
+            -> ...                        -> code
+              -> works?                     -> works. first try.
+
+    Loop the CODE (expensive)     Loop the DOCS (free)
+    builds, tests, side effects   no builds, no tests, no cost
+
+                      bts is Lisa Mode.
 ```
 
 > **랄프는 코드를 루프한다. 리사는 문서를 루프한다.**

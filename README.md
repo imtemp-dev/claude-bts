@@ -3,23 +3,19 @@
 [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
 ```
-  ╔══════════════════════════════════════════════════════════════════╗
-  ║                                                                  ║
-  ║   🔄 Ralph Mode              📋 Lisa Mode                       ║
-  ║                                                                  ║
-  ║   code → fail                spec → verify                      ║
-  ║     → code → fail              → spec → verify                  ║
-  ║       → code → fail              → spec → verify                ║
-  ║         → code → fail              → bulletproof spec           ║
-  ║           → ...                      → code                    ║
-  ║             → works?                   → works. first try.     ║
-  ║                                                                  ║
-  ║   Loop the CODE (expensive)   Loop the DOCS (free)              ║
-  ║   builds, tests, side effects   no builds, no tests, no cost    ║
-  ║                                                                  ║
-  ║                  bts is Lisa Mode.                               ║
-  ║                                                                  ║
-  ╚══════════════════════════════════════════════════════════════════╝
+    Ralph Mode                    Lisa Mode
+    ----------                    ---------
+    code -> fail                  spec -> verify
+      -> code -> fail               -> spec -> verify
+        -> code -> fail               -> spec -> verify
+          -> code -> fail               -> bulletproof spec
+            -> ...                        -> code
+              -> works?                     -> works. first try.
+
+    Loop the CODE (expensive)     Loop the DOCS (free)
+    builds, tests, side effects   no builds, no tests, no cost
+
+                      bts is Lisa Mode.
 ```
 
 > **Ralph loops code. Lisa loops documents.**
