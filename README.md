@@ -20,17 +20,35 @@ Iterate on the **document**, not the code. Documents are free to change — no b
 
 ## Full Lifecycle
 
+```mermaid
+flowchart LR
+    subgraph Blueprint
+        S["Scoping"] --> R["Research"] --> D["Draft"] --> V["Verify Loop"]
+        V --> SIM["Simulate"] --> DB["Debate"] --> F["Finalize"]
+    end
+    subgraph Implement
+        IMP["Implement"] --> T["Test"] --> SY["Sync"] --> ST["Status"]
+    end
+    F --> IMP
+    ST --> DONE["Complete"]
 ```
-/recipe blueprint "feature"
-  → Scoping → Research → Draft → Verify Loop → Simulate → Debate → Finalize
-  → /implement → Build Loop → /test → /sync → Complete
 
-/recipe fix "known bug"
-  → Diagnose → Fix Spec → Simulate → Expert Review → Verify → Implement → Test → Complete
+```mermaid
+flowchart LR
+    subgraph Fix
+        DG["Diagnose"] --> FS["Fix Spec"] --> SM["Simulate"]
+        SM --> ER["Expert Review"] --> VR["Verify"] --> IM["Implement"] --> TE["Test"]
+    end
+    TE --> FD["Complete"]
+```
 
-/recipe debug "unknown symptom"
-  → 6 Perspectives → Cross-Reference → Hypothesis → Simulate → Debate → Verify
-  → /implement → Test → Sync → Complete
+```mermaid
+flowchart LR
+    subgraph Debug
+        P["6 Perspectives"] --> CR["Cross-Reference"] --> HY["Hypothesis"]
+        HY --> S2["Simulate"] --> D2["Debate"] --> V2["Verify"] --> FM["final.md"]
+    end
+    FM --> IMP2["/implement"] --> DONE2["Complete"]
 ```
 
 bts covers **Planning → Build → Verify** as a single automated pipeline.
@@ -92,104 +110,93 @@ bts doctor
 
 How bts fits into a real development lifecycle:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    DEVELOPMENT LIFECYCLE                     │
-│                                                             │
-│  PLAN          BUILD           VERIFY          ITERATE      │
-│  ────          ─────           ──────          ───────      │
-│  blueprint     implement       test            fix (known)  │
-│  design        build loop      sync            debug (unknown)│
-│  analyze       scaffolding     review          new blueprint │
-│  scope+debate                  doctor                       │
-│                                                             │
-│  ◄──────────── bts covers ──────────────►                   │
-│                                              deploy/monitor │
-│                                              = out of scope │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph PLAN
+        blueprint
+        design
+        analyze
+        scope+debate
+    end
+    subgraph BUILD
+        implement
+        build_loop["build loop"]
+        scaffolding
+    end
+    subgraph VERIFY
+        test
+        sync
+        review
+        doctor
+    end
+    subgraph ITERATE
+        fix["fix (known)"]
+        debug["debug (unknown)"]
+        new_bp["new blueprint"]
+    end
+
+    PLAN --> BUILD --> VERIFY --> ITERATE
+    ITERATE --> PLAN
 ```
 
 Typical project progression:
 
-```
-New Project
-  │
-  ├─ /recipe blueprint "Feature A" ──→ implement ──→ complete
-  │    scope → research → draft → verify loop → finalize
-  │
-  ├─ /recipe blueprint "Feature B" ──→ implement ──→ complete
-  │    reads project-map.md for existing context
-  │
-  ├─ /recipe fix "Bug in A" ──→ complete
-  │    diagnosis → fix-spec → test
-  │
-  ├─ /recipe debug "Unknown issue" ──→ implement ──→ complete
-  │    6 perspectives → root cause → fix spec
-  │
-  ├─ /bts-review security ──→ review.md
-  │
-  ├─ /recipe blueprint "Feature C" ──→ implement ──→ complete
-  │    project-map shows A + B + fixes
-  │
-  └─ bts doctor ──→ health check across all recipes
+```mermaid
+flowchart TD
+    NEW["New Project"] --> A["/recipe blueprint Feature A"]
+    A --> AC["complete"]
+    AC --> B["/recipe blueprint Feature B"]
+    B -->|"reads project-map.md"| BC["complete"]
+    BC --> FX["/recipe fix Bug in A"]
+    FX --> FXC["complete"]
+    FXC --> DBG["/recipe debug Unknown issue"]
+    DBG --> DC["complete"]
+    DC --> REV["/bts-review security"]
+    REV --> C["/recipe blueprint Feature C"]
+    C -->|"project-map shows A+B+fixes"| CC["complete"]
+    CC --> DOC["bts doctor — health check"]
 ```
 
 ## State Machine
 
-Recipe phase transitions:
+```mermaid
+stateDiagram-v2
+    [*] --> scoping
 
-```
-                    ┌──────────────────────────────────────────┐
-                    │           SPEC PHASE                     │
-                    │                                          │
- (start) ──→ scoping ──→ research ──→ draft ◄──┐              │
-                                        │       │              │
-                                        ▼       │              │
-                                   ┌─ verify ──┤              │
-                                   │    │       │              │
-                                   │    ▼       │              │
-                                   │  assess ───┤              │
-                                   │    │       │              │
-                                   │    ├─→ improve ──→ (back) │
-                                   │    ├─→ simulate           │
-                                   │    ├─→ debate             │
-                                   │    ├─→ audit              │
-                                   │    └─→ sync-check         │
-                                   │           │               │
-                                   │           ▼               │
-                                   │      finalize             │
-                                   └───────────┘               │
-                    └──────────────────────────────────────────┘
-                                        │
-                         <bts>DONE</bts> │ stop hook validates
-                                        ▼
-                    ┌──────────────────────────────────────────┐
-                    │         IMPLEMENT PHASE                   │
-                    │                                          │
-                    │  implement ──→ test ──→ sync ──→ status  │
-                    │  (task loop)  (fix loop) (compare)       │
-                    └──────────────────────────────────────────┘
-                                        │
-                    <bts>IMPLEMENT DONE</bts> │ stop hook validates
-                                        ▼
-                                    complete
-                                        │
-                                  (follow-up)
-                              ┌─────────┴─────────┐
-                              ▼                   ▼
-                         /recipe fix         /recipe debug
-                              │                   │
-                         <bts>FIX DONE</bts>      │
-                              ▼              (produces final.md)
-                          complete                │
-                                            /bts-implement
-                                                  │
-                                        <bts>IMPLEMENT DONE</bts>
-                                                  ▼
-                                              complete
-```
+    state "Spec Phase" as spec {
+        scoping --> research
+        research --> draft
+        draft --> verify
+        verify --> assess
+        assess --> improve : content missing
+        assess --> simulate : gaps may exist
+        assess --> debate : decision needed
+        assess --> audit : completeness uncertain
+        assess --> sync_check : Level 3 achieved
+        improve --> verify
+        simulate --> improve
+        debate --> improve
+        audit --> improve
+        sync_check --> finalize
+    }
 
-Terminal states: `complete`, `cancelled`
+    finalize --> implement : DONE (verify-log OK)
+
+    state "Implement Phase" as impl {
+        implement --> test
+        test --> sync
+        sync --> status
+    }
+
+    status --> complete : IMPLEMENT DONE
+
+    complete --> fix : follow-up (known bug)
+    complete --> debug : follow-up (unknown bug)
+
+    fix --> complete : FIX DONE
+    debug --> finalize_d : DONE
+    finalize_d --> implement
+```
 
 ### Stop Hook Gates
 
@@ -201,29 +208,28 @@ Terminal states: `complete`, `cancelled`
 
 ## Document Flow
 
-How documents are created and consumed across the lifecycle:
+```mermaid
+flowchart TD
+    subgraph Spec Phase
+        SC["scope.md"] --> RS["research/v1.md"]
+        RS --> DR["drafts/v1..vN.md"]
+        DR --> VF["verifications/"]
+        DR --> SM["simulations/"]
+        DR --> DB["debates/"]
+        DR --> FM["final.md"]
+    end
 
-```
-SPEC PHASE                          IMPLEMENT PHASE
-──────────                          ───────────────
+    subgraph Implement Phase
+        FM --> TK["tasks.json"]
+        TK --> CODE["code files"]
+        CODE --> TR["test-results.json"]
+        TR --> DV["deviation.md"]
+    end
 
-scope.md ──→ research/v1.md         final.md
-              │                       │
-              ▼                       ▼
-         drafts/v1.md ──→ v2 ──→ vN  tasks.json (decomposed)
-              │                       │
-              ▼                       ▼
-     verifications/vN.md            [code files created]
-     simulations/001.md               │
-     debates/001-topic/               ▼
-              │                   test-results.json
-              ▼                       │
-         final.md ─────────────→      ▼
-                                  deviation.md (report, not gate)
-                                      │
-                                      ▼
-                              project-status.md
-                              project-map.md
+    subgraph Project Level
+        DV --> PS["project-status.md"]
+        DV --> PM["project-map.md"]
+    end
 ```
 
 ### Project-level Documents
@@ -231,24 +237,12 @@ scope.md ──→ research/v1.md         final.md
 ```
 .bts/state/
 ├── project-map.md          Level 0: layer overview (~300 tokens)
-│                           Auto-synced on recipe completion
 ├── layers/{name}.md        Level 1: layer detail (on-demand)
-│                           Created when scoping needs it
 ├── project-status.md       Recipe status table + architecture
 └── recipes/
-    ├── r-1001/             Blueprint recipe
-    │   ├── scope.md
-    │   ├── final.md
-    │   ├── deviation.md    Follow-up items (not gate)
-    │   └── ...
-    ├── r-fix-1002/         Fix recipe
-    │   ├── diagnosis.md
-    │   ├── fix-spec.md
-    │   └── ...
-    └── r-debug-1003/       Debug recipe
-        ├── perspectives.md
-        ├── final.md
-        └── ...
+    ├── r-1001/             Blueprint: scope.md, final.md, deviation.md, ...
+    ├── r-fix-1002/         Fix: diagnosis.md, fix-spec.md, ...
+    └── r-debug-1003/       Debug: perspectives.md, final.md, ...
 ```
 
 ## Recipes
@@ -260,33 +254,6 @@ scope.md ──→ research/v1.md         final.md
 | `/recipe blueprint` | Full implementation spec | Level 3 spec → code → tests |
 | `/recipe fix` | Known bug fix (lightweight) | Fix spec → code → tests |
 | `/recipe debug` | Unknown bug investigation | 6-perspective analysis → spec → code |
-
-### Blueprint Flow
-
-```
-Scoping (user alignment)
-  → Research (codebase + Context7 + web)
-  → Draft + Self-Check
-  → Verify Loop (max 3 cycles)
-  → Simulate (scenarios, early after first critical=0)
-  → Debate + Adjudicate (if uncertain decisions)
-  → Finalize (Level 3 spec)
-  → Implement (task decomposition + build loop)
-  → Test (generate + run + fix loop)
-  → Sync (spec ↔ code comparison)
-  → Complete
-```
-
-### Debug Flow
-
-```
-Collect 6 Perspectives:
-  Data Flow │ Dependencies │ Design Intent
-  Runtime Context │ Change History │ Impact Map
-  → Cross-reference → Ranked hypotheses
-  → Fix spec draft → Simulate → Debate → Verify
-  → /implement → Test → Sync → Complete
-```
 
 ## Skills (19)
 
@@ -300,15 +267,29 @@ Collect 6 Perspectives:
 
 ## Architecture
 
-```
-Go binary (bts)                    Claude Code
-├── bts init        deploy →       .claude/skills/     (19 skills)
-├── bts validate    schema →       .claude/agents/     (3 agents)
-├── bts doctor      health →       .claude/hooks/      (6 hooks)
-├── bts hook        lifecycle      .claude/rules/      (6 rules)
-├── bts recipe      state mgmt    .claude/commands/    (1 dispatcher)
-├── bts statusline  display       .mcp.json           (Context7)
-└── bts debate      state mgmt    .bts/status_line.sh (statusline)
+```mermaid
+flowchart LR
+    subgraph Go["Go binary (bts)"]
+        init["bts init"]
+        validate["bts validate"]
+        doctor["bts doctor"]
+        hook["bts hook"]
+        recipe["bts recipe"]
+        statusline["bts statusline"]
+    end
+
+    subgraph CC["Claude Code"]
+        skills["19 skills"]
+        agents["3 agents"]
+        hooks["6 hooks"]
+        rules["6 rules"]
+        commands["1 dispatcher"]
+        mcp[".mcp.json (Context7)"]
+    end
+
+    init -->|"deploy"| CC
+    hook -->|"lifecycle"| CC
+    statusline -->|"display"| CC
 ```
 
 ### Hooks
