@@ -1,6 +1,6 @@
 # bts — 방탄 기술 사양
 
-[English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
+[English](README.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
 AI가 첫 번째 시도에서 동작하는 코드를 생성할 수 있도록 구현 스펙을 충분히 상세하게 만듭니다.
 

@@ -1,6 +1,6 @@
 # bts — 防弾技術仕様
 
-[English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
+[English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md)
 
 AIが初回で動作するコードを生成できるほど、実装仕様を詳細に作成します。
 

@@ -1,6 +1,6 @@
 # bts — 防弹技术规范
 
-[English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
+[English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md)
 
 让你的实现规范足够详细，使 AI 一次生成可运行的代码。
 
