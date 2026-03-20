@@ -80,7 +80,10 @@ bts recipe log {id} --phase scoping
    - **Read project-map.md** (at `.bts/state/project-map.md`) for the
      project layer overview: what layers exist, how to build/test each.
      If it doesn't exist but code exists, scan root to create it.
-     If it exists, verify layer paths still exist (quick check).
+     If it doesn't exist and no code exists, skip (new project).
+     If it exists, verify layer paths still exist (quick stat check).
+     If any layer path is missing or new directories found → re-scan root
+     to rebuild project-map.md before proceeding.
    - **Identify affected layers** for this feature
    - **Load affected layers' detail** from `.bts/state/layers/{name}.md`.
      If detail doesn't exist for a layer, scan that layer's code to create it.

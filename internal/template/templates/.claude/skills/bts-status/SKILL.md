@@ -122,7 +122,10 @@ packages/shared/   — Shared types, npm run build
 
 ### Level 1: layers/ (incremental)
 
-For layers changed by this recipe (check tasks.json file paths):
+For layers changed by this recipe:
+- If tasks.json exists: check file paths from tasks
+- If fix-spec.md exists (fix recipe): check Changes section for modified files
+- If neither: scan changelog.jsonl for implement actions with file references
 - Determine which layer each changed file belongs to
 - Scan that layer's source files
 - Update `.bts/state/layers/{layer-name}.md` with:

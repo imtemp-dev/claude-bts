@@ -36,9 +36,11 @@ Implement the spec for recipe: $ARGUMENTS
    - If phase is "sync" → skip to Step 6
    - If phase is "status" → skip to Step 7
 
-4. **Load design context**: Read scope.md for tech stack constraints
-   and assumptions. These guide build tool detection, dependency
-   installation, and implementation patterns.
+4. **Load design context**:
+   - Read scope.md for tech stack constraints and assumptions
+   - Read project-map.md (at `.bts/state/project-map.md`) for layer-specific
+     build and test commands. When implementing files across multiple layers,
+     use each layer's build command for verification (not a single global command).
 
 ## Resume Protocol
 
