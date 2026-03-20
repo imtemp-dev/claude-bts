@@ -128,7 +128,8 @@ For layers changed by this recipe:
 - If neither: scan changelog.jsonl for implement actions with file references
 - Determine which layer each changed file belongs to
 - Scan that layer's source files
-- Update `.bts/state/layers/{layer-name}.md` with:
+- Update `.bts/state/layers/{layer-name}.md` with
+  (naming: replace `/` with `-`, e.g., `services/api/` → `services-api.md`):
   - File structure (tree with one-line role descriptions)
   - Data models (if schema/model files exist)
   - API endpoints (if route files exist)

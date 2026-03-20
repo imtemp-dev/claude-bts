@@ -19,9 +19,10 @@ Debug through multi-perspective analysis: $ARGUMENTS
 Before starting:
 1. List `.bts/state/recipes/` → find related recipes (especially the one
    that built the affected code)
-2. Read related recipe's final.md → original design intent
-3. Check deviation.md → known spec-code differences
-4. Scan codebase for files likely related to the symptom
+2. Set `ref_recipe` in recipe.json to the most relevant recipe ID
+3. Read related recipe's final.md → original design intent
+4. Check deviation.md → known spec-code differences
+5. Scan codebase for files likely related to the symptom
 
 ## Resume Check
 

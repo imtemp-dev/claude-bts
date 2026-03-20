@@ -146,8 +146,10 @@ Classify, tag, and suggest fixes for each finding.
 ### Patterns Mode (`patterns`)
 
 ```
-You are a code patterns reviewer. Read the specified files AND scan the
-existing codebase for established patterns. Then check for:
+You are a code patterns reviewer. Read the specified files.
+If `.bts/state/layers/{name}.md` exists for the relevant layer,
+read its "Key Patterns" section for established conventions.
+Otherwise scan the existing codebase for patterns. Then check for:
 
 **Naming Conventions**
 - Variable/function/class naming consistency with rest of project
