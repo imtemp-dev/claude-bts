@@ -88,6 +88,169 @@ claude
 bts doctor
 ```
 
+## Development Process
+
+How bts fits into a real development lifecycle:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    DEVELOPMENT LIFECYCLE                     │
+│                                                             │
+│  PLAN          BUILD           VERIFY          ITERATE      │
+│  ────          ─────           ──────          ───────      │
+│  blueprint     implement       test            fix (known)  │
+│  design        build loop      sync            debug (unknown)│
+│  analyze       scaffolding     review          new blueprint │
+│  scope+debate                  doctor                       │
+│                                                             │
+│  ◄──────────── bts covers ──────────────►                   │
+│                                              deploy/monitor │
+│                                              = out of scope │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Typical project progression:
+
+```
+New Project
+  │
+  ├─ /recipe blueprint "Feature A" ──→ implement ──→ complete
+  │    scope → research → draft → verify loop → finalize
+  │
+  ├─ /recipe blueprint "Feature B" ──→ implement ──→ complete
+  │    reads project-map.md for existing context
+  │
+  ├─ /recipe fix "Bug in A" ──→ complete
+  │    diagnosis → fix-spec → test
+  │
+  ├─ /recipe debug "Unknown issue" ──→ implement ──→ complete
+  │    6 perspectives → root cause → fix spec
+  │
+  ├─ /bts-review security ──→ review.md
+  │
+  ├─ /recipe blueprint "Feature C" ──→ implement ──→ complete
+  │    project-map shows A + B + fixes
+  │
+  └─ bts doctor ──→ health check across all recipes
+```
+
+## State Machine
+
+Recipe phase transitions:
+
+```
+                    ┌──────────────────────────────────────────┐
+                    │           SPEC PHASE                     │
+                    │                                          │
+ (start) ──→ scoping ──→ research ──→ draft ◄──┐              │
+                                        │       │              │
+                                        ▼       │              │
+                                   ┌─ verify ──┤              │
+                                   │    │       │              │
+                                   │    ▼       │              │
+                                   │  assess ───┤              │
+                                   │    │       │              │
+                                   │    ├─→ improve ──→ (back) │
+                                   │    ├─→ simulate           │
+                                   │    ├─→ debate             │
+                                   │    ├─→ audit              │
+                                   │    └─→ sync-check         │
+                                   │           │               │
+                                   │           ▼               │
+                                   │      finalize             │
+                                   └───────────┘               │
+                    └──────────────────────────────────────────┘
+                                        │
+                         <bts>DONE</bts> │ stop hook validates
+                                        ▼
+                    ┌──────────────────────────────────────────┐
+                    │         IMPLEMENT PHASE                   │
+                    │                                          │
+                    │  implement ──→ test ──→ sync ──→ status  │
+                    │  (task loop)  (fix loop) (compare)       │
+                    └──────────────────────────────────────────┘
+                                        │
+                    <bts>IMPLEMENT DONE</bts> │ stop hook validates
+                                        ▼
+                                    complete
+                                        │
+                                  (follow-up)
+                              ┌─────────┴─────────┐
+                              ▼                   ▼
+                         /recipe fix         /recipe debug
+                              │                   │
+                         <bts>FIX DONE</bts>      │
+                              ▼              (produces final.md)
+                          complete                │
+                                            /bts-implement
+                                                  │
+                                        <bts>IMPLEMENT DONE</bts>
+                                                  ▼
+                                              complete
+```
+
+Terminal states: `complete`, `cancelled`
+
+### Stop Hook Gates
+
+| Marker | Validates | Sets phase |
+|--------|-----------|------------|
+| `<bts>DONE</bts>` | verify-log: critical=0, major=0 | → finalize |
+| `<bts>IMPLEMENT DONE</bts>` | tasks done + tests pass + deviation.md exists | → complete |
+| `<bts>FIX DONE</bts>` | fix-spec.md exists + tests pass | → complete |
+
+## Document Flow
+
+How documents are created and consumed across the lifecycle:
+
+```
+SPEC PHASE                          IMPLEMENT PHASE
+──────────                          ───────────────
+
+scope.md ──→ research/v1.md         final.md
+              │                       │
+              ▼                       ▼
+         drafts/v1.md ──→ v2 ──→ vN  tasks.json (decomposed)
+              │                       │
+              ▼                       ▼
+     verifications/vN.md            [code files created]
+     simulations/001.md               │
+     debates/001-topic/               ▼
+              │                   test-results.json
+              ▼                       │
+         final.md ─────────────→      ▼
+                                  deviation.md (report, not gate)
+                                      │
+                                      ▼
+                              project-status.md
+                              project-map.md
+```
+
+### Project-level Documents
+
+```
+.bts/state/
+├── project-map.md          Level 0: layer overview (~300 tokens)
+│                           Auto-synced on recipe completion
+├── layers/{name}.md        Level 1: layer detail (on-demand)
+│                           Created when scoping needs it
+├── project-status.md       Recipe status table + architecture
+└── recipes/
+    ├── r-1001/             Blueprint recipe
+    │   ├── scope.md
+    │   ├── final.md
+    │   ├── deviation.md    Follow-up items (not gate)
+    │   └── ...
+    ├── r-fix-1002/         Fix recipe
+    │   ├── diagnosis.md
+    │   ├── fix-spec.md
+    │   └── ...
+    └── r-debug-1003/       Debug recipe
+        ├── perspectives.md
+        ├── final.md
+        └── ...
+```
+
 ## Recipes
 
 | Recipe | Purpose | Output |
