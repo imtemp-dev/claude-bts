@@ -65,17 +65,17 @@ cd bts
 make install    # installs to ~/.local/bin/bts
 ```
 
-PATH에 `~/.local/bin`이 없으면 `.zshrc` 또는 `.bashrc`에 추가:
+If `~/.local/bin` is not in your PATH, add it to `.zshrc` or `.bashrc`:
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-업데이트:
+Update:
 ```bash
 git pull && make install
 ```
 
-버전 확인:
+Check version:
 ```bash
 bts --version
 ```
