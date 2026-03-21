@@ -2,9 +2,14 @@ package hook
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jlim/bts/internal/state"
+	"github.com/jlim/bts/internal/template"
+	"github.com/jlim/bts/pkg/version"
 )
 
 type sessionStartHandler struct{}
@@ -22,6 +27,9 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 	if err != nil {
 		return &HookOutput{}, nil
 	}
+
+	// Auto-update templates if binary version changed
+	autoUpdateTemplates(btsRoot)
 
 	// Try to load work state for rich context recovery
 	ws, _ := state.LoadWorkState(btsRoot)
@@ -110,6 +118,37 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 			AdditionalContext: msg,
 		},
 	}, nil
+}
+
+// autoUpdateTemplates checks if templates need updating and deploys if so.
+func autoUpdateTemplates(btsRoot string) {
+	versionFile := filepath.Join(btsRoot, ".bts", "config", ".template-version")
+	existing, _ := os.ReadFile(versionFile)
+
+	current := templateVersionString()
+
+	if strings.TrimSpace(string(existing)) == current {
+		return // same version, skip
+	}
+
+	// Deploy templates (overwrite all except user config files)
+	_, _ = template.DeployForce(btsRoot, []string{
+		".bts/config/settings.yaml",
+		".mcp.json",
+	})
+
+	// Record new version
+	_ = os.WriteFile(versionFile, []byte(current), 0644)
+}
+
+// templateVersionString builds a version identifier for template tracking.
+func templateVersionString() string {
+	v := version.GetVersion()
+	c := version.Commit
+	if c != "none" && len(c) >= 7 {
+		return v + "-" + c[:7]
+	}
+	return v
 }
 
 // detectSource determines the session source.

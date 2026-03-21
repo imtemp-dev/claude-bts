@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/jlim/bts/internal/template"
+	"github.com/jlim/bts/pkg/version"
 	"github.com/spf13/cobra"
 )
 
@@ -58,10 +59,23 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Deploy templates
-	created, err := template.Deploy(absRoot)
+	skipFiles := []string{".bts/config/settings.yaml", ".mcp.json"}
+	var created []string
+	if force {
+		created, err = template.DeployForce(absRoot, skipFiles)
+	} else {
+		created, err = template.Deploy(absRoot)
+	}
 	if err != nil {
 		return fmt.Errorf("deploy templates: %w", err)
 	}
+
+	// Record template version
+	tv := version.GetVersion()
+	if version.Commit != "none" && len(version.Commit) >= 7 {
+		tv += "-" + version.Commit[:7]
+	}
+	_ = os.WriteFile(filepath.Join(absRoot, ".bts", "config", ".template-version"), []byte(tv), 0644)
 
 	// Merge statusline config into .claude/settings.local.json
 	if err := mergeStatusLineSettings(absRoot); err != nil {
