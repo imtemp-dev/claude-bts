@@ -5,7 +5,7 @@ description: >
   Basic review (all perspectives) by default, or focused review with category.
   Includes practical assessment of findings.
 user-invocable: true
-allowed-tools: Read Grep Glob Agent
+allowed-tools: Read Grep Glob Bash Agent AskUserQuestion
 argument-hint: "[security|performance|patterns] [file-path]"
 ---
 

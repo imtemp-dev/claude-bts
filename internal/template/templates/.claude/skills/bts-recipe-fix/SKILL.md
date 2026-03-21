@@ -17,9 +17,10 @@ Fix a bug through document-first diagnosis and verified implementation: $ARGUMEN
 
 Before starting, build situational awareness:
 1. List `.bts/state/recipes/` → find related recipes (especially completed ones)
-2. For each related recipe, read its final.md → understand design intent
-3. Check deviation.md → known issues that may be relevant
-4. Scan codebase for files mentioned in the bug report
+2. Set `ref_recipe` in recipe.json to the most relevant recipe ID
+3. For each related recipe, read its final.md → understand design intent
+4. Check deviation.md → known issues that may be relevant
+5. Scan codebase for files mentioned in the bug report
 
 ## Resume Check
 

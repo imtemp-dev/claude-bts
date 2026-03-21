@@ -193,6 +193,11 @@ Max `verify.max_iterations` (default: 3) → [CONVERGENCE FAILED] → ask user.
 bts recipe log {id} --phase verify --action verify
 ```
 
+Record verify results to verify-log (required for stop hook DONE gate):
+```bash
+bts recipe log {id} --iteration N --critical X --major Y --minor Z
+```
+
 ## Step 7: Finalize
 
 When verify shows critical=0, major=0:

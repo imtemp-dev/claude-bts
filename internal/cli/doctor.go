@@ -300,7 +300,7 @@ func checkManifestConsistency(recipeDir string, manifest *state.Manifest) []doct
 	// Known files on disk but not in manifest
 	knownFiles := []string{
 		"scope.md", "final.md", "tasks.json", "test-results.json",
-		"deviation.md", "diagnosis.md", "fix-spec.md", "perspectives.md",
+		"deviation.md", "diagnosis.md", "fix-spec.md", "perspectives.md", "review.md",
 	}
 	for _, name := range knownFiles {
 		fullPath := filepath.Join(recipeDir, name)
