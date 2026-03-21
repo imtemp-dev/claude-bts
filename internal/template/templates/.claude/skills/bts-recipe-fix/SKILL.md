@@ -111,7 +111,11 @@ Use Skill("bts-simulate") on fix-spec.md:
 bts recipe log {id} --phase simulate --action simulate
 ```
 
-## Step 4: Expert Review (1 round)
+## Settings
+
+Read `.bts/config/settings.yaml` for project-specific limits.
+
+## Step 4: Expert Review (`fix.debate_rounds`, default: 1 round)
 
 Run a focused 1-round review on fix-spec.md:
 
@@ -137,7 +141,7 @@ Run /verify on fix-spec.md:
 - Could the fix introduce new issues?
 
 If issues found → update fix-spec.md → re-verify.
-Max 3 iterations → [CONVERGENCE FAILED] → ask user.
+Max `verify.max_iterations` (default: 3) → [CONVERGENCE FAILED] → ask user.
 
 ```bash
 bts recipe log {id} --phase verify --action verify --result "critical=N, major=N"

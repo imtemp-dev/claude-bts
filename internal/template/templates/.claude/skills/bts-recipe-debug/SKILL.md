@@ -33,7 +33,9 @@ If active debug recipe found, read perspectives.md and current draft to resume.
 
 ## Step 1: Collect Perspectives
 
-Investigate the symptom from 6 angles. Create
+Read `.bts/config/settings.yaml` for project-specific limits.
+
+Investigate the symptom from `debug.perspective_count` (default: 6) angles. Create
 `.bts/state/recipes/{id}/perspectives.md`:
 
 ### 1.1 Data Flow Map
@@ -185,7 +187,7 @@ Run /bts-verify on the current draft:
 - Does the evidence support the conclusion?
 
 If issues found → update draft (new version) → re-verify.
-Max 3 iterations → [CONVERGENCE FAILED] → ask user.
+Max `verify.max_iterations` (default: 3) → [CONVERGENCE FAILED] → ask user.
 
 ```bash
 bts recipe log {id} --phase verify --action verify

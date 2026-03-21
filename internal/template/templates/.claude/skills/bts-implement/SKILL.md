@@ -12,6 +12,11 @@ argument-hint: "[recipe-id]"
 
 Implement the spec for recipe: $ARGUMENTS
 
+## Settings
+
+Read `.bts/config/settings.yaml` for project-specific limits.
+Use settings values if present, otherwise use defaults noted in each step.
+
 ## Prerequisites
 
 1. Verify final.md exists:
@@ -151,8 +156,8 @@ Run the project's build command:
    If the error message is substantially the same as the previous attempt →
    try a fundamentally different approach (different algorithm, different API, etc.)
    Do NOT repeat the same fix.
-3. Rebuild (check `retry_count` < 5)
-4. If retry_count reaches 5 → mark task as `blocked`, save error, move to next task
+3. Rebuild (check `retry_count` < `implement.max_build_retries` from settings, default: 5)
+4. If retry_count reaches the limit → mark task as `blocked`, save error, move to next task
 
 **If build passes:**
 - Update task status to `done`, clear `last_error`

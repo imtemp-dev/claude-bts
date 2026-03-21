@@ -13,6 +13,11 @@ argument-hint: "\"feature description\""
 
 Create a bulletproof implementation spec for: $ARGUMENTS
 
+## Settings
+
+Read `.bts/config/settings.yaml` for project-specific limits.
+Use settings values if present, otherwise use defaults noted in each step.
+
 ## Resume Check
 
 Before starting, check for an existing recipe:
@@ -228,8 +233,8 @@ This keeps session-start hints accurate if session breaks mid-loop.
 ### Quality Rules
 
 1. **Every document modification → /verify.** No exceptions.
-   **Max 3 consecutive IMPROVE→VERIFY cycles without level change.**
-   If 3 cycles pass and the level hasn't increased, report [CONVERGENCE FAILED]
+   **Max `verify.max_iterations` (default: 3) consecutive IMPROVE→VERIFY cycles without level change.**
+   If that many cycles pass and the level hasn't increased, report [CONVERGENCE FAILED]
    and ask the user for guidance. Check verify-log.jsonl iteration count.
 2. **Every debate conclusion → /adjudicate → if accepted → update draft → /verify.**
 3. **Every simulation gap found → update draft → /verify.**
@@ -257,7 +262,7 @@ When /assess recommends "Technical decision needed":
 ```
 
 The adjudicate step prevents poorly-supported conclusions from entering the spec.
-Max 3 debate extensions (3 original rounds + up to 3 additional rounds = 6 total).
+Max `debate.max_extensions` (default: 3) debate extensions.
 
 **Debate DEADLOCK handling:**
 If /debate reports [DEBATE DEADLOCK] instead of a conclusion:

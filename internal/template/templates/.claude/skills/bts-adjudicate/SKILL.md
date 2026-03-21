@@ -161,7 +161,7 @@ Track extension count by counting follow-up debate directories in
 Each follow-up debate = 1 extension. This count persists on disk and
 survives session breaks.
 
-If this is the 3rd extension (3 follow-up debates exist):
+If this is the `debate.max_extensions` (default: 3) extension:
 
 ```
 VERDICT: ACCEPT WITH RESERVATIONS

@@ -12,6 +12,10 @@ argument-hint: "[recipe-id]"
 
 Generate and run tests for recipe: $ARGUMENTS
 
+## Settings
+
+Read `.bts/config/settings.yaml` for project-specific limits.
+
 ## Prerequisites
 
 1. Verify tasks.json exists and implementation is done:
@@ -56,7 +60,7 @@ Test files go in the project's test directory (not in `.bts/`).
 
 Track failure history for oscillation detection.
 
-Repeat the following (max 5 iterations):
+Repeat the following (max `implement.max_test_iterations` from settings, default: 5):
 
 ### RUN
 Execute the test suite:

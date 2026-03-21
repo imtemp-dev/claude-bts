@@ -10,14 +10,17 @@ argument-hint: "\"topic to debate\""
 
 # Expert Debate
 
-Debate the given topic using 3 expert personas.
+Debate the given topic using expert personas.
+
+Read `.bts/config/settings.yaml` for `debate.expert_count` (default: 3)
+and `debate.rounds` (default: 3).
 
 ## Protocol
 
-You will play 3 expert roles sequentially. Each round, all 3 experts speak.
+You will play `debate.expert_count` expert roles sequentially. Each round, all experts speak.
 
 ### Setup
-Choose 3 relevant expert perspectives for the topic. Example:
+Choose relevant expert perspectives for the topic. Example:
 - For "OAuth2 vs JWT": Security Expert, Performance Expert, Operations Expert
 - For "SQL vs NoSQL": Data Architect, Scale Engineer, Developer Experience Expert
 - For "Monolith vs Microservices": System Architect, DevOps Engineer, Team Lead
@@ -32,7 +35,7 @@ Each expert responds to the others' positions. Point out weaknesses, ask questio
 Experts seek common ground. Propose a conclusion that addresses concerns from all sides.
 
 ### Decision
-After 3 rounds:
+After `debate.rounds` rounds:
 - If consensus: State the conclusion + conditions for revisiting
 - If deadlock: Report [DEBATE DEADLOCK] and ask the user for a decision
 

@@ -1,14 +1,47 @@
 # bts — Bulletproof Technical Specification
-# Project settings
+# Project-level settings. Skills read this file at startup and use
+# these values instead of defaults. Delete a setting to use the default.
 
-# Maximum verification iterations per recipe step
-max_iterations: 3
+# Verification
+verify:
+  max_iterations: 3              # Max IMPROVE→VERIFY cycles before CONVERGENCE FAILED
+  convergence:
+    require_zero_critical: true
+    require_zero_major: true
+    allow_minor: true
 
-# Severity threshold for convergence (critical and major must be 0)
-convergence:
-  require_zero_critical: true
-  require_zero_major: true
-  allow_minor: true
+# Debate
+debate:
+  rounds: 3                      # Rounds per debate (positions → rebuttals → synthesis)
+  max_extensions: 3              # Max adjudicate extensions before ACCEPT WITH RESERVATIONS
+  expert_count: 3                # Number of expert personas
+
+# Simulation
+simulate:
+  min_scenarios: 5               # Minimum scenarios to walk through
+
+# Implementation
+implement:
+  max_build_retries: 5           # Build retry attempts per task before marking blocked
+  max_test_iterations: 5         # Test fix-and-rerun loop max iterations
+
+# Fix recipe
+fix:
+  debate_rounds: 1               # Lighter debate for known bugs
+  simulate_scenarios: 3          # Fewer scenarios for focused fix
+
+# Debug recipe
+debug:
+  debate_rounds: 1               # Focused review, not full debate
+  perspective_count: 6           # Number of analysis perspectives
+
+# Resume
+resume:
+  changelog_tail: 5              # Number of recent changelog entries to read on resume
+
+# Context
+context:
+  clear_threshold: 80            # Suggest /clear when context usage exceeds this %
 
 # Privacy
 privacy:

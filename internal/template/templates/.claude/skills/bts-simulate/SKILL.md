@@ -16,7 +16,7 @@ Run scenarios against the spec to find what's missing or wrong.
 
 1. Read the target document fully.
 
-2. Design 5+ scenarios across these categories:
+2. Design `simulate.min_scenarios` (default: 5) or more scenarios across these categories:
    - **Happy path**: Normal successful flow end-to-end
    - **Error/failure**: What happens when things break? Network down? Invalid input? Timeout?
    - **Security**: What can a malicious user do? Injection? CSRF? Auth bypass?
