@@ -129,7 +129,8 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		issues = append(issues, checkDocuments(recipeDir, recipe)...)
 
 		manifest, _ := state.LoadManifest(btsRoot, recipe.ID)
-		issues = append(issues, checkManifestConsistency(recipeDir, manifest)...)
+		issues = append(issues, checkManifestConsistency(recipeDir, recipe.ID, manifest)...)
+		issues = append(issues, checkVerifyLog(recipeDir, recipe.ID)...)
 		issues = append(issues, checkFlowCompliance(recipeDir, recipe)...)
 
 		if len(issues) == 0 {
@@ -218,7 +219,7 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 		if pw >= 6 {
 			issues = append(issues, checkTestFile(recipeDir)...)
 		}
-		if pw >= 7 && !exists("review.md") {
+		if pw >= 8 && !exists("review.md") {
 			issues = append(issues, doctorIssue{"warning", "documents",
 				"review.md — missing",
 				"Run /bts-review to generate code review"})
@@ -241,7 +242,7 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 					"final.md — missing",
 					"Complete /bts-recipe-debug to produce final.md"})
 			}
-			issues = append(issues, checkVerifyLog(recipeDir)...)
+			// verify-log checked separately with recipe ID
 		}
 		if pw >= 5 {
 			issues = append(issues, checkTasks(recipeDir)...)
@@ -249,7 +250,7 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 		if pw >= 6 {
 			issues = append(issues, checkTestFile(recipeDir)...)
 		}
-		if pw >= 7 && !exists("review.md") {
+		if pw >= 8 && !exists("review.md") {
 			issues = append(issues, doctorIssue{"error", "documents",
 				"review.md — missing",
 				"Run /bts-review to generate code review"})
@@ -280,7 +281,7 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 					"final.md — missing",
 					fmt.Sprintf("Complete /bts-recipe-%s to produce final.md", recipe.Type)})
 			}
-			issues = append(issues, checkVerifyLog(recipeDir)...)
+			// verify-log checked separately with recipe ID
 		}
 		if pw >= 5 {
 			issues = append(issues, checkTasks(recipeDir)...)
@@ -288,7 +289,7 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 		if pw >= 6 {
 			issues = append(issues, checkTestFile(recipeDir)...)
 		}
-		if pw >= 7 && !exists("review.md") {
+		if pw >= 8 && !exists("review.md") {
 			issues = append(issues, doctorIssue{"error", "documents",
 				"review.md — missing",
 				"Run /bts-review to generate code review"})
@@ -303,7 +304,7 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 	return issues
 }
 
-func checkVerifyLog(recipeDir string) []doctorIssue {
+func checkVerifyLog(recipeDir string, recipeID string) []doctorIssue {
 	var issues []doctorIssue
 	logPath := filepath.Join(recipeDir, "verify-log.jsonl")
 	changelogPath := filepath.Join(recipeDir, "changelog.jsonl")
@@ -314,7 +315,7 @@ func checkVerifyLog(recipeDir string) []doctorIssue {
 	if verifyCount > 0 && logCount == 0 {
 		issues = append(issues, doctorIssue{"error", "flow",
 			fmt.Sprintf("verify-log.jsonl — %d verify in changelog, 0 in verify-log", verifyCount),
-			"Record verify results: bts recipe log {id} --iteration N --critical X --major Y --minor Z"})
+			fmt.Sprintf("bts recipe log %s --iteration 1 --critical 0 --major 0", recipeID)})
 	}
 
 	// Check verify-log last entry for unresolved issues
@@ -322,7 +323,7 @@ func checkVerifyLog(recipeDir string) []doctorIssue {
 		if last.Critical > 0 || last.Major > 0 {
 			issues = append(issues, doctorIssue{"error", "flow",
 				fmt.Sprintf("verify-log: %d critical, %d major unresolved", last.Critical, last.Major),
-				"Fix critical/major issues and re-run /bts-verify"})
+				"Fix issues and re-run /bts-verify"})
 		}
 	}
 
@@ -389,7 +390,7 @@ func checkTestFile(recipeDir string) []doctorIssue {
 }
 
 // checkManifestConsistency compares disk files vs manifest entries.
-func checkManifestConsistency(recipeDir string, manifest *state.Manifest) []doctorIssue {
+func checkManifestConsistency(recipeDir string, recipeID string, manifest *state.Manifest) []doctorIssue {
 	var issues []doctorIssue
 
 	// Files in manifest but not on disk
@@ -414,7 +415,7 @@ func checkManifestConsistency(recipeDir string, manifest *state.Manifest) []doct
 			if _, inManifest := manifest.Documents[name]; !inManifest {
 				issues = append(issues, doctorIssue{"warning", "manifest",
 					name + " — on disk but not in manifest",
-					"Register with: bts recipe log {id} --action [type] --output " + name})
+					fmt.Sprintf("bts recipe log %s --action [type] --output %s", recipeID, name)})
 			}
 		}
 	}
