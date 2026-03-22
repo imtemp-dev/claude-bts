@@ -33,6 +33,7 @@ type doctorIssue struct {
 	level   string // "error", "warning"
 	section string // "documents", "manifest", "flow"
 	message string
+	fix     string // resolution guidance
 }
 
 func runDoctor(cmd *cobra.Command, args []string) error {
@@ -43,18 +44,18 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Platform:     %s/%s (%s)\n", runtime.GOOS, runtime.GOARCH, runtime.Version())
 
 	// Template version check
-	{
-		cwd, _ := os.Getwd()
-		if dr, err := state.FindBTSRoot(cwd); err == nil {
-			vf := filepath.Join(dr, ".bts", "config", ".template-version")
-			if data, err := os.ReadFile(vf); err == nil {
-				tmplVer := strings.TrimSpace(string(data))
-				binVer := version.GetTemplateVersion()
-				if tmplVer == binVer {
-					fmt.Printf("Templates:    %s (up to date)\n", tmplVer)
-				} else {
-					fmt.Printf("Templates:    %s (outdated, binary: %s, run 'bts update')\n", tmplVer, binVer)
-				}
+	cwd, _ := os.Getwd()
+	btsRoot, btsErr := state.FindBTSRoot(cwd)
+	if btsErr == nil {
+		vf := filepath.Join(btsRoot, ".bts", "config", ".template-version")
+		if data, err := os.ReadFile(vf); err == nil {
+			tmplVer := strings.TrimSpace(string(data))
+			binVer := version.GetTemplateVersion()
+			if tmplVer == binVer {
+				fmt.Printf("Templates:    %s (up to date)\n", tmplVer)
+			} else {
+				fmt.Printf("Templates:    %s (outdated, binary: %s)\n", tmplVer, binVer)
+				fmt.Println("              → Run 'bts update' to refresh templates")
 			}
 		}
 	}
@@ -63,24 +64,26 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Claude Code:  %s\n", claudePath)
 	} else {
 		fmt.Println("Claude Code:  NOT FOUND")
+		fmt.Println("              → Install: npm install -g @anthropic-ai/claude-code")
 	}
 	if gitPath, err := exec.LookPath("git"); err == nil {
 		fmt.Printf("Git:          %s\n", gitPath)
 	} else {
 		fmt.Println("Git:          NOT FOUND")
+		fmt.Println("              → Install: https://git-scm.com/downloads")
 	}
 
 	// Recipe health checks
-	cwd, _ := os.Getwd()
-	btsRoot, err := state.FindBTSRoot(cwd)
-	if err != nil {
-		fmt.Println("\nNo .bts/ project found. System checks only.")
+	if btsErr != nil {
+		fmt.Println("\nNo .bts/ project found.")
+		fmt.Println("  → Run 'bts init' to initialize bts in this project")
 		return nil
 	}
 
 	strict, _ := cmd.Flags().GetBool("strict")
 
 	var recipes []*state.RecipeState
+	var err error
 	if len(args) > 0 {
 		r, err := state.LoadRecipeState(btsRoot, args[0])
 		if err != nil {
@@ -99,7 +102,23 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Check for multiple active recipes
+	activeCount := 0
+	for _, r := range recipes {
+		if r.Phase != "finalize" && r.Phase != "complete" && r.Phase != "cancelled" && r.Phase != "" {
+			activeCount++
+		}
+	}
+
 	totalErrors, totalWarnings := 0, 0
+	var quickFixes []string
+
+	if activeCount > 1 {
+		fmt.Printf("\n⚠ %d active recipes found (expected 1)\n", activeCount)
+		fmt.Println("  → Cancel inactive recipes with 'bts recipe cancel'")
+		totalWarnings++
+		quickFixes = append(quickFixes, "bts recipe cancel")
+	}
 
 	for _, recipe := range recipes {
 		recipeDir := state.RecipeDir(btsRoot, recipe.ID)
@@ -122,12 +141,18 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 					mark = "⚠"
 				}
 				fmt.Printf("   %s [%s] %s\n", mark, iss.section, iss.message)
+				if iss.fix != "" {
+					fmt.Printf("     → %s\n", iss.fix)
+				}
 			}
 		}
 
 		for _, iss := range issues {
 			if iss.level == "error" {
 				totalErrors++
+				if iss.fix != "" && len(quickFixes) < 3 {
+					quickFixes = append(quickFixes, iss.fix)
+				}
 			} else {
 				totalWarnings++
 			}
@@ -139,12 +164,20 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	mapPath := filepath.Join(state.StatePath(btsRoot), "project-map.md")
 	if _, err := os.Stat(mapPath); os.IsNotExist(err) {
 		fmt.Println("   ⚠ project-map.md not found")
+		fmt.Println("     → Created automatically during /bts-recipe-blueprint scoping")
 		totalWarnings++
 	} else {
 		fmt.Println("   ✓ project-map.md exists")
 	}
 
 	fmt.Printf("\n%d error(s), %d warning(s)\n", totalErrors, totalWarnings)
+
+	if totalErrors > 0 && len(quickFixes) > 0 {
+		fmt.Println("\nQuick fixes:")
+		for _, fix := range quickFixes {
+			fmt.Printf("  %s\n", fix)
+		}
+	}
 
 	if totalErrors > 0 || (strict && totalWarnings > 0) {
 		os.Exit(1)
@@ -165,29 +198,48 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 	phaseWeight := map[string]int{
 		"scoping": 1, "research": 2, "draft": 3, "assess": 3, "improve": 3,
 		"verify": 3, "debate": 3, "simulate": 3, "audit": 3,
-		"finalize": 4, "implement": 5, "test": 6, "sync": 7, "status": 8, "complete": 9,
+		"finalize": 4, "implement": 5, "test": 6, "review": 7,
+		"sync": 8, "status": 9, "complete": 10,
 	}
 	pw := phaseWeight[recipe.Phase]
 
 	switch recipe.Type {
 	case "fix":
 		if pw >= 2 && !exists("diagnosis.md") {
-			issues = append(issues, doctorIssue{"warning", "documents", "diagnosis.md — missing"})
+			issues = append(issues, doctorIssue{"warning", "documents",
+				"diagnosis.md — missing",
+				"Run /bts-recipe-fix to start diagnosis"})
 		}
 		if pw >= 3 && !exists("fix-spec.md") {
-			issues = append(issues, doctorIssue{"error", "documents", "fix-spec.md — missing"})
+			issues = append(issues, doctorIssue{"error", "documents",
+				"fix-spec.md — missing",
+				"Run /bts-recipe-fix to create fix spec"})
 		}
 		if pw >= 6 {
 			issues = append(issues, checkTestFile(recipeDir)...)
 		}
+		if pw >= 7 && !exists("review.md") {
+			issues = append(issues, doctorIssue{"warning", "documents",
+				"review.md — missing",
+				"Run /bts-review to generate code review"})
+		}
 
 	case "debug":
 		if pw >= 2 && !exists("perspectives.md") {
-			issues = append(issues, doctorIssue{"warning", "documents", "perspectives.md — missing"})
+			issues = append(issues, doctorIssue{"warning", "documents",
+				"perspectives.md — missing",
+				"Run /bts-recipe-debug to collect perspectives"})
+		}
+		if pw >= 3 && !exists("draft.md") {
+			issues = append(issues, doctorIssue{"warning", "documents",
+				"draft.md — missing",
+				"Draft should exist at this phase"})
 		}
 		if pw >= 4 {
 			if !exists("final.md") {
-				issues = append(issues, doctorIssue{"error", "documents", "final.md — missing"})
+				issues = append(issues, doctorIssue{"error", "documents",
+					"final.md — missing",
+					"Complete /bts-recipe-debug to produce final.md"})
 			}
 			issues = append(issues, checkVerifyLog(recipeDir)...)
 		}
@@ -196,24 +248,37 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 		}
 		if pw >= 6 {
 			issues = append(issues, checkTestFile(recipeDir)...)
+		}
+		if pw >= 7 && !exists("review.md") {
+			issues = append(issues, doctorIssue{"error", "documents",
+				"review.md — missing",
+				"Run /bts-review to generate code review"})
 		}
 
 	default: // blueprint, analyze, design
 		if pw >= 1 && recipe.Type == "blueprint" {
 			if exists("scope.md") {
-				// Check scope status
 				data, _ := os.ReadFile(filepath.Join(recipeDir, "scope.md"))
 				if len(data) > 0 {
 					content := string(data)
 					if strings.Contains(content, "Status: DRAFT") && !strings.Contains(content, "Status: CONFIRMED") {
-						issues = append(issues, doctorIssue{"warning", "documents", "scope.md — Status: DRAFT (not confirmed)"})
+						issues = append(issues, doctorIssue{"warning", "documents",
+							"scope.md — Status: DRAFT (not confirmed)",
+							"Confirm scope in /bts-recipe-blueprint"})
 					}
 				}
 			}
 		}
+		if pw >= 3 && recipe.Type == "blueprint" && !exists("draft.md") {
+			issues = append(issues, doctorIssue{"warning", "documents",
+				"draft.md — missing",
+				"Draft should exist at this phase"})
+		}
 		if pw >= 4 {
 			if !exists("final.md") {
-				issues = append(issues, doctorIssue{"error", "documents", "final.md — missing"})
+				issues = append(issues, doctorIssue{"error", "documents",
+					"final.md — missing",
+					fmt.Sprintf("Complete /bts-recipe-%s to produce final.md", recipe.Type)})
 			}
 			issues = append(issues, checkVerifyLog(recipeDir)...)
 		}
@@ -223,8 +288,15 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 		if pw >= 6 {
 			issues = append(issues, checkTestFile(recipeDir)...)
 		}
-		if pw >= 7 && !exists("deviation.md") {
-			issues = append(issues, doctorIssue{"warning", "documents", "deviation.md — missing"})
+		if pw >= 7 && !exists("review.md") {
+			issues = append(issues, doctorIssue{"error", "documents",
+				"review.md — missing",
+				"Run /bts-review to generate code review"})
+		}
+		if pw >= 8 && !exists("deviation.md") {
+			issues = append(issues, doctorIssue{"warning", "documents",
+				"deviation.md — missing",
+				"Run /bts-sync to compare spec with code"})
 		}
 	}
 
@@ -241,8 +313,19 @@ func checkVerifyLog(recipeDir string) []doctorIssue {
 
 	if verifyCount > 0 && logCount == 0 {
 		issues = append(issues, doctorIssue{"error", "flow",
-			fmt.Sprintf("verify-log.jsonl — %d verify in changelog, 0 in verify-log", verifyCount)})
+			fmt.Sprintf("verify-log.jsonl — %d verify in changelog, 0 in verify-log", verifyCount),
+			"Record verify results: bts recipe log {id} --iteration N --critical X --major Y --minor Z"})
 	}
+
+	// Check verify-log last entry for unresolved issues
+	if last, err := readLastVerify(logPath); err == nil {
+		if last.Critical > 0 || last.Major > 0 {
+			issues = append(issues, doctorIssue{"error", "flow",
+				fmt.Sprintf("verify-log: %d critical, %d major unresolved", last.Critical, last.Major),
+				"Fix critical/major issues and re-run /bts-verify"})
+		}
+	}
+
 	return issues
 }
 
@@ -251,7 +334,9 @@ func checkTasks(recipeDir string) []doctorIssue {
 	path := filepath.Join(recipeDir, "tasks.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		issues = append(issues, doctorIssue{"error", "documents", "tasks.json — missing"})
+		issues = append(issues, doctorIssue{"error", "documents",
+			"tasks.json — missing",
+			"Run /bts-implement to decompose tasks"})
 		return issues
 	}
 	var ts state.TaskState
@@ -273,7 +358,8 @@ func checkTasks(recipeDir string) []doctorIssue {
 	if blocked > 0 {
 		fmt.Printf(", %d blocked", blocked)
 		issues = append(issues, doctorIssue{"warning", "documents",
-			fmt.Sprintf("tasks.json — %d task(s) blocked", blocked)})
+			fmt.Sprintf("tasks.json — %d task(s) blocked", blocked),
+			"Run /bts-implement to retry or skip blocked tasks"})
 	}
 	if pending > 0 {
 		fmt.Printf(", %d pending", pending)
@@ -296,7 +382,8 @@ func checkTestFile(recipeDir string) []doctorIssue {
 	fmt.Printf("   · tests: %d/%d %s\n", tr.Passed, tr.Total, tr.Status)
 	if tr.Status != "pass" {
 		issues = append(issues, doctorIssue{"warning", "documents",
-			fmt.Sprintf("tests — %d/%d failed", tr.Failed, tr.Total)})
+			fmt.Sprintf("tests — %d/%d failed", tr.Failed, tr.Total),
+			"Fix failing tests and re-run /bts-test"})
 	}
 	return issues
 }
@@ -310,7 +397,8 @@ func checkManifestConsistency(recipeDir string, manifest *state.Manifest) []doct
 		fullPath := filepath.Join(recipeDir, path)
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 			issues = append(issues, doctorIssue{"error", "manifest",
-				path + " — in manifest but not on disk"})
+				path + " — in manifest but not on disk",
+				"Remove entry from manifest.json or recreate the file"})
 		}
 	}
 
@@ -325,7 +413,8 @@ func checkManifestConsistency(recipeDir string, manifest *state.Manifest) []doct
 		if _, err := os.Stat(fullPath); err == nil {
 			if _, inManifest := manifest.Documents[name]; !inManifest {
 				issues = append(issues, doctorIssue{"warning", "manifest",
-					name + " — on disk but not in manifest"})
+					name + " — on disk but not in manifest",
+					"Register with: bts recipe log {id} --action [type] --output " + name})
 			}
 		}
 	}
@@ -339,6 +428,8 @@ func checkFlowCompliance(recipeDir string, recipe *state.RecipeState) []doctorIs
 	changelogPath := filepath.Join(recipeDir, "changelog.jsonl")
 	actions := readActions(changelogPath)
 
+	pw := phaseWeightOf(recipe.Phase)
+
 	// Check: improve before finalize without verify
 	for i, action := range actions {
 		if action == "finalize" {
@@ -348,14 +439,55 @@ func checkFlowCompliance(recipeDir string, recipe *state.RecipeState) []doctorIs
 				}
 				if actions[j] == "improve" {
 					issues = append(issues, doctorIssue{"warning", "flow",
-						"improve before finalize without verify"})
+						"improve before finalize without verify",
+						"Run /bts-verify before finalizing"})
 					break
 				}
 			}
 		}
 	}
 
+	// Check: implement without test
+	if pw >= 6 && containsAction(actions, "implement") && !containsAction(actions, "test") {
+		issues = append(issues, doctorIssue{"warning", "flow",
+			"implement without test",
+			"Run /bts-test to generate and execute tests"})
+	}
+
+	// Check: test without simulate
+	if pw >= 7 && containsAction(actions, "test") && !containsAction(actions, "simulate") {
+		issues = append(issues, doctorIssue{"warning", "flow",
+			"test without code simulation",
+			"Run /bts-simulate code to verify all code paths"})
+	}
+
+	// Check: test without review
+	if pw >= 8 && containsAction(actions, "test") && !containsAction(actions, "review") {
+		issues = append(issues, doctorIssue{"warning", "flow",
+			"test without review",
+			"Run /bts-review to check code quality"})
+	}
+
 	return issues
+}
+
+func phaseWeightOf(phase string) int {
+	w := map[string]int{
+		"scoping": 1, "research": 2, "draft": 3, "assess": 3, "improve": 3,
+		"verify": 3, "debate": 3, "simulate": 3, "audit": 3,
+		"finalize": 4, "implement": 5, "test": 6, "review": 7,
+		"sync": 8, "status": 9, "complete": 10,
+	}
+	return w[phase]
+}
+
+func containsAction(actions []string, target string) bool {
+	for _, a := range actions {
+		if a == target {
+			return true
+		}
+	}
+	return false
 }
 
 func readActions(path string) []string {
@@ -390,6 +522,33 @@ func countActions(path, target string) int {
 		}
 	}
 	return count
+}
+
+func readLastVerify(path string) (*state.VerifyLogEntry, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	var last state.VerifyLogEntry
+	found := false
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+		var entry state.VerifyLogEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			continue
+		}
+		last = entry
+		found = true
+	}
+	if !found {
+		return nil, fmt.Errorf("empty")
+	}
+	return &last, nil
 }
 
 func countLines(path string) int {
