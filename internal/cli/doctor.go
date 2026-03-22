@@ -165,7 +165,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	mapPath := filepath.Join(state.StatePath(btsRoot), "project-map.md")
 	if _, err := os.Stat(mapPath); os.IsNotExist(err) {
 		fmt.Println("   ⚠ project-map.md not found")
-		fmt.Println("     → Created automatically during /bts-recipe-blueprint scoping")
+		fmt.Println("     → Run /bts-status to generate, or created during next /bts-recipe-blueprint scoping")
 		totalWarnings++
 	} else {
 		fmt.Println("   ✓ project-map.md exists")
