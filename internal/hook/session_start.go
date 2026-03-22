@@ -29,7 +29,7 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 	}
 
 	// Auto-update templates if binary version changed
-	autoUpdateTemplates(btsRoot)
+	updated := autoUpdateTemplates(btsRoot)
 
 	// Try to load work state for rich context recovery
 	ws, _ := state.LoadWorkState(btsRoot)
@@ -40,6 +40,13 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 		// Check for finalized recipes ready for implementation
 		recipe, err = state.GetFinalizedRecipe(btsRoot)
 		if err != nil || recipe == nil {
+			if updated {
+				return &HookOutput{
+					HookSpecificOutput: &HookSpecificOutput{
+						AdditionalContext: fmt.Sprintf("[bts] Templates updated to %s", templateVersionString()),
+					},
+				}, nil
+			}
 			return &HookOutput{}, nil
 		}
 
@@ -51,6 +58,10 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 		// Enrich with work state if resuming
 		if ws != nil && (source == "compact" || source == "resume") {
 			msg = fmt.Sprintf("[bts] Resuming. %s\nRun /bts-implement %s to start coding.", ws.Summary, recipe.ID)
+		}
+
+		if updated {
+			msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", templateVersionString(), msg)
 		}
 
 		return &HookOutput{
@@ -113,6 +124,10 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 		)
 	}
 
+	if updated {
+		msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", templateVersionString(), msg)
+	}
+
 	return &HookOutput{
 		HookSpecificOutput: &HookSpecificOutput{
 			AdditionalContext: msg,
@@ -121,14 +136,15 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 }
 
 // autoUpdateTemplates checks if templates need updating and deploys if so.
-func autoUpdateTemplates(btsRoot string) {
+// Returns true if templates were updated, false if skipped.
+func autoUpdateTemplates(btsRoot string) bool {
 	versionFile := filepath.Join(btsRoot, ".bts", "config", ".template-version")
 	existing, _ := os.ReadFile(versionFile)
 
 	current := templateVersionString()
 
 	if strings.TrimSpace(string(existing)) == current {
-		return // same version, skip
+		return false // same version, skip
 	}
 
 	// Deploy templates (overwrite all except user config files)
@@ -139,6 +155,7 @@ func autoUpdateTemplates(btsRoot string) {
 
 	// Record new version
 	_ = os.WriteFile(versionFile, []byte(current), 0644)
+	return true
 }
 
 // templateVersionString builds a version identifier for template tracking.
