@@ -43,7 +43,7 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 			if updated {
 				return &HookOutput{
 					HookSpecificOutput: &HookSpecificOutput{
-						AdditionalContext: fmt.Sprintf("[bts] Templates updated to %s", templateVersionString()),
+						AdditionalContext: fmt.Sprintf("[bts] Templates updated to %s", version.GetTemplateVersion()),
 					},
 				}, nil
 			}
@@ -61,7 +61,7 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 		}
 
 		if updated {
-			msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", templateVersionString(), msg)
+			msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)
 		}
 
 		return &HookOutput{
@@ -125,7 +125,7 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 	}
 
 	if updated {
-		msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", templateVersionString(), msg)
+		msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)
 	}
 
 	return &HookOutput{
@@ -141,7 +141,7 @@ func autoUpdateTemplates(btsRoot string) bool {
 	versionFile := filepath.Join(btsRoot, ".bts", "config", ".template-version")
 	existing, _ := os.ReadFile(versionFile)
 
-	current := templateVersionString()
+	current := version.GetTemplateVersion()
 
 	if strings.TrimSpace(string(existing)) == current {
 		return false // same version, skip
@@ -156,16 +156,6 @@ func autoUpdateTemplates(btsRoot string) bool {
 	// Record new version
 	_ = os.WriteFile(versionFile, []byte(current), 0644)
 	return true
-}
-
-// templateVersionString builds a version identifier for template tracking.
-func templateVersionString() string {
-	v := version.GetVersion()
-	c := version.Commit
-	if c != "none" && len(c) >= 7 {
-		return v + "-" + c[:7]
-	}
-	return v
 }
 
 // detectSource determines the session source.

@@ -42,6 +42,23 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Printf("bts version:  %s\n", version.GetFullVersion())
 	fmt.Printf("Platform:     %s/%s (%s)\n", runtime.GOOS, runtime.GOARCH, runtime.Version())
 
+	// Template version check
+	{
+		cwd, _ := os.Getwd()
+		if dr, err := state.FindBTSRoot(cwd); err == nil {
+			vf := filepath.Join(dr, ".bts", "config", ".template-version")
+			if data, err := os.ReadFile(vf); err == nil {
+				tmplVer := strings.TrimSpace(string(data))
+				binVer := version.GetTemplateVersion()
+				if tmplVer == binVer {
+					fmt.Printf("Templates:    %s (up to date)\n", tmplVer)
+				} else {
+					fmt.Printf("Templates:    %s (outdated, binary: %s, run 'bts update')\n", tmplVer, binVer)
+				}
+			}
+		}
+	}
+
 	if claudePath, err := exec.LookPath("claude"); err == nil {
 		fmt.Printf("Claude Code:  %s\n", claudePath)
 	} else {
