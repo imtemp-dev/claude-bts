@@ -335,12 +335,13 @@ The loop runs automatically. It pauses ONLY when:
 The final document should contain, for every component:
 - Exact file paths (create/modify)
 - Function signatures (name, params with types, return type)
-- Data types and interfaces
+- Data types and interfaces (full type definitions)
 - Connection points to other components
-- Error handling for every failure mode
+- Error handling strategy for every failure mode
 - Edge cases enumerated
-- Code scaffolding (skeleton structure)
 - Test scenarios (happy + error + edge)
 
-When this document is given to Claude Opus, it should generate working code
-with minimal additional iteration.
+**Code in the spec**: Use short code snippets (5-15 lines) ONLY to clarify
+non-obvious logic — algorithms, tricky transformations, critical sequences.
+Do NOT write full function implementations. The spec describes WHAT and WHY,
+not the complete HOW. Implementation happens in `/bts-implement`.
