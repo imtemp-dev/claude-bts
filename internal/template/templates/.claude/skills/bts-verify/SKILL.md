@@ -7,7 +7,7 @@ user-invocable: true
 allowed-tools: Read Grep Glob Agent
 argument-hint: "[file-path]"
 context: fork
-effort: high
+effort: max
 ---
 
 # Logical Verification

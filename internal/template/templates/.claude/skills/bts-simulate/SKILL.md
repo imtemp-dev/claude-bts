@@ -7,7 +7,7 @@ description: >
 user-invocable: true
 allowed-tools: Read Write Agent Grep Glob
 argument-hint: "[file-path] or code"
-effort: high
+effort: max
 ---
 
 # Simulation

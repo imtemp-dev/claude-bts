@@ -61,6 +61,18 @@ agents:
   reviewer_security: sonnet
   reviewer_arch: sonnet
 
+# Skill effort levels — override the thinking depth for each skill.
+# Options: low, medium, high, max (max is Opus 4.6 only).
+# Higher effort = deeper reasoning but slower and more expensive.
+# Set in skill frontmatter by default; override here per-project.
+# effort:
+#   verify: max              # Deepest analysis — find logical flaws
+#   simulate: max            # Walk through every scenario thoroughly
+#   debate: high             # Multi-expert deliberation
+#   research: high           # Thorough investigation
+#   review: high             # Deep code review
+#   status: low              # Simple aggregation
+
 # Privacy
 privacy:
   strip_private_tags: true
