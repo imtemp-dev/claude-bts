@@ -158,9 +158,8 @@ bts recipe log {id} --phase scoping
 
 Phase is now `research`. Only after scope Status is CONFIRMED, proceed to the adaptive loop.
 
-> **Checkpoint**: Scope confirmed. If context window is above 80%, consider
-> `/clear` before the adaptive loop. Otherwise, continue directly.
-> Work state is saved automatically and the recipe can always be resumed.
+> **Checkpoint**: Scope confirmed. Continue directly to the adaptive loop.
+> Do NOT /clear — work state is saved automatically and the recipe can always be resumed.
 
 ### Scope Re-opening
 
@@ -316,9 +315,8 @@ When /assess declares Level 3 achieved AND /sync-check passes:
    - verify-log last entry: critical=0, major=0
    - All sync checks passed
 
-> **Checkpoint**: Blueprint finalized. You can proceed directly to `/bts-implement`
-> if context window has room. Only `/clear` if context is above 80% — clearing
-> loses conversation context and requires re-reading files.
+> **Checkpoint**: Blueprint finalized. Proceed directly to output `<bts>DONE</bts>`.
+> Do NOT /clear — clearing loses context and requires re-reading files.
 
 ### Human Intervention Points
 
