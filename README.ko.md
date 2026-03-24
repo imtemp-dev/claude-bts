@@ -66,10 +66,10 @@ forge는 **기획 → 구현 → 검증**을 하나의 자동화된 파이프라
 
 ```bash
 # 원라인 설치 (macOS / Linux)
-curl -fsSL https://raw.githubusercontent.com/jlim/claude-forge/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-forge/main/install.sh | bash
 
 # 또는 소스에서 빌드 (Go 1.22+)
-git clone https://github.com/jlim/claude-forge.git
+git clone https://github.com/imtemp-dev/claude-forge.git
 cd claude-forge
 make install    # ~/.local/bin/forge에 설치
 ```

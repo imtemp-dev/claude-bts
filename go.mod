@@ -1,4 +1,4 @@
-module github.com/jlim/claude-forge
+module github.com/imtemp-dev/claude-forge
 
 go 1.26.1
 

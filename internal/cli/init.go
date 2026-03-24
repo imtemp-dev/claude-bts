@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/jlim/claude-forge/internal/template"
-	"github.com/jlim/claude-forge/pkg/version"
+	"github.com/imtemp-dev/claude-forge/internal/template"
+	"github.com/imtemp-dev/claude-forge/pkg/version"
 	"github.com/spf13/cobra"
 )
 

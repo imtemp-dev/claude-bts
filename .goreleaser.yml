@@ -17,9 +17,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/jlim/claude-forge/pkg/version.Version={{.Version}}
-      - -X github.com/jlim/claude-forge/pkg/version.Commit={{.Commit}}
-      - -X github.com/jlim/claude-forge/pkg/version.Date={{.Date}}
+      - -X github.com/imtemp-dev/claude-forge/pkg/version.Version={{.Version}}
+      - -X github.com/imtemp-dev/claude-forge/pkg/version.Commit={{.Commit}}
+      - -X github.com/imtemp-dev/claude-forge/pkg/version.Date={{.Date}}
 
 archives:
   - formats:

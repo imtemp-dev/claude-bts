@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/jlim/claude-forge/internal/state"
+	"github.com/imtemp-dev/claude-forge/internal/state"
 )
 
 const tokenSnapshotInterval = 30 * time.Second

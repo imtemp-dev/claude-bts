@@ -1,5 +1,5 @@
 BINARY_NAME := forge
-MODULE := github.com/jlim/claude-forge
+MODULE := github.com/imtemp-dev/claude-forge
 VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")

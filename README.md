@@ -2,8 +2,8 @@
 
 Document-first AI development — iterate on specs, not code.
 
-[![CI](https://github.com/jlim/claude-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/jlim/claude-forge/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/jlim/claude-forge)](https://github.com/jlim/claude-forge/releases)
+[![CI](https://github.com/imtemp-dev/claude-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-forge/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-forge)](https://github.com/imtemp-dev/claude-forge/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8.svg)](https://go.dev)
 
@@ -39,10 +39,10 @@ Requires [Go 1.22+](https://go.dev/dl/) and [Claude Code](https://docs.anthropic
 
 ```bash
 # Install
-curl -fsSL https://raw.githubusercontent.com/jlim/claude-forge/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-forge/main/install.sh | bash
 
 # Or build from source
-git clone https://github.com/jlim/claude-forge.git && cd claude-forge && make install
+git clone https://github.com/imtemp-dev/claude-forge.git && cd claude-forge && make install
 
 # Initialize in your project
 cd your-project
@@ -189,11 +189,11 @@ Run `forge doctor` after installation to verify your environment.
 
 ## Contributing
 
-Contributions welcome. Please open an [issue](https://github.com/jlim/claude-forge/issues) for bug reports or feature requests.
+Contributions welcome. Please open an [issue](https://github.com/imtemp-dev/claude-forge/issues) for bug reports or feature requests.
 
 ```bash
 # Development setup
-git clone https://github.com/jlim/claude-forge.git
+git clone https://github.com/imtemp-dev/claude-forge.git
 cd claude-forge
 make install          # build and install to ~/.local/bin
 go test -race ./...   # run tests

@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jlim/claude-forge/internal/metrics"
-	"github.com/jlim/claude-forge/internal/state"
-	"github.com/jlim/claude-forge/internal/template"
-	"github.com/jlim/claude-forge/pkg/version"
+	"github.com/imtemp-dev/claude-forge/internal/metrics"
+	"github.com/imtemp-dev/claude-forge/internal/state"
+	"github.com/imtemp-dev/claude-forge/internal/template"
+	"github.com/imtemp-dev/claude-forge/pkg/version"
 )
 
 type sessionStartHandler struct{}

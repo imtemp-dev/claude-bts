@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jlim/claude-forge/internal/hook"
+	"github.com/imtemp-dev/claude-forge/internal/hook"
 	"github.com/spf13/cobra"
 )
 

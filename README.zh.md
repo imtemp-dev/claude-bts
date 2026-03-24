@@ -66,10 +66,10 @@ forge 将**规划 → 构建 → 验证**作为一个自动化流水线覆盖。
 
 ```bash
 # 一行安装（macOS / Linux）
-curl -fsSL https://raw.githubusercontent.com/jlim/claude-forge/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-forge/main/install.sh | bash
 
 # 或从源码构建（Go 1.22+）
-git clone https://github.com/jlim/claude-forge.git
+git clone https://github.com/imtemp-dev/claude-forge.git
 cd claude-forge
 make install    # 安装到 ~/.local/bin/forge
 ```

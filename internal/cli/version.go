@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jlim/claude-forge/internal/state"
-	"github.com/jlim/claude-forge/pkg/version"
+	"github.com/imtemp-dev/claude-forge/internal/state"
+	"github.com/imtemp-dev/claude-forge/pkg/version"
 	"github.com/spf13/cobra"
 )
 

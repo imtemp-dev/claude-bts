@@ -38,7 +38,7 @@ detect_platform() {
 }
 
 get_latest_version() {
-    local url="https://api.github.com/repos/jlim/claude-forge/releases/latest"
+    local url="https://api.github.com/repos/imtemp-dev/claude-forge/releases/latest"
 
     if command -v curl &> /dev/null; then
         VERSION=$(curl -s "$url" | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
@@ -52,7 +52,7 @@ get_latest_version() {
     if [ -z "$VERSION" ]; then
         print_error "Failed to fetch latest version from GitHub"
         echo "  Try: $0 --version 0.1.0"
-        echo "  Or:  go install github.com/jlim/claude-forge/cmd/forge@latest"
+        echo "  Or:  go install github.com/imtemp-dev/claude-forge/cmd/forge@latest"
         exit 1
     fi
 
@@ -61,7 +61,7 @@ get_latest_version() {
 
 download_and_install() {
     local archive="claude-forge_${VERSION}_${OS}_${ARCH}.tar.gz"
-    local base_url="https://github.com/jlim/claude-forge/releases/download/v${VERSION}"
+    local base_url="https://github.com/imtemp-dev/claude-forge/releases/download/v${VERSION}"
     local tmp=$(mktemp -d)
     trap "rm -rf '$tmp'" EXIT
 
@@ -160,7 +160,7 @@ main() {
                 echo "  -h, --help           Show this help"
                 echo ""
                 echo "Examples:"
-                echo "  curl -fsSL https://raw.githubusercontent.com/jlim/claude-forge/main/install.sh | bash"
+                echo "  curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-forge/main/install.sh | bash"
                 echo "  $0 --version 0.1.0"
                 echo "  $0 --install-dir /usr/local/bin"
                 exit 0 ;;
@@ -181,7 +181,7 @@ main() {
 
     echo ""
     print_success "Done!"
-    print_info "https://github.com/jlim/claude-forge"
+    print_info "https://github.com/imtemp-dev/claude-forge"
     echo ""
 }
 
