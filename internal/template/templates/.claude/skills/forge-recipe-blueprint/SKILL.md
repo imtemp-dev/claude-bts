@@ -68,9 +68,12 @@ ASSESS determines what to do next based on the document's current state.
 ### Loop Protocol
 
 **At recipe start (MANDATORY):**
-1. Create `recipe.json` following the schema in forge-schema rules
-2. Create `manifest.json` following the schema in forge-schema rules
-3. Run `forge validate` to confirm both files are schema-compliant
+1. Check `forge recipe status`. If no active recipe exists:
+   ```bash
+   forge recipe create --type blueprint --topic "$ARGUMENTS"
+   ```
+   This creates `recipe.json` and `manifest.json` automatically and outputs the recipe ID.
+2. Run `forge validate` to confirm schema compliance
 
 **ALWAYS after modifying any JSON file in .forge/:**
 1. Run `forge validate` to verify schema compliance. Fix any errors before continuing.

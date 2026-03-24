@@ -26,8 +26,10 @@ If found, read `.forge/state/recipes/{id}/intent.md`:
 
 If no active recipe, create one:
 ```bash
-forge recipe log {id} --phase discovery
+forge recipe create --type blueprint --topic "$ARGUMENTS"
 ```
+Capture the output — this is the recipe ID (e.g., `r-001-mcp-server`).
+Use this ID for all subsequent `forge recipe log` calls.
 
 ## Discovery Conversation
 

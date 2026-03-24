@@ -34,6 +34,12 @@ forge recipe status
 ```
 If active debug recipe found, read perspectives.md and draft.md to resume.
 
+If no active recipe, create one:
+```bash
+forge recipe create --type debug --topic "$ARGUMENTS"
+```
+Use the output as recipe ID for all subsequent commands.
+
 ## Step 1: Collect Perspectives
 
 Read `.forge/config/settings.yaml` for project-specific limits.

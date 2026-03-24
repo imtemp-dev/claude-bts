@@ -244,6 +244,14 @@ var recipeCreateCmd = &cobra.Command{
 			return fmt.Errorf("create recipe: %w", err)
 		}
 
+		// Create empty manifest.json
+		manifest := &state.Manifest{
+			Documents: make(map[string]state.DocumentEntry),
+		}
+		if err := state.SaveManifest(root, id, manifest); err != nil {
+			return fmt.Errorf("create manifest: %w", err)
+		}
+
 		// Output ID only (for skill capture via Bash)
 		fmt.Println(id)
 		return nil

@@ -18,6 +18,12 @@ Before starting, check for an existing recipe:
 ```bash
 forge recipe status
 ```
+If no active recipe, create one:
+```bash
+forge recipe create --type analyze --topic "$ARGUMENTS"
+```
+Use the output as recipe ID for all subsequent commands.
+
 If active:
 - Phase `research` → read existing research doc, continue from Step 2.
 - Phase `verify` → read draft, run /forge-assess to determine next action.

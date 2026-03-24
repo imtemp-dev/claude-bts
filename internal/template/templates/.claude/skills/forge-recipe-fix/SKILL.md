@@ -30,6 +30,12 @@ forge recipe status
 ```
 If active fix recipe found, read diagnosis.md and fix-spec.md to resume.
 
+If no active recipe, create one:
+```bash
+forge recipe create --type fix --topic "$ARGUMENTS"
+```
+Use the output as recipe ID for all subsequent commands.
+
 ## Step 1: Diagnose
 
 Investigate the bug and create `.forge/state/recipes/{id}/diagnosis.md`:
