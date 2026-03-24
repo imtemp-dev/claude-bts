@@ -47,19 +47,9 @@ func (h *stopHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return h.handleSpecDone(root, recipe)
 	}
 
-	// No completion marker — remind about active recipe
-	hint := "Continue or use /recipe cancel."
-	if state.IsImplementPhase(recipe.Phase) {
-		hint = fmt.Sprintf("Run /forge-implement %s to continue, or /recipe cancel to abort.", recipe.ID)
-	}
-	return &HookOutput{
-		HookSpecificOutput: &HookSpecificOutput{
-			AdditionalContext: fmt.Sprintf(
-				"[forge] Recipe \"%s\" is still active (Step: %s). %s",
-				recipe.Topic, recipe.Phase, hint,
-			),
-		},
-	}, nil
+	// No completion marker — allow stop without blocking.
+	// Session-start hook will re-inject recipe context on next session.
+	return &HookOutput{}, nil
 }
 
 // handleSpecDone validates spec recipe completion via verify-log.
@@ -200,7 +190,7 @@ func (h *stopHandler) handleFixDone(root string, recipe *state.RecipeState) (*Ho
 	return roadmapHint(root, "Fix complete."), nil
 }
 
-// roadmapHint returns a HookOutput with roadmap progress if roadmap.md exists.
+// roadmapHint logs roadmap progress to stderr (Stop hook cannot use hookSpecificOutput).
 func roadmapHint(root string, prefix string) *HookOutput {
 	done, total, nextItem := state.RoadmapProgress(root)
 	if total > 0 {
@@ -208,11 +198,7 @@ func roadmapHint(root string, prefix string) *HookOutput {
 		if nextItem != "" {
 			hint += fmt.Sprintf(" Next: %s", nextItem)
 		}
-		return &HookOutput{
-			HookSpecificOutput: &HookSpecificOutput{
-				AdditionalContext: fmt.Sprintf("[forge] %s %s", prefix, hint),
-			},
-		}
+		fmt.Fprintf(os.Stderr, "[forge] %s %s\n", prefix, hint)
 	}
 	return &HookOutput{}
 }
