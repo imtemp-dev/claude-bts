@@ -5,7 +5,7 @@ COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS := -ldflags "-s -w -X $(MODULE)/pkg/version.Version=$(VERSION) -X $(MODULE)/pkg/version.Commit=$(COMMIT) -X $(MODULE)/pkg/version.Date=$(DATE)"
 
-.PHONY: build install test clean release-local
+.PHONY: build install test lint clean release-local
 
 build: ## Build the binary
 	go build $(LDFLAGS) -o bin/$(BINARY_NAME) ./cmd/forge
@@ -17,6 +17,10 @@ install: build ## Install to ~/.local/bin
 
 test: ## Run tests
 	go test -race ./...
+
+lint: ## Run linters
+	go vet ./...
+	$(shell go env GOPATH)/bin/golangci-lint run
 
 clean: ## Remove build artifacts
 	rm -rf bin/ dist/

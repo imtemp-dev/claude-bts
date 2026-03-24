@@ -1,0 +1,14 @@
+#!/bin/bash
+# Pre-commit hook: fast checks before committing
+set -e
+
+echo "pre-commit: go build..."
+go build ./...
+
+echo "pre-commit: go vet..."
+go vet ./...
+
+echo "pre-commit: go test..."
+go test -race ./...
+
+echo "pre-commit: all checks passed"
