@@ -209,7 +209,7 @@ func roadmapHint(root string, prefix string) *HookOutput {
 	if total > 0 {
 		hint := fmt.Sprintf("Roadmap: %d/%d done.", done, total)
 		if nextItem != "" {
-			hint += fmt.Sprintf(" Next: %s", nextItem)
+			hint += fmt.Sprintf(" Next: %s — run /forge-recipe-blueprint to start.", nextItem)
 		}
 		fmt.Fprintf(os.Stderr, "[forge] %s %s\n", prefix, hint)
 	}
