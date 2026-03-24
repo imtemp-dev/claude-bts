@@ -17,20 +17,20 @@ func (h *preCompactHandler) EventType() EventType {
 }
 
 func (h *preCompactHandler) Handle(input *HookInput) (*HookOutput, error) {
-	btsRoot, err := state.FindBTSRoot(input.CWD)
+	root, err := state.FindRoot(input.CWD)
 	if err != nil {
 		return &HookOutput{}, nil
 	}
 
 	// Save recipe state
-	recipe, err := state.GetActiveRecipe(btsRoot)
+	recipe, err := state.GetActiveRecipe(root)
 	if err != nil || recipe == nil {
 		return &HookOutput{}, nil
 	}
-	_ = state.SaveRecipeState(btsRoot, recipe)
+	_ = state.SaveRecipeState(root, recipe)
 
 	// Build and save work state snapshot
-	ws, err := state.BuildWorkState(btsRoot)
+	ws, err := state.BuildWorkState(root)
 	if err != nil || ws == nil {
 		return &HookOutput{
 			HookSpecificOutput: &HookSpecificOutput{
@@ -38,11 +38,11 @@ func (h *preCompactHandler) Handle(input *HookInput) (*HookOutput, error) {
 			},
 		}, nil
 	}
-	_ = state.SaveWorkState(btsRoot, ws)
+	_ = state.SaveWorkState(root, ws)
 
 	// Include next-step hint for post-compaction context
 	msg := fmt.Sprintf("[forge] Context snapshot saved. %s", ws.Summary)
-	nextStep := nextStepHint(btsRoot, recipe)
+	nextStep := nextStepHint(root, recipe)
 	if nextStep != "" {
 		msg += fmt.Sprintf("\nNEXT: %s", nextStep)
 	}

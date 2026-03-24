@@ -15,22 +15,22 @@ func (h *sessionEndHandler) EventType() EventType {
 }
 
 func (h *sessionEndHandler) Handle(input *HookInput) (*HookOutput, error) {
-	btsRoot, err := state.FindBTSRoot(input.CWD)
+	root, err := state.FindRoot(input.CWD)
 	if err != nil {
 		return &HookOutput{}, nil
 	}
 
 	// Save recipe state
-	recipe, err := state.GetActiveRecipe(btsRoot)
+	recipe, err := state.GetActiveRecipe(root)
 	if err != nil || recipe == nil {
 		return &HookOutput{}, nil
 	}
-	_ = state.SaveRecipeState(btsRoot, recipe)
+	_ = state.SaveRecipeState(root, recipe)
 
 	// Build and save work state for cross-session resume
-	ws, err := state.BuildWorkState(btsRoot)
+	ws, err := state.BuildWorkState(root)
 	if err == nil && ws != nil {
-		_ = state.SaveWorkState(btsRoot, ws)
+		_ = state.SaveWorkState(root, ws)
 	}
 
 	return &HookOutput{}, nil

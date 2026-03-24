@@ -56,8 +56,8 @@ type TestResults struct {
 }
 
 // LoadTaskState reads tasks.json from a recipe directory.
-func LoadTaskState(btsRoot, recipeID string) (*TaskState, error) {
-	path := filepath.Join(RecipeDir(btsRoot, recipeID), "tasks.json")
+func LoadTaskState(root, recipeID string) (*TaskState, error) {
+	path := filepath.Join(RecipeDir(root, recipeID), "tasks.json")
 	var ts TaskState
 	if err := ReadJSON(path, &ts); err != nil {
 		return nil, err
@@ -66,8 +66,8 @@ func LoadTaskState(btsRoot, recipeID string) (*TaskState, error) {
 }
 
 // LoadTestResults reads test-results.json from a recipe directory.
-func LoadTestResults(btsRoot, recipeID string) (*TestResults, error) {
-	path := filepath.Join(RecipeDir(btsRoot, recipeID), "test-results.json")
+func LoadTestResults(root, recipeID string) (*TestResults, error) {
+	path := filepath.Join(RecipeDir(root, recipeID), "test-results.json")
 	var tr TestResults
 	if err := ReadJSON(path, &tr); err != nil {
 		return nil, err
@@ -95,13 +95,13 @@ type VerifyLogEntry struct {
 }
 
 // RecipeDir returns the directory for a recipe's state.
-func RecipeDir(btsRoot, recipeID string) string {
-	return filepath.Join(StatePath(btsRoot), "recipes", recipeID)
+func RecipeDir(root, recipeID string) string {
+	return filepath.Join(StatePath(root), "recipes", recipeID)
 }
 
 // LoadRecipeState reads the recipe state file.
-func LoadRecipeState(btsRoot, recipeID string) (*RecipeState, error) {
-	path := filepath.Join(RecipeDir(btsRoot, recipeID), "recipe.json")
+func LoadRecipeState(root, recipeID string) (*RecipeState, error) {
+	path := filepath.Join(RecipeDir(root, recipeID), "recipe.json")
 	var state RecipeState
 	if err := ReadJSON(path, &state); err != nil {
 		return nil, err
@@ -110,22 +110,22 @@ func LoadRecipeState(btsRoot, recipeID string) (*RecipeState, error) {
 }
 
 // SaveRecipeState writes the recipe state file atomically.
-func SaveRecipeState(btsRoot string, state *RecipeState) error {
+func SaveRecipeState(root string, state *RecipeState) error {
 	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-	path := filepath.Join(RecipeDir(btsRoot, state.ID), "recipe.json")
+	path := filepath.Join(RecipeDir(root, state.ID), "recipe.json")
 	return WriteJSON(path, state)
 }
 
 // AppendVerifyLog appends a verification log entry.
-func AppendVerifyLog(btsRoot, recipeID string, entry *VerifyLogEntry) error {
+func AppendVerifyLog(root, recipeID string, entry *VerifyLogEntry) error {
 	entry.Timestamp = time.Now().UTC().Format(time.RFC3339)
-	path := filepath.Join(RecipeDir(btsRoot, recipeID), "verify-log.jsonl")
+	path := filepath.Join(RecipeDir(root, recipeID), "verify-log.jsonl")
 	return AppendJSONL(path, entry)
 }
 
 // GetActiveRecipe finds the currently active recipe, if any.
-func GetActiveRecipe(btsRoot string) (*RecipeState, error) {
-	recipesDir := filepath.Join(StatePath(btsRoot), "recipes")
+func GetActiveRecipe(root string) (*RecipeState, error) {
+	recipesDir := filepath.Join(StatePath(root), "recipes")
 	entries, err := os.ReadDir(recipesDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -138,7 +138,7 @@ func GetActiveRecipe(btsRoot string) (*RecipeState, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		state, err := LoadRecipeState(btsRoot, entry.Name())
+		state, err := LoadRecipeState(root, entry.Name())
 		if err != nil {
 			continue
 		}
@@ -151,8 +151,8 @@ func GetActiveRecipe(btsRoot string) (*RecipeState, error) {
 }
 
 // GetFinalizedRecipe finds a recipe in "finalize" phase (ready for implementation).
-func GetFinalizedRecipe(btsRoot string) (*RecipeState, error) {
-	recipesDir := filepath.Join(StatePath(btsRoot), "recipes")
+func GetFinalizedRecipe(root string) (*RecipeState, error) {
+	recipesDir := filepath.Join(StatePath(root), "recipes")
 	entries, err := os.ReadDir(recipesDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -165,7 +165,7 @@ func GetFinalizedRecipe(btsRoot string) (*RecipeState, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		state, err := LoadRecipeState(btsRoot, entry.Name())
+		state, err := LoadRecipeState(root, entry.Name())
 		if err != nil {
 			continue
 		}
@@ -178,8 +178,8 @@ func GetFinalizedRecipe(btsRoot string) (*RecipeState, error) {
 }
 
 // ListRecipes returns all recipe states.
-func ListRecipes(btsRoot string) ([]*RecipeState, error) {
-	recipesDir := filepath.Join(StatePath(btsRoot), "recipes")
+func ListRecipes(root string) ([]*RecipeState, error) {
+	recipesDir := filepath.Join(StatePath(root), "recipes")
 	entries, err := os.ReadDir(recipesDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -193,7 +193,7 @@ func ListRecipes(btsRoot string) ([]*RecipeState, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		state, err := LoadRecipeState(btsRoot, entry.Name())
+		state, err := LoadRecipeState(root, entry.Name())
 		if err != nil {
 			continue
 		}

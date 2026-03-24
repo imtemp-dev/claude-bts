@@ -19,13 +19,13 @@ type DebateState struct {
 }
 
 // DebateDir returns the directory for a debate's state.
-func DebateDir(btsRoot, debateID string) string {
-	return filepath.Join(StatePath(btsRoot), "debates", debateID)
+func DebateDir(root, debateID string) string {
+	return filepath.Join(StatePath(root), "debates", debateID)
 }
 
 // LoadDebateState reads the debate state file.
-func LoadDebateState(btsRoot, debateID string) (*DebateState, error) {
-	path := filepath.Join(DebateDir(btsRoot, debateID), "debate.json")
+func LoadDebateState(root, debateID string) (*DebateState, error) {
+	path := filepath.Join(DebateDir(root, debateID), "debate.json")
 	var state DebateState
 	if err := ReadJSON(path, &state); err != nil {
 		return nil, err
@@ -34,15 +34,15 @@ func LoadDebateState(btsRoot, debateID string) (*DebateState, error) {
 }
 
 // SaveDebateState writes the debate state file atomically.
-func SaveDebateState(btsRoot string, state *DebateState) error {
+func SaveDebateState(root string, state *DebateState) error {
 	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-	path := filepath.Join(DebateDir(btsRoot, state.ID), "debate.json")
+	path := filepath.Join(DebateDir(root, state.ID), "debate.json")
 	return WriteJSON(path, state)
 }
 
 // ListDebates returns all debate states.
-func ListDebates(btsRoot string) ([]*DebateState, error) {
-	debatesDir := filepath.Join(StatePath(btsRoot), "debates")
+func ListDebates(root string) ([]*DebateState, error) {
+	debatesDir := filepath.Join(StatePath(root), "debates")
 	entries, err := os.ReadDir(debatesDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -56,7 +56,7 @@ func ListDebates(btsRoot string) ([]*DebateState, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		ds, err := LoadDebateState(btsRoot, entry.Name())
+		ds, err := LoadDebateState(root, entry.Name())
 		if err != nil {
 			continue
 		}

@@ -19,14 +19,14 @@ type ChangelogEntry struct {
 }
 
 // ChangelogPath returns the changelog file path for a recipe.
-func ChangelogPath(btsRoot, recipeID string) string {
-	return filepath.Join(RecipeDir(btsRoot, recipeID), "changelog.jsonl")
+func ChangelogPath(root, recipeID string) string {
+	return filepath.Join(RecipeDir(root, recipeID), "changelog.jsonl")
 }
 
 // AppendChangelog adds an entry to the recipe's changelog.
-func AppendChangelog(btsRoot, recipeID string, entry *ChangelogEntry) error {
+func AppendChangelog(root, recipeID string, entry *ChangelogEntry) error {
 	if entry.Timestamp == "" {
 		entry.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	}
-	return AppendJSONL(ChangelogPath(btsRoot, recipeID), entry)
+	return AppendJSONL(ChangelogPath(root, recipeID), entry)
 }

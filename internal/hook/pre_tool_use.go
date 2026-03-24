@@ -23,12 +23,12 @@ func (h *preToolUseHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return &HookOutput{}, nil
 	}
 
-	btsRoot, err := state.FindBTSRoot(input.CWD)
+	root, err := state.FindRoot(input.CWD)
 	if err != nil {
 		return &HookOutput{}, nil
 	}
 
-	recipe, err := state.GetActiveRecipe(btsRoot)
+	recipe, err := state.GetActiveRecipe(root)
 	if err != nil || recipe == nil {
 		return &HookOutput{}, nil
 	}

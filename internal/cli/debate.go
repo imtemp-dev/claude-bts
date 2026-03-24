@@ -30,12 +30,12 @@ var debateListCmd = &cobra.Command{
 	Short: "List all debates",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()
-		btsRoot, err := state.FindBTSRoot(cwd)
+		root, err := state.FindRoot(cwd)
 		if err != nil {
 			return fmt.Errorf("not a forge project: %w", err)
 		}
 
-		debates, err := state.ListDebates(btsRoot)
+		debates, err := state.ListDebates(root)
 		if err != nil {
 			return fmt.Errorf("list: %w", err)
 		}
@@ -61,7 +61,7 @@ var debateLogCmd = &cobra.Command{
 	Short: "Record a debate round (creates debate if new)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()
-		btsRoot, err := state.FindBTSRoot(cwd)
+		root, err := state.FindRoot(cwd)
 		if err != nil {
 			return fmt.Errorf("not a forge project: %w", err)
 		}
@@ -78,7 +78,7 @@ var debateLogCmd = &cobra.Command{
 		// Find or create debate
 		if debateID == "" {
 			// Look for existing debate with same topic
-			debates, _ := state.ListDebates(btsRoot)
+			debates, _ := state.ListDebates(root)
 			for _, d := range debates {
 				if d.Topic == topic && !d.Decided {
 					debateID = d.ID
@@ -91,13 +91,13 @@ var debateLogCmd = &cobra.Command{
 		}
 
 		// Create debate directory
-		debateDir := state.DebateDir(btsRoot, debateID)
+		debateDir := state.DebateDir(root, debateID)
 		if err := os.MkdirAll(debateDir, 0755); err != nil {
 			return fmt.Errorf("mkdir: %w", err)
 		}
 
 		// Load or create state
-		ds, err := state.LoadDebateState(btsRoot, debateID)
+		ds, err := state.LoadDebateState(root, debateID)
 		if err != nil {
 			ds = &state.DebateState{
 				ID:    debateID,
@@ -119,7 +119,7 @@ var debateLogCmd = &cobra.Command{
 			}
 		}
 
-		if err := state.SaveDebateState(btsRoot, ds); err != nil {
+		if err := state.SaveDebateState(root, ds); err != nil {
 			return fmt.Errorf("save: %w", err)
 		}
 
@@ -134,12 +134,12 @@ var debateResumeCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()
-		btsRoot, err := state.FindBTSRoot(cwd)
+		root, err := state.FindRoot(cwd)
 		if err != nil {
 			return fmt.Errorf("not a forge project: %w", err)
 		}
 
-		ds, err := state.LoadDebateState(btsRoot, args[0])
+		ds, err := state.LoadDebateState(root, args[0])
 		if err != nil {
 			return fmt.Errorf("load debate: %w", err)
 		}
@@ -148,7 +148,7 @@ var debateResumeCmd = &cobra.Command{
 		fmt.Printf("Rounds completed: %d | Decided: %v\n\n", ds.Rounds, ds.Decided)
 
 		for i := 1; i <= ds.Rounds; i++ {
-			roundPath := fmt.Sprintf("%s/round-%d.md", state.DebateDir(btsRoot, args[0]), i)
+			roundPath := fmt.Sprintf("%s/round-%d.md", state.DebateDir(root, args[0]), i)
 			data, err := os.ReadFile(roundPath)
 			if err == nil {
 				fmt.Printf("## Round %d\n%s\n\n", i, string(data))
@@ -170,12 +170,12 @@ var debateExportCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()
-		btsRoot, err := state.FindBTSRoot(cwd)
+		root, err := state.FindRoot(cwd)
 		if err != nil {
 			return fmt.Errorf("not a forge project: %w", err)
 		}
 
-		ds, err := state.LoadDebateState(btsRoot, args[0])
+		ds, err := state.LoadDebateState(root, args[0])
 		if err != nil {
 			return fmt.Errorf("load debate: %w", err)
 		}
@@ -188,7 +188,7 @@ var debateExportCmd = &cobra.Command{
 
 		// Print round files if they exist
 		for i := 1; i <= ds.Rounds; i++ {
-			roundPath := fmt.Sprintf("%s/round-%d.md", state.DebateDir(btsRoot, args[0]), i)
+			roundPath := fmt.Sprintf("%s/round-%d.md", state.DebateDir(root, args[0]), i)
 			data, err := os.ReadFile(roundPath)
 			if err == nil {
 				fmt.Printf("## Round %d\n%s\n\n", i, string(data))

@@ -22,29 +22,29 @@ func (h *stopHandler) EventType() EventType {
 }
 
 func (h *stopHandler) Handle(input *HookInput) (*HookOutput, error) {
-	btsRoot, err := state.FindBTSRoot(input.CWD)
+	root, err := state.FindRoot(input.CWD)
 	if err != nil {
 		return &HookOutput{}, nil
 	}
 
-	recipe, err := state.GetActiveRecipe(btsRoot)
+	recipe, err := state.GetActiveRecipe(root)
 	if err != nil || recipe == nil {
 		return &HookOutput{}, nil
 	}
 
 	// Check for fix completion marker
 	if strings.Contains(input.StopHookContent, "<forge>FIX DONE</forge>") {
-		return h.handleFixDone(btsRoot, recipe)
+		return h.handleFixDone(root, recipe)
 	}
 
 	// Check for implementation completion marker
 	if strings.Contains(input.StopHookContent, "<forge>IMPLEMENT DONE</forge>") {
-		return h.handleImplementDone(btsRoot, recipe)
+		return h.handleImplementDone(root, recipe)
 	}
 
 	// Check for spec completion marker
 	if strings.Contains(input.StopHookContent, "<forge>DONE</forge>") {
-		return h.handleSpecDone(btsRoot, recipe)
+		return h.handleSpecDone(root, recipe)
 	}
 
 	// No completion marker — remind about active recipe
@@ -63,8 +63,8 @@ func (h *stopHandler) Handle(input *HookInput) (*HookOutput, error) {
 }
 
 // handleSpecDone validates spec recipe completion via verify-log.
-func (h *stopHandler) handleSpecDone(btsRoot string, recipe *state.RecipeState) (*HookOutput, error) {
-	recipeDir := state.RecipeDir(btsRoot, recipe.ID)
+func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*HookOutput, error) {
+	recipeDir := state.RecipeDir(root, recipe.ID)
 
 	// 1. Check verification.md exists (proves /verify was actually run)
 	verifyDocPath := filepath.Join(recipeDir, "verification.md")
@@ -88,15 +88,15 @@ func (h *stopHandler) handleSpecDone(btsRoot string, recipe *state.RecipeState) 
 
 	// All clear — allow completion
 	recipe.Phase = "finalize"
-	_ = state.SaveRecipeState(btsRoot, recipe)
+	_ = state.SaveRecipeState(root, recipe)
 
 	return &HookOutput{}, nil
 }
 
 // handleImplementDone validates implementation completion via tasks.json + test-results.json.
-func (h *stopHandler) handleImplementDone(btsRoot string, recipe *state.RecipeState) (*HookOutput, error) {
+func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState) (*HookOutput, error) {
 	// 1. Check tasks.json
-	tasks, err := state.LoadTaskState(btsRoot, recipe.ID)
+	tasks, err := state.LoadTaskState(root, recipe.ID)
 	if err != nil {
 		return blockOutput("No tasks.json found. Run /implement to decompose tasks before completing."), nil
 	}
@@ -126,7 +126,7 @@ func (h *stopHandler) handleImplementDone(btsRoot string, recipe *state.RecipeSt
 	}
 
 	// 2. Check test-results.json
-	testResults, err := state.LoadTestResults(btsRoot, recipe.ID)
+	testResults, err := state.LoadTestResults(root, recipe.ID)
 	if err != nil {
 		return blockOutput("No test-results.json found. Run /test before completing implementation."), nil
 	}
@@ -139,13 +139,13 @@ func (h *stopHandler) handleImplementDone(btsRoot string, recipe *state.RecipeSt
 	}
 
 	// 3. Check that review has run (review.md exists)
-	reviewPath := filepath.Join(state.RecipeDir(btsRoot, recipe.ID), "review.md")
+	reviewPath := filepath.Join(state.RecipeDir(root, recipe.ID), "review.md")
 	if _, err := os.Stat(reviewPath); os.IsNotExist(err) {
 		return blockOutput("No review.md found. Run /forge-review before completing implementation."), nil
 	}
 
 	// 4. Check that sync has run (deviation.md exists)
-	deviationPath := filepath.Join(state.RecipeDir(btsRoot, recipe.ID), "deviation.md")
+	deviationPath := filepath.Join(state.RecipeDir(root, recipe.ID), "deviation.md")
 	if _, err := os.Stat(deviationPath); os.IsNotExist(err) {
 		return blockOutput("No deviation.md found. Run /sync before completing implementation."), nil
 	}
@@ -155,22 +155,22 @@ func (h *stopHandler) handleImplementDone(btsRoot string, recipe *state.RecipeSt
 
 	// All clear — mark as complete
 	recipe.Phase = "complete"
-	_ = state.SaveRecipeState(btsRoot, recipe)
+	_ = state.SaveRecipeState(root, recipe)
 
-	state.MarkRoadmapItemDone(btsRoot, recipe.ID)
-	return roadmapHint(btsRoot, "Implementation complete."), nil
+	state.MarkRoadmapItemDone(root, recipe.ID)
+	return roadmapHint(root, "Implementation complete."), nil
 }
 
 // handleFixDone validates fix recipe completion via fix-spec.md + test-results.json.
-func (h *stopHandler) handleFixDone(btsRoot string, recipe *state.RecipeState) (*HookOutput, error) {
+func (h *stopHandler) handleFixDone(root string, recipe *state.RecipeState) (*HookOutput, error) {
 	// 1. Check fix-spec.md exists
-	fixSpecPath := filepath.Join(state.RecipeDir(btsRoot, recipe.ID), "fix-spec.md")
+	fixSpecPath := filepath.Join(state.RecipeDir(root, recipe.ID), "fix-spec.md")
 	if _, err := os.Stat(fixSpecPath); os.IsNotExist(err) {
 		return blockOutput("No fix-spec.md found. Create fix spec before completing."), nil
 	}
 
 	// 2. Check test-results.json
-	testResults, err := state.LoadTestResults(btsRoot, recipe.ID)
+	testResults, err := state.LoadTestResults(root, recipe.ID)
 	if err != nil {
 		return blockOutput("No test-results.json found. Run tests before completing fix."), nil
 	}
@@ -184,15 +184,15 @@ func (h *stopHandler) handleFixDone(btsRoot string, recipe *state.RecipeState) (
 
 	// All clear — mark as complete
 	recipe.Phase = "complete"
-	_ = state.SaveRecipeState(btsRoot, recipe)
+	_ = state.SaveRecipeState(root, recipe)
 
-	state.MarkRoadmapItemDone(btsRoot, recipe.ID)
-	return roadmapHint(btsRoot, "Fix complete."), nil
+	state.MarkRoadmapItemDone(root, recipe.ID)
+	return roadmapHint(root, "Fix complete."), nil
 }
 
 // roadmapHint returns a HookOutput with roadmap progress if roadmap.md exists.
-func roadmapHint(btsRoot string, prefix string) *HookOutput {
-	done, total, nextItem := state.RoadmapProgress(btsRoot)
+func roadmapHint(root string, prefix string) *HookOutput {
+	done, total, nextItem := state.RoadmapProgress(root)
 	if total > 0 {
 		hint := fmt.Sprintf("Roadmap: %d/%d done.", done, total)
 		if nextItem != "" {

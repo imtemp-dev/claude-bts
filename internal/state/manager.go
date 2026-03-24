@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 )
 
-// FindBTSRoot searches for .forge/ directory starting from cwd upward.
-func FindBTSRoot(cwd string) (string, error) {
+// FindRoot searches for .forge/ directory starting from cwd upward.
+func FindRoot(cwd string) (string, error) {
 	dir := cwd
 	for i := 0; i < 10; i++ {
 		if _, err := os.Stat(filepath.Join(dir, ".forge")); err == nil {
@@ -24,8 +24,8 @@ func FindBTSRoot(cwd string) (string, error) {
 }
 
 // StatePath returns the path to state directory.
-func StatePath(btsRoot string) string {
-	return filepath.Join(btsRoot, ".forge", "state")
+func StatePath(root string) string {
+	return filepath.Join(root, ".forge", "state")
 }
 
 // ReadJSON reads a JSON file into the target struct.

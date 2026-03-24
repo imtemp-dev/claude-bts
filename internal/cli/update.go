@@ -22,13 +22,13 @@ var updateCmd = &cobra.Command{
 	GroupID: "project",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()
-		btsRoot, err := state.FindBTSRoot(cwd)
+		root, err := state.FindRoot(cwd)
 		if err != nil {
 			return fmt.Errorf("not a forge project. Run 'forge init' first")
 		}
 
 		current := version.GetTemplateVersion()
-		versionFile := filepath.Join(btsRoot, ".forge", "config", ".template-version")
+		versionFile := filepath.Join(root, ".forge", "config", ".template-version")
 		existing, _ := os.ReadFile(versionFile)
 		oldVer := strings.TrimSpace(string(existing))
 
@@ -39,7 +39,7 @@ var updateCmd = &cobra.Command{
 
 		// DeployForce (same skip list as auto-update and init --force)
 		skipFiles := []string{".forge/config/settings.yaml", ".mcp.json"}
-		updated, err := template.DeployForce(btsRoot, skipFiles)
+		updated, err := template.DeployForce(root, skipFiles)
 		if err != nil {
 			return fmt.Errorf("update templates: %w", err)
 		}
@@ -48,7 +48,7 @@ var updateCmd = &cobra.Command{
 		_ = os.WriteFile(versionFile, []byte(current), 0644)
 
 		// Merge statusline settings (same as init)
-		if err := mergeStatusLineSettings(btsRoot); err != nil {
+		if err := mergeStatusLineSettings(root); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: could not update statusline settings: %v\n", err)
 		}
 

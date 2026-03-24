@@ -28,13 +28,13 @@ var versionCmd = &cobra.Command{
 		fmt.Printf("Binary:    %s (%s)\n", binVer, date)
 
 		cwd, _ := os.Getwd()
-		btsRoot, err := state.FindBTSRoot(cwd)
+		root, err := state.FindRoot(cwd)
 		if err != nil {
 			fmt.Println("Templates: not initialized (run 'forge init')")
 			return nil
 		}
 
-		versionFile := filepath.Join(btsRoot, ".forge", "config", ".template-version")
+		versionFile := filepath.Join(root, ".forge", "config", ".template-version")
 		existing, err := os.ReadFile(versionFile)
 		if err != nil {
 			fmt.Println("Templates: not initialized (run 'forge init')")

@@ -19,8 +19,8 @@ var statuslineCmd = &cobra.Command{
 	Hidden: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()
-		btsRoot, _ := state.FindBTSRoot(cwd)
-		result := statusline.Render(os.Stdin, btsRoot)
+		root, _ := state.FindRoot(cwd)
+		result := statusline.Render(os.Stdin, root)
 		fmt.Print(result)
 		return nil
 	},

@@ -38,9 +38,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if already initialized
-	btsDir := filepath.Join(absRoot, ".forge")
+	forgeDir := filepath.Join(absRoot, ".forge")
 	force, _ := cmd.Flags().GetBool("force")
-	if _, err := os.Stat(btsDir); err == nil && !force {
+	if _, err := os.Stat(forgeDir); err == nil && !force {
 		return fmt.Errorf(".forge/ already exists. Use --force to reinitialize")
 	}
 
@@ -48,9 +48,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Create .forge directories
 	stateDirs := []string{
-		filepath.Join(btsDir, "config"),
-		filepath.Join(btsDir, "state", "recipes"),
-		filepath.Join(btsDir, "state", "debates"),
+		filepath.Join(forgeDir, "config"),
+		filepath.Join(forgeDir, "state", "recipes"),
+		filepath.Join(forgeDir, "state", "debates"),
 	}
 	for _, dir := range stateDirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {

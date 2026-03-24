@@ -45,9 +45,9 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 	// Template version check
 	cwd, _ := os.Getwd()
-	btsRoot, btsErr := state.FindBTSRoot(cwd)
-	if btsErr == nil {
-		vf := filepath.Join(btsRoot, ".forge", "config", ".template-version")
+	root, rootErr := state.FindRoot(cwd)
+	if rootErr == nil {
+		vf := filepath.Join(root, ".forge", "config", ".template-version")
 		if data, err := os.ReadFile(vf); err == nil {
 			tmplVer := strings.TrimSpace(string(data))
 			binVer := version.GetTemplateVersion()
@@ -74,7 +74,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	// Recipe health checks
-	if btsErr != nil {
+	if rootErr != nil {
 		fmt.Println("\nNo .forge/ project found.")
 		fmt.Println("  → Run 'forge init' to initialize forge in this project")
 		return nil
@@ -85,13 +85,13 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	var recipes []*state.RecipeState
 	var err error
 	if len(args) > 0 {
-		r, err := state.LoadRecipeState(btsRoot, args[0])
+		r, err := state.LoadRecipeState(root, args[0])
 		if err != nil {
 			return fmt.Errorf("load recipe %s: %w", args[0], err)
 		}
 		recipes = append(recipes, r)
 	} else {
-		recipes, err = state.ListRecipes(btsRoot)
+		recipes, err = state.ListRecipes(root)
 		if err != nil {
 			return fmt.Errorf("list recipes: %w", err)
 		}
@@ -121,14 +121,14 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	for _, recipe := range recipes {
-		recipeDir := state.RecipeDir(btsRoot, recipe.ID)
+		recipeDir := state.RecipeDir(root, recipe.ID)
 		fmt.Printf("\n── Recipe: %s (%s) \"%s\" — %s\n",
 			recipe.ID, recipe.Type, truncate(recipe.Topic, 35), recipe.Phase)
 
 		var issues []doctorIssue
 		issues = append(issues, checkDocuments(recipeDir, recipe)...)
 
-		manifest, _ := state.LoadManifest(btsRoot, recipe.ID)
+		manifest, _ := state.LoadManifest(root, recipe.ID)
 		issues = append(issues, checkManifestConsistency(recipeDir, recipe.ID, manifest)...)
 		issues = append(issues, checkVerifyLog(recipeDir, recipe.ID)...)
 		issues = append(issues, checkFlowCompliance(recipeDir, recipe)...)
@@ -162,7 +162,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 	// Project-level checks
 	fmt.Println()
-	mapPath := filepath.Join(state.StatePath(btsRoot), "project-map.md")
+	mapPath := filepath.Join(state.StatePath(root), "project-map.md")
 	if _, err := os.Stat(mapPath); os.IsNotExist(err) {
 		fmt.Println("   ⚠ project-map.md not found")
 		fmt.Println("     → Run /forge-status to generate, or created during next /forge-recipe-blueprint scoping")
@@ -172,8 +172,8 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	// Vision check
-	if state.VisionExists(btsRoot) {
-		visionData, _ := os.ReadFile(filepath.Join(state.StatePath(btsRoot), "vision.md"))
+	if state.VisionExists(root) {
+		visionData, _ := os.ReadFile(filepath.Join(state.StatePath(root), "vision.md"))
 		if strings.Contains(string(visionData), "Status: DRAFT") {
 			fmt.Println("   ⚠ vision.md exists (Status: DRAFT — confirm with next /forge-recipe-blueprint)")
 			totalWarnings++
@@ -183,7 +183,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	// Roadmap check
-	done, total, nextItem := state.RoadmapProgress(btsRoot)
+	done, total, nextItem := state.RoadmapProgress(root)
 	if total > 0 {
 		if nextItem != "" {
 			fmt.Printf("   ✓ roadmap.md (%d/%d done — next: %s)\n", done, total, nextItem)

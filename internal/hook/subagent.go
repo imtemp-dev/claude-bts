@@ -20,12 +20,12 @@ func (h *subagentStartHandler) EventType() EventType {
 }
 
 func (h *subagentStartHandler) Handle(input *HookInput) (*HookOutput, error) {
-	btsRoot, err := state.FindBTSRoot(input.CWD)
+	root, err := state.FindRoot(input.CWD)
 	if err != nil {
 		return &HookOutput{}, nil
 	}
 
-	agentFile := filepath.Join(state.StatePath(btsRoot), "active-agent.json")
+	agentFile := filepath.Join(state.StatePath(root), "active-agent.json")
 	data := map[string]string{
 		"agent_id":   input.AgentID,
 		"started_at": time.Now().UTC().Format(time.RFC3339),
@@ -51,12 +51,12 @@ func (h *subagentStopHandler) EventType() EventType {
 }
 
 func (h *subagentStopHandler) Handle(input *HookInput) (*HookOutput, error) {
-	btsRoot, err := state.FindBTSRoot(input.CWD)
+	root, err := state.FindRoot(input.CWD)
 	if err != nil {
 		return &HookOutput{}, nil
 	}
 
-	agentFile := filepath.Join(state.StatePath(btsRoot), "active-agent.json")
+	agentFile := filepath.Join(state.StatePath(root), "active-agent.json")
 	_ = os.Remove(agentFile)
 
 	return &HookOutput{}, nil

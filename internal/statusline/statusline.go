@@ -35,7 +35,7 @@ type CurrentUsage struct {
 }
 
 // Render reads Claude Code's stdin JSON and forge state, returns a 1-line statusline.
-func Render(stdin io.Reader, btsRoot string) string {
+func Render(stdin io.Reader, root string) string {
 	// Parse stdin
 	var data StdinData
 	if stdin != nil {
@@ -49,8 +49,8 @@ func Render(stdin io.Reader, btsRoot string) string {
 	segments = append(segments, "forge"+version.GetVersion())
 
 	// Recipe info
-	if btsRoot != "" {
-		recipeSegment := renderRecipeSegment(btsRoot)
+	if root != "" {
+		recipeSegment := renderRecipeSegment(root)
 		if recipeSegment != "" {
 			segments = append(segments, recipeSegment)
 		}
@@ -66,26 +66,26 @@ func Render(stdin io.Reader, btsRoot string) string {
 }
 
 // renderRecipeSegment returns "topic │ [🟡] phase detail" or empty string.
-func renderRecipeSegment(btsRoot string) string {
+func renderRecipeSegment(root string) string {
 	// Check if a subagent is running
 	agentDot := ""
-	agentFile := filepath.Join(state.StatePath(btsRoot), "active-agent.json")
+	agentFile := filepath.Join(state.StatePath(root), "active-agent.json")
 	if _, err := os.Stat(agentFile); err == nil {
 		agentDot = "🟡 "
 	}
 
 	// Try work state first (richer info)
-	ws, _ := state.LoadWorkState(btsRoot)
+	ws, _ := state.LoadWorkState(root)
 	if ws != nil && ws.RecipeID != "" {
 		topic := truncate(ws.Topic, 20)
-		detail := renderPhaseFromWorkState(ws, btsRoot)
+		detail := renderPhaseFromWorkState(ws, root)
 		return topic + " │ " + agentDot + detail
 	}
 
 	// Fall back to recipe state
-	recipe, _ := state.GetActiveRecipe(btsRoot)
+	recipe, _ := state.GetActiveRecipe(root)
 	if recipe == nil {
-		recipe, _ = state.GetFinalizedRecipe(btsRoot)
+		recipe, _ = state.GetFinalizedRecipe(root)
 	}
 	if recipe == nil {
 		return ""
@@ -96,7 +96,7 @@ func renderRecipeSegment(btsRoot string) string {
 }
 
 // renderPhaseFromWorkState builds a detailed phase string.
-func renderPhaseFromWorkState(ws *state.WorkState, btsRoot string) string {
+func renderPhaseFromWorkState(ws *state.WorkState, root string) string {
 	switch ws.Phase {
 	case "scoping":
 		status := "DRAFT"
@@ -106,10 +106,10 @@ func renderPhaseFromWorkState(ws *state.WorkState, btsRoot string) string {
 		return fmt.Sprintf("scoping (%s)", status)
 
 	case "implement":
-		return renderImplementDetail(ws, btsRoot)
+		return renderImplementDetail(ws, root)
 
 	case "test":
-		return renderTestDetail(btsRoot, ws.RecipeID)
+		return renderTestDetail(root, ws.RecipeID)
 
 	case "finalize":
 		return "finalize ✓"
@@ -126,12 +126,12 @@ func renderPhaseFromWorkState(ws *state.WorkState, btsRoot string) string {
 }
 
 // renderImplementDetail shows task progress.
-func renderImplementDetail(ws *state.WorkState, btsRoot string) string {
-	if btsRoot == "" {
+func renderImplementDetail(ws *state.WorkState, root string) string {
+	if root == "" {
 		return "implement"
 	}
 
-	ts, err := state.LoadTaskState(btsRoot, ws.RecipeID)
+	ts, err := state.LoadTaskState(root, ws.RecipeID)
 	if err != nil || ts == nil {
 		return "implement"
 	}
@@ -155,12 +155,12 @@ func renderImplementDetail(ws *state.WorkState, btsRoot string) string {
 }
 
 // renderTestDetail shows test progress.
-func renderTestDetail(btsRoot, recipeID string) string {
-	if btsRoot == "" {
+func renderTestDetail(root, recipeID string) string {
+	if root == "" {
 		return "test"
 	}
 
-	tr, err := state.LoadTestResults(btsRoot, recipeID)
+	tr, err := state.LoadTestResults(root, recipeID)
 	if err != nil || tr == nil {
 		return "test"
 	}

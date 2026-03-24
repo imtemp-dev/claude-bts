@@ -23,13 +23,13 @@ type DocumentEntry struct {
 }
 
 // ManifestPath returns the manifest file path for a recipe.
-func ManifestPath(btsRoot, recipeID string) string {
-	return filepath.Join(RecipeDir(btsRoot, recipeID), "manifest.json")
+func ManifestPath(root, recipeID string) string {
+	return filepath.Join(RecipeDir(root, recipeID), "manifest.json")
 }
 
 // LoadManifest reads the manifest file.
-func LoadManifest(btsRoot, recipeID string) (*Manifest, error) {
-	path := ManifestPath(btsRoot, recipeID)
+func LoadManifest(root, recipeID string) (*Manifest, error) {
+	path := ManifestPath(root, recipeID)
 	var m Manifest
 	if err := ReadJSON(path, &m); err != nil {
 		// Return empty manifest if not found
@@ -41,8 +41,8 @@ func LoadManifest(btsRoot, recipeID string) (*Manifest, error) {
 }
 
 // SaveManifest writes the manifest file atomically.
-func SaveManifest(btsRoot, recipeID string, m *Manifest) error {
-	path := ManifestPath(btsRoot, recipeID)
+func SaveManifest(root, recipeID string, m *Manifest) error {
+	path := ManifestPath(root, recipeID)
 	return WriteJSON(path, m)
 }
 

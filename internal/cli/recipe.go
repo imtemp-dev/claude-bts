@@ -28,12 +28,12 @@ var recipeStatusCmd = &cobra.Command{
 	Short: "Show active recipe status",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()
-		btsRoot, err := state.FindBTSRoot(cwd)
+		root, err := state.FindRoot(cwd)
 		if err != nil {
 			return fmt.Errorf("not a forge project: %w", err)
 		}
 
-		recipe, err := state.GetActiveRecipe(btsRoot)
+		recipe, err := state.GetActiveRecipe(root)
 		if err != nil {
 			return fmt.Errorf("read state: %w", err)
 		}
@@ -63,12 +63,12 @@ var recipeListCmd = &cobra.Command{
 	Short: "List all recipes",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()
-		btsRoot, err := state.FindBTSRoot(cwd)
+		root, err := state.FindRoot(cwd)
 		if err != nil {
 			return fmt.Errorf("not a forge project: %w", err)
 		}
 
-		recipes, err := state.ListRecipes(btsRoot)
+		recipes, err := state.ListRecipes(root)
 		if err != nil {
 			return fmt.Errorf("list: %w", err)
 		}
@@ -95,7 +95,7 @@ var recipeLogCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()
-		btsRoot, err := state.FindBTSRoot(cwd)
+		root, err := state.FindRoot(cwd)
 		if err != nil {
 			return fmt.Errorf("not a forge project: %w", err)
 		}
@@ -106,18 +106,18 @@ var recipeLogCmd = &cobra.Command{
 
 		// Update phase if specified (independent of action/iteration mode)
 		if phase != "" {
-			recipe, err := state.LoadRecipeState(btsRoot, recipeID)
+			recipe, err := state.LoadRecipeState(root, recipeID)
 			if err != nil {
 				return fmt.Errorf("load recipe: %w", err)
 			}
 
 			// Pre-condition checks for phase transition
-			if err := checkPhasePreConditions(btsRoot, recipe, phase); err != nil {
+			if err := checkPhasePreConditions(root, recipe, phase); err != nil {
 				return err
 			}
 
 			recipe.Phase = phase
-			if err := state.SaveRecipeState(btsRoot, recipe); err != nil {
+			if err := state.SaveRecipeState(root, recipe); err != nil {
 				return fmt.Errorf("save recipe: %w", err)
 			}
 			fmt.Printf("Phase → %s\n", phase)
@@ -143,13 +143,13 @@ var recipeLogCmd = &cobra.Command{
 				entry.Result = fmt.Sprintf("%d gaps found", gaps)
 			}
 
-			if err := state.AppendChangelog(btsRoot, recipeID, entry); err != nil {
+			if err := state.AppendChangelog(root, recipeID, entry); err != nil {
 				return fmt.Errorf("changelog: %w", err)
 			}
 
 			// Update manifest if output specified
 			if output != "" {
-				manifest, _ := state.LoadManifest(btsRoot, recipeID)
+				manifest, _ := state.LoadManifest(root, recipeID)
 				var deps []string
 				if basedOn != "" {
 					deps = []string{basedOn}
@@ -160,7 +160,7 @@ var recipeLogCmd = &cobra.Command{
 					manifestType = actionToDocType(action)
 				}
 				manifest.AddDocument(output, manifestType, deps)
-				_ = state.SaveManifest(btsRoot, recipeID, manifest)
+				_ = state.SaveManifest(root, recipeID, manifest)
 			}
 
 			fmt.Printf("Logged action: %s → %s\n", action, output)
@@ -184,12 +184,12 @@ var recipeLogCmd = &cobra.Command{
 				Status:    status,
 			}
 
-			if err := state.AppendVerifyLog(btsRoot, recipeID, entry); err != nil {
+			if err := state.AppendVerifyLog(root, recipeID, entry); err != nil {
 				return fmt.Errorf("log: %w", err)
 			}
 
 			// Also log to changelog
-			_ = state.AppendChangelog(btsRoot, recipeID, &state.ChangelogEntry{
+			_ = state.AppendChangelog(root, recipeID, &state.ChangelogEntry{
 				Action: "verify",
 				Result: fmt.Sprintf("critical=%d major=%d minor=%d → %s", critical, major, minor, status),
 			})
@@ -207,19 +207,19 @@ var recipeCancelCmd = &cobra.Command{
 	Short: "Cancel the active recipe",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()
-		btsRoot, err := state.FindBTSRoot(cwd)
+		root, err := state.FindRoot(cwd)
 		if err != nil {
 			return fmt.Errorf("not a forge project: %w", err)
 		}
 
-		recipe, err := state.GetActiveRecipe(btsRoot)
+		recipe, err := state.GetActiveRecipe(root)
 		if err != nil || recipe == nil {
 			fmt.Println("No active recipe to cancel.")
 			return nil
 		}
 
 		recipe.Phase = "cancelled"
-		if err := state.SaveRecipeState(btsRoot, recipe); err != nil {
+		if err := state.SaveRecipeState(root, recipe); err != nil {
 			return fmt.Errorf("save: %w", err)
 		}
 
@@ -273,14 +273,14 @@ func actionToDocType(action string) string {
 
 // checkPhasePreConditions warns about missing prerequisites for a phase transition.
 // Warnings go to stderr; phase transition always proceeds (warn, not block).
-func checkPhasePreConditions(btsRoot string, recipe *state.RecipeState, newPhase string) error {
-	recipeDir := state.RecipeDir(btsRoot, recipe.ID)
+func checkPhasePreConditions(root string, recipe *state.RecipeState, newPhase string) error {
+	recipeDir := state.RecipeDir(root, recipe.ID)
 	exists := func(name string) bool {
 		_, err := os.Stat(filepath.Join(recipeDir, name))
 		return err == nil
 	}
 	stateExists := func(name string) bool {
-		_, err := os.Stat(filepath.Join(state.StatePath(btsRoot), name))
+		_, err := os.Stat(filepath.Join(state.StatePath(root), name))
 		return err == nil
 	}
 	warn := func(msg string) {

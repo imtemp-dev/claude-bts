@@ -23,25 +23,25 @@ func (h *sessionStartHandler) EventType() EventType {
 }
 
 func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
-	btsRoot, err := state.FindBTSRoot(input.CWD)
+	root, err := state.FindRoot(input.CWD)
 	if err != nil {
 		return &HookOutput{}, nil
 	}
 
 	// Auto-update templates if binary version changed
-	updated := autoUpdateTemplates(btsRoot)
+	updated := autoUpdateTemplates(root)
 
 	// Try to load work state for rich context recovery
-	ws, _ := state.LoadWorkState(btsRoot)
+	ws, _ := state.LoadWorkState(root)
 	source := detectSource(input, ws)
 
-	recipe, err := state.GetActiveRecipe(btsRoot)
+	recipe, err := state.GetActiveRecipe(root)
 	if err != nil || recipe == nil {
 		// Check for finalized recipes ready for implementation
-		recipe, err = state.GetFinalizedRecipe(btsRoot)
+		recipe, err = state.GetFinalizedRecipe(root)
 		if err != nil || recipe == nil {
 			// Check roadmap for next-item hint
-			done, total, nextItem := state.RoadmapProgress(btsRoot)
+			done, total, nextItem := state.RoadmapProgress(root)
 			if total > 0 {
 				var msg string
 				if nextItem != "" {
@@ -59,8 +59,8 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 				}, nil
 			}
 			// Check for incomplete vision (DRAFT without a recipe yet)
-			if state.VisionExists(btsRoot) {
-				visionData, _ := os.ReadFile(filepath.Join(state.StatePath(btsRoot), "vision.md"))
+			if state.VisionExists(root) {
+				visionData, _ := os.ReadFile(filepath.Join(state.StatePath(root), "vision.md"))
 				if strings.Contains(string(visionData), "Status: DRAFT") {
 					msg := "[forge] Vision document in progress (Status: DRAFT).\nRun /forge-recipe-blueprint to continue."
 					if updated {
@@ -119,7 +119,7 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 		case "resume":
 			hint = "Session restored. Continue where you left off."
 		case "compact":
-			if next := nextStepHint(btsRoot, recipe); next != "" {
+			if next := nextStepHint(root, recipe); next != "" {
 				hint = fmt.Sprintf("Context compacted. NEXT: %s", next)
 			} else {
 				hint = fmt.Sprintf("Context compacted. Run %s to continue.", implCmd)
@@ -132,7 +132,7 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 		case "resume":
 			hint = "Session restored. Continue where you left off."
 		case "compact":
-			if next := nextStepHint(btsRoot, recipe); next != "" {
+			if next := nextStepHint(root, recipe); next != "" {
 				hint = fmt.Sprintf("Context compacted. NEXT: %s", next)
 			} else {
 				hint = "Context compacted. Continue where you left off."
@@ -177,8 +177,8 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 
 // autoUpdateTemplates checks if templates need updating and deploys if so.
 // Returns true if templates were updated, false if skipped.
-func autoUpdateTemplates(btsRoot string) bool {
-	versionFile := filepath.Join(btsRoot, ".forge", "config", ".template-version")
+func autoUpdateTemplates(root string) bool {
+	versionFile := filepath.Join(root, ".forge", "config", ".template-version")
 	existing, _ := os.ReadFile(versionFile)
 
 	current := version.GetTemplateVersion()
@@ -188,7 +188,7 @@ func autoUpdateTemplates(btsRoot string) bool {
 	}
 
 	// Deploy templates (overwrite all except user config files)
-	_, _ = template.DeployForce(btsRoot, []string{
+	_, _ = template.DeployForce(root, []string{
 		".forge/config/settings.yaml",
 		".mcp.json",
 	})
@@ -200,8 +200,8 @@ func autoUpdateTemplates(btsRoot string) bool {
 
 // nextStepHint returns a specific next-action hint based on recipe phase and state files.
 // Used after context compaction to give the LLM a clear directive instead of "continue".
-func nextStepHint(btsRoot string, recipe *state.RecipeState) string {
-	recipeDir := state.RecipeDir(btsRoot, recipe.ID)
+func nextStepHint(root string, recipe *state.RecipeState) string {
+	recipeDir := state.RecipeDir(root, recipe.ID)
 	exists := func(name string) bool {
 		_, err := os.Stat(filepath.Join(recipeDir, name))
 		return err == nil

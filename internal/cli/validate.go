@@ -24,20 +24,20 @@ var validateCmd = &cobra.Command{
 
 func runValidate(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
-	btsRoot, err := state.FindBTSRoot(cwd)
+	root, err := state.FindRoot(cwd)
 	if err != nil {
 		return fmt.Errorf("not a forge project: %w", err)
 	}
 
 	var recipeDir string
 	if len(args) > 0 {
-		recipeDir = filepath.Join(state.StatePath(btsRoot), "recipes", args[0])
+		recipeDir = filepath.Join(state.StatePath(root), "recipes", args[0])
 	} else {
 		// Find active recipe
-		recipe, err := state.GetActiveRecipe(btsRoot)
+		recipe, err := state.GetActiveRecipe(root)
 		if err != nil || recipe == nil {
 			// Try to find any recipe directory
-			recipesDir := filepath.Join(state.StatePath(btsRoot), "recipes")
+			recipesDir := filepath.Join(state.StatePath(root), "recipes")
 			entries, err := os.ReadDir(recipesDir)
 			if err != nil || len(entries) == 0 {
 				return fmt.Errorf("no recipes found. Specify recipe ID: forge validate <id>")
@@ -53,7 +53,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("no recipe directory found")
 			}
 		} else {
-			recipeDir = state.RecipeDir(btsRoot, recipe.ID)
+			recipeDir = state.RecipeDir(root, recipe.ID)
 		}
 	}
 

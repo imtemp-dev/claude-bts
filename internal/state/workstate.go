@@ -32,31 +32,31 @@ type TaskInfo struct {
 }
 
 // WorkStatePath returns the path to the work state file.
-func WorkStatePath(btsRoot string) string {
-	return filepath.Join(StatePath(btsRoot), "work-state.json")
+func WorkStatePath(root string) string {
+	return filepath.Join(StatePath(root), "work-state.json")
 }
 
 // SaveWorkState persists the work state snapshot.
-func SaveWorkState(btsRoot string, ws *WorkState) error {
+func SaveWorkState(root string, ws *WorkState) error {
 	ws.SavedAt = time.Now().UTC().Format(time.RFC3339)
-	return WriteJSON(WorkStatePath(btsRoot), ws)
+	return WriteJSON(WorkStatePath(root), ws)
 }
 
 // LoadWorkState reads the work state file. Returns nil, err if not found.
-func LoadWorkState(btsRoot string) (*WorkState, error) {
+func LoadWorkState(root string) (*WorkState, error) {
 	var ws WorkState
-	if err := ReadJSON(WorkStatePath(btsRoot), &ws); err != nil {
+	if err := ReadJSON(WorkStatePath(root), &ws); err != nil {
 		return nil, err
 	}
 	return &ws, nil
 }
 
 // BuildWorkState aggregates recipe, tasks, changelog, and scope into a snapshot.
-func BuildWorkState(btsRoot string) (*WorkState, error) {
-	recipe, err := GetActiveRecipe(btsRoot)
+func BuildWorkState(root string) (*WorkState, error) {
+	recipe, err := GetActiveRecipe(root)
 	if err != nil || recipe == nil {
 		// Also check finalized recipes
-		recipe, err = GetFinalizedRecipe(btsRoot)
+		recipe, err = GetFinalizedRecipe(root)
 		if err != nil || recipe == nil {
 			return nil, nil
 		}
@@ -70,7 +70,7 @@ func BuildWorkState(btsRoot string) (*WorkState, error) {
 
 	// Find in-progress task if in implementation phase
 	if IsImplementPhase(recipe.Phase) {
-		ts, err := LoadTaskState(btsRoot, recipe.ID)
+		ts, err := LoadTaskState(root, recipe.ID)
 		if err == nil && ts != nil {
 			for _, t := range ts.Tasks {
 				if t.Status == "in_progress" || t.Status == "pending" {
@@ -98,13 +98,13 @@ func BuildWorkState(btsRoot string) (*WorkState, error) {
 	}
 
 	// Read last 5 changelog entries
-	changelogPath := filepath.Join(RecipeDir(btsRoot, recipe.ID), "changelog.jsonl")
+	changelogPath := filepath.Join(RecipeDir(root, recipe.ID), "changelog.jsonl")
 	if actions := readLastChangelog(changelogPath, 5); len(actions) > 0 {
 		ws.LastActions = append(ws.LastActions, actions...)
 	}
 
 	// Check scope status
-	scopePath := filepath.Join(RecipeDir(btsRoot, recipe.ID), "scope.md")
+	scopePath := filepath.Join(RecipeDir(root, recipe.ID), "scope.md")
 	if data, err := os.ReadFile(scopePath); err == nil {
 		content := string(data)
 		if strings.Contains(content, "### Status: CONFIRMED") {
