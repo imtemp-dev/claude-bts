@@ -32,7 +32,7 @@
 ```mermaid
 flowchart LR
     subgraph Blueprint
-        S["Scoping"] --> R["Research"] --> D["Draft"] --> V["Verify Loop"]
+        DIS["Discover"] --> S["Scoping"] --> R["Research"] --> D["Draft"] --> V["Verify Loop"]
         V --> SIM["Simulate"] --> DB["Debate"] --> F["Finalize"]
     end
     subgraph Implement
@@ -164,13 +164,26 @@ flowchart TD
     CC --> DOC["bts doctor — health check"]
 ```
 
+## Development Lifecycle
+
+bts maps to a standard development process:
+
+```
+Requirements → Planning → Design → Implementation → Verification → Release
+     ↓            ↓         ↓           ↓                ↓           ↓
+  discover     vision    blueprint   implement        test+review   sync+status
+  (intent)    roadmap    (spec)      (code)          simulate      (complete)
+               scope
+```
+
 ## State Machine
 
 ```mermaid
 stateDiagram-v2
-    [*] --> scoping
+    [*] --> discovery
 
     state "Spec Phase" as spec {
+        discovery --> scoping : intent confirmed
         scoping --> research
         research --> draft
         draft --> verify

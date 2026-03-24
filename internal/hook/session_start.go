@@ -106,7 +106,9 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 
 	// Build hint based on phase and source
 	var hint string
-	if recipe.Phase == "scoping" {
+	if recipe.Phase == "discovery" {
+		hint = fmt.Sprintf("Intent discovery in progress. Read .bts/state/recipes/%s/intent.md and continue conversation.", recipe.ID)
+	} else if recipe.Phase == "scoping" {
 		hint = fmt.Sprintf("Scope alignment in progress. Read .bts/state/recipes/%s/scope.md and confirm or adjust.", recipe.ID)
 	} else if state.IsImplementPhase(recipe.Phase) {
 		implCmd := fmt.Sprintf("/bts-implement %s", recipe.ID)
