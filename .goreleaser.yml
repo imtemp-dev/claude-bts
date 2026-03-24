@@ -5,8 +5,8 @@ before:
     - go mod tidy
 
 builds:
-  - main: ./cmd/bts/
-    binary: bts
+  - main: ./cmd/forge/
+    binary: forge
     env:
       - CGO_ENABLED=0
     goos:
@@ -17,9 +17,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/jlim/bts/pkg/version.Version={{.Version}}
-      - -X github.com/jlim/bts/pkg/version.Commit={{.Commit}}
-      - -X github.com/jlim/bts/pkg/version.Date={{.Date}}
+      - -X github.com/jlim/claude-forge/pkg/version.Version={{.Version}}
+      - -X github.com/jlim/claude-forge/pkg/version.Commit={{.Commit}}
+      - -X github.com/jlim/claude-forge/pkg/version.Date={{.Date}}
 
 archives:
   - formats:
@@ -38,4 +38,4 @@ changelog:
 release:
   github:
     owner: jlim
-    name: bts
+    name: claude-forge

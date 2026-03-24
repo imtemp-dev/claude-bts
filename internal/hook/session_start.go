@@ -194,7 +194,9 @@ func autoUpdateTemplates(root string) bool {
 	})
 
 	// Record new version
-	_ = os.WriteFile(versionFile, []byte(current), 0644)
+	if err := os.WriteFile(versionFile, []byte(current), 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: save template version: %v\n", err)
+	}
 	return true
 }
 

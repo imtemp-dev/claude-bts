@@ -45,7 +45,9 @@ var updateCmd = &cobra.Command{
 		}
 
 		// Write new version
-		_ = os.WriteFile(versionFile, []byte(current), 0644)
+		if err := os.WriteFile(versionFile, []byte(current), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: save template version: %v\n", err)
+		}
 
 		// Merge statusline settings (same as init)
 		if err := mergeStatusLineSettings(root); err != nil {

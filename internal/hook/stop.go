@@ -88,7 +88,9 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 
 	// All clear — allow completion
 	recipe.Phase = "finalize"
-	_ = state.SaveRecipeState(root, recipe)
+	if err := state.SaveRecipeState(root, recipe); err != nil {
+		return nil, fmt.Errorf("save recipe state: %w", err)
+	}
 
 	return &HookOutput{}, nil
 }
@@ -155,9 +157,13 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 
 	// All clear — mark as complete
 	recipe.Phase = "complete"
-	_ = state.SaveRecipeState(root, recipe)
+	if err := state.SaveRecipeState(root, recipe); err != nil {
+		return nil, fmt.Errorf("save recipe state: %w", err)
+	}
 
-	state.MarkRoadmapItemDone(root, recipe.ID)
+	if err := state.MarkRoadmapItemDone(root, recipe.ID); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: update roadmap: %v\n", err)
+	}
 	return roadmapHint(root, "Implementation complete."), nil
 }
 
@@ -184,9 +190,13 @@ func (h *stopHandler) handleFixDone(root string, recipe *state.RecipeState) (*Ho
 
 	// All clear — mark as complete
 	recipe.Phase = "complete"
-	_ = state.SaveRecipeState(root, recipe)
+	if err := state.SaveRecipeState(root, recipe); err != nil {
+		return nil, fmt.Errorf("save recipe state: %w", err)
+	}
 
-	state.MarkRoadmapItemDone(root, recipe.ID)
+	if err := state.MarkRoadmapItemDone(root, recipe.ID); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: update roadmap: %v\n", err)
+	}
 	return roadmapHint(root, "Fix complete."), nil
 }
 

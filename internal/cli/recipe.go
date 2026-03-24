@@ -160,7 +160,9 @@ var recipeLogCmd = &cobra.Command{
 					manifestType = actionToDocType(action)
 				}
 				manifest.AddDocument(output, manifestType, deps)
-				_ = state.SaveManifest(root, recipeID, manifest)
+				if err := state.SaveManifest(root, recipeID, manifest); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: save manifest: %v\n", err)
+				}
 			}
 
 			fmt.Printf("Logged action: %s → %s\n", action, output)
@@ -189,10 +191,12 @@ var recipeLogCmd = &cobra.Command{
 			}
 
 			// Also log to changelog
-			_ = state.AppendChangelog(root, recipeID, &state.ChangelogEntry{
+			if err := state.AppendChangelog(root, recipeID, &state.ChangelogEntry{
 				Action: "verify",
 				Result: fmt.Sprintf("critical=%d major=%d minor=%d → %s", critical, major, minor, status),
-			})
+			}); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: append changelog: %v\n", err)
+			}
 
 			fmt.Printf("Logged iteration %d: critical=%d major=%d minor=%d → %s\n",
 				iteration, critical, major, minor, status)

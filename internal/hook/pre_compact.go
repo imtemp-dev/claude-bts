@@ -2,6 +2,7 @@ package hook
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/jlim/claude-forge/internal/state"
 )
@@ -27,7 +28,9 @@ func (h *preCompactHandler) Handle(input *HookInput) (*HookOutput, error) {
 	if err != nil || recipe == nil {
 		return &HookOutput{}, nil
 	}
-	_ = state.SaveRecipeState(root, recipe)
+	if err := state.SaveRecipeState(root, recipe); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: save recipe state: %v\n", err)
+	}
 
 	// Build and save work state snapshot
 	ws, err := state.BuildWorkState(root)
@@ -38,7 +41,9 @@ func (h *preCompactHandler) Handle(input *HookInput) (*HookOutput, error) {
 			},
 		}, nil
 	}
-	_ = state.SaveWorkState(root, ws)
+	if err := state.SaveWorkState(root, ws); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: save work state: %v\n", err)
+	}
 
 	// Include next-step hint for post-compaction context
 	msg := fmt.Sprintf("[forge] Context snapshot saved. %s", ws.Summary)

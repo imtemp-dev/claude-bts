@@ -75,7 +75,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if version.Commit != "none" && len(version.Commit) >= 7 {
 		tv += "-" + version.Commit[:7]
 	}
-	_ = os.WriteFile(filepath.Join(absRoot, ".forge", "config", ".template-version"), []byte(tv), 0644)
+	if err := os.WriteFile(filepath.Join(absRoot, ".forge", "config", ".template-version"), []byte(tv), 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: save template version: %v\n", err)
+	}
 
 	// Merge statusline config into .claude/settings.local.json
 	if err := mergeStatusLineSettings(absRoot); err != nil {
