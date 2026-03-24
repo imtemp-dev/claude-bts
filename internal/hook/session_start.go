@@ -209,7 +209,8 @@ func autoUpdateTemplates(root string) bool {
 }
 
 // nextStepHint returns a specific next-action hint based on recipe phase and state files.
-// Used after context compaction to give the LLM a clear directive instead of "continue".
+// For implementation phases, always guides back to the orchestrator (/forge-implement)
+// to maintain flow continuity, with a description of what step comes next.
 func nextStepHint(root string, recipe *state.RecipeState) string {
 	recipeDir := state.RecipeDir(root, recipe.ID)
 	exists := func(name string) bool {
@@ -217,6 +218,7 @@ func nextStepHint(root string, recipe *state.RecipeState) string {
 		return err == nil
 	}
 
+	// Spec phases — guide to specific commands
 	switch {
 	case recipe.Phase == "discovery":
 		return "Continue intent discovery — read intent.md and resume conversation."
@@ -224,28 +226,44 @@ func nextStepHint(root string, recipe *state.RecipeState) string {
 		return "Read scope.md and confirm or adjust scope."
 	case !state.IsImplementPhase(recipe.Phase) && recipe.Phase != "finalize":
 		return "Run /forge-assess on draft.md to determine next action."
-	case recipe.Phase == "implement":
+	}
+
+	// Implementation phases — always guide to orchestrator
+	implCmd := fmt.Sprintf("/forge-implement %s", recipe.ID)
+	if recipe.Type == "fix" {
+		implCmd = fmt.Sprintf("/forge-recipe-fix %s", recipe.ID)
+	}
+
+	var detail string
+	switch recipe.Phase {
+	case "implement":
 		if !exists("tasks.json") {
-			return fmt.Sprintf("Run /forge-implement %s to decompose tasks.", recipe.ID)
+			detail = "decompose tasks from spec"
+		} else {
+			detail = "continue task implementation"
 		}
-		return "Continue implementation — check tasks.json for next pending task."
-	case recipe.Phase == "test":
+	case "test":
 		if exists("test-results.json") {
 			simsDir := filepath.Join(recipeDir, "simulations")
 			if entries, err := os.ReadDir(simsDir); err == nil && len(entries) > 0 {
-				return "Tests and simulation done. Run /forge-review for code quality review."
+				detail = "proceed to code review"
+			} else {
+				detail = "run code simulation"
 			}
-			return "Tests completed. Run /forge-simulate code next."
+		} else {
+			detail = "run tests"
 		}
-		return fmt.Sprintf("Run /forge-test %s to execute tests.", recipe.ID)
-	case recipe.Phase == "review":
-		return "Run /forge-review for code quality review."
-	case recipe.Phase == "sync":
-		return fmt.Sprintf("Run /forge-sync %s to compare spec with code.", recipe.ID)
-	case recipe.Phase == "status":
-		return fmt.Sprintf("Run /forge-status %s to update project status.", recipe.ID)
+	case "review":
+		detail = "run code review"
+	case "sync":
+		detail = "sync spec with implementation"
+	case "status":
+		detail = "update project status"
+	default:
+		return ""
 	}
-	return ""
+
+	return fmt.Sprintf("Run %s to continue (next: %s).", implCmd, detail)
 }
 
 // detectSource determines the session source.
