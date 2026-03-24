@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/jlim/claude-forge/internal/metrics"
 	"github.com/jlim/claude-forge/internal/state"
 )
 
@@ -85,10 +86,17 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 	}
 
 	// All clear — allow completion
+	prevPhase := recipe.Phase
 	recipe.Phase = "finalize"
 	if err := state.SaveRecipeState(root, recipe); err != nil {
 		return nil, fmt.Errorf("save recipe state: %w", err)
 	}
+	_ = metrics.Append(root, &metrics.MetricsEvent{
+		Kind:          metrics.KindPhaseChange,
+		RecipeID:      recipe.ID,
+		Phase:         "finalize",
+		PreviousPhase: prevPhase,
+	})
 
 	return &HookOutput{}, nil
 }
@@ -159,10 +167,17 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 	// not blockers for the current recipe's completion.
 
 	// All clear — mark as complete
+	prevPhase := recipe.Phase
 	recipe.Phase = "complete"
 	if err := state.SaveRecipeState(root, recipe); err != nil {
 		return nil, fmt.Errorf("save recipe state: %w", err)
 	}
+	_ = metrics.Append(root, &metrics.MetricsEvent{
+		Kind:          metrics.KindPhaseChange,
+		RecipeID:      recipe.ID,
+		Phase:         "complete",
+		PreviousPhase: prevPhase,
+	})
 
 	if err := state.MarkRoadmapItemDone(root, recipe.ID); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: update roadmap: %v\n", err)
@@ -192,10 +207,17 @@ func (h *stopHandler) handleFixDone(root string, recipe *state.RecipeState) (*Ho
 	}
 
 	// All clear — mark as complete
+	prevPhase := recipe.Phase
 	recipe.Phase = "complete"
 	if err := state.SaveRecipeState(root, recipe); err != nil {
 		return nil, fmt.Errorf("save recipe state: %w", err)
 	}
+	_ = metrics.Append(root, &metrics.MetricsEvent{
+		Kind:          metrics.KindPhaseChange,
+		RecipeID:      recipe.ID,
+		Phase:         "complete",
+		PreviousPhase: prevPhase,
+	})
 
 	if err := state.MarkRoadmapItemDone(root, recipe.ID); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: update roadmap: %v\n", err)

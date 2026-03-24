@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jlim/claude-forge/internal/metrics"
 	"github.com/jlim/claude-forge/internal/state"
 	"github.com/jlim/claude-forge/internal/template"
 	"github.com/jlim/claude-forge/pkg/version"
@@ -34,6 +35,15 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 	// Try to load work state for rich context recovery
 	ws, _ := state.LoadWorkState(root)
 	source := detectSource(input, ws)
+
+	// Emit session_start metric (fire-and-forget)
+	metricsEvent := &metrics.MetricsEvent{
+		Kind:      metrics.KindSessionStart,
+		SessionID: input.SessionID,
+		Model:     input.Model,
+		Source:    source,
+	}
+	defer func() { _ = metrics.Append(root, metricsEvent) }()
 
 	recipe, err := state.GetActiveRecipe(root)
 	if err != nil || recipe == nil {
@@ -83,6 +93,9 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 			return &HookOutput{}, nil
 		}
 
+		metricsEvent.RecipeID = recipe.ID
+		metricsEvent.Phase = recipe.Phase
+
 		msg := fmt.Sprintf(
 			"[forge] Recipe ready for implementation: %s \"%s\" (ID: %s)\nRun /forge-implement %s to start coding.",
 			recipe.Type, recipe.Topic, recipe.ID, recipe.ID,
@@ -103,6 +116,9 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 			},
 		}, nil
 	}
+
+	metricsEvent.RecipeID = recipe.ID
+	metricsEvent.Phase = recipe.Phase
 
 	// Build hint — actionable content only, no source prefix.
 	// All sources (startup, resume, compact) get the same hint quality.

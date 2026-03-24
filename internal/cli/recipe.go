@@ -8,6 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/jlim/claude-forge/internal/metrics"
 	"github.com/jlim/claude-forge/internal/state"
 	"github.com/spf13/cobra"
 )
@@ -116,10 +117,17 @@ var recipeLogCmd = &cobra.Command{
 				return err
 			}
 
+			previousPhase := recipe.Phase
 			recipe.Phase = phase
 			if err := state.SaveRecipeState(root, recipe); err != nil {
 				return fmt.Errorf("save recipe: %w", err)
 			}
+			_ = metrics.Append(root, &metrics.MetricsEvent{
+				Kind:          metrics.KindPhaseChange,
+				RecipeID:      recipeID,
+				Phase:         phase,
+				PreviousPhase: previousPhase,
+			})
 			fmt.Printf("Phase → %s\n", phase)
 		}
 

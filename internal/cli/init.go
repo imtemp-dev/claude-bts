@@ -157,6 +157,7 @@ func mergeStatusLineSettings(projectRoot string) error {
 	register("SubagentStart", ".claude/hooks/forge-handle-subagent-start.sh", 5)
 	register("SubagentStop", ".claude/hooks/forge-handle-subagent-stop.sh", 5)
 	register("PreToolUse", ".claude/hooks/forge-handle-pre-tool-use.sh", 5)
+	register("PostToolUse", ".claude/hooks/forge-handle-post-tool-use.sh", 5)
 
 	if len(hooks) > 0 {
 		settings["hooks"] = hooks

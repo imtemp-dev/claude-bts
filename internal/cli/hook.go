@@ -35,6 +35,7 @@ func runHook(cmd *cobra.Command, args []string) error {
 		hook.NewSessionStartHandler(),
 		hook.NewPreCompactHandler(),
 		hook.NewPreToolUseHandler(),
+		hook.NewPostToolUseHandler(),
 		hook.NewStopHandler(),
 		hook.NewSessionEndHandler(),
 		hook.NewSubagentStartHandler(),

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/jlim/claude-forge/internal/metrics"
 	"github.com/jlim/claude-forge/internal/state"
 )
 
@@ -44,6 +45,13 @@ func (h *preCompactHandler) Handle(input *HookInput) (*HookOutput, error) {
 	if err := state.SaveWorkState(root, ws); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: save work state: %v\n", err)
 	}
+
+	_ = metrics.Append(root, &metrics.MetricsEvent{
+		Kind:      metrics.KindCompact,
+		SessionID: input.SessionID,
+		RecipeID:  recipe.ID,
+		Phase:     recipe.Phase,
+	})
 
 	// Include next-step hint for post-compaction context
 	msg := fmt.Sprintf("[forge] Context snapshot saved. %s", ws.Summary)

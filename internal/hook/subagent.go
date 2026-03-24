@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/jlim/claude-forge/internal/metrics"
 	"github.com/jlim/claude-forge/internal/state"
 )
 
@@ -37,6 +38,12 @@ func (h *subagentStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 	_ = os.MkdirAll(filepath.Dir(agentFile), 0755)
 	_ = os.WriteFile(agentFile, bytes, 0644)
 
+	_ = metrics.Append(root, &metrics.MetricsEvent{
+		Kind:      metrics.KindSubagentStart,
+		SessionID: input.SessionID,
+		AgentID:   input.AgentID,
+	})
+
 	return &HookOutput{}, nil
 }
 
@@ -58,6 +65,12 @@ func (h *subagentStopHandler) Handle(input *HookInput) (*HookOutput, error) {
 
 	agentFile := filepath.Join(state.StatePath(root), "active-agent.json")
 	_ = os.Remove(agentFile)
+
+	_ = metrics.Append(root, &metrics.MetricsEvent{
+		Kind:      metrics.KindSubagentStop,
+		SessionID: input.SessionID,
+		AgentID:   input.AgentID,
+	})
 
 	return &HookOutput{}, nil
 }

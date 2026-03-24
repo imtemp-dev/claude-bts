@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/jlim/claude-forge/internal/metrics"
 	"github.com/jlim/claude-forge/internal/state"
 	"github.com/jlim/claude-forge/pkg/version"
 )
@@ -60,6 +61,28 @@ func Render(stdin io.Reader, root string) string {
 	pct := getContextPercentage(&data)
 	if pct >= 0 {
 		segments = append(segments, renderContextBar(pct))
+	}
+
+	// Persist token snapshot to metrics (throttled, fire-and-forget)
+	if root != "" && data.ContextWindow != nil && data.ContextWindow.CurrentUsage != nil {
+		if metrics.ShouldEmitTokenSnapshot(root) {
+			cu := data.ContextWindow.CurrentUsage
+			event := &metrics.MetricsEvent{
+				Kind: metrics.KindTokenSnapshot,
+				Tokens: &metrics.TokenSnapshot{
+					InputTokens:         cu.InputTokens,
+					CacheCreationTokens: cu.CacheCreationTokens,
+					CacheReadTokens:     cu.CacheReadTokens,
+					OutputTokens:        cu.OutputTokens,
+					ContextWindowSize:   data.ContextWindow.ContextWindowSize,
+				},
+			}
+			if data.ContextWindow.UsedPercentage != nil {
+				event.Tokens.UsedPercentage = *data.ContextWindow.UsedPercentage
+			}
+			_ = metrics.AppendGlobal(root, event)
+			metrics.TouchTokenSentinel(root)
+		}
 	}
 
 	return strings.Join(segments, " │ ")

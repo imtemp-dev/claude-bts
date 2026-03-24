@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/jlim/claude-forge/internal/metrics"
 	"github.com/jlim/claude-forge/internal/state"
 )
 
@@ -39,6 +40,13 @@ func (h *sessionEndHandler) Handle(input *HookInput) (*HookOutput, error) {
 			fmt.Fprintf(os.Stderr, "warning: save work state: %v\n", err)
 		}
 	}
+
+	_ = metrics.Append(root, &metrics.MetricsEvent{
+		Kind:      metrics.KindSessionEnd,
+		SessionID: input.SessionID,
+		RecipeID:  recipe.ID,
+		Phase:     recipe.Phase,
+	})
 
 	return &HookOutput{}, nil
 }

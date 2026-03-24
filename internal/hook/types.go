@@ -9,6 +9,7 @@ const (
 	EventStop          EventType = "stop"
 	EventSessionEnd    EventType = "session-end"
 	EventPreToolUse    EventType = "pre-tool-use"
+	EventPostToolUse   EventType = "post-tool-use"
 	EventSubagentStart EventType = "subagent-start"
 	EventSubagentStop  EventType = "subagent-stop"
 )
@@ -28,9 +29,14 @@ type HookInput struct {
 	// Subagent fields
 	AgentID string `json:"agent_id,omitempty"`
 
-	// Tool fields (for future use)
-	ToolName  string                 `json:"tool_name,omitempty"`
-	ToolInput map[string]interface{} `json:"tool_input,omitempty"`
+	// Tool fields
+	ToolName   string                 `json:"tool_name,omitempty"`
+	ToolInput  map[string]interface{} `json:"tool_input,omitempty"`
+	ToolResult map[string]interface{} `json:"tool_result,omitempty"`
+
+	// Extended fields (sent by Claude Code, previously ignored)
+	Model          string `json:"model,omitempty"`
+	TranscriptPath string `json:"transcript_path,omitempty"`
 }
 
 // HookOutput is the JSON written to stdout for Claude Code.
