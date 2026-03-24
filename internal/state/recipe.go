@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -203,7 +205,73 @@ func ListRecipes(root string) ([]*RecipeState, error) {
 	return recipes, nil
 }
 
-// NewRecipeID generates a simple recipe ID.
-func NewRecipeID() string {
-	return fmt.Sprintf("r-%d", time.Now().UnixMilli())
+// NewRecipeID generates a sequential recipe ID with topic slug.
+// Format: r-NNN-slug (e.g., r-001-mcp-server, r-002-oauth2-auth)
+func NewRecipeID(root, topic string) string {
+	recipesDir := filepath.Join(StatePath(root), "recipes")
+	entries, _ := os.ReadDir(recipesDir)
+
+	maxSeq := 0
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if len(name) < 3 || name[0] != 'r' || name[1] != '-' {
+			continue
+		}
+		// Extract numeric part after "r-" (only short sequences like 001, not timestamps)
+		numEnd := 2
+		for numEnd < len(name) && name[numEnd] >= '0' && name[numEnd] <= '9' {
+			numEnd++
+		}
+		numLen := numEnd - 2
+		// Only count as sequence number if <= 4 digits (avoids old timestamp format)
+		if numLen > 0 && numLen <= 4 && numEnd < len(name) && name[numEnd] == '-' {
+			if n, err := strconv.Atoi(name[2:numEnd]); err == nil && n > maxSeq {
+				maxSeq = n
+			}
+		}
+	}
+
+	slug := Slugify(topic)
+	if slug == "" {
+		slug = "recipe"
+	}
+	return fmt.Sprintf("r-%03d-%s", maxSeq+1, slug)
+}
+
+// Slugify converts a topic string to a URL-safe slug.
+// Rules: ASCII lowercase + digits + hyphens, max 20 chars, trim at word boundary.
+func Slugify(s string) string {
+	s = strings.ToLower(s)
+
+	// Keep only ASCII letters, digits, spaces
+	var b strings.Builder
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		} else if r == ' ' || r == '-' || r == '_' {
+			b.WriteRune(' ')
+		}
+	}
+	s = b.String()
+
+	// Split into words and join with hyphens
+	words := strings.Fields(s)
+	if len(words) == 0 {
+		return ""
+	}
+
+	// Build slug, truncate to ~20 chars at word boundary
+	result := words[0]
+	for i := 1; i < len(words); i++ {
+		next := result + "-" + words[i]
+		if len(next) > 20 {
+			break
+		}
+		result = next
+	}
+
+	return result
 }

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/imtemp-dev/claude-forge/internal/metrics"
 	"github.com/imtemp-dev/claude-forge/internal/state"
@@ -15,7 +16,10 @@ import (
 
 func init() {
 	rootCmd.AddCommand(recipeCmd)
-	recipeCmd.AddCommand(recipeStatusCmd, recipeListCmd, recipeLogCmd, recipeCancelCmd)
+	recipeCmd.AddCommand(recipeStatusCmd, recipeListCmd, recipeLogCmd, recipeCancelCmd, recipeCreateCmd)
+	recipeCreateCmd.Flags().String("type", "blueprint", "Recipe type (blueprint, design, analyze, fix, debug)")
+	recipeCreateCmd.Flags().String("topic", "", "Recipe topic description")
+	_ = recipeCreateCmd.MarkFlagRequired("topic")
 }
 
 var recipeCmd = &cobra.Command{
@@ -210,6 +214,38 @@ var recipeLogCmd = &cobra.Command{
 				iteration, critical, major, minor, status)
 		}
 
+		return nil
+	},
+}
+
+var recipeCreateCmd = &cobra.Command{
+	Use:   "create",
+	Short: "Create a new recipe and output its ID",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cwd, _ := os.Getwd()
+		root, err := state.FindRoot(cwd)
+		if err != nil {
+			return fmt.Errorf("not a forge project: %w", err)
+		}
+
+		recipeType, _ := cmd.Flags().GetString("type")
+		topic, _ := cmd.Flags().GetString("topic")
+
+		id := state.NewRecipeID(root, topic)
+		recipe := &state.RecipeState{
+			ID:        id,
+			Type:      recipeType,
+			Topic:     topic,
+			Phase:     "discovery",
+			StartedAt: time.Now().UTC().Format(time.RFC3339),
+		}
+
+		if err := state.SaveRecipeState(root, recipe); err != nil {
+			return fmt.Errorf("create recipe: %w", err)
+		}
+
+		// Output ID only (for skill capture via Bash)
+		fmt.Println(id)
 		return nil
 	},
 }

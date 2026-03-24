@@ -180,12 +180,64 @@ func TestListRecipes(t *testing.T) {
 }
 
 func TestNewRecipeID(t *testing.T) {
-	id := NewRecipeID()
-	if !strings.HasPrefix(id, "r-") {
-		t.Errorf("got %s, want prefix r-", id)
+	root := setupRecipeRoot(t)
+
+	t.Run("first recipe", func(t *testing.T) {
+		id := NewRecipeID(root, "OAuth2 auth")
+		if id != "r-001-oauth2-auth" {
+			t.Errorf("got %s, want r-001-oauth2-auth", id)
+		}
+	})
+
+	t.Run("sequential numbering", func(t *testing.T) {
+		saveTestRecipe(t, root, "r-001-oauth2", "draft")
+		id := NewRecipeID(root, "MCP Server")
+		if id != "r-002-mcp-server" {
+			t.Errorf("got %s, want r-002-mcp-server", id)
+		}
+	})
+
+	t.Run("coexists with old format", func(t *testing.T) {
+		saveTestRecipe(t, root, "r-1774323037", "complete")
+		// Old timestamp format should be ignored in sequence calculation
+		id := NewRecipeID(root, "Peer discovery")
+		// Should still be based on max from r-001, r-002 (not the timestamp)
+		if !strings.HasPrefix(id, "r-") {
+			t.Errorf("got %s, want prefix r-", id)
+		}
+	})
+
+	t.Run("empty topic", func(t *testing.T) {
+		id := NewRecipeID(root, "")
+		if !strings.Contains(id, "recipe") {
+			t.Errorf("empty topic should use fallback 'recipe': got %s", id)
+		}
+	})
+}
+
+func TestSlugify(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"OAuth2 authentication", "oauth2"},
+		{"MCP Server", "mcp-server"},
+		{"Fix bcrypt hash", "fix-bcrypt-hash"},
+		{"Claude Code P2P direct communication MCP server", "claude-code-p2p"},
+		{"한국어 테스트", ""},
+		{"", ""},
+		{"a--b  c", "a-b-c"},
+		{"short", "short"},
+		{"This is a very long topic", "this-is-a-very-long"},
+		{"add OAuth2 auth", "add-oauth2-auth"},
 	}
-	if len(id) < 4 {
-		t.Errorf("id too short: %s", id)
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := Slugify(tt.input)
+			if got != tt.want {
+				t.Errorf("Slugify(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
 	}
 }
 
