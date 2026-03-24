@@ -63,10 +63,16 @@ func showProjectStats(root string, jsonOutput bool) error {
 		fmt.Printf("  Models:      %s\n", strings.Join(stats.Models, ", "))
 	}
 
-	if stats.TotalTokens.InputTokens > 0 || stats.TotalTokens.OutputTokens > 0 {
+	if stats.TotalTokens.InputTokens > 0 || stats.TotalTokens.OutputTokens > 0 || stats.TotalTokens.CacheReadTokens > 0 {
 		fmt.Println()
-		fmt.Println("Token Usage")
+		fmt.Println("Context Window (latest snapshot)")
 		fmt.Println(strings.Repeat("─", 40))
+		if stats.TotalTokens.UsedPercentage > 0 {
+			fmt.Printf("  Used:        %.0f%%\n", stats.TotalTokens.UsedPercentage)
+		}
+		if stats.TotalTokens.ContextWindowSize > 0 {
+			fmt.Printf("  Window:      %s tokens\n", formatTokens(stats.TotalTokens.ContextWindowSize))
+		}
 		fmt.Printf("  Input:       %s\n", formatTokens(stats.TotalTokens.InputTokens))
 		fmt.Printf("  Output:      %s\n", formatTokens(stats.TotalTokens.OutputTokens))
 		fmt.Printf("  Cache Read:  %s\n", formatTokens(stats.TotalTokens.CacheReadTokens))

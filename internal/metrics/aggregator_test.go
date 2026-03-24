@@ -103,42 +103,35 @@ func TestAggregateRecipe_ToolCounts(t *testing.T) {
 	}
 }
 
-func TestAggregateRecipe_TokensLastPerSession(t *testing.T) {
-	// Two sessions, each with multiple token snapshots.
-	// Only the LAST snapshot per session should be counted.
+func TestAggregateRecipe_TokensLatestSnapshot(t *testing.T) {
+	// Token snapshots are cumulative. Only the last one matters.
 	events := []MetricsEvent{
-		// Session 1: three snapshots, last is 100K input
 		{Kind: KindTokenSnapshot, SessionID: "s1", Tokens: &TokenSnapshot{InputTokens: 10000, OutputTokens: 1000}},
 		{Kind: KindTokenSnapshot, SessionID: "s1", Tokens: &TokenSnapshot{InputTokens: 50000, OutputTokens: 3000}},
-		{Kind: KindTokenSnapshot, SessionID: "s1", Tokens: &TokenSnapshot{InputTokens: 100000, OutputTokens: 5000}},
-		// Session 2: two snapshots, last is 80K input
-		{Kind: KindTokenSnapshot, SessionID: "s2", Tokens: &TokenSnapshot{InputTokens: 30000, OutputTokens: 2000}},
 		{Kind: KindTokenSnapshot, SessionID: "s2", Tokens: &TokenSnapshot{InputTokens: 80000, OutputTokens: 4000}},
 	}
 
 	stats := AggregateRecipe(events)
 
-	// Should be 100K + 80K = 180K (NOT 10+50+100+30+80 = 270K)
-	wantInput := 100000 + 80000
-	if stats.TokensTotal.InputTokens != wantInput {
-		t.Errorf("InputTokens: got %d, want %d", stats.TokensTotal.InputTokens, wantInput)
+	// Should be the LAST snapshot only (80K), not a sum
+	if stats.TokensTotal.InputTokens != 80000 {
+		t.Errorf("InputTokens: got %d, want 80000 (last snapshot)", stats.TokensTotal.InputTokens)
 	}
-	wantOutput := 5000 + 4000
-	if stats.TokensTotal.OutputTokens != wantOutput {
-		t.Errorf("OutputTokens: got %d, want %d", stats.TokensTotal.OutputTokens, wantOutput)
+	if stats.TokensTotal.OutputTokens != 4000 {
+		t.Errorf("OutputTokens: got %d, want 4000", stats.TokensTotal.OutputTokens)
 	}
 }
 
 func TestAggregateRecipe_TokensNoSessionID(t *testing.T) {
-	// Snapshots without SessionID (from statusline) should be ignored in recipe aggregation
+	// Statusline snapshots have no SessionID — should still be captured as latest
 	events := []MetricsEvent{
 		{Kind: KindTokenSnapshot, Tokens: &TokenSnapshot{InputTokens: 50000}},
 		{Kind: KindTokenSnapshot, Tokens: &TokenSnapshot{InputTokens: 90000}},
 	}
 
 	stats := AggregateRecipe(events)
-	if stats.TokensTotal.InputTokens != 0 {
-		t.Errorf("InputTokens should be 0 for no-session snapshots: got %d", stats.TokensTotal.InputTokens)
+	if stats.TokensTotal.InputTokens != 90000 {
+		t.Errorf("InputTokens: got %d, want 90000 (last snapshot)", stats.TokensTotal.InputTokens)
 	}
 }
 
@@ -256,11 +249,11 @@ func TestAggregateProject_NoMetrics(t *testing.T) {
 	}
 }
 
-func TestAggregateProject_TokensFallbackToGlobal(t *testing.T) {
+func TestAggregateProject_TokensLatestSnapshot(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, ".forge", "state", "recipes"), 0755)
 
-	// Only statusline snapshots (no SessionID)
+	// Multiple snapshots — only last should be kept
 	events := []MetricsEvent{
 		{Kind: KindTokenSnapshot, Tokens: &TokenSnapshot{InputTokens: 50000}},
 		{Kind: KindTokenSnapshot, Tokens: &TokenSnapshot{InputTokens: 90000}},
@@ -274,9 +267,9 @@ func TestAggregateProject_TokensFallbackToGlobal(t *testing.T) {
 		t.Fatalf("AggregateProject: %v", err)
 	}
 
-	// Should use lastTokenGlobal (90000), not sum (140000)
+	// Should be 90000 (last snapshot), not 140000 (sum)
 	if stats.TotalTokens.InputTokens != 90000 {
-		t.Errorf("InputTokens: got %d, want 90000 (last global snapshot)", stats.TotalTokens.InputTokens)
+		t.Errorf("InputTokens: got %d, want 90000 (last snapshot)", stats.TotalTokens.InputTokens)
 	}
 }
 
