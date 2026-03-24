@@ -39,6 +39,7 @@ brews:
   - repository:
       owner: imtemp-dev
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: https://github.com/imtemp-dev/claude-forge
     description: "Document-first AI development — iterate on specs, not code"
     license: MIT
