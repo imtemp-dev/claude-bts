@@ -19,6 +19,10 @@ Use settings values if present, otherwise use defaults noted in each step.
 
 ## Prerequisites
 
+0. **Resolve recipe ID**: If `$ARGUMENTS` is empty or not a recipe ID,
+   run `forge recipe status` to find the active recipe. Use its ID for
+   all `{id}` references below. If no active recipe → "No active recipe. Run /recipe blueprint first."
+
 1. Verify final.md exists:
    ```bash
    ls .forge/state/recipes/{id}/final.md

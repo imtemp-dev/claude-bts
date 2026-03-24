@@ -14,6 +14,9 @@ Synchronize spec and implementation for recipe: $ARGUMENTS
 
 ## Prerequisites
 
+0. **Resolve recipe ID**: If `$ARGUMENTS` is empty, run `forge recipe status`
+   to find the active recipe. Use its ID for all `{id}` references below.
+
 1. Verify test-results.json exists:
    ```bash
    ls .forge/state/recipes/{id}/test-results.json
