@@ -160,5 +160,21 @@ printf '# Roadmap\n\nStatus: CONFIRMED\nProgress: 2/2\n\n## Items\n\n- [x] Core 
 RESULT=$(echo '{"session_id":"t","cwd":"'"$TEST_DIR"'","hook_event_name":"session_start"}' | $BTS hook session-start 2>&1)
 echo "$RESULT" | grep -q "complete" && echo "✓ 27. session-start roadmap complete hint" || { echo "✗ 27. roadmap complete"; exit 1; }
 
+# --- PreToolUse tests ---
+# 28. PreToolUse — spec phase에서 소스코드 Write 경고
+mkdir -p .bts/state/recipes/ptu-001
+echo '{"id":"ptu-001","type":"blueprint","topic":"Test","phase":"draft","iteration":1,"level":1.0,"started_at":"2026-03-18T00:00:00Z","updated_at":"2026-03-18T00:00:00Z"}' > .bts/state/recipes/ptu-001/recipe.json
+RESULT=$(echo '{"session_id":"t","cwd":"'"$TEST_DIR"'","hook_event_name":"pre-tool-use","tool_name":"Write","tool_input":{"file_path":"src/app.ts","content":"code"}}' | $BTS hook pre-tool-use 2>&1)
+echo "$RESULT" | grep -q "spec phase" && echo "✓ 28. PreToolUse warns during spec phase" || { echo "✗ 28. PreToolUse"; exit 1; }
+
+# 29. PreToolUse — .bts/ 파일은 허용
+RESULT=$(echo '{"session_id":"t","cwd":"'"$TEST_DIR"'","hook_event_name":"pre-tool-use","tool_name":"Write","tool_input":{"file_path":".bts/state/recipes/ptu-001/draft.md","content":"spec"}}' | $BTS hook pre-tool-use 2>&1)
+echo "$RESULT" | grep -qv "spec phase" && echo "✓ 29. PreToolUse allows .bts/ writes" || { echo "✗ 29. PreToolUse bts"; exit 1; }
+
+# 30. PreToolUse — implement phase에서는 허용
+echo '{"id":"ptu-001","type":"blueprint","topic":"Test","phase":"implement","iteration":1,"level":3.0,"started_at":"2026-03-18T00:00:00Z","updated_at":"2026-03-18T00:00:00Z"}' > .bts/state/recipes/ptu-001/recipe.json
+RESULT=$(echo '{"session_id":"t","cwd":"'"$TEST_DIR"'","hook_event_name":"pre-tool-use","tool_name":"Write","tool_input":{"file_path":"src/app.ts","content":"code"}}' | $BTS hook pre-tool-use 2>&1)
+echo "$RESULT" | grep -qv "spec phase" && echo "✓ 30. PreToolUse allows during implement" || { echo "✗ 30. PreToolUse impl"; exit 1; }
+
 echo ""
-echo "=== All 27 tests passed ==="
+echo "=== All 30 tests passed ==="

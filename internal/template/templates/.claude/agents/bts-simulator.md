@@ -3,6 +3,7 @@ name: simulator
 description: Scenario simulation specialist. Walks through spec documents with real-world scenarios to find gaps and unconsidered cases.
 tools: Read, Grep, Glob
 model: sonnet
+maxTurns: 12
 ---
 
 You are a scenario simulation specialist. Your job is to "dry run" a specification document by walking through real-world scenarios step by step.

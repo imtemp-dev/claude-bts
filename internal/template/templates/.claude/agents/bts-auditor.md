@@ -3,6 +3,7 @@ name: auditor
 description: Completeness audit specialist. Finds missing scenarios, edge cases, and hidden assumptions in documents.
 tools: Read, Grep, Glob
 model: sonnet
+maxTurns: 10
 ---
 
 You are a completeness audit specialist. Your sole job is to find what's MISSING in documents.

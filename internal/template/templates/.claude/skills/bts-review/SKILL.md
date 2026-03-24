@@ -56,7 +56,8 @@ If standalone (no recipe):
 
 ### Full Mode (no category — default)
 
-Spawn 3 agents in parallel, each reviewing the same files from a different angle.
+Spawn all 3 agents **in a single message with multiple Agent tool calls** to ensure
+true parallel execution. Do NOT spawn them sequentially.
 The default perspectives are quality, security, and architecture, but adapt
 if the code warrants different emphasis (e.g., performance-critical code may
 need a performance perspective instead of or in addition to security):

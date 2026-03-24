@@ -8,6 +8,7 @@ const (
 	EventPreCompact    EventType = "pre-compact"
 	EventStop          EventType = "stop"
 	EventSessionEnd    EventType = "session-end"
+	EventPreToolUse    EventType = "pre-tool-use"
 	EventSubagentStart EventType = "subagent-start"
 	EventSubagentStop  EventType = "subagent-stop"
 )

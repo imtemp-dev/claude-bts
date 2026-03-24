@@ -34,6 +34,7 @@ func runHook(cmd *cobra.Command, args []string) error {
 	registry := hook.NewRegistry(
 		hook.NewSessionStartHandler(),
 		hook.NewPreCompactHandler(),
+		hook.NewPreToolUseHandler(),
 		hook.NewStopHandler(),
 		hook.NewSessionEndHandler(),
 		hook.NewSubagentStartHandler(),

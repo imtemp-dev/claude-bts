@@ -1,6 +1,8 @@
 package hook
 
 import (
+	"fmt"
+
 	"github.com/jlim/bts/internal/state"
 )
 
@@ -38,9 +40,16 @@ func (h *preCompactHandler) Handle(input *HookInput) (*HookOutput, error) {
 	}
 	_ = state.SaveWorkState(btsRoot, ws)
 
+	// Include next-step hint for post-compaction context
+	msg := fmt.Sprintf("[bts] Context snapshot saved. %s", ws.Summary)
+	nextStep := nextStepHint(btsRoot, recipe)
+	if nextStep != "" {
+		msg += fmt.Sprintf("\nNEXT: %s", nextStep)
+	}
+
 	return &HookOutput{
 		HookSpecificOutput: &HookSpecificOutput{
-			AdditionalContext: "[bts] Context snapshot saved. " + ws.Summary,
+			AdditionalContext: msg,
 		},
 	}, nil
 }

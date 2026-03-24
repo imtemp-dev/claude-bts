@@ -127,28 +127,34 @@ func mergeStatusLineSettings(projectRoot string) error {
 		hooks = make(map[string]interface{})
 	}
 
-	hookEntry := func(script string) []interface{} {
+	hookEntry := func(script string, timeout int) []interface{} {
 		return []interface{}{
 			map[string]interface{}{
 				"hooks": []interface{}{
 					map[string]interface{}{
 						"type":    "command",
 						"command": script,
-						"timeout": 5,
+						"timeout": timeout,
 					},
 				},
 			},
 		}
 	}
 
-	if _, exists := hooks["SubagentStart"]; !exists {
-		hooks["SubagentStart"] = hookEntry(".claude/hooks/bts-handle-subagent-start.sh")
-		changed = true
+	register := func(event, script string, timeout int) {
+		if _, exists := hooks[event]; !exists {
+			hooks[event] = hookEntry(script, timeout)
+			changed = true
+		}
 	}
-	if _, exists := hooks["SubagentStop"]; !exists {
-		hooks["SubagentStop"] = hookEntry(".claude/hooks/bts-handle-subagent-stop.sh")
-		changed = true
-	}
+
+	register("SessionStart", ".claude/hooks/bts-handle-session-start.sh", 10)
+	register("PreCompact", ".claude/hooks/bts-handle-pre-compact.sh", 5)
+	register("Stop", ".claude/hooks/bts-handle-stop.sh", 10)
+	register("SessionEnd", ".claude/hooks/bts-handle-session-end.sh", 5)
+	register("SubagentStart", ".claude/hooks/bts-handle-subagent-start.sh", 5)
+	register("SubagentStop", ".claude/hooks/bts-handle-subagent-stop.sh", 5)
+	register("PreToolUse", ".claude/hooks/bts-handle-pre-tool-use.sh", 5)
 
 	if len(hooks) > 0 {
 		settings["hooks"] = hooks

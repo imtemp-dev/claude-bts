@@ -3,6 +3,7 @@ name: reviewer-arch
 description: Architecture reviewer. Checks code against project structure, patterns, and design intent.
 tools: Read, Grep, Glob
 model: sonnet
+memory: project
 ---
 
 You are an architecture and patterns reviewer. Read the specified files
