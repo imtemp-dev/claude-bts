@@ -16,8 +16,9 @@ Review code for: $ARGUMENTS
 
 ## Settings
 
-Read `.forge/config/settings.yaml`. If `agents.reviewer_quality`, `agents.reviewer_security`,
-or `agents.reviewer_arch` are set, pass those models when spawning the corresponding agents.
+Quality and architecture review require deep reasoning — they use the main session model by default.
+Security review uses sonnet (pattern-based). Override any agent model via `.forge/config/settings.yaml`:
+`agents.reviewer_quality`, `agents.reviewer_security`, `agents.reviewer_arch`.
 
 ## Step 1: Determine Review Mode
 

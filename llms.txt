@@ -142,20 +142,21 @@ Inside Claude Code, invoke skills with `/skill-name`:
 
 ## Models
 
-Main session model handles: drafting, implementing, debating, orchestrating.
+Main session model handles all primary work and core quality gates.
 
-Fork context agents handle verification and review (separate AI instance, no shared conversation history):
+Fork context agents run in separate AI instances (no shared conversation history).
+Core gates use session model for maximum quality. Pattern-based checks use sonnet.
 
 | Agent | Default | Setting |
 |-------|---------|---------|
-| verifier | sonnet | agents.verifier |
-| auditor | sonnet | agents.auditor |
+| verifier | session model | agents.verifier |
+| auditor | session model | agents.auditor |
 | simulator | session model | agents.simulator |
-| reviewer_quality | sonnet | agents.reviewer_quality |
+| reviewer_quality | session model | agents.reviewer_quality |
 | reviewer_security | sonnet | agents.reviewer_security |
-| reviewer_arch | sonnet | agents.reviewer_arch |
+| reviewer_arch | session model | agents.reviewer_arch |
 
-Configure in `.forge/config/settings.yaml`.
+Override in `.forge/config/settings.yaml`. Options: sonnet, opus, haiku.
 
 ## Completion Gates
 

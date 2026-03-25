@@ -222,15 +222,15 @@ forge 使用两层 AI 模型：
 
 ```yaml
 agents:
-  verifier: sonnet       # /forge-verify — 逻辑一致性
-  auditor: sonnet        # /forge-audit — 完整性检查
-  # simulator: sonnet    # /forge-simulate — 默认：会话模型（需要深度推理）
-  reviewer_quality: sonnet   # /forge-review — 代码质量
-  reviewer_security: sonnet  # /forge-review — 安全审查
-  reviewer_arch: sonnet      # /forge-review — 架构审查
+  # verifier: sonnet         # 默认：会话模型
+  # auditor: sonnet          # 默认：会话模型
+  # simulator: sonnet        # 默认：会话模型
+  # reviewer_quality: sonnet # 默认：会话模型
+  reviewer_security: sonnet  # 基于模式，sonnet 足够
+  # reviewer_arch: sonnet    # 默认：会话模型
 ```
 
-选项：`sonnet`（均衡）、`opus`（更深分析，更高成本）、`haiku`（快速，可能遗漏细微问题）。
+选项：`sonnet`（均衡）、`opus`（更深分析，更高成本）、`haiku`（快速，可能遗漏细微问题）。取消注释即可覆盖。
 
 ### 各阶段使用的模型
 
@@ -239,12 +239,13 @@ agents:
 | 发现、范围、调研 | discover, blueprint, research | 主会话 | 会话模型 |
 | 线框、草稿、改进 | wireframe, blueprint | 主会话 | 会话模型 |
 | 辩论、裁决 | debate, adjudicate | 主会话 | 会话模型 |
-| **验证** | verify | **fork** | `agents.verifier` |
-| **审计** | audit | **fork** | `agents.auditor` |
+| **验证** | verify | **fork** | 会话模型（核心关卡） |
+| **审计** | audit | **fork** | 会话模型（查找缺失） |
 | **模拟** | simulate | **fork** | 会话模型（深度推理） |
-| **交叉检查、同步检查** | cross-check, sync-check | **fork** | Sonnet |
+| **交叉检查、同步检查** | cross-check, sync-check | **fork** | Sonnet（基于模式） |
 | 实现、测试、同步 | implement, test, sync | 主会话 | 会话模型 |
-| **审查**（3 个并行代理） | review | **fork** | `agents.reviewer_*` |
+| **审查**（质量、架构） | review | **fork** | 会话模型 |
+| **审查**（安全） | review | **fork** | Sonnet（基于模式） |
 | 状态 | status | 主会话 | 会话模型 |
 
 fork 上下文是关键——当同一模型在同一会话中审查自己的输出时，它共享相同的盲点。Fork 代理只看到文档，看不到产生该文档的对话。

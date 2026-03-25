@@ -16,8 +16,8 @@ Verify the specified document for logical correctness.
 
 ## Settings
 
-Read `.forge/config/settings.yaml`. If `agents.verifier` is set, pass that model
-when spawning Agent(verifier) below (e.g., `model: opus`).
+Verification is the core quality gate — it uses the main session model by default.
+If `agents.verifier` is explicitly set in `.forge/config/settings.yaml`, use that model instead.
 
 ## Steps
 

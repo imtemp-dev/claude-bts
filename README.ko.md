@@ -222,15 +222,15 @@ forge는 두 계층의 AI 모델을 사용합니다:
 
 ```yaml
 agents:
-  verifier: sonnet       # /forge-verify — 논리적 일관성
-  auditor: sonnet        # /forge-audit — 완전성 검사
-  # simulator: sonnet    # /forge-simulate — 기본: 세션 모델 (깊은 추론 필요)
-  reviewer_quality: sonnet   # /forge-review — 코드 품질
-  reviewer_security: sonnet  # /forge-review — 보안 리뷰
-  reviewer_arch: sonnet      # /forge-review — 아키텍처 리뷰
+  # verifier: sonnet         # 기본: 세션 모델
+  # auditor: sonnet          # 기본: 세션 모델
+  # simulator: sonnet        # 기본: 세션 모델
+  # reviewer_quality: sonnet # 기본: 세션 모델
+  reviewer_security: sonnet  # 패턴 기반, sonnet 충분
+  # reviewer_arch: sonnet    # 기본: 세션 모델
 ```
 
-옵션: `sonnet` (균형), `opus` (깊은 분석, 높은 비용), `haiku` (빠름, 미묘한 이슈 놓칠 수 있음).
+옵션: `sonnet` (균형), `opus` (깊은 분석, 높은 비용), `haiku` (빠름, 미묘한 이슈 놓칠 수 있음). 주석 해제하면 override.
 
 ### 각 단계별 모델
 
@@ -239,12 +239,13 @@ agents:
 | 탐색, 범위, 조사 | discover, blueprint, research | main | 세션 모델 |
 | 와이어프레임, 초안, 개선 | wireframe, blueprint | main | 세션 모델 |
 | 토론, 판정 | debate, adjudicate | main | 세션 모델 |
-| **검증** | verify | **fork** | `agents.verifier` |
-| **감사** | audit | **fork** | `agents.auditor` |
+| **검증** | verify | **fork** | 세션 모델 (핵심 gate) |
+| **감사** | audit | **fork** | 세션 모델 (빠진 것 찾기) |
 | **시뮬레이션** | simulate | **fork** | 세션 모델 (깊은 추론) |
-| **교차검증, 동기화검증** | cross-check, sync-check | **fork** | Sonnet |
+| **교차검증, 동기화검증** | cross-check, sync-check | **fork** | Sonnet (패턴 기반) |
 | 구현, 테스트, 동기화 | implement, test, sync | main | 세션 모델 |
-| **리뷰** (3 병렬 에이전트) | review | **fork** | `agents.reviewer_*` |
+| **리뷰** (품질, 아키텍처) | review | **fork** | 세션 모델 |
+| **리뷰** (보안) | review | **fork** | Sonnet (패턴 기반) |
 | 상태 | status | main | 세션 모델 |
 
 fork 컨텍스트가 핵심입니다 — 같은 세션에서 자기 출력을 리뷰하면 같은 맹점을 공유합니다. Fork 에이전트는 문서만 보고, 그 문서를 만든 대화는 보지 않습니다.

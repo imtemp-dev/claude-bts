@@ -16,8 +16,8 @@ Audit the specified document for missing items.
 
 ## Settings
 
-Read `.forge/config/settings.yaml`. If `agents.auditor` is set, pass that model
-when spawning Agent(auditor) below.
+Audit requires finding what's missing — it uses the main session model by default.
+If `agents.auditor` is explicitly set in `.forge/config/settings.yaml`, use that model instead.
 
 ## Steps
 

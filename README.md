@@ -229,15 +229,15 @@ forge uses two tiers of AI models:
 
 ```yaml
 agents:
-  verifier: sonnet       # /forge-verify — logical consistency
-  auditor: sonnet        # /forge-audit — completeness check
-  # simulator: sonnet    # /forge-simulate — uses session model by default
-  reviewer_quality: sonnet   # /forge-review — code quality
-  reviewer_security: sonnet  # /forge-review — security review
-  reviewer_arch: sonnet      # /forge-review — architecture review
+  # verifier: sonnet         # default: session model
+  # auditor: sonnet          # default: session model
+  # simulator: sonnet        # default: session model
+  # reviewer_quality: sonnet # default: session model
+  reviewer_security: sonnet  # pattern-based, sonnet sufficient
+  # reviewer_arch: sonnet    # default: session model
 ```
 
-Options: `sonnet` (balanced), `opus` (deeper analysis, higher cost), `haiku` (fast, may miss subtle issues).
+Options: `sonnet` (balanced), `opus` (deeper analysis, higher cost), `haiku` (fast, may miss subtle issues). Uncomment to override.
 
 ### What runs where
 
@@ -246,12 +246,13 @@ Options: `sonnet` (balanced), `opus` (deeper analysis, higher cost), `haiku` (fa
 | Discover, Scope, Research | discover, blueprint, research | main | Your session model |
 | Wireframe, Draft, Improve | wireframe, blueprint | main | Your session model |
 | Debate, Adjudicate | debate, adjudicate | main | Your session model |
-| **Verify** | verify | **fork** | `agents.verifier` |
-| **Audit** | audit | **fork** | `agents.auditor` |
+| **Verify** | verify | **fork** | Your session model (core gate) |
+| **Audit** | audit | **fork** | Your session model (finding gaps) |
 | **Simulate** | simulate | **fork** | Your session model (deep reasoning) |
-| **Cross-check, Sync-check** | cross-check, sync-check | **fork** | Sonnet |
+| **Cross-check, Sync-check** | cross-check, sync-check | **fork** | Sonnet (pattern-based) |
 | Implement, Test, Sync | implement, test, sync | main | Your session model |
-| **Review** (3 parallel agents) | review | **fork** | `agents.reviewer_*` |
+| **Review** (quality, arch) | review | **fork** | Your session model |
+| **Review** (security) | review | **fork** | Sonnet (pattern-based) |
 | Status | status | main | Your session model |
 
 The fork context is key — when the same model reviews its own output in the same session, it shares the same blind spots. Fork agents only see the document, not the conversation that produced it.

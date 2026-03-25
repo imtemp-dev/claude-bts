@@ -222,15 +222,15 @@ forgeは2層のAIモデルを使用します：
 
 ```yaml
 agents:
-  verifier: sonnet       # /forge-verify — 論理的一貫性
-  auditor: sonnet        # /forge-audit — 完全性チェック
-  # simulator: sonnet    # /forge-simulate — デフォルト：セッションモデル（深い推論が必要）
-  reviewer_quality: sonnet   # /forge-review — コード品質
-  reviewer_security: sonnet  # /forge-review — セキュリティレビュー
-  reviewer_arch: sonnet      # /forge-review — アーキテクチャレビュー
+  # verifier: sonnet         # デフォルト：セッションモデル
+  # auditor: sonnet          # デフォルト：セッションモデル
+  # simulator: sonnet        # デフォルト：セッションモデル
+  # reviewer_quality: sonnet # デフォルト：セッションモデル
+  reviewer_security: sonnet  # パターンベース、sonnetで十分
+  # reviewer_arch: sonnet    # デフォルト：セッションモデル
 ```
 
-オプション：`sonnet`（バランス）、`opus`（深い分析、高コスト）、`haiku`（高速、微妙な問題を見逃す可能性）。
+オプション：`sonnet`（バランス）、`opus`（深い分析、高コスト）、`haiku`（高速、微妙な問題を見逃す可能性）。コメント解除でオーバーライド。
 
 ### 各フェーズのモデル
 
@@ -239,12 +239,13 @@ agents:
 | 発見、スコープ、調査 | discover, blueprint, research | メイン | セッションモデル |
 | ワイヤーフレーム、ドラフト、改善 | wireframe, blueprint | メイン | セッションモデル |
 | ディベート、裁定 | debate, adjudicate | メイン | セッションモデル |
-| **検証** | verify | **fork** | `agents.verifier` |
-| **監査** | audit | **fork** | `agents.auditor` |
+| **検証** | verify | **fork** | セッションモデル（コアゲート） |
+| **監査** | audit | **fork** | セッションモデル（欠落を探す） |
 | **シミュレーション** | simulate | **fork** | セッションモデル（深い推論） |
-| **クロスチェック、同期チェック** | cross-check, sync-check | **fork** | Sonnet |
+| **クロスチェック、同期チェック** | cross-check, sync-check | **fork** | Sonnet（パターンベース） |
 | 実装、テスト、同期 | implement, test, sync | メイン | セッションモデル |
-| **レビュー**（3並列エージェント） | review | **fork** | `agents.reviewer_*` |
+| **レビュー**（品質、アーキテクチャ） | review | **fork** | セッションモデル |
+| **レビュー**（セキュリティ） | review | **fork** | Sonnet（パターンベース） |
 | ステータス | status | メイン | セッションモデル |
 
 forkコンテキストが鍵です — 同じセッションで自分の出力をレビューすると、同じブラインドスポットを共有します。Forkエージェントはドキュメントだけを見て、そのドキュメントを生成した会話は見ません。
