@@ -23,32 +23,52 @@ type ToolStat struct {
 	FailRate  float64 `json:"fail_rate"`
 }
 
+// SessionStats holds aggregated metrics for a single Claude Code session.
+type SessionStats struct {
+	SessionID string        `json:"session_id"`
+	Model     string        `json:"model"`
+	Source    string        `json:"source"`
+	StartedAt time.Time    `json:"started_at"`
+	EndedAt   time.Time    `json:"ended_at,omitempty"`
+	Duration  time.Duration `json:"duration"`
+	ToolCount int           `json:"tool_count"`
+	ToolFails int           `json:"tool_fails"`
+	Compacts  int           `json:"compacts"`
+	Tokens    TokenSnapshot `json:"tokens"`
+	Cost      CostBreakdown `json:"cost"`
+}
+
 // RecipeStats holds aggregated metrics for one recipe.
 type RecipeStats struct {
-	RecipeID      string         `json:"recipe_id"`
-	Topic         string         `json:"topic"`
-	Type          string         `json:"type"`
-	Phase         string         `json:"phase"`
-	TotalSessions int            `json:"total_sessions"`
-	TotalCompacts int            `json:"total_compacts"`
-	Models        []string       `json:"models"`
-	Phases        []PhaseSpan    `json:"phases"`
-	ToolCounts    map[string]int `json:"tool_counts"`
-	ToolFailures  map[string]int `json:"tool_failures"`
-	TokensTotal   TokenSnapshot  `json:"tokens_total"`
-	TotalDuration time.Duration  `json:"total_duration"`
+	RecipeID      string                  `json:"recipe_id"`
+	Topic         string                  `json:"topic"`
+	Type          string                  `json:"type"`
+	Phase         string                  `json:"phase"`
+	TotalSessions int                     `json:"total_sessions"`
+	TotalCompacts int                     `json:"total_compacts"`
+	Models        []string                `json:"models"`
+	Phases        []PhaseSpan             `json:"phases"`
+	ToolCounts    map[string]int          `json:"tool_counts"`
+	ToolFailures  map[string]int          `json:"tool_failures"`
+	TokensTotal   TokenSnapshot           `json:"tokens_total"`
+	TotalDuration time.Duration           `json:"total_duration"`
+	Sessions      []SessionStats          `json:"sessions,omitempty"`
+	CostByModel   map[string]CostBreakdown `json:"cost_by_model,omitempty"`
+	TotalCost     CostBreakdown           `json:"total_cost"`
 }
 
 // ProjectStats holds cross-recipe aggregation.
 type ProjectStats struct {
-	TotalRecipes   int           `json:"total_recipes"`
-	CompletedCount int           `json:"completed_count"`
-	ActiveCount    int           `json:"active_count"`
-	TotalSessions  int           `json:"total_sessions"`
-	TotalCompacts  int           `json:"total_compacts"`
-	TotalTokens    TokenSnapshot `json:"total_tokens"`
-	TopTools       []ToolStat    `json:"top_tools"`
-	Models         []string      `json:"models"`
+	TotalRecipes   int            `json:"total_recipes"`
+	CompletedCount int            `json:"completed_count"`
+	ActiveCount    int            `json:"active_count"`
+	TotalSessions  int            `json:"total_sessions"`
+	TotalCompacts  int            `json:"total_compacts"`
+	TotalTokens    TokenSnapshot  `json:"total_tokens"`
+	TopTools       []ToolStat     `json:"top_tools"`
+	Models         []string       `json:"models"`
+	RecentSessions []SessionStats `json:"recent_sessions,omitempty"`
+	TotalCost      CostBreakdown  `json:"total_cost"`
 }
 
 // AggregateRecipe computes stats from a slice of events for a single recipe.
@@ -120,6 +140,18 @@ func AggregateRecipe(events []MetricsEvent) *RecipeStats {
 		if !first.IsZero() && !last.IsZero() {
 			stats.TotalDuration = last.Sub(first)
 		}
+	}
+
+	// Session-level aggregation with cost
+	stats.Sessions = AggregateSessions(events)
+	stats.CostByModel = make(map[string]CostBreakdown)
+	for _, s := range stats.Sessions {
+		key := s.Model
+		if key == "" {
+			key = "unknown"
+		}
+		stats.CostByModel[key] = AddCost(stats.CostByModel[key], s.Cost)
+		stats.TotalCost = AddCost(stats.TotalCost, s.Cost)
 	}
 
 	return stats
@@ -207,5 +239,129 @@ func AggregateProject(root string) (*ProjectStats, error) {
 		stats.TopTools = stats.TopTools[:10]
 	}
 
+	// Session-level aggregation with cost
+	allSessions := AggregateSessions(events)
+	for _, s := range allSessions {
+		stats.TotalCost = AddCost(stats.TotalCost, s.Cost)
+	}
+	// Keep most recent 10
+	if len(allSessions) > 10 {
+		stats.RecentSessions = allSessions[len(allSessions)-10:]
+	} else {
+		stats.RecentSessions = allSessions
+	}
+
 	return stats, nil
+}
+
+// sessionBuilder accumulates events for a single session.
+type sessionBuilder struct {
+	id        string
+	model     string
+	source    string
+	startedAt time.Time
+	endedAt   time.Time
+	toolCount int
+	toolFails int
+	compacts  int
+	tokens    TokenSnapshot
+}
+
+// AggregateSessions groups events by session and computes per-session stats.
+// Token snapshots without a SessionID are attributed to the most recently started session.
+func AggregateSessions(events []MetricsEvent) []SessionStats {
+	builders := make(map[string]*sessionBuilder)
+	var order []string // insertion order
+	var lastSessionID string
+
+	for _, e := range events {
+		switch e.Kind {
+		case KindSessionStart:
+			if e.SessionID == "" {
+				continue
+			}
+			lastSessionID = e.SessionID
+			if _, exists := builders[e.SessionID]; !exists {
+				builders[e.SessionID] = &sessionBuilder{id: e.SessionID}
+				order = append(order, e.SessionID)
+			}
+			b := builders[e.SessionID]
+			b.model = e.Model
+			b.source = e.Source
+			b.startedAt, _ = time.Parse(time.RFC3339, e.Timestamp)
+
+		case KindSessionEnd:
+			sid := e.SessionID
+			if sid == "" {
+				sid = lastSessionID
+			}
+			if b, ok := builders[sid]; ok {
+				b.endedAt, _ = time.Parse(time.RFC3339, e.Timestamp)
+			}
+
+		case KindToolUse:
+			sid := e.SessionID
+			if sid == "" {
+				sid = lastSessionID
+			}
+			if b, ok := builders[sid]; ok {
+				b.toolCount++
+				if e.Success != nil && !*e.Success {
+					b.toolFails++
+				}
+			}
+
+		case KindCompact:
+			sid := e.SessionID
+			if sid == "" {
+				sid = lastSessionID
+			}
+			if b, ok := builders[sid]; ok {
+				b.compacts++
+			}
+
+		case KindTokenSnapshot:
+			sid := e.SessionID
+			if sid == "" {
+				sid = lastSessionID
+			}
+			if sid == "" {
+				continue
+			}
+			// Auto-create builder for orphan snapshots
+			if _, exists := builders[sid]; !exists {
+				builders[sid] = &sessionBuilder{id: sid}
+				order = append(order, sid)
+			}
+			if e.Tokens != nil {
+				builders[sid].tokens = *e.Tokens
+			}
+		}
+	}
+
+	// Build results in insertion order
+	var result []SessionStats
+	for _, sid := range order {
+		b := builders[sid]
+		var dur time.Duration
+		if !b.startedAt.IsZero() && !b.endedAt.IsZero() {
+			dur = b.endedAt.Sub(b.startedAt)
+		}
+		ss := SessionStats{
+			SessionID: b.id,
+			Model:     b.model,
+			Source:    b.source,
+			StartedAt: b.startedAt,
+			EndedAt:   b.endedAt,
+			Duration:  dur,
+			ToolCount: b.toolCount,
+			ToolFails: b.toolFails,
+			Compacts:  b.compacts,
+			Tokens:    b.tokens,
+			Cost:      CalculateCost(b.tokens, b.model),
+		}
+		result = append(result, ss)
+	}
+
+	return result
 }

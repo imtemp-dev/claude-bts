@@ -273,6 +273,159 @@ func TestAggregateProject_TokensLatestSnapshot(t *testing.T) {
 	}
 }
 
+func TestAggregateSessions_Basic(t *testing.T) {
+	events := []MetricsEvent{
+		{Timestamp: ts(0), Kind: KindSessionStart, SessionID: "s1", Model: "claude-opus-4-6", Source: "startup"},
+		{Timestamp: ts(1), Kind: KindToolUse, SessionID: "s1", ToolName: "Read", Success: ptr(true)},
+		{Timestamp: ts(2), Kind: KindToolUse, SessionID: "s1", ToolName: "Bash", Success: ptr(false)},
+		{Timestamp: ts(5), Kind: KindCompact, SessionID: "s1"},
+		{Timestamp: ts(10), Kind: KindSessionEnd, SessionID: "s1"},
+		{Timestamp: ts(20), Kind: KindSessionStart, SessionID: "s2", Model: "claude-sonnet-4-6", Source: "resume"},
+		{Timestamp: ts(25), Kind: KindToolUse, SessionID: "s2", ToolName: "Edit", Success: ptr(true)},
+		{Timestamp: ts(30), Kind: KindSessionEnd, SessionID: "s2"},
+	}
+
+	sessions := AggregateSessions(events)
+	if len(sessions) != 2 {
+		t.Fatalf("got %d sessions, want 2", len(sessions))
+	}
+
+	s1 := sessions[0]
+	if s1.SessionID != "s1" {
+		t.Errorf("s1 ID: got %s", s1.SessionID)
+	}
+	if s1.Model != "claude-opus-4-6" {
+		t.Errorf("s1 Model: got %s", s1.Model)
+	}
+	if s1.Source != "startup" {
+		t.Errorf("s1 Source: got %s", s1.Source)
+	}
+	if s1.ToolCount != 2 {
+		t.Errorf("s1 ToolCount: got %d, want 2", s1.ToolCount)
+	}
+	if s1.ToolFails != 1 {
+		t.Errorf("s1 ToolFails: got %d, want 1", s1.ToolFails)
+	}
+	if s1.Compacts != 1 {
+		t.Errorf("s1 Compacts: got %d, want 1", s1.Compacts)
+	}
+	if s1.Duration != 10*time.Minute {
+		t.Errorf("s1 Duration: got %s, want 10m", s1.Duration)
+	}
+
+	s2 := sessions[1]
+	if s2.Model != "claude-sonnet-4-6" {
+		t.Errorf("s2 Model: got %s", s2.Model)
+	}
+	if s2.ToolCount != 1 {
+		t.Errorf("s2 ToolCount: got %d, want 1", s2.ToolCount)
+	}
+}
+
+func TestAggregateSessions_OrphanSnapshot(t *testing.T) {
+	// Token snapshots without SessionID should be attributed to the most recent session.
+	events := []MetricsEvent{
+		{Timestamp: ts(0), Kind: KindSessionStart, SessionID: "s1", Model: "claude-opus-4-6"},
+		{Timestamp: ts(1), Kind: KindTokenSnapshot, Tokens: &TokenSnapshot{InputTokens: 50000, OutputTokens: 3000}},
+		{Timestamp: ts(2), Kind: KindTokenSnapshot, Tokens: &TokenSnapshot{InputTokens: 90000, OutputTokens: 5000}},
+	}
+
+	sessions := AggregateSessions(events)
+	if len(sessions) != 1 {
+		t.Fatalf("got %d sessions, want 1", len(sessions))
+	}
+	// Should have the LAST snapshot (90K)
+	if sessions[0].Tokens.InputTokens != 90000 {
+		t.Errorf("InputTokens: got %d, want 90000", sessions[0].Tokens.InputTokens)
+	}
+	// Cost should be calculated with opus pricing
+	if sessions[0].Cost.Total <= 0 {
+		t.Error("expected non-zero cost for opus session with tokens")
+	}
+}
+
+func TestAggregateSessions_Cost(t *testing.T) {
+	events := []MetricsEvent{
+		{Timestamp: ts(0), Kind: KindSessionStart, SessionID: "s1", Model: "claude-opus-4-6"},
+		{Kind: KindTokenSnapshot, SessionID: "s1", Tokens: &TokenSnapshot{
+			InputTokens: 100_000, OutputTokens: 10_000,
+			CacheReadTokens: 200_000, CacheCreationTokens: 50_000,
+		}},
+	}
+
+	sessions := AggregateSessions(events)
+	if len(sessions) != 1 {
+		t.Fatalf("got %d sessions, want 1", len(sessions))
+	}
+	// Same expected values as TestCalculateCost_Opus
+	cost := sessions[0].Cost
+	if !almostEqual(cost.Total, 1.1625) {
+		t.Errorf("Total cost: got %f, want 1.1625", cost.Total)
+	}
+}
+
+func TestAggregateSessions_MultiModel(t *testing.T) {
+	events := []MetricsEvent{
+		{Timestamp: ts(0), Kind: KindSessionStart, SessionID: "s1", Model: "claude-opus-4-6"},
+		{Kind: KindTokenSnapshot, SessionID: "s1", Tokens: &TokenSnapshot{InputTokens: 100_000, OutputTokens: 10_000}},
+		{Timestamp: ts(10), Kind: KindSessionEnd, SessionID: "s1"},
+		{Timestamp: ts(20), Kind: KindSessionStart, SessionID: "s2", Model: "claude-sonnet-4-6"},
+		{Kind: KindTokenSnapshot, SessionID: "s2", Tokens: &TokenSnapshot{InputTokens: 100_000, OutputTokens: 10_000}},
+		{Timestamp: ts(30), Kind: KindSessionEnd, SessionID: "s2"},
+	}
+
+	// Use AggregateRecipe to test CostByModel
+	stats := AggregateRecipe(events)
+	if len(stats.CostByModel) != 2 {
+		t.Fatalf("CostByModel: got %d models, want 2", len(stats.CostByModel))
+	}
+
+	opusCost := stats.CostByModel["claude-opus-4-6"]
+	sonnetCost := stats.CostByModel["claude-sonnet-4-6"]
+
+	// Opus: 100K * $5/MTok + 10K * $25/MTok = $0.50 + $0.25 = $0.75
+	if !almostEqual(opusCost.Total, 0.75) {
+		t.Errorf("Opus total: got %f, want 0.75", opusCost.Total)
+	}
+	// Sonnet: 100K * $3/MTok + 10K * $15/MTok = $0.30 + $0.15 = $0.45
+	if !almostEqual(sonnetCost.Total, 0.45) {
+		t.Errorf("Sonnet total: got %f, want 0.45", sonnetCost.Total)
+	}
+	// Recipe total
+	if !almostEqual(stats.TotalCost.Total, 1.20) {
+		t.Errorf("Recipe total: got %f, want 1.20", stats.TotalCost.Total)
+	}
+}
+
+func TestAggregateProject_WithCost(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, ".forge", "state", "recipes"), 0755)
+
+	events := []MetricsEvent{
+		{Timestamp: ts(0), Kind: KindSessionStart, SessionID: "s1", Model: "claude-opus-4-6"},
+		{Kind: KindTokenSnapshot, SessionID: "s1", Tokens: &TokenSnapshot{InputTokens: 100_000, OutputTokens: 10_000}},
+		{Timestamp: ts(10), Kind: KindSessionEnd, SessionID: "s1"},
+	}
+	for i := range events {
+		AppendGlobal(root, &events[i])
+	}
+
+	stats, err := AggregateProject(root)
+	if err != nil {
+		t.Fatalf("AggregateProject: %v", err)
+	}
+
+	if stats.TotalCost.Total <= 0 {
+		t.Error("expected non-zero TotalCost")
+	}
+	if len(stats.RecentSessions) != 1 {
+		t.Errorf("RecentSessions: got %d, want 1", len(stats.RecentSessions))
+	}
+	if stats.RecentSessions[0].SessionID != "s1" {
+		t.Errorf("RecentSessions[0].SessionID: got %s, want s1", stats.RecentSessions[0].SessionID)
+	}
+}
+
 func TestReadEvents_MalformedLines(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.jsonl")

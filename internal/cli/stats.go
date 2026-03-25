@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,6 +17,7 @@ import (
 func init() {
 	rootCmd.AddCommand(statsCmd)
 	statsCmd.Flags().Bool("json", false, "Output as JSON")
+	statsCmd.Flags().Bool("csv", false, "Output as CSV (one row per session)")
 }
 
 var statsCmd = &cobra.Command{
@@ -34,9 +36,16 @@ func runStats(cmd *cobra.Command, args []string) error {
 	}
 
 	jsonOutput, _ := cmd.Flags().GetBool("json")
+	csvOutput, _ := cmd.Flags().GetBool("csv")
 
 	if len(args) > 0 {
+		if csvOutput {
+			return showRecipeCSV(root, args[0])
+		}
 		return showRecipeStats(root, args[0], jsonOutput)
+	}
+	if csvOutput {
+		return showProjectCSV(root)
 	}
 	return showProjectStats(root, jsonOutput)
 }
@@ -79,6 +88,17 @@ func showProjectStats(root string, jsonOutput bool) error {
 		fmt.Printf("  Cache Write: %s\n", formatTokens(stats.TotalTokens.CacheCreationTokens))
 	}
 
+	if stats.TotalCost.Total > 0 {
+		fmt.Println()
+		fmt.Println("Estimated Cost")
+		fmt.Println(strings.Repeat("─", 40))
+		fmt.Printf("  Total:       %s\n", metrics.FormatCost(stats.TotalCost.Total))
+		fmt.Printf("  Input:       %s\n", metrics.FormatCost(stats.TotalCost.Input))
+		fmt.Printf("  Output:      %s\n", metrics.FormatCost(stats.TotalCost.Output))
+		fmt.Printf("  Cache Read:  %s\n", metrics.FormatCost(stats.TotalCost.CacheRead))
+		fmt.Printf("  Cache Write: %s\n", metrics.FormatCost(stats.TotalCost.CacheWrite))
+	}
+
 	if len(stats.TopTools) > 0 {
 		fmt.Println()
 		fmt.Println("Tool Usage")
@@ -86,6 +106,28 @@ func showProjectStats(root string, jsonOutput bool) error {
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		for _, t := range stats.TopTools {
 			fmt.Fprintf(w, "  %s\t%d calls\t%.0f%% fail\n", t.Name, t.Count, t.FailRate)
+		}
+		w.Flush()
+	}
+
+	if len(stats.RecentSessions) > 0 {
+		fmt.Println()
+		fmt.Println("Recent Sessions")
+		fmt.Println(strings.Repeat("─", 40))
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		for _, s := range stats.RecentSessions {
+			dur := formatDuration(s.Duration)
+			if s.Duration == 0 {
+				dur = "-"
+			}
+			fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s in / %s out\n",
+				truncateID(s.SessionID, 12),
+				formatModelShort(s.Model),
+				dur,
+				metrics.FormatCost(s.Cost.Total),
+				formatTokens(s.Tokens.InputTokens),
+				formatTokens(s.Tokens.OutputTokens),
+			)
 		}
 		w.Flush()
 	}
@@ -135,13 +177,43 @@ func showRecipeStats(root, recipeID string, jsonOutput bool) error {
 	if stats.TotalDuration > 0 {
 		fmt.Printf("  Duration:    %s\n", formatDuration(stats.TotalDuration))
 	}
+	if stats.TotalCost.Total > 0 {
+		fmt.Printf("  Cost:        %s\n", metrics.FormatCost(stats.TotalCost.Total))
+	}
 
 	if len(stats.Phases) > 0 {
 		fmt.Println()
-		fmt.Println("Phase Timeline")
+		var totalPhaseDur time.Duration
+		for _, p := range stats.Phases {
+			totalPhaseDur += p.Duration
+		}
+		if totalPhaseDur > 0 {
+			fmt.Printf("Phase Timeline (%s)\n", formatDuration(totalPhaseDur))
+		} else {
+			fmt.Println("Phase Timeline")
+		}
 		fmt.Println(strings.Repeat("─", 40))
 		for _, p := range stats.Phases {
-			fmt.Printf("  %-14s %s\n", p.Phase, formatDuration(p.Duration))
+			bar := renderPhaseBar(p.Duration, totalPhaseDur)
+			fmt.Printf("  %-14s %8s  %s\n", p.Phase, formatDuration(p.Duration), bar)
+		}
+	}
+
+	if stats.TotalCost.Total > 0 {
+		fmt.Println()
+		fmt.Println("Estimated Cost")
+		fmt.Println(strings.Repeat("─", 40))
+		fmt.Printf("  Total:       %s\n", metrics.FormatCost(stats.TotalCost.Total))
+		fmt.Printf("  Input:       %s\n", metrics.FormatCost(stats.TotalCost.Input))
+		fmt.Printf("  Output:      %s\n", metrics.FormatCost(stats.TotalCost.Output))
+		fmt.Printf("  Cache Read:  %s\n", metrics.FormatCost(stats.TotalCost.CacheRead))
+		fmt.Printf("  Cache Write: %s\n", metrics.FormatCost(stats.TotalCost.CacheWrite))
+		if len(stats.CostByModel) > 1 {
+			fmt.Println()
+			fmt.Println("  By Model:")
+			for model, cost := range stats.CostByModel {
+				fmt.Printf("    %-20s %s\n", formatModelShort(model), metrics.FormatCost(cost.Total))
+			}
 		}
 	}
 
@@ -169,7 +241,131 @@ func showRecipeStats(root, recipeID string, jsonOutput bool) error {
 		w.Flush()
 	}
 
+	if len(stats.Sessions) > 0 {
+		fmt.Println()
+		fmt.Println("Sessions")
+		fmt.Println(strings.Repeat("─", 40))
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		for _, s := range stats.Sessions {
+			dur := formatDuration(s.Duration)
+			if s.Duration == 0 {
+				dur = "-"
+			}
+			fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%d tools\n",
+				truncateID(s.SessionID, 12),
+				formatModelShort(s.Model),
+				dur,
+				metrics.FormatCost(s.Cost.Total),
+				s.ToolCount,
+			)
+		}
+		w.Flush()
+	}
+
 	return nil
+}
+
+// showProjectCSV outputs all sessions as CSV.
+func showProjectCSV(root string) error {
+	events, err := metrics.ReadAllEvents(root)
+	if err != nil {
+		return fmt.Errorf("read metrics: %w", err)
+	}
+
+	sessions := metrics.AggregateSessions(events)
+	w := csv.NewWriter(os.Stdout)
+	defer w.Flush()
+
+	w.Write([]string{
+		"session_id", "model", "source", "started_at", "duration_sec",
+		"tool_count", "tool_fails", "compacts",
+		"input_tokens", "output_tokens", "cache_read", "cache_write",
+		"cost_usd",
+	})
+
+	for _, s := range sessions {
+		startedAt := ""
+		if !s.StartedAt.IsZero() {
+			startedAt = s.StartedAt.Format(time.RFC3339)
+		}
+		w.Write([]string{
+			s.SessionID, s.Model, s.Source, startedAt,
+			fmt.Sprintf("%.0f", s.Duration.Seconds()),
+			fmt.Sprintf("%d", s.ToolCount),
+			fmt.Sprintf("%d", s.ToolFails),
+			fmt.Sprintf("%d", s.Compacts),
+			fmt.Sprintf("%d", s.Tokens.InputTokens),
+			fmt.Sprintf("%d", s.Tokens.OutputTokens),
+			fmt.Sprintf("%d", s.Tokens.CacheReadTokens),
+			fmt.Sprintf("%d", s.Tokens.CacheCreationTokens),
+			fmt.Sprintf("%.4f", s.Cost.Total),
+		})
+	}
+	return nil
+}
+
+// showRecipeCSV outputs recipe sessions as CSV.
+func showRecipeCSV(root, recipeID string) error {
+	recipe, err := state.LoadRecipeState(root, recipeID)
+	if err != nil {
+		return fmt.Errorf("load recipe: %w", err)
+	}
+
+	events, err := metrics.ReadRecipeEvents(root, recipeID)
+	if err != nil {
+		return fmt.Errorf("read metrics: %w", err)
+	}
+
+	sessions := metrics.AggregateSessions(events)
+	w := csv.NewWriter(os.Stdout)
+	defer w.Flush()
+
+	w.Write([]string{
+		"recipe_id", "topic", "phase",
+		"session_id", "model", "source", "started_at", "duration_sec",
+		"tool_count", "tool_fails", "compacts",
+		"input_tokens", "output_tokens", "cache_read", "cache_write",
+		"cost_usd",
+	})
+
+	for _, s := range sessions {
+		startedAt := ""
+		if !s.StartedAt.IsZero() {
+			startedAt = s.StartedAt.Format(time.RFC3339)
+		}
+		w.Write([]string{
+			recipe.ID, recipe.Topic, recipe.Phase,
+			s.SessionID, s.Model, s.Source, startedAt,
+			fmt.Sprintf("%.0f", s.Duration.Seconds()),
+			fmt.Sprintf("%d", s.ToolCount),
+			fmt.Sprintf("%d", s.ToolFails),
+			fmt.Sprintf("%d", s.Compacts),
+			fmt.Sprintf("%d", s.Tokens.InputTokens),
+			fmt.Sprintf("%d", s.Tokens.OutputTokens),
+			fmt.Sprintf("%d", s.Tokens.CacheReadTokens),
+			fmt.Sprintf("%d", s.Tokens.CacheCreationTokens),
+			fmt.Sprintf("%.4f", s.Cost.Total),
+		})
+	}
+	return nil
+}
+
+// renderPhaseBar renders an ASCII bar for a phase duration.
+func renderPhaseBar(phaseDur, totalDur time.Duration) string {
+	const barWidth = 16
+	if totalDur <= 0 {
+		return ""
+	}
+	pct := float64(phaseDur) / float64(totalDur) * 100
+	filled := int(float64(barWidth) * phaseDur.Seconds() / totalDur.Seconds())
+	if filled < 1 && phaseDur > 0 {
+		filled = 1
+	}
+	if filled > barWidth {
+		filled = barWidth
+	}
+	bar := strings.Repeat("#", filled) + strings.Repeat(".", barWidth-filled)
+	return fmt.Sprintf("%s  %2.0f%%", bar, pct)
 }
 
 func formatTokens(n int) string {
@@ -191,6 +387,22 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dm %ds", int(secs)/60, int(secs)%60)
 	}
 	return fmt.Sprintf("%dh %dm", int(secs)/3600, (int(secs)%3600)/60)
+}
+
+// formatModelShort trims the "claude-" prefix for compact display.
+func formatModelShort(model string) string {
+	if model == "" {
+		return "-"
+	}
+	return strings.TrimPrefix(model, "claude-")
+}
+
+// truncateID shortens a session ID for display.
+func truncateID(id string, maxLen int) string {
+	if len(id) <= maxLen {
+		return id
+	}
+	return id[:maxLen]
 }
 
 func sortTools(tools []metrics.ToolStat) {

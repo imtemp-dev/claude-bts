@@ -63,7 +63,7 @@ DocumentEntry optional fields:
 
 ```json
 {
-  "id": "r-1710720000000",
+  "id": "r-001-oauth-auth",
   "type": "blueprint",
   "topic": "OAuth2 authentication",
   "phase": "verify",

@@ -1,6 +1,6 @@
 # claude-forge
 
-文档优先AI开发 — 迭代规范，而非代码。
+先验证，再写代码 — forge 在规范错误变成调试会话之前将其捕获。
 
 [![CI](https://github.com/imtemp-dev/claude-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-forge/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-forge)](https://github.com/imtemp-dev/claude-forge/releases)
@@ -9,29 +9,31 @@
 
 [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md)
 
-```
-╔═══════════════════════════════════════════════════════════╗
-║                                                           ║
-║   Ralph 模式                    Lisa 模式                 ║
-║                                                           ║
-║   代码 -> 失败                  规范 -> 验证              ║
-║     -> 代码 -> 失败               -> 规范 -> 验证        ║
-║       -> 代码 -> 失败               -> 完美规范           ║
-║         -> ...                        -> 代码             ║
-║           -> 能行?                      -> 能行。         ║
-║                                                           ║
-║   循环代码（昂贵）              循环文档（廉价）          ║
-║   构建、测试、副作用            无构建、无破坏            ║
-║                                                           ║
-║                  claude-forge 是 Lisa 模式。              ║
-║                                                           ║
-╚═══════════════════════════════════════════════════════════╝
-```
+## Why
 
-> **Ralph 循环代码。Lisa 循环文档。**
-> 两者都迭代直到成功——但文档修改是安全的。
-> 无构建、无测试、无副作用。当规范完美时，
-> AI 一次生成可运行的代码。
+如果你认真使用 Claude Code，你可能已经建立了自己的流程：提醒 AI 注意整体架构、要求它审查自己的输出、检查边界情况。这是对的——你的直觉没有错。
+
+但每次都手动执行，有现实的局限：
+
+- **不一致。** 有些会话你记得要求审查，有些你忘了。质量取决于你当天有多仔细。
+- **错误越早发现越便宜。** 当计划中的错误直接变成代码，它会扩散到多个文件，修复需要构建和调试。在计划阶段发现只需要改文本。但没有验证步骤，计划级别的错误在变成代码问题之前没有机会被发现。
+- **实现会淹没目的地。** AI 能做计划，但一旦深入代码——修复类型错误、追查测试失败——它就会忘记完成的系统整体应该是什么样子。forge 从意图、范围、线框开始正是为此：在细节占满上下文之前，先确立全局。
+
+模式总是一样的：你在通过对话做质量控制，每个会话从头来过，上次发现的问题这次不一定能再次发现。
+
+## forge 做什么
+
+forge 是一个接入 Claude Code 生命周期钩子的 CLI 工具。它将你已经在做的流程结构化——但使其自动化、可追踪，并由独立的 AI 上下文进行验证。
+
+**结构化的全局优先。** 在任何代码之前，forge 经历意图探索、范围定义和线框设计。这为后续每个步骤——起草、验证、实现——提供了可以回溯参照的目的地，防止 AI 为了眼前的问题而牺牲整体。
+
+**隔离验证。** 当 AI 在同一会话中审查自己的输出时，它共享相同的盲点。forge 在独立的代理上下文中运行验证——一个不共享生成该文档的对话历史的不同 AI 实例。
+
+**跨会话状态追踪。** forge 记录验证中发现的每个问题，追踪哪些已解决，并在会话和上下文压缩之间持久化。当会话恢复时，它确切知道进度和未解决的问题。
+
+**完成门控。** 验证不通过就无法定稿。测试通过、审查完成、规范与代码的偏差被记录之前，实现无法完成。这些门控自动执行——不依赖你记得去检查。
+
+核心思想很简单：**在文档中而非代码中捕获错误。** 修改规范是文本编辑，修改代码是构建-测试-调试循环。实现之前过滤掉的错误越多，实现之后的返工越少。
 
 ## 快速开始
 
@@ -60,56 +62,45 @@ claude
 
 ```bash
 # 创建完美规范 → 实现 → 测试 → 完成
-/recipe blueprint "添加 OAuth2 认证"
+/forge-recipe-blueprint 添加 OAuth2 认证
 
 # 修复已知漏洞
-/recipe fix "登录 bcrypt 哈希比较失败"
+/forge-recipe-fix 登录 bcrypt 哈希比较失败
 
 # 调试未知问题
-/recipe debug "5分钟后会话断开"
+/forge-recipe-debug 5分钟后会话断开
 ```
 
 ## 工作原理
 
-forge 自动化从规范到可运行代码的完整周期：
+forge 将工作分为**规范**和**实现**两个阶段。每种配方类型有自己的规范阶段，但都共享相同的实现循环。
 
-```mermaid
-flowchart LR
-    subgraph Spec["Spec Phase"]
-        R["Research"] --> D["Draft"] --> V["Verify Loop"] --> F["Finalize"]
-    end
-    subgraph Impl["Implement Phase"]
-        IMP["Implement"] --> T["Test"] --> SIM["Simulate"] --> RV["Review"] --> SY["Sync"]
-    end
-    F -->|"Level 3 spec"| IMP
-    SY --> DONE["Complete"]
-```
+在规范阶段，forge 迭代文档——探索意图、调研代码库、起草详细设计，并在独立的 AI 上下文中进行多轮验证。此阶段发现的错误只需文本编辑即可修复。
 
-**规范阶段** — 调研代码库，起草详细规范，然后通过多轮验证，直到每个文件路径、函数签名、类型和边界情况都确定下来（Level 3）。验证使用独立的 AI 上下文，因此规范永远不会自我验证。
+在实现阶段，forge 从定稿规范生成代码、运行测试（失败时重试）、模拟代码路径、审查质量，并将偏差同步回规范。每个步骤都有自动门控，在满足要求之前阻止完成。
 
-**实现阶段** — 从最终规范生成代码，运行测试，模拟代码路径，审查质量，并将任何偏差同步回规范。每个步骤都有自动门控，在满足要求之前阻止完成。
-
-**完成门控** — `forge` 自动验证完成标记。规范必须通过验证才能定稿。实现必须通过测试、审查和同步才能完成。
+各配方类型的详细流程见[配方生命周期](#配方生命周期)。
 
 ## 配方
 
 | 配方 | 用途 | 输出 |
 |------|------|------|
-| `/recipe blueprint` | 完整实现规范 | Level 3 规范 → 代码 → 测试 |
-| `/recipe design` | 设计功能 | Level 2 设计文档 |
-| `/recipe analyze` | 理解现有系统 | Level 1 分析文档 |
-| `/recipe fix` | 已知漏洞修复 | 修复规范 → 代码 → 测试 |
-| `/recipe debug` | 未知漏洞调查 | 6视角分析 → 规范 → 代码 |
+| `/forge-recipe-blueprint` | 完整实现规范 | Level 3 规范 → 代码 → 测试 |
+| `/forge-recipe-design` | 设计功能 | Level 2 设计文档 |
+| `/forge-recipe-analyze` | 理解现有系统 | Level 1 分析文档 |
+| `/forge-recipe-fix` | 已知漏洞修复 | 修复规范 → 代码 → 测试 |
+| `/forge-recipe-debug` | 未知漏洞调查 | 6视角分析 → 规范 → 代码 |
 
 对于多功能项目，forge 将工作分解为**愿景 + 路线图**。每个配方映射到路线图项目，完成状态自动跟踪。
 
 ## 功能
 
-### 19 个技能
+### 21 个技能
 
 | 类别 | 技能 |
 |------|------|
 | **配方** | blueprint, design, analyze, fix, debug |
+| **发现** | discover, wireframe |
 | **验证** | verify, cross-check, audit, assess, sync-check |
 | **分析** | research, simulate, debate, adjudicate |
 | **实现** | implement, test, sync, status |
@@ -123,6 +114,30 @@ flowchart LR
 | stop | 完成门控（在允许完成前验证规范、测试、审查） |
 | pre-compact | 上下文压缩前快照工作状态 |
 | session-end | 为跨会话恢复持久化工作状态 |
+| post-tool-use | 工具使用指标追踪（工具名、文件、成功/失败） |
+| subagent-start/stop | 子代理生命周期指标追踪 |
+
+### 指标与成本估算
+
+```
+forge stats
+```
+
+```
+Project Overview
+────────────────────────────────────────
+  Recipes:     3 complete, 1 active, 4 total
+  Sessions:    12 total, 5 compactions
+  Models:      claude-opus-4-6, claude-sonnet-4-6
+
+Estimated Cost
+────────────────────────────────────────
+  Total:       $4.52
+  Input:       $1.23
+  Output:      $2.89
+```
+
+会话级和配方级令牌追踪，带模型特定的成本估算。支持导出为 CSV（`--csv`）或 JSON（`--json`）以供外部分析。
 
 ### 状态栏
 
@@ -132,32 +147,70 @@ forge v0.1.0 │ JWT auth │ implement 3/5 │ ctx 60%
 
 在 Claude Code 状态栏中实时显示配方进度、阶段和上下文使用情况。
 
-## 架构
+### 文档可视化
+
+```bash
+forge graph              # 项目级文档关系图
+forge graph <recipe-id>  # 配方级文档图
+```
+
+生成 mermaid 图表，显示文档依赖关系、辩论结论和验证链。
+
+## 配方生命周期
+
+每种配方类型有自己的规范阶段。生成代码的配方共享相同的实现阶段。
+
+### 规范阶段（按配方类型）
+
+**Blueprint** — 新功能的完整规范：
 
 ```mermaid
 flowchart LR
-    subgraph Go["Go binary (forge)"]
-        init["forge init"]
-        validate["forge validate"]
-        doctor["forge doctor"]
-        hook["forge hook"]
-        recipe["forge recipe"]
-    end
-
-    subgraph CC["Claude Code"]
-        skills["19 skills"]
-        agents["6 agents"]
-        hooks["6 hooks"]
-        rules["6 rules"]
-    end
-
-    init -->|"deploy"| CC
-    hook -->|"lifecycle"| CC
+    DIS["发现"] --> SC["范围"] --> R["调研"] --> W["线框"]
+    W --> D["草稿"] --> V["验证"]
+    V -->|"问题"| D
+    V -->|"通过"| F["定稿"]
 ```
 
-**Go 二进制文件** — 单一静态链接二进制文件（约 5ms 启动）。管理状态、验证完成、部署模板。除 Go 之外零运行时依赖。
+**Fix** — 轻量诊断：
 
-**Claude Code** — 技能提供配方协议，代理运行独立验证，钩子处理生命周期事件，规则强制约束。
+```mermaid
+flowchart LR
+    DIAG["诊断"] --> SPEC["修复规范"] --> F["定稿"]
+```
+
+**Debug** — 多视角根因分析：
+
+```mermaid
+flowchart LR
+    BP["6 蓝图"] --> CROSS["交叉分析"] --> SPEC["修复规范"] --> F["定稿"]
+```
+
+**Design** / **Analyze** — 仅规范，无实现：
+
+```mermaid
+flowchart LR
+    R["调研"] --> D["草稿"] --> V["验证"]
+    V -->|"问题"| D
+    V -->|"通过"| F["定稿"]
+```
+
+### 实现阶段（共享）
+
+所有生成代码的配方通过 `/forge-implement` 进入相同的实现循环：
+
+```mermaid
+flowchart LR
+    F["定稿规范"] --> IMP["实现"] --> T["测试"]
+    T -->|"失败"| IMP
+    T -->|"通过"| SIM["模拟"] --> RV["审查"] --> SY["同步"] --> DONE["完成"]
+```
+
+## 架构
+
+**Go 二进制文件** — 单一静态链接二进制文件（约 5ms 启动）。管理状态、验证完成、部署模板、追踪指标。除 Go 之外零运行时依赖。
+
+**Claude Code 集成** — 21 个技能提供配方协议，8 个生命周期钩子处理会话事件（恢复、完成门控、指标），6 个规则强制约束。验证始终在独立的代理上下文中运行。
 
 ## 核心原则
 
@@ -172,15 +225,18 @@ flowchart LR
 ## CLI
 
 ```
-forge init [dir]              初始化项目（部署技能、钩子、代理）
+forge init [dir]              初始化项目（部署技能、钩子、规则）
 forge doctor [recipe-id]      健康检查（系统、配方、文档）
 forge validate [recipe-id]    JSON 模式合规性检查
+forge verify <file>           文档一致性检查，级别评估
 forge recipe status           显示活动配方
 forge recipe list             所有配方列表
+forge recipe create           创建新配方
 forge recipe log <id>         记录操作 / 阶段 / 迭代
 forge recipe cancel           取消活动配方
-forge stats                   显示项目统计
-forge graph                   显示文档依赖图
+forge stats [recipe-id]       指标和成本估算 (--json, --csv)
+forge graph [recipe-id]       文档关系可视化 (--all)
+forge sync-check <id>         验证配方内文档同步
 forge update                  更新模板以匹配二进制版本
 forge version                 显示二进制和模板版本
 ```

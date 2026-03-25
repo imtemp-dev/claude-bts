@@ -1,6 +1,6 @@
 # claude-forge
 
-Document-first AI development — iterate on specs, not code.
+Verify before you code — forge catches spec errors before they become debugging sessions.
 
 [![CI](https://github.com/imtemp-dev/claude-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-forge/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-forge)](https://github.com/imtemp-dev/claude-forge/releases)
@@ -9,29 +9,31 @@ Document-first AI development — iterate on specs, not code.
 
 [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-```
-╔═══════════════════════════════════════════════════════════╗
-║                                                           ║
-║   Ralph Mode                    Lisa Mode                 ║
-║                                                           ║
-║   code -> fail                  spec -> verify            ║
-║     -> code -> fail               -> spec -> verify       ║
-║       -> code -> fail               -> bulletproof spec   ║
-║         -> ...                        -> code             ║
-║           -> works?                     -> works.         ║
-║                                                           ║
-║   Loop the CODE (expensive)     Loop the DOCS (cheap)     ║
-║   builds, tests, side effects   no builds, no breakage    ║
-║                                                           ║
-║                  claude-forge is Lisa Mode.                ║
-║                                                           ║
-╚═══════════════════════════════════════════════════════════╝
-```
+## Why
 
-> **Ralph loops code. Lisa loops documents.**
-> Both iterate until it works — but documents are safe to change.
-> No builds, no tests, no side effects. When the spec is bulletproof,
-> AI generates working code on the first try.
+If you use Claude Code seriously, you've probably built your own process: reminding AI of the overall architecture, asking it to review its own output, checking edge cases. This works — and it's the right instinct.
+
+But doing it manually, every time, has real limits:
+
+- **It's inconsistent.** Some sessions you remember to ask for a review. Some you forget. The quality depends on how diligent you are that day.
+- **Errors are cheaper to fix earlier.** When a mistake in the plan goes straight to code, it spreads across files and costs builds, tests, and debugging to fix. The same mistake caught in the plan costs a text edit. But without a verification step, plan-level errors have no chance to be caught before they become code-level problems.
+- **Implementation drowns the destination.** AI can plan, but once it's deep in code — fixing a type error, chasing a test failure — it loses sight of what the finished system should look like as a whole. forge addresses this by starting with intent, scope, and wireframe: establishing the big picture before details consume the context.
+
+The pattern is always the same: you're doing quality control through conversation, repeating it from scratch every session, with no guarantee that what was caught last time gets caught again.
+
+## What forge does
+
+forge is a CLI tool that plugs into Claude Code's lifecycle hooks. It structures the process you're already doing — but makes it automatic, tracked, and verified by separate AI contexts.
+
+**Structured big picture first.** Before any code, forge walks through intent discovery, scope definition, and wireframe design. This gives every later step — drafting, verification, implementation — a destination to refer back to, so AI doesn't optimize for the immediate problem at the expense of the whole.
+
+**Isolated verification.** When AI reviews its own output in the same session, it shares the same blind spots. forge runs verification in a separate agent context — a different AI instance that doesn't share the conversation history that produced the document.
+
+**State tracking across sessions.** forge records every issue found during verification, tracks which ones are resolved, and persists this across sessions and context compactions. When a session resumes, it knows exactly where you left off and what's still open.
+
+**Completion gates.** A spec can't be finalized until verification passes. Implementation can't complete until tests pass, review is done, and spec-code deviations are documented. These gates are enforced automatically — they don't depend on you remembering to check.
+
+The underlying idea is simple: **catch errors in documents instead of in code.** Fixing a spec is a text edit. Fixing code is a build-test-debug cycle. The more errors filtered out before implementation starts, the less rework after.
 
 ## Quick Start
 
@@ -60,56 +62,45 @@ Then inside Claude Code:
 
 ```bash
 # Create a bulletproof spec → implement → test → complete
-/recipe blueprint "add OAuth2 authentication"
+/forge-recipe-blueprint add OAuth2 authentication
 
 # Fix a known bug
-/recipe fix "login bcrypt hash comparison fails"
+/forge-recipe-fix login bcrypt hash comparison fails
 
 # Debug an unknown issue
-/recipe debug "session drops after 5 minutes"
+/forge-recipe-debug session drops after 5 minutes
 ```
 
 ## How It Works
 
-forge automates the full cycle from spec to working code:
+forge splits work into two phases: **spec** and **implementation**. Each recipe type has its own spec phase, but all share the same implementation loop.
 
-```mermaid
-flowchart LR
-    subgraph Spec["Spec Phase"]
-        R["Research"] --> D["Draft"] --> V["Verify Loop"] --> F["Finalize"]
-    end
-    subgraph Impl["Implement Phase"]
-        IMP["Implement"] --> T["Test"] --> SIM["Simulate"] --> RV["Review"] --> SY["Sync"]
-    end
-    F -->|"Level 3 spec"| IMP
-    SY --> DONE["Complete"]
-```
+In the spec phase, forge iterates on documents — discovering intent, researching the codebase, drafting a detailed design, and verifying it through multiple rounds in separate AI contexts. Errors caught here cost a text edit.
 
-**Spec Phase** — Research the codebase, draft a detailed spec, then verify it through multiple rounds until every file path, function signature, type, and edge case is nailed down (Level 3). Verification uses separate AI contexts so the spec is never checking its own work.
+In the implementation phase, forge generates code from the finalized spec, runs tests (retrying on failure), simulates code paths, reviews for quality, and syncs deviations back to the spec. Each step has an automatic gate that blocks completion until requirements are met.
 
-**Implement Phase** — Generate code from the finalized spec, run tests, simulate code paths, review for quality, and sync any deviations back to the spec. Each step has an automatic gate that blocks completion until requirements are met.
-
-**Completion Gates** — `forge` validates completion markers automatically. A spec can't be finalized without passing verification. Implementation can't complete without passing tests, review, and sync.
+See [Recipe Lifecycles](#recipe-lifecycles) for the detailed flow of each recipe type.
 
 ## Recipes
 
 | Recipe | Purpose | Output |
 |--------|---------|--------|
-| `/recipe blueprint` | Full implementation spec | Level 3 spec → code → tests |
-| `/recipe design` | Design a feature | Level 2 design doc |
-| `/recipe analyze` | Understand existing system | Level 1 analysis doc |
-| `/recipe fix` | Known bug fix | Fix spec → code → tests |
-| `/recipe debug` | Unknown bug investigation | 6-perspective analysis → spec → code |
+| `/forge-recipe-blueprint` | Full implementation spec | Level 3 spec → code → tests |
+| `/forge-recipe-design` | Design a feature | Level 2 design doc |
+| `/forge-recipe-analyze` | Understand existing system | Level 1 analysis doc |
+| `/forge-recipe-fix` | Known bug fix | Fix spec → code → tests |
+| `/forge-recipe-debug` | Unknown bug investigation | 6-perspective analysis → spec → code |
 
 For multi-feature projects, forge decomposes work into a **vision + roadmap**. Each recipe maps to a roadmap item and completion is tracked automatically.
 
 ## Features
 
-### 19 Skills
+### 21 Skills
 
 | Category | Skills |
 |----------|--------|
 | **Recipes** | blueprint, design, analyze, fix, debug |
+| **Discovery** | discover, wireframe |
 | **Verification** | verify, cross-check, audit, assess, sync-check |
 | **Analysis** | research, simulate, debate, adjudicate |
 | **Implementation** | implement, test, sync, status |
@@ -123,6 +114,37 @@ For multi-feature projects, forge decomposes work into a **vision + roadmap**. E
 | stop | Completion gates (validates specs, tests, reviews before allowing completion) |
 | pre-compact | Snapshots work state before context compaction |
 | session-end | Persists work state for cross-session resume |
+| post-tool-use | Tracks tool usage metrics (tool name, file, success/failure) |
+| subagent-start/stop | Tracks subagent lifecycle for metrics |
+
+### Metrics & Cost Estimation
+
+```
+forge stats
+```
+
+```
+Project Overview
+────────────────────────────────────────
+  Recipes:     3 complete, 1 active, 4 total
+  Sessions:    12 total, 5 compactions
+  Models:      claude-opus-4-6, claude-sonnet-4-6
+
+Estimated Cost
+────────────────────────────────────────
+  Total:       $4.52
+  Input:       $1.23
+  Output:      $2.89
+  Cache Read:  $0.15
+  Cache Write: $0.25
+
+Recent Sessions
+────────────────────────────────────────
+  s-abc123  opus-4-6     12m 30s  $2.34  45.0K in / 8.0K out
+  s-def456  sonnet-4-6    5m 10s  $0.89  20.0K in / 3.0K out
+```
+
+Session-level and recipe-level token tracking with model-specific cost estimation. Export to CSV (`--csv`) or JSON (`--json`) for external analysis.
 
 ### Statusline
 
@@ -132,32 +154,70 @@ forge v0.1.0 │ JWT auth │ implement 3/5 │ ctx 60%
 
 Real-time recipe progress, phase, and context usage in Claude Code's status bar.
 
-## Architecture
+### Document Visualization
+
+```bash
+forge graph              # Project-wide document relationships
+forge graph <recipe-id>  # Recipe-specific document graph
+```
+
+Generates mermaid diagrams showing document dependencies, debate conclusions, and verification chains.
+
+## Recipe Lifecycles
+
+Each recipe type has its own spec phase. Recipes that produce code share the same implementation phase.
+
+### Spec Phase (per recipe type)
+
+**Blueprint** — full spec for new features:
 
 ```mermaid
 flowchart LR
-    subgraph Go["Go binary (forge)"]
-        init["forge init"]
-        validate["forge validate"]
-        doctor["forge doctor"]
-        hook["forge hook"]
-        recipe["forge recipe"]
-    end
-
-    subgraph CC["Claude Code"]
-        skills["19 skills"]
-        agents["6 agents"]
-        hooks["6 hooks"]
-        rules["6 rules"]
-    end
-
-    init -->|"deploy"| CC
-    hook -->|"lifecycle"| CC
+    DIS["Discover"] --> SC["Scope"] --> R["Research"] --> W["Wireframe"]
+    W --> D["Draft"] --> V["Verify"]
+    V -->|"issues"| D
+    V -->|"pass"| F["Finalize"]
 ```
 
-**Go binary** — Single statically-linked binary (~5ms startup). Manages state, validates completion, deploys templates. Zero runtime dependencies beyond Go.
+**Fix** — lightweight diagnosis:
 
-**Claude Code** — Skills provide recipe protocols, agents run isolated verification, hooks handle lifecycle events, rules enforce constraints.
+```mermaid
+flowchart LR
+    DIAG["Diagnose"] --> SPEC["Fix Spec"] --> F["Finalize"]
+```
+
+**Debug** — multi-perspective root cause analysis:
+
+```mermaid
+flowchart LR
+    BP["6 Blueprints"] --> CROSS["Cross-reference"] --> SPEC["Fix Spec"] --> F["Finalize"]
+```
+
+**Design** / **Analyze** — spec-only, no implementation:
+
+```mermaid
+flowchart LR
+    R["Research"] --> D["Draft"] --> V["Verify"]
+    V -->|"issues"| D
+    V -->|"pass"| F["Finalize"]
+```
+
+### Implementation Phase (shared)
+
+All recipes that produce code enter the same implementation loop via `/forge-implement`:
+
+```mermaid
+flowchart LR
+    F["Finalized Spec"] --> IMP["Implement"] --> T["Test"]
+    T -->|"fail"| IMP
+    T -->|"pass"| SIM["Simulate"] --> RV["Review"] --> SY["Sync"] --> DONE["Complete"]
+```
+
+## Architecture
+
+**Go binary** — Single statically-linked binary (~5ms startup). Manages state, validates completion, deploys templates, tracks metrics. Zero runtime dependencies beyond Go.
+
+**Claude Code integration** — 21 skills provide recipe protocols, 8 lifecycle hooks handle session events (resume, completion gates, metrics), 6 rules enforce constraints. Verification always runs in separate agent contexts.
 
 ## Key Principles
 
@@ -172,13 +232,18 @@ flowchart LR
 ## CLI
 
 ```
-forge init [dir]              Initialize project (deploy skills, hooks, agents)
+forge init [dir]              Initialize project (deploy skills, hooks, rules)
 forge doctor [recipe-id]      Health check (system, recipe, documents)
 forge validate [recipe-id]    JSON schema compliance check
+forge verify <file>           Check document consistency, assess level
 forge recipe status           Show active recipe
 forge recipe list             All recipes
+forge recipe create           Create a new recipe
 forge recipe log <id>         Record action / phase / iteration
 forge recipe cancel           Cancel active recipe
+forge stats [recipe-id]       Metrics and cost estimation (--json, --csv)
+forge graph [recipe-id]       Document relationship visualization (--all)
+forge sync-check <id>         Verify documents are in sync within a recipe
 forge update                  Update templates to match binary version
 forge version                 Show binary and template versions
 ```
