@@ -314,36 +314,6 @@ func selectKeyDocs(m *state.Manifest) []keyDoc {
 	return result
 }
 
-// findFirstDoc returns the earliest/root document in a manifest.
-// Uses deterministic selection: known names first, then sorted by type, then alphabetical.
-func findFirstDoc(m *state.Manifest) string {
-	// Priority 1: well-known entry points
-	for _, p := range []string{"intent.md", "scope.md"} {
-		if _, ok := m.Documents[p]; ok {
-			return p
-		}
-	}
-
-	// Priority 2: first research doc (alphabetically for determinism)
-	// Priority 3: first draft doc
-	// Priority 4: anything
-	typePriority := []string{"research", "draft", ""}
-	var allPaths []string
-	for p := range m.Documents {
-		allPaths = append(allPaths, p)
-	}
-	sort.Strings(allPaths)
-
-	for _, wantType := range typePriority {
-		for _, p := range allPaths {
-			if wantType == "" || m.Documents[p].Type == wantType {
-				return p
-			}
-		}
-	}
-	return ""
-}
-
 func truncateGraph(s string, max int) string {
 	if len(s) <= max {
 		return s

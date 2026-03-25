@@ -276,7 +276,7 @@ func showProjectCSV(root string) error {
 	w := csv.NewWriter(os.Stdout)
 	defer w.Flush()
 
-	w.Write([]string{
+	_ = w.Write([]string{
 		"session_id", "model", "source", "started_at", "duration_sec",
 		"tool_count", "tool_fails", "compacts",
 		"input_tokens", "output_tokens", "cache_read", "cache_write",
@@ -288,7 +288,7 @@ func showProjectCSV(root string) error {
 		if !s.StartedAt.IsZero() {
 			startedAt = s.StartedAt.Format(time.RFC3339)
 		}
-		w.Write([]string{
+		_ = w.Write([]string{
 			s.SessionID, s.Model, s.Source, startedAt,
 			fmt.Sprintf("%.0f", s.Duration.Seconds()),
 			fmt.Sprintf("%d", s.ToolCount),
@@ -320,7 +320,7 @@ func showRecipeCSV(root, recipeID string) error {
 	w := csv.NewWriter(os.Stdout)
 	defer w.Flush()
 
-	w.Write([]string{
+	_ = w.Write([]string{
 		"recipe_id", "topic", "phase",
 		"session_id", "model", "source", "started_at", "duration_sec",
 		"tool_count", "tool_fails", "compacts",
@@ -333,7 +333,7 @@ func showRecipeCSV(root, recipeID string) error {
 		if !s.StartedAt.IsZero() {
 			startedAt = s.StartedAt.Format(time.RFC3339)
 		}
-		w.Write([]string{
+		_ = w.Write([]string{
 			recipe.ID, recipe.Topic, recipe.Phase,
 			s.SessionID, s.Model, s.Source, startedAt,
 			fmt.Sprintf("%.0f", s.Duration.Seconds()),
