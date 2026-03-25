@@ -117,7 +117,8 @@ var recipeLogCmd = &cobra.Command{
 			}
 
 			// Pre-condition checks for phase transition
-			if err := checkPhasePreConditions(root, recipe, phase); err != nil {
+			force, _ := cmd.Flags().GetBool("force")
+			if err := checkPhasePreConditions(root, recipe, phase, force); err != nil {
 				return err
 			}
 
@@ -307,6 +308,7 @@ func init() {
 	recipeLogCmd.Flags().Int("gaps", 0, "Number of gaps found (for simulate)")
 	// Phase flag
 	recipeLogCmd.Flags().String("phase", "", "Update recipe phase (implement, test, sync, status, etc.)")
+	recipeLogCmd.Flags().Bool("force", false, "Force protected phase transitions (complete, finalize)")
 }
 
 // actionToDocType maps changelog action names to manifest document types.
@@ -337,7 +339,7 @@ func actionToDocType(action string) string {
 
 // checkPhasePreConditions warns about missing prerequisites for a phase transition.
 // Warnings go to stderr; phase transition always proceeds (warn, not block).
-func checkPhasePreConditions(root string, recipe *state.RecipeState, newPhase string) error {
+func checkPhasePreConditions(root string, recipe *state.RecipeState, newPhase string, force bool) error {
 	recipeDir := state.RecipeDir(root, recipe.ID)
 	exists := func(name string) bool {
 		_, err := os.Stat(filepath.Join(recipeDir, name))
@@ -353,9 +355,12 @@ func checkPhasePreConditions(root string, recipe *state.RecipeState, newPhase st
 
 	switch newPhase {
 	case "complete", "finalize":
-		fmt.Fprintf(os.Stderr, "✗ Phase '%s' is protected — set automatically by completion gates.\n", newPhase)
-		fmt.Fprintf(os.Stderr, "  Output <forge>DONE</forge>, <forge>IMPLEMENT DONE</forge>, or <forge>FIX DONE</forge> to complete.\n")
-		return fmt.Errorf("phase '%s' is protected", newPhase)
+		if !force {
+			fmt.Fprintf(os.Stderr, "✗ Phase '%s' is protected — set automatically by completion gates.\n", newPhase)
+			fmt.Fprintf(os.Stderr, "  Use --force to override (e.g., for legacy recipes).\n")
+			return fmt.Errorf("phase '%s' is protected", newPhase)
+		}
+		fmt.Fprintf(os.Stderr, "⚠ Force-completing recipe (bypassing completion gates)\n")
 
 	case "research":
 		if recipe.Type == "blueprint" && !stateExists("project-map.md") {
