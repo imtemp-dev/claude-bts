@@ -17,8 +17,8 @@ Run scenarios to find what's missing or wrong: $ARGUMENTS
 
 ## Settings
 
-Read `.forge/config/settings.yaml`. If `agents.simulator` is set, pass that model
-when spawning Agent(simulator) below.
+Simulation requires deep reasoning — it uses the main session model by default.
+If `agents.simulator` is explicitly set in `.forge/config/settings.yaml`, use that model instead.
 
 ## Mode Detection
 

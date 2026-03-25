@@ -50,13 +50,14 @@ vision:
   min_roadmap_items: 3           # Below 3, decomposition adds overhead without benefit
 
 # Agent models — override the model used for specialist agents.
-# Default: sonnet (set in agent frontmatter). Options: sonnet, opus, haiku.
+# Default: sonnet for verification agents. Options: sonnet, opus, haiku.
 # Opus gives deeper analysis but costs more and is slower.
 # Haiku is fast and cheap but may miss subtle issues.
+# Simulator uses session model by default (deep reasoning required).
 agents:
   verifier: sonnet
   auditor: sonnet
-  simulator: sonnet
+  # simulator: sonnet           # Uncomment to override (default: session model)
   reviewer_quality: sonnet
   reviewer_security: sonnet
   reviewer_arch: sonnet

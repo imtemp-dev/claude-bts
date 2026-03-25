@@ -224,7 +224,7 @@ forge 使用两层 AI 模型：
 agents:
   verifier: sonnet       # /forge-verify — 逻辑一致性
   auditor: sonnet        # /forge-audit — 完整性检查
-  simulator: sonnet      # /forge-simulate — 场景演练
+  # simulator: sonnet    # /forge-simulate — 默认：会话模型（需要深度推理）
   reviewer_quality: sonnet   # /forge-review — 代码质量
   reviewer_security: sonnet  # /forge-review — 安全审查
   reviewer_arch: sonnet      # /forge-review — 架构审查
@@ -241,7 +241,7 @@ agents:
 | 辩论、裁决 | debate, adjudicate | 主会话 | 会话模型 |
 | **验证** | verify | **fork** | `agents.verifier` |
 | **审计** | audit | **fork** | `agents.auditor` |
-| **模拟** | simulate | **fork** | `agents.simulator` |
+| **模拟** | simulate | **fork** | 会话模型（深度推理） |
 | **交叉检查、同步检查** | cross-check, sync-check | **fork** | Sonnet |
 | 实现、测试、同步 | implement, test, sync | 主会话 | 会话模型 |
 | **审查**（3 个并行代理） | review | **fork** | `agents.reviewer_*` |

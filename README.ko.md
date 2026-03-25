@@ -224,7 +224,7 @@ forge는 두 계층의 AI 모델을 사용합니다:
 agents:
   verifier: sonnet       # /forge-verify — 논리적 일관성
   auditor: sonnet        # /forge-audit — 완전성 검사
-  simulator: sonnet      # /forge-simulate — 시나리오 워크스루
+  # simulator: sonnet    # /forge-simulate — 기본: 세션 모델 (깊은 추론 필요)
   reviewer_quality: sonnet   # /forge-review — 코드 품질
   reviewer_security: sonnet  # /forge-review — 보안 리뷰
   reviewer_arch: sonnet      # /forge-review — 아키텍처 리뷰
@@ -241,7 +241,7 @@ agents:
 | 토론, 판정 | debate, adjudicate | main | 세션 모델 |
 | **검증** | verify | **fork** | `agents.verifier` |
 | **감사** | audit | **fork** | `agents.auditor` |
-| **시뮬레이션** | simulate | **fork** | `agents.simulator` |
+| **시뮬레이션** | simulate | **fork** | 세션 모델 (깊은 추론) |
 | **교차검증, 동기화검증** | cross-check, sync-check | **fork** | Sonnet |
 | 구현, 테스트, 동기화 | implement, test, sync | main | 세션 모델 |
 | **리뷰** (3 병렬 에이전트) | review | **fork** | `agents.reviewer_*` |

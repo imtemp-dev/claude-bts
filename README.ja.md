@@ -224,7 +224,7 @@ forgeは2層のAIモデルを使用します：
 agents:
   verifier: sonnet       # /forge-verify — 論理的一貫性
   auditor: sonnet        # /forge-audit — 完全性チェック
-  simulator: sonnet      # /forge-simulate — シナリオウォークスルー
+  # simulator: sonnet    # /forge-simulate — デフォルト：セッションモデル（深い推論が必要）
   reviewer_quality: sonnet   # /forge-review — コード品質
   reviewer_security: sonnet  # /forge-review — セキュリティレビュー
   reviewer_arch: sonnet      # /forge-review — アーキテクチャレビュー
@@ -241,7 +241,7 @@ agents:
 | ディベート、裁定 | debate, adjudicate | メイン | セッションモデル |
 | **検証** | verify | **fork** | `agents.verifier` |
 | **監査** | audit | **fork** | `agents.auditor` |
-| **シミュレーション** | simulate | **fork** | `agents.simulator` |
+| **シミュレーション** | simulate | **fork** | セッションモデル（深い推論） |
 | **クロスチェック、同期チェック** | cross-check, sync-check | **fork** | Sonnet |
 | 実装、テスト、同期 | implement, test, sync | メイン | セッションモデル |
 | **レビュー**（3並列エージェント） | review | **fork** | `agents.reviewer_*` |

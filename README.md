@@ -231,7 +231,7 @@ forge uses two tiers of AI models:
 agents:
   verifier: sonnet       # /forge-verify — logical consistency
   auditor: sonnet        # /forge-audit — completeness check
-  simulator: sonnet      # /forge-simulate — scenario walkthrough
+  # simulator: sonnet    # /forge-simulate — uses session model by default
   reviewer_quality: sonnet   # /forge-review — code quality
   reviewer_security: sonnet  # /forge-review — security review
   reviewer_arch: sonnet      # /forge-review — architecture review
@@ -248,7 +248,7 @@ Options: `sonnet` (balanced), `opus` (deeper analysis, higher cost), `haiku` (fa
 | Debate, Adjudicate | debate, adjudicate | main | Your session model |
 | **Verify** | verify | **fork** | `agents.verifier` |
 | **Audit** | audit | **fork** | `agents.auditor` |
-| **Simulate** | simulate | **fork** | `agents.simulator` |
+| **Simulate** | simulate | **fork** | Your session model (deep reasoning) |
 | **Cross-check, Sync-check** | cross-check, sync-check | **fork** | Sonnet |
 | Implement, Test, Sync | implement, test, sync | main | Your session model |
 | **Review** (3 parallel agents) | review | **fork** | `agents.reviewer_*` |
