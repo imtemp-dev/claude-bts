@@ -32,9 +32,9 @@ cd your-project && bts init . && claude
 Then inside Claude Code:
 
 ```bash
-/bts-recipe-blueprint add OAuth2 authentication    # full spec → code → tests
-/bts-recipe-fix login bcrypt hash comparison fails  # diagnose → fix → test
-/bts-recipe-debug session drops after 5 minutes     # 6-perspective analysis → fix
+/bts-recipe-blueprint add OAuth2 authentication    # spec → implement → test → simulate → review → sync → complete
+/bts-recipe-fix login bcrypt hash comparison fails  # diagnose → fix-spec → implement → test → complete
+/bts-recipe-debug session drops after 5 minutes     # 6-perspective → fix-spec → implement → test → complete
 ```
 
 ## How It Works
