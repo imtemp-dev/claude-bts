@@ -31,10 +31,30 @@ bts automates what you're already doing:
 
 The core idea: **fix errors in documents, not in code.** A spec edit is free. A code fix is a build-test-debug cycle.
 
+## Install
+
+```bash
+# Homebrew (macOS / Linux)
+brew tap imtemp-dev/tap && brew install bts
+
+# Or one-line install
+curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-bts/main/install.sh | bash
+
+# Or build from source
+git clone https://github.com/imtemp-dev/claude-bts.git && cd claude-bts && make install
+```
+
+```bash
+# Update
+brew upgrade bts              # or: bts update (templates only)
+
+# Uninstall
+brew uninstall bts            # binary only — .bts/ and .claude/ stay in your project
+```
+
 ## Quick Start
 
 ```bash
-brew tap imtemp-dev/tap && brew install bts   # or: curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-bts/main/install.sh | bash
 cd your-project && bts init . && claude
 ```
 
@@ -141,8 +161,8 @@ bts version                 Show versions
 ## Requirements
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-- Go 1.22+ ([install](https://go.dev/dl/))
 - macOS, Linux (Windows via WSL)
+- Go 1.22+ only if building from source ([install](https://go.dev/dl/))
 
 ## Contributing
 
