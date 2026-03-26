@@ -1,6 +1,6 @@
 # claude-bts
 
-コードの前に検証を — btsは仕様のエラーがデバッグセッションになる前に捕捉します。
+**B**ulletproof **T**echnical **S**pecification — 仕様のエラーがデバッグセッションになる前に捕捉します。
 
 [![CI](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-bts)](https://github.com/imtemp-dev/claude-bts/releases)

@@ -1,6 +1,6 @@
 # claude-bts
 
-先验证，再写代码 — bts 在规范错误变成调试会话之前将其捕获。
+**B**ulletproof **T**echnical **S**pecification — 在规范错误变成调试会话之前将其捕获。
 
 [![CI](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-bts)](https://github.com/imtemp-dev/claude-bts/releases)

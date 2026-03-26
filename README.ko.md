@@ -1,6 +1,6 @@
 # claude-bts
 
-코드 전에 검증하라 — bts는 스펙 오류가 디버깅 세션이 되기 전에 잡아냅니다.
+**B**ulletproof **T**echnical **S**pecification — 스펙 오류가 디버깅 세션이 되기 전에 잡아냅니다.
 
 [![CI](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-bts)](https://github.com/imtemp-dev/claude-bts/releases)

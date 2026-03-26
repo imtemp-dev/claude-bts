@@ -1,6 +1,6 @@
 # claude-bts
 
-Verify before you code — bts catches spec errors before they become debugging sessions.
+**B**ulletproof **T**echnical **S**pecification — catches spec errors before they become debugging sessions.
 
 [![CI](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-bts)](https://github.com/imtemp-dev/claude-bts/releases)
