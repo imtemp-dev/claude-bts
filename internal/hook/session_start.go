@@ -192,11 +192,44 @@ func autoUpdateTemplates(root string) bool {
 		".mcp.json",
 	})
 
+	// Clean up legacy forge files if present
+	cleanupLegacyTemplates(root)
+
 	// Record new version
 	if err := os.WriteFile(versionFile, []byte(current), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: save template version: %v\n", err)
 	}
 	return true
+}
+
+// cleanupLegacyTemplates removes old forge-* files from .claude/ directories.
+func cleanupLegacyTemplates(root string) {
+	claudeDir := filepath.Join(root, ".claude")
+	for _, d := range []string{"skills", "agents", "rules", "hooks", "commands"} {
+		base := filepath.Join(claudeDir, d)
+		entries, err := os.ReadDir(base)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if strings.HasPrefix(entry.Name(), "forge-") {
+				_ = os.RemoveAll(filepath.Join(base, entry.Name()))
+			}
+		}
+	}
+
+	// Migrate hook settings
+	settingsPath := filepath.Join(claudeDir, "settings.local.json")
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return
+	}
+	content := string(data)
+	if strings.Contains(content, "forge-handle-") {
+		content = strings.ReplaceAll(content, "forge-handle-", "bts-handle-")
+		content = strings.ReplaceAll(content, ".forge/status_line.sh", ".bts/status_line.sh")
+		_ = os.WriteFile(settingsPath, []byte(content), 0644)
+	}
 }
 
 // nextStepHint returns a specific next-action hint based on recipe phase and state files.
