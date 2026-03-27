@@ -39,17 +39,22 @@ func (h *stopHandler) Handle(input *HookInput) (*HookOutput, error) {
 	}
 
 	// Check for fix completion marker
-	if strings.Contains(input.StopHookContent, "<bts>FIX DONE</bts>") {
+	if strings.Contains(input.StopHookContent, "<bts>FIX DONE</bts>") ||
+		strings.Contains(input.StopHookContent, "FIX DONE") {
 		return h.handleFixDone(root, recipe)
 	}
 
 	// Check for implementation completion marker
-	if strings.Contains(input.StopHookContent, "<bts>IMPLEMENT DONE</bts>") {
+	if strings.Contains(input.StopHookContent, "<bts>IMPLEMENT DONE</bts>") ||
+		strings.Contains(input.StopHookContent, "IMPLEMENT DONE") {
 		return h.handleImplementDone(root, recipe)
 	}
 
 	// Check for spec completion marker
-	if strings.Contains(input.StopHookContent, "<bts>DONE</bts>") {
+	if strings.Contains(input.StopHookContent, "<bts>DONE</bts>") ||
+		(strings.Contains(input.StopHookContent, "DONE") &&
+			!strings.Contains(input.StopHookContent, "IMPLEMENT DONE") &&
+			!strings.Contains(input.StopHookContent, "FIX DONE")) {
 		return h.handleSpecDone(root, recipe)
 	}
 
