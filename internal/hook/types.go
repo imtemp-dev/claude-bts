@@ -41,16 +41,18 @@ type HookInput struct {
 
 // HookOutput is the JSON written to stdout for Claude Code.
 type HookOutput struct {
-	// For SessionStart: inject context into Claude
-	HookSpecificOutput *HookSpecificOutput `json:"hookSpecificOutput,omitempty"`
-
 	// For Stop: block or allow
 	Decision string `json:"decision,omitempty"` // "block" or empty
 	Reason   string `json:"reason,omitempty"`
+
+	// For hooks that support hookSpecificOutput (NOT Stop)
+	HookSpecificOutput *HookSpecificOutput `json:"hookSpecificOutput,omitempty"`
 }
 
 // HookSpecificOutput contains data to inject into Claude's context.
+// Only valid for PreToolUse, UserPromptSubmit, PostToolUse events.
 type HookSpecificOutput struct {
+	HookEventName string `json:"hookEventName,omitempty"`
 	AdditionalContext string `json:"additionalContext,omitempty"`
 }
 
