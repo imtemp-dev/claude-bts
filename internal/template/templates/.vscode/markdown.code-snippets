@@ -1,0 +1,29 @@
+{
+  "BTS comment (suggestion)": {
+    "scope": "markdown",
+    "prefix": "btsc",
+    "body": [
+      "> [!BTS-COMMENT]",
+      "> $0"
+    ],
+    "description": "Inline review comment for BTS docs (general suggestion)"
+  },
+  "BTS comment (blocking)": {
+    "scope": "markdown",
+    "prefix": "btscb",
+    "body": [
+      "> [!BTS-BLOCK]",
+      "> $0"
+    ],
+    "description": "Blocking review comment — must resolve before recipe finalize"
+  },
+  "BTS comment (question)": {
+    "scope": "markdown",
+    "prefix": "btscq",
+    "body": [
+      "> [!BTS-Q]",
+      "> $0"
+    ],
+    "description": "Question for /bts-comment-apply to surface (becomes Q&A entry)"
+  }
+}

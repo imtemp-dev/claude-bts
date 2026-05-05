@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/imtemp-dev/claude-bts/internal/comment"
 	"github.com/imtemp-dev/claude-bts/internal/engine"
 	"github.com/imtemp-dev/claude-bts/internal/metrics"
 	"github.com/imtemp-dev/claude-bts/internal/state"
@@ -86,6 +87,28 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		return blockOutput(fmt.Sprintf(
 			"Verification not passed: %d critical, %d major, %d minor [resolvable] remain. Fix and re-verify. Deferred minors are runtime watch-items and do not block here.",
 			lastEntry.Critical, lastEntry.Major, resolvable,
+		)), nil
+	}
+
+	// 3. Block on unresolved [!BTS-BLOCK] callouts. These represent
+	// reviewer-flagged spec issues that must be addressed (or downgraded
+	// to a non-blocking comment) before the spec can finalize. The check
+	// re-parses the source markdown — manifest counts may be stale if
+	// callouts were edited without running `bts comment apply --finalize`.
+	//
+	// On parse error (recipe dir missing, file unreadable), surface the
+	// failure to stderr but DO NOT block — a parse failure is a tooling
+	// problem, not a reviewer veto. Conservative fail-open here is fine
+	// because gates 1+2 already enforce verification soundness.
+	blocking, err := comment.CountBlockingComments(recipeDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr,
+			"[bts] warning: could not count BTS-BLOCK comments in %s: %v (proceeding without check)\n",
+			recipeDir, err)
+	} else if blocking > 0 {
+		return blockOutput(fmt.Sprintf(
+			"%d BTS-BLOCK comment(s) unresolved. Run `bts comment list %s` to see them, then `/bts-comment-apply %s` to incorporate.",
+			blocking, recipe.ID, recipe.ID,
 		)), nil
 	}
 

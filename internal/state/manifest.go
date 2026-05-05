@@ -16,6 +16,13 @@ type Manifest struct {
 	Level             float64                   `json:"level"`
 	ArchitectDecision string                    `json:"architect_decision,omitempty"`
 	Documents         map[string]DocumentEntry  `json:"documents"`
+
+	// OpenComments / BlockingComments are populated by `bts comment apply`
+	// (and recounted by the stop hook). Both maps key on the doc filename
+	// (e.g. "draft.md") and store the parsed callout count. BlockingComments
+	// is the [!BTS-BLOCK] subset — finalize is gated when its sum > 0.
+	OpenComments     map[string]int `json:"open_comments,omitempty"`
+	BlockingComments map[string]int `json:"blocking_comments,omitempty"`
 }
 
 // DocumentEntry tracks one document's metadata and relationships.

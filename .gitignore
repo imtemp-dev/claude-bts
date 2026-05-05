@@ -18,6 +18,10 @@ node_modules/
 *.swp
 *.swo
 
+# Exception: VS Code snippets shipped as a template by `bts init`
+!internal/template/templates/.vscode/
+!internal/template/templates/.vscode/**
+
 # OS
 .DS_Store
 Thumbs.db

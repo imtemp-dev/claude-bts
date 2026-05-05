@@ -63,6 +63,12 @@ DocumentEntry optional fields:
 - `resolves` (array of strings): gap identifiers resolved
 - `verified_by` (string): verification document path
 
+Optional manifest fields (review-comment tracking):
+- `open_comments` (object): map of doc filename → BTS callout count.
+  Populated by `bts comment apply --finalize`.
+- `blocking_comments` (object): map of doc filename → `[!BTS-BLOCK]`
+  callout count. The recipe cannot finalize while sum > 0.
+
 ## recipe.json
 
 ```json
@@ -118,7 +124,7 @@ Each line is a JSON object:
 
 Required fields:
 - `time` (string): ISO 8601 timestamp. **Key name is "time", not "timestamp".**
-- `action` (string): one of "research", "draft", "improve", "verify", "debate", "simulate", "audit", "assess", "sync-check", "finalize", "implement", "test", "sync", "status", "adjudicate", "review"
+- `action` (string): one of "research", "draft", "improve", "verify", "debate", "simulate", "audit", "assess", "sync-check", "finalize", "implement", "test", "sync", "status", "adjudicate", "review", "comment-apply"
 
 Optional fields:
 - `input` (string): what was acted on

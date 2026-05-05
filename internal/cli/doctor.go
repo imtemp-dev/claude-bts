@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/imtemp-dev/claude-bts/internal/comment"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 	"github.com/imtemp-dev/claude-bts/pkg/version"
 	"github.com/spf13/cobra"
@@ -132,6 +133,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		issues = append(issues, checkManifestConsistency(recipeDir, recipe.ID, manifest)...)
 		issues = append(issues, checkVerifyLog(recipeDir, recipe.ID)...)
 		issues = append(issues, checkFlowCompliance(recipeDir, recipe)...)
+		issues = append(issues, checkOpenComments(recipeDir, recipe.ID, recipe.Phase)...)
 
 		if len(issues) == 0 {
 			fmt.Println("   ✓ All checks pass")
@@ -406,6 +408,49 @@ func checkTestFile(recipeDir string) []doctorIssue {
 		issues = append(issues, doctorIssue{"warning", "documents",
 			fmt.Sprintf("tests — %d/%d failed", tr.Failed, tr.Total),
 			"Fix failing tests and re-run /bts-test"})
+	}
+	return issues
+}
+
+// checkOpenComments warns when BTS callouts remain in any recipe doc and
+// errors when any [!BTS-BLOCK] callouts are unresolved (these block finalize).
+// Skips recipes already past the spec lifecycle — comments on a finalized
+// or completed recipe are stale by definition (the spec is sealed).
+func checkOpenComments(recipeDir, recipeID, phase string) []doctorIssue {
+	switch phase {
+	case "finalize", "complete", "cancelled", "implement", "test", "review", "sync", "status":
+		return nil
+	}
+	cs, err := comment.ParseRecipe(recipeDir)
+	if err != nil {
+		return []doctorIssue{{
+			level:   "warning",
+			section: "comments",
+			message: fmt.Sprintf("could not parse recipe for BTS comments: %v", err),
+			fix:     "ensure recipe directory is readable",
+		}}
+	}
+	if len(cs) == 0 {
+		return nil
+	}
+	summary := comment.Summarize(cs)
+	var issues []doctorIssue
+	if summary.TotalBlocking > 0 {
+		issues = append(issues, doctorIssue{
+			level:   "error",
+			section: "comments",
+			message: fmt.Sprintf("%d BTS-BLOCK comment(s) unresolved (blocks finalize)", summary.TotalBlocking),
+			fix:     fmt.Sprintf("bts comment list %s   then   /bts-comment-apply %s", recipeID, recipeID),
+		})
+	}
+	openOnly := summary.TotalOpen - summary.TotalBlocking
+	if openOnly > 0 {
+		issues = append(issues, doctorIssue{
+			level:   "warning",
+			section: "comments",
+			message: fmt.Sprintf("%d BTS comment(s) pending (non-blocking)", openOnly),
+			fix:     fmt.Sprintf("/bts-comment-apply %s", recipeID),
+		})
 	}
 	return issues
 }

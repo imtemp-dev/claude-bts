@@ -92,6 +92,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Rules:         .claude/rules/bts-*/\n")
 	fmt.Printf("  Hooks:         .claude/hooks/bts-*/\n")
 	fmt.Printf("  State:         .bts/\n")
+	fmt.Printf("  VS Code:       .vscode/markdown.code-snippets (type btsc/btscb/btscq + Tab in any .md)\n")
 	fmt.Printf("\nStart Claude Code and try: /bts-recipe-blueprint \"your feature\"\n")
 
 	return nil

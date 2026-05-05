@@ -133,6 +133,56 @@ func TestStopSpecDone_UpdatesLevelIteration(t *testing.T) {
 	}
 }
 
+// TestStopSpecDone_BlockedByOpenBTSBlock — even when the verify-log is
+// fully converged, an unresolved [!BTS-BLOCK] callout in any recipe doc
+// must block finalize. Reviewer-flagged spec issues take priority over
+// the auto-verifier's all-clear.
+func TestStopSpecDone_BlockedByOpenBTSBlock(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 0, Major: 0, Status: "converged"},
+	})
+	// Plant an unresolved BTS-BLOCK callout in draft.md.
+	draftPath := filepath.Join(state.RecipeDir(root, recipeID), "draft.md")
+	if err := os.WriteFile(draftPath, []byte("# Draft\n\n> [!BTS-BLOCK]\n> session storage decision still pending\n"), 0644); err != nil {
+		t.Fatalf("write draft.md: %v", err)
+	}
+
+	h := NewStopHandler()
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision != "block" {
+		t.Fatalf("expected block, got decision=%q reason=%q", out.Decision, out.Reason)
+	}
+	if !strings.Contains(out.Reason, "BTS-BLOCK") {
+		t.Errorf("reason should cite BTS-BLOCK, got %q", out.Reason)
+	}
+}
+
+// TestStopSpecDone_NonBlockingCommentsDoNotBlock — plain BTS-COMMENT and
+// BTS-Q callouts are non-blocking; finalize must proceed despite them.
+func TestStopSpecDone_NonBlockingCommentsDoNotBlock(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 0, Major: 0, Status: "converged"},
+	})
+	draftPath := filepath.Join(state.RecipeDir(root, recipeID), "draft.md")
+	if err := os.WriteFile(draftPath, []byte("# Draft\n\n> [!BTS-COMMENT]\n> nice to have\n\n> [!BTS-Q]\n> any TTL?\n"), 0644); err != nil {
+		t.Fatalf("write draft.md: %v", err)
+	}
+
+	h := NewStopHandler()
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision == "block" {
+		t.Fatalf("expected pass-through, got block: %s", out.Reason)
+	}
+}
+
 // TestStopSpecDone_LegacyMinorFieldBlocks — legacy log entries predate the
 // resolvable/deferred split. EffectiveResolvable() treats legacy Minor>0
 // as resolvable (conservative). Ensures existing recipes do not silently
