@@ -1,7 +1,11 @@
 package state
 
 import (
+	"bufio"
+	"encoding/json"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -29,4 +33,31 @@ func AppendChangelog(root, recipeID string, entry *ChangelogEntry) error {
 		entry.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	}
 	return AppendJSONL(ChangelogPath(root, recipeID), entry)
+}
+
+// ReadChangelog returns all parseable changelog entries in file order.
+// Malformed lines are skipped — the changelog is append-only and one
+// corrupt line must not invalidate the history. Used by the stop hook's
+// simulate / sync-check-ordering gates.
+func ReadChangelog(root, recipeID string) ([]ChangelogEntry, error) {
+	f, err := os.Open(ChangelogPath(root, recipeID))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var entries []ChangelogEntry
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var e ChangelogEntry
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			continue
+		}
+		entries = append(entries, e)
+	}
+	return entries, scanner.Err()
 }

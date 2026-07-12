@@ -90,6 +90,61 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		)), nil
 	}
 
+	// 2b. Deferred minors must be declared as Known Uncertainties entries
+	// (### U-NNN) so /bts-implement inherits the watch-list (blueprint
+	// rule 3b). Without this, deferred findings silently vanish between
+	// spec and implementation.
+	if lastEntry.MinorDeferred > 0 {
+		specPath := filepath.Join(recipeDir, "final.md")
+		if _, statErr := os.Stat(specPath); os.IsNotExist(statErr) {
+			specPath = filepath.Join(recipeDir, "draft.md")
+		}
+		if all, _, uerr := engine.CheckKnownUncertainties(specPath); uerr == nil && len(all) == 0 {
+			return blockOutput(fmt.Sprintf(
+				"%d minor [deferred] finding(s) recorded but %s has no '## Known Uncertainties' entries (### U-NNN form). Per blueprint rule 3b, append each deferred minor with its Why-deferred: line, then re-emit DONE.",
+				lastEntry.MinorDeferred, filepath.Base(specPath),
+			)), nil
+		}
+	}
+
+	// 2c. Blueprint-only changelog gates: simulate-at-least-once (rule 5)
+	// and sync-check-after-last-modification (rule 8). Both rules are
+	// tagged {gate: hard} — before Sprint 10 neither was actually
+	// machine-enforced (sync-check never touched verify-log; simulate
+	// only produced a warn on the implement-side phase transition).
+	if recipe.Type == "blueprint" {
+		entries, cerr := state.ReadChangelog(root, recipe.ID)
+		if cerr != nil {
+			return blockOutput(fmt.Sprintf(
+				"Cannot read changelog.jsonl (%v). Rule 4 requires every action logged; the simulate and sync-check completion gates need the log.",
+				cerr,
+			)), nil
+		}
+		simulated := false
+		lastModify := -1
+		lastSyncCheckPass := -1
+		for i, e := range entries {
+			switch e.Action {
+			case "simulate":
+				simulated = true
+			case "draft", "improve", "comment-apply":
+				lastModify = i
+			case "sync-check":
+				if strings.HasPrefix(e.Result, "pass") {
+					lastSyncCheckPass = i
+				}
+			}
+		}
+		if !simulated {
+			return blockOutput(
+				"No simulate action in changelog. Rule 5: run /bts-simulate (5+ scenarios) at least once before declaring Level 3, then /bts-sync-check, then re-emit DONE."), nil
+		}
+		if lastSyncCheckPass == -1 || lastSyncCheckPass < lastModify {
+			return blockOutput(
+				"sync-check has not passed since the last draft modification. Rule 8: run /bts-sync-check (it logs a pass entry via `bts sync-check`), then re-emit DONE."), nil
+		}
+	}
+
 	// 3. Block on unresolved [!BTS-BLOCK] callouts. These represent
 	// reviewer-flagged spec issues that must be addressed (or downgraded
 	// to a non-blocking comment) before the spec can finalize. The check

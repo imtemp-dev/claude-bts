@@ -39,7 +39,37 @@ func setupStopRoot(t *testing.T) (root, recipeID string) {
 	if err := os.WriteFile(verifyPath, []byte("stub"), 0644); err != nil {
 		t.Fatalf("write verification.md: %v", err)
 	}
+	// Default changelog satisfying the Sprint 10 blueprint gates:
+	// simulate ran at least once and sync-check passed after the last
+	// draft modification. Tests exercising those gates overwrite this
+	// via resetChangelog.
+	resetChangelog(t, root, recipeID,
+		state.ChangelogEntry{Action: "draft", Output: "draft.md"},
+		state.ChangelogEntry{Action: "simulate", Output: "simulations/001-scenarios.md"},
+		state.ChangelogEntry{Action: "sync-check", Result: "pass"},
+	)
 	return root, recipeID
+}
+
+// resetChangelog replaces the recipe's changelog.jsonl with the given
+// entries in order.
+func resetChangelog(t *testing.T, root, recipeID string, entries ...state.ChangelogEntry) {
+	t.Helper()
+	path := filepath.Join(state.RecipeDir(root, recipeID), "changelog.jsonl")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create changelog: %v", err)
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	for i := range entries {
+		if entries[i].Timestamp == "" {
+			entries[i].Timestamp = "2026-01-01T00:00:00Z"
+		}
+		if err := enc.Encode(&entries[i]); err != nil {
+			t.Fatalf("encode changelog: %v", err)
+		}
+	}
 }
 
 func writeVerifyLog(t *testing.T, root, recipeID string, entries []state.VerifyLogEntry) {
@@ -81,12 +111,27 @@ func TestStopSpecDone_BlocksOnResolvableMinor(t *testing.T) {
 }
 
 // TestStopSpecDone_AllowsOnlyDeferredMinors — [deferred] minors are
-// runtime watch-items and do not block completion.
+// runtime watch-items and do not block completion, PROVIDED they are
+// declared as Known Uncertainties entries (rule 3b).
 func TestStopSpecDone_AllowsOnlyDeferredMinors(t *testing.T) {
 	root, recipeID := setupStopRoot(t)
 	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
 		{Iteration: 1, Critical: 0, Major: 0, MinorResolvable: 0, MinorDeferred: 2, Status: "converged"},
 	})
+	draft := `# Draft
+
+## Known Uncertainties
+
+### U-001: animation timing on low-end devices
+Why-deferred: needs a physical device frame-time capture.
+
+### U-002: keyboard dismissal window
+Why-deferred: observable only in the iOS simulator.
+`
+	draftPath := filepath.Join(state.RecipeDir(root, recipeID), "draft.md")
+	if err := os.WriteFile(draftPath, []byte(draft), 0644); err != nil {
+		t.Fatalf("write draft.md: %v", err)
+	}
 
 	h := NewStopHandler()
 	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
@@ -95,6 +140,112 @@ func TestStopSpecDone_AllowsOnlyDeferredMinors(t *testing.T) {
 	}
 	if out.Decision == "block" {
 		t.Fatalf("expected pass-through, got block: %s", out.Reason)
+	}
+}
+
+// Sprint 10 gate 2b: deferred minors WITHOUT a Known Uncertainties
+// section must block — otherwise the watch-list never reaches
+// /bts-implement.
+func TestStopSpecDone_BlocksWhenDeferredMinorsUndeclared(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 0, Major: 0, MinorDeferred: 1, Status: "converged"},
+	})
+	draftPath := filepath.Join(state.RecipeDir(root, recipeID), "draft.md")
+	if err := os.WriteFile(draftPath, []byte("# Draft without uncertainties\n"), 0644); err != nil {
+		t.Fatalf("write draft.md: %v", err)
+	}
+
+	h := NewStopHandler()
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision != "block" {
+		t.Fatalf("expected block, got decision=%q", out.Decision)
+	}
+	if !strings.Contains(out.Reason, "Known Uncertainties") {
+		t.Errorf("reason should cite Known Uncertainties, got %q", out.Reason)
+	}
+}
+
+// Sprint 10 gate 2c: blueprint recipes with no simulate action in the
+// changelog must block (rule 5 is now machine-enforced).
+func TestStopSpecDone_BlocksWithoutSimulate(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 0, Major: 0, Status: "converged"},
+	})
+	resetChangelog(t, root, recipeID,
+		state.ChangelogEntry{Action: "draft", Output: "draft.md"},
+		state.ChangelogEntry{Action: "sync-check", Result: "pass"},
+	)
+
+	h := NewStopHandler()
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision != "block" {
+		t.Fatalf("expected block, got decision=%q", out.Decision)
+	}
+	if !strings.Contains(out.Reason, "simulate") {
+		t.Errorf("reason should cite simulate, got %q", out.Reason)
+	}
+}
+
+// Sprint 10 gate 2c: a sync-check pass that PREDATES the last draft
+// modification is stale — rule 8 requires re-running it.
+func TestStopSpecDone_BlocksWhenSyncCheckStale(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 0, Major: 0, Status: "converged"},
+	})
+	resetChangelog(t, root, recipeID,
+		state.ChangelogEntry{Action: "simulate", Output: "simulations/001-scenarios.md"},
+		state.ChangelogEntry{Action: "sync-check", Result: "pass"},
+		state.ChangelogEntry{Action: "improve", Output: "draft.md"},
+	)
+
+	h := NewStopHandler()
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision != "block" {
+		t.Fatalf("expected block, got decision=%q", out.Decision)
+	}
+	if !strings.Contains(out.Reason, "sync-check") {
+		t.Errorf("reason should cite sync-check, got %q", out.Reason)
+	}
+}
+
+// Non-blueprint spec recipes (design/analyze) are exempt from the
+// simulate / sync-check changelog gates — their skills do not run
+// those steps.
+func TestStopSpecDone_NonBlueprintSkipsChangelogGates(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	recipe, err := state.LoadRecipeState(root, recipeID)
+	if err != nil {
+		t.Fatalf("load recipe: %v", err)
+	}
+	recipe.Type = "design"
+	if err := state.SaveRecipeState(root, recipe); err != nil {
+		t.Fatalf("save recipe: %v", err)
+	}
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 0, Major: 0, Status: "converged"},
+	})
+	// Empty the changelog entirely — gates must not even look at it.
+	resetChangelog(t, root, recipeID)
+
+	h := NewStopHandler()
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision == "block" {
+		t.Fatalf("expected pass-through for design recipe, got block: %s", out.Reason)
 	}
 }
 

@@ -117,3 +117,69 @@ func TestShortErrorSignature_Truncates(t *testing.T) {
 		t.Errorf("short string must pass through, got %q", got)
 	}
 }
+
+// Full ladder walk with per-tier counters: proves every escalation tier
+// (spec → domain → architect) is reachable within the default hard cap
+// of 8 total attempts. This is a regression test for the pre-v0.6.1 bug
+// where the CLI passed the TOTAL retry count as attemptsInTier and the
+// cap was 5, making tiers 4-5 dead code.
+func TestNextRetryDecision_FullLadderWalkWithinDefaultCap(t *testing.T) {
+	cfg := DefaultLadder()
+	const hardCap = 8 // engine.DefaultSettings().Implement.MaxBuildRetries
+
+	tier := 1
+	attemptsInTier := 0
+	totalRetries := 0
+	var visited []RetryAction
+
+	for totalRetries < hardCap {
+		// Every loop iteration = one build failure.
+		totalRetries++
+		attemptsInTier++
+
+		// Tier 1 sees syntactic errors; later tiers see semantic ones.
+		errClass := ErrorSemantic
+		if tier == 1 {
+			errClass = ErrorSyntactic
+		}
+
+		d := NextRetryDecision(tier, attemptsInTier, errClass, cfg)
+		visited = append(visited, d.Action)
+		if d.Action == ActionBlock {
+			break
+		}
+		if d.NextTier != tier {
+			tier = d.NextTier
+			attemptsInTier = 0 // the reset bts-implement Step 3.4 mandates
+		}
+	}
+
+	want := map[RetryAction]bool{
+		ActionSpecEscalate:   false,
+		ActionDomainEscalate: false,
+		ActionArchitectEscal: false,
+	}
+	for _, a := range visited {
+		if _, ok := want[a]; ok {
+			want[a] = true
+		}
+	}
+	for action, seen := range want {
+		if !seen {
+			t.Errorf("action %s never reached within hard cap %d; visited=%v", action, hardCap, visited)
+		}
+	}
+}
+
+// Without the per-tier reset (the old buggy caller behavior), the walk
+// must skip tiers — documents WHY the reset is mandatory.
+func TestNextRetryDecision_NoResetSkipsTiers(t *testing.T) {
+	cfg := DefaultLadder()
+	// Simulate the old caller: attemptsInTier == total retry_count.
+	d := NextRetryDecision(2, 4, ErrorSemantic, cfg)
+	if d.Action != ActionSpecEscalate {
+		t.Fatalf("expected immediate spec escalation when counter is not reset, got %+v", d)
+	}
+	// 4 attempts "in tier 2" exceeds SemanticMax=2 instantly even though
+	// tier 2 only ever ran once — the skipped-strategy-switch symptom.
+}

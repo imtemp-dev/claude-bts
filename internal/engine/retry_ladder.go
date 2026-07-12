@@ -140,9 +140,11 @@ func DefaultLadder() LadderConfig {
 //   - Disabling an escalation in LadderConfig skips that tier and
 //     moves straight to the next.
 //
-// retry_count values are interpreted as "attempts so far in the
-// current tier". Callers persist the count separately from RetryTier
-// (see Task).
+// attemptsInTier counts attempts within the CURRENT tier only. Callers
+// persist it as Task.AttemptsInTier and MUST reset it to 0 whenever
+// NextTier differs from the task's current tier (see Task and
+// bts-implement SKILL.md §Step 3). Task.RetryCount stays the TOTAL
+// attempt budget used by the hard cap and is never reset.
 func NextRetryDecision(currentTier, attemptsInTier int, errClass ErrorClass, cfg LadderConfig) RetryDecision {
 	if cfg.SyntacticMax <= 0 {
 		cfg.SyntacticMax = 3

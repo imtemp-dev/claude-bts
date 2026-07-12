@@ -30,7 +30,9 @@ bts recipe status
 ```
 
 - Phase already `domain-model` and `domain.md` exists → read it, continue
-  refining if sections are incomplete; else advance to `/bts-wireframe`.
+  refining if sections are incomplete; else advance to `/bts-architect`
+  (or straight to `/bts-wireframe` if wireframe.md already carries an
+  `<!-- architect-decision -->` block).
 - Phase is `research` or later without `domain.md` → start from Step 1.
 - No active recipe → fail: this skill runs inside an active blueprint
   or design recipe only.
@@ -156,9 +158,10 @@ bts recipe log {id} --phase wireframe
 ```
 
 > **Checkpoint**: domain.md saved, quality gate passed.
-> Continue IMMEDIATELY to `/bts-wireframe` — do NOT stop to summarize.
-> The wireframe now has a contract to honor; architect will later
-> justify its decomposition against these invariants.
+> Continue IMMEDIATELY to `/bts-architect` — do NOT stop to summarize.
+> The architect debates ≥2 decompositions against these invariants and
+> commits the winner as the `<!-- architect-decision -->` block;
+> `/bts-wireframe` then draws the chosen decomposition.
 
 ## Rationale (why this phase exists)
 

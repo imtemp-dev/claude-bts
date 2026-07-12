@@ -110,7 +110,15 @@ func runRetryNext(cmd *cobra.Command, args []string) error {
 	if tier == 0 {
 		tier = 1
 	}
-	decision := engine.NextRetryDecision(tier, task.RetryCount, class, cfg)
+	// attempts_in_tier is the per-tier budget counter; the skill resets
+	// it to 0 on every tier transition. Legacy tasks that predate the
+	// field fall back to retry_count so old recipes keep working
+	// (conservative: they escalate sooner rather than looping).
+	attempts := task.AttemptsInTier
+	if attempts == 0 && task.RetryTier == 0 && task.RetryCount > 0 {
+		attempts = task.RetryCount
+	}
+	decision := engine.NextRetryDecision(tier, attempts, class, cfg)
 
 	asJSON, _ := cmd.Flags().GetBool("json")
 	if asJSON {

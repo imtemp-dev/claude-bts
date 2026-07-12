@@ -96,10 +96,17 @@ ASSESS determines what to do next based on the document's current state.
 4. Run `bts validate` to verify schema compliance
 5. Run /verify on draft.md → save findings to `verification.md` (overwrite previous)
 6. After /verify, update manifest: set draft.md `verified_by` to `"verification.md"`
-7. Record verify results to verify-log:
+7. Record verify results to verify-log (atomic — parses the `<bts-findings>`
+   block from verification.md so counts can never drift):
    ```bash
-   bts recipe log {id} --iteration N --critical X --major Y --minor Z
+   bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md
    ```
+   Iteration auto-increments from the last entry. Fallback (only if the
+   findings block is missing): pass explicit SPLIT counts —
+   `--iteration N --critical X --major Y --minor-resolvable R --minor-deferred D`.
+   NEVER use the legacy `--minor` flag: it maps every minor to
+   [resolvable] and blocks finalization even when only [deferred]
+   minors remain (contradicting rule 3b).
    This writes to verify-log.jsonl which the stop hook checks at completion.
 8. Run /assess to determine the next action
 9. **IMMEDIATELY execute the action** recommended by /assess. Do NOT output the
@@ -295,13 +302,22 @@ or a fundamental shift in approach. Judge by intent, not by keywords.
    state partitioning, and illegal state cells. Creates `domain.md`.
    CANNOT skip — wireframe and architect gates require it.**
    > **Checkpoint**: After domain-model completes, continue IMMEDIATELY.
-3. /bts-wireframe — design structure referencing `domain.md` entities.
-   Component responsibilities MUST honor the invariant owners declared
-   in domain.md § 2.
+3. **/bts-architect — propose ≥2 alternative decompositions, debate
+   them, adjudicate, and commit the winner as the
+   `<!-- architect-decision -->` block. CANNOT skip —
+   `bts verify wireframe.md` raises missing_architect_decision_block
+   (major) without it. Tiny scopes (≤2 entities AND ≤3 files) may use
+   the skill's skip condition, which still writes a minimal block.**
+   > **Checkpoint**: After architect completes, continue IMMEDIATELY.
+4. /bts-wireframe — design structure referencing `domain.md` entities,
+   honoring the committed architect decision. Component
+   responsibilities MUST honor the invariant owners declared in
+   domain.md § 2. After saving, run `bts verify wireframe.md` and fix
+   any critical/major before drafting.
    > **Checkpoint**: After wireframe completes, continue IMMEDIATELY.
-4. Write initial draft (Level 1) referencing wireframe.md + domain.md
+5. Write initial draft (Level 1) referencing wireframe.md + domain.md
    → **Draft Self-Check** → draft.md → /verify
-5. /assess → **execute** recommended action → loop runs autonomously
+6. /assess → **execute** recommended action → loop runs autonomously
    until Level 3.
 
 **Starting with existing code:**
@@ -309,10 +325,14 @@ or a fundamental shift in approach. Judge by intent, not by keywords.
 2. **/bts-domain-model** — model the ADDED or CHANGED domain pieces.
    If existing domain docs live in `.bts/specs/layers/{name}.md`, load
    them and add only the delta for this recipe.
-3. /bts-wireframe — design structure changes honoring domain.md invariants.
-4. Write initial draft referencing wireframe.md + domain.md → **Draft
+3. **/bts-architect** — same as above: ≥2 alternatives against the
+   delta domain model, commit the decision block.
+4. /bts-wireframe — design structure changes honoring domain.md
+   invariants and the architect decision. Run `bts verify wireframe.md`
+   after saving.
+5. Write initial draft referencing wireframe.md + domain.md → **Draft
    Self-Check** → draft.md → /verify.
-5. /assess → **execute** recommended action → loop runs autonomously
+6. /assess → **execute** recommended action → loop runs autonomously
    until Level 3.
 
 ### Draft Self-Check (before /verify)
@@ -387,9 +407,13 @@ and assess behavior.
    or `[deferred]` per `bts-verification-protocol.md § Severity Classification`:
    - `[resolvable]` minors → fix directly in draft.md, then re-verify normally.
    - `[deferred]` minors → append to a "## Known Uncertainties" section at the
-     end of draft.md. Each entry: finding description + the `Why-deferred:`
-     observation copied verbatim. Do NOT run IMPROVE or another /verify
-     cycle for `[deferred]` minors — they are implementation watch-items.
+     end of draft.md. Each entry MUST use the heading form
+     `### U-NNN: <short title>` (monotonic ids: U-001, U-002, …) followed
+     by the finding description + the `Why-deferred:` observation copied
+     verbatim — the stop hook and /bts-implement Step 5.7 parse exactly
+     this shape; free-form bullets are invisible to both. Do NOT run
+     IMPROVE or another /verify cycle for `[deferred]` minors — they are
+     implementation watch-items.
    - Loop exit: when `/verify` shows ONLY `[deferred]` minors, `/bts-assess`
      will emit `action: FINALIZE` (see its "only [deferred] minors remain"
      branch). Follow that — do NOT call IMPROVE again. The deferred items
@@ -431,7 +455,7 @@ If /debate reports [DEBATE DEADLOCK] instead of a conclusion:
 ### File Structure
 
 ```
-.bts/specs/{id}/
+.bts/specs/recipes/{id}/
 ├── recipe.json
 ├── manifest.json
 ├── changelog.jsonl

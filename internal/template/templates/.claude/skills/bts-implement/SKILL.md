@@ -30,8 +30,10 @@ Use settings values if present, otherwise use defaults noted in each step.
    If not found → "Run /recipe blueprint first."
 
 2. Verify spec quality gate:
-   - Check `verify-log.jsonl` exists and last entry has critical=0, major=0
-   - If verify-log is missing or last entry has critical/major > 0 →
+   - Check `verify-log.jsonl` exists and last entry has critical=0,
+     major=0, minor_resolvable=0 (status "converged" — same bar the
+     stop hook applied at `<bts>DONE</bts>`; minor_deferred may be > 0)
+   - If verify-log is missing or the bar is not met →
      "Spec not verified. Run /recipe blueprint to complete verification before implementing."
    - This prevents implementing from unverified or manually-created specs.
 
@@ -41,9 +43,13 @@ Use settings values if present, otherwise use defaults noted in each step.
    ```
    - If phase is "finalize" → fresh start, go to Step 1
    - If phase is "implement" → resume from tasks.json (Step 3)
-   - If phase is "test" → smart resume based on artifacts:
-     - test-results.json (pass) + simulations/ exists + review.md exists → Step 6 (sync)
-     - test-results.json (pass) + simulations/ exists → Step 5.5 (review)
+   - If phase is "test" → smart resume based on artifacts.
+     Code simulation is detected by a `simulations/*-code.md` file (the
+     code-mode output), NOT by the simulations/ directory existing —
+     document-mode simulations from the blueprint phase always live
+     there, so directory existence proves nothing:
+     - test-results.json (pass) + simulations/*-code.md + review.md exists → Step 6 (sync)
+     - test-results.json (pass) + simulations/*-code.md → Step 5.5 (review)
      - test-results.json (pass) → Step 5.3 (simulate)
      - otherwise → Step 5 (test)
    - If phase is "review" → check review.md and Known Uncertainties:
@@ -92,9 +98,10 @@ If tasks.json exists in the recipe directory:
    - `pending` tasks → start from the first pending task
    - All `done`/`skipped` → skip to Step 4
 
-3. **Retry count preservation**: Each task's `retry_count` persists across sessions.
-   Resume from the saved count, not from 0. If a task has retry_count=4 and max is 5,
-   it gets ONE more attempt before being blocked.
+3. **Retry count preservation**: Each task's `retry_count` (total budget),
+   `attempts_in_tier`, and `retry_tier` persist across sessions. Resume
+   from the saved counts, not from 0. If a task has retry_count=7 and
+   max is 8, it gets ONE more attempt before being blocked.
 
 ## Step 1: Task Decomposition
 
@@ -114,6 +121,19 @@ If tasks.json exists in the recipe directory:
    its comment verbatim. `bts verify` enforces a 1:1 mapping — a missing
    anchor in final.md or tasks.json is a critical finding.
 
+   **Modify tasks declare scope at decomposition time (Phase 14).**
+   When `{action}` is `modify`, the anchor MUST carry the authorized
+   symbol list and the task mirrors it:
+   ```
+   <!-- task-anchor: src/auth/session.ts modify scope=validateToken,refreshSession -->
+   ```
+   plus `"modify_scope": ["validateToken", "refreshSession"]` on the
+   task. Derive the list from the final.md spec block for that file
+   (the functions/types it says to change). A modify task without
+   scope raises `modify_scope_required` (major) at `bts validate`;
+   declared symbols absent from the target file raise
+   `scope_symbol_missing` (critical) at IMPLEMENT DONE.
+
 5. Save task list to `.bts/specs/recipes/{id}/tasks.json`:
    ```json
    {
@@ -131,17 +151,29 @@ If tasks.json exists in the recipe directory:
          "depends_on": [],
          "retry_count": 0,
          "last_error": ""
+       },
+       {
+         "id": "t-002",
+         "file": "src/auth/session.ts",
+         "action": "modify",
+         "status": "pending",
+         "description": "Token refresh path — see final.md Section 3.2",
+         "anchor": "src/auth/session.ts modify scope=validateToken,refreshSession",
+         "modify_scope": ["validateToken", "refreshSession"],
+         "depends_on": ["t-001"],
+         "retry_count": 0,
+         "last_error": ""
        }
      ]
    }
    ```
 
-5. Update phase and log:
+6. Update phase and log:
    ```bash
    bts recipe log {id} --phase implement --action implement --output tasks.json --based-on final.md --result "N tasks decomposed"
    ```
 
-6. Validate:
+7. Validate:
    ```bash
    bts validate
    ```
@@ -207,12 +239,15 @@ Run the project's build command:
 **If build fails (Phase 15 retry ladder):**
 
 1. Save the error message to a temp file `last_error.txt`, increment
-   `retry_count` in tasks.json, and persist `last_error` onto the task.
+   BOTH `retry_count` (total budget, never reset) AND `attempts_in_tier`
+   (per-tier budget) in tasks.json, and persist `last_error` onto the task.
 2. Ask the engine what to do next:
    ```bash
    bts retry next --recipe {id} --task {task-id} --json
    ```
    The response carries `{error_class, current_tier, next_tier, action, rationale}`.
+   The engine reads `attempts_in_tier` to decide tier exhaustion —
+   without the reset in step 4 below, upper tiers are skipped.
 3. Execute the returned action:
    - `retry_inplace`    — fix in place, rebuild.
    - `strategy_switch`  — discard previous approach, try a different
@@ -230,11 +265,14 @@ Run the project's build command:
    - `block`            — ladder exhausted: set status=blocked,
      persist a `last_error: "retry_ladder_exhausted: {signature}"`
      value, move to the next task.
-4. Persist the returned `next_tier` onto `task.retry_tier` and append a
-   one-line `task.escalation_notes` entry summarizing the transition
-   (`tier N→M: {action} because {error_class}`).
+4. Persist the returned `next_tier` onto `task.retry_tier`. **If
+   `next_tier` differs from the previous tier, reset
+   `task.attempts_in_tier` to 0** — each tier gets its own budget.
+   Append a one-line `task.escalation_notes` entry summarizing the
+   transition (`tier N→M: {action} because {error_class}`).
 5. Hard cap still applies: `retry_count >= settings.implement.max_build_retries`
-   forces the block action regardless of the ladder's preference.
+   (default 8 — sized to cover the full ladder: 3+2+1+1+1) forces the
+   block action regardless of the ladder's preference.
 
 **If build passes:**
 - Update task status to `done`, clear `last_error`
@@ -261,6 +299,12 @@ Interpret results:
 
 **MID-RUN REVIEW (Phase 11)** — after each task transition, check the
 mid-run cadence:
+
+On (re)entry to the implementation loop, derive the counter from disk —
+it is not persisted separately, so recompute instead of restarting at 0:
+`completed_since_last_midrun` = number of `done` tasks whose id comes
+after the end of the LAST `reviews/midrun-*.md` window (all done tasks
+if no midrun file exists).
 
 ```
 completed_since_last_midrun += 1

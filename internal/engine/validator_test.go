@@ -107,3 +107,29 @@ func TestValidateAssessDecisionBlock_Missing(t *testing.T) {
 		t.Fatal("expected missing-block error")
 	}
 }
+
+// Sprint 10: ParseFindingsBlock backs `bts recipe log --from-verification`.
+func TestParseFindingsBlock_Valid(t *testing.T) {
+	doc := []byte("prose\n<bts-findings>\n{\"critical\": 1, \"major\": 2, \"minor_resolvable\": 3, \"minor_deferred\": 4, \"info\": 5}\n</bts-findings>\nfindings...")
+	c, err := ParseFindingsBlock(doc)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if c.Critical != 1 || c.Major != 2 || c.MinorResolvable != 3 || c.MinorDeferred != 4 || c.Info != 5 {
+		t.Errorf("counts mismatch: %+v", c)
+	}
+}
+
+func TestParseFindingsBlock_Errors(t *testing.T) {
+	cases := map[string][]byte{
+		"missing block":   []byte("no block here"),
+		"duplicate block": []byte("<bts-findings>{\"critical\":0,\"major\":0,\"minor_resolvable\":0,\"minor_deferred\":0}</bts-findings><bts-findings>{\"critical\":0,\"major\":0,\"minor_resolvable\":0,\"minor_deferred\":0}</bts-findings>"),
+		"missing field":   []byte("<bts-findings>{\"critical\":0,\"major\":0,\"minor_resolvable\":0}</bts-findings>"),
+		"malformed json":  []byte("<bts-findings>{critical: 0}</bts-findings>"),
+	}
+	for name, doc := range cases {
+		if _, err := ParseFindingsBlock(doc); err == nil {
+			t.Errorf("%s: expected error, got nil", name)
+		}
+	}
+}

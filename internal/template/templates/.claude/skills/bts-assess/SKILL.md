@@ -19,6 +19,10 @@ Assess the document and decide the next action.
    bts verify $ARGUMENTS
    ```
    This returns the current level score and missing criteria.
+   If `$ARGUMENTS` is empty, resolve the active recipe via
+   `bts recipe status` and target its draft:
+   `bts verify .bts/specs/recipes/{id}/draft.md`
+   (`bts verify` requires exactly one file argument).
 
 2. Build situational awareness:
    - Read changelog.jsonl (last 5 entries) to know what was just done
@@ -34,6 +38,18 @@ Assess the document and decide the next action.
    - Are there internal contradictions?
 
 4. Decide the next action based on assessment:
+
+   **Structural prerequisites — check FIRST, in this order** (a draft
+   built on an unchosen or unmodeled decomposition wastes IMPROVE
+   cycles; these actions take precedence over all content-level
+   actions below):
+   - `domain.md` missing, or `bts verify domain.md` reports
+     critical/major (blueprint/design recipes) → action `DOMAIN_MODEL`,
+     phase `domain-model`
+   - `wireframe.md` lacks the `<!-- architect-decision -->` block
+     → action `ARCHITECT`, phase `architect`
+   - `wireframe.md` missing, or `bts verify wireframe.md` reports
+     critical/major → action `WIREFRAME`, phase `wireframe`
 
    **If information is insufficient** → recommend `/research`
    "Need to investigate [specific topic] before proceeding."
@@ -131,5 +147,5 @@ prevents discovering these gaps late and needing additional rework iterations.
 ## Important
 
 - Always be specific. Not "needs more detail" but "add function signatures for auth module."
-- Consider what has already been done (check .bts/specs/{id}/ for previous research, debates, simulations).
+- Consider what has already been done (check .bts/specs/recipes/{id}/ for previous research, debates, simulations).
 - If previous debates exist, check if their conclusions are reflected in the current draft.

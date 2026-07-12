@@ -22,8 +22,18 @@ Design the high-level structure for: $ARGUMENTS
 1. Read research output:
    - `.bts/specs/recipes/{id}/research/v1.md` (or latest)
    - `.bts/specs/recipes/{id}/scope.md`
+   - `.bts/specs/recipes/{id}/domain.md` — the invariant-ownership
+     contract every component responsibility must honor
    - `.bts/specs/project-map.md` (existing system structure)
    - `.bts/specs/layers/{name}.md` for affected layers (existing models, APIs, patterns)
+
+2. **Architect decision check**: wireframe.md should already START with
+   the `<!-- architect-decision -->` block committed by `/bts-architect`.
+   - Block present → design the SELECTED decomposition. Never overwrite
+     the block: use Edit to add content BELOW it, not Write on the file.
+   - Block missing → STOP and run `/bts-architect` first
+     (`bts verify wireframe.md` raises missing_architect_decision_block
+     as major otherwise).
 
 ## Step 1: Component Diagram
 
@@ -168,7 +178,16 @@ specify each path in detail. The anchor check enforces 1:1 coverage.
 
 ## Step 6: Save and Log
 
-Save to `.bts/specs/recipes/{id}/wireframe.md`
+Save to `.bts/specs/recipes/{id}/wireframe.md` — via Edit, preserving
+the `<!-- architect-decision -->` block at the top of the file.
+
+Then run the mechanical gate:
+```bash
+bts verify .bts/specs/recipes/{id}/wireframe.md
+```
+This checks single-job responsibilities (no "and"/"&"/"및" conjunctions)
+and architect-decision block presence. Fix all critical/major findings
+before proceeding.
 
 Log:
 ```bash
@@ -183,13 +202,18 @@ bts recipe log {id} --action wireframe --output wireframe.md --doc-type research
 ## Quality Gate
 
 Before proceeding to draft, the wireframe must have:
+- [ ] `<!-- architect-decision -->` block preserved at the top
 - [ ] Component diagram with all modules and dependencies
+- [ ] Component responsibilities match the architect decision's
+      invariant-ownership mapping (domain.md § 2 owners)
 - [ ] State machine with no dead-end states
 - [ ] Data flow with error paths included
 - [ ] File structure with dependency order
 - [ ] ALL execution paths enumerated with triggers and expected behavior
 - [ ] No orphan states (every state reachable)
 - [ ] Every error state has a recovery or terminal path
+- [ ] `bts verify .bts/specs/recipes/{id}/wireframe.md` returns
+      0 critical, 0 major
 
 > **Checkpoint**: Wireframe saved and quality gate passed.
 > If executing as part of a recipe flow, continue IMMEDIATELY to the next step

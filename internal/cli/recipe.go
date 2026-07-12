@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/imtemp-dev/claude-bts/internal/engine"
 	"github.com/imtemp-dev/claude-bts/internal/metrics"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 	"github.com/spf13/cobra"
@@ -194,7 +195,9 @@ var recipeLogCmd = &cobra.Command{
 			fmt.Printf("Logged action: %s → %s\n", action, output)
 		} else if phase == "" {
 			// Verify-log mode: log an iteration result.
-			// Prefer --minor-resolvable / --minor-deferred (split form).
+			// Preferred: --from-verification parses the <bts-findings>
+			// block so counts can never drift from verification.md.
+			// Fallback: --minor-resolvable / --minor-deferred (split form).
 			// --minor is accepted for legacy callers and mapped to resolvable.
 			iteration, _ := cmd.Flags().GetInt("iteration")
 			critical, _ := cmd.Flags().GetInt("critical")
@@ -203,6 +206,30 @@ var recipeLogCmd = &cobra.Command{
 			minorR, _ := cmd.Flags().GetInt("minor-resolvable")
 			minorD, _ := cmd.Flags().GetInt("minor-deferred")
 			infoCt, _ := cmd.Flags().GetInt("info")
+
+			if fromVerification, _ := cmd.Flags().GetString("from-verification"); fromVerification != "" {
+				data, err := os.ReadFile(fromVerification)
+				if err != nil {
+					return fmt.Errorf("--from-verification: read %s: %w", fromVerification, err)
+				}
+				counts, err := engine.ParseFindingsBlock(data)
+				if err != nil {
+					return fmt.Errorf("--from-verification: %s: %w", fromVerification, err)
+				}
+				critical = counts.Critical
+				major = counts.Major
+				minorR = counts.MinorResolvable
+				minorD = counts.MinorDeferred
+				infoCt = counts.Info
+				minor = 0
+				if iteration == 0 {
+					if last, err := state.LastVerifyEntry(root, recipeID); err == nil && last != nil {
+						iteration = last.Iteration + 1
+					} else {
+						iteration = 1
+					}
+				}
+			}
 
 			// Legacy fallback: caller passed --minor but not the split flags.
 			// Treat as resolvable (the strict, conservative interpretation).
@@ -332,6 +359,7 @@ func init() {
 	recipeLogCmd.Flags().Int("minor-resolvable", 0, "Minor [resolvable] count — fixable in spec, blocks completion")
 	recipeLogCmd.Flags().Int("minor-deferred", 0, "Minor [deferred] count — runtime-observable, does not block")
 	recipeLogCmd.Flags().Int("info", 0, "Info suggestion count")
+	recipeLogCmd.Flags().String("from-verification", "", "Parse counts from a verification.md <bts-findings> block (atomic; iteration auto-increments unless --iteration given)")
 	// Changelog flags
 	recipeLogCmd.Flags().String("action", "", "Action type (research, improve, verify, debate, simulate, audit, assess, implement, test, sync, status)")
 	recipeLogCmd.Flags().String("output", "", "Output file path")

@@ -64,7 +64,10 @@ type VerifySettings struct {
 func DefaultSettings() *Settings {
 	return &Settings{
 		Implement: ImplementSettings{
-			MaxBuildRetries:   5,
+			// 8 = full ladder walk: 3 syntactic + 2 semantic + 1 spec +
+			// 1 domain + 1 architect escalation. A cap of 5 would make
+			// tiers 4-5 unreachable (the pre-v0.6.1 bug).
+			MaxBuildRetries:   8,
 			MaxTestIterations: 5,
 			MidrunReviewEvery: 5,
 			RetryLadder: RetryLadderSettings{

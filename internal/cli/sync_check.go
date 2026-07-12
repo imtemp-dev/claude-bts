@@ -76,6 +76,21 @@ func runSyncCheck(cmd *cobra.Command, args []string) error {
 		issues += len(gaps)
 	}
 
+	// Record the run in the changelog BEFORE any exit — the stop hook's
+	// sync_check_before_final gate requires a passing sync-check entry
+	// logged after the last draft modification (rule 8 is now machine-
+	// enforced instead of self-reported via manifest edits).
+	result := "pass"
+	if issues > 0 {
+		result = fmt.Sprintf("%d issue(s)", issues)
+	}
+	if err := state.AppendChangelog(root, recipeID, &state.ChangelogEntry{
+		Action: "sync-check",
+		Result: result,
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: append changelog: %v\n", err)
+	}
+
 	if issues == 0 {
 		fmt.Println("All documents in sync.")
 	} else {

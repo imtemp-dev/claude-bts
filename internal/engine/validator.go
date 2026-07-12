@@ -160,6 +160,60 @@ func isStructuredVerifyResult(result string) bool {
 	return structuredVerifyResultRe.MatchString(result)
 }
 
+// FindingsCounts carries the counts parsed from a document's single
+// <bts-findings> block. Used by `bts recipe log --from-verification`
+// to write verify-log entries atomically from verification.md, so the
+// two sources can never drift (the failure class Phase 22 detects).
+type FindingsCounts struct {
+	Critical        int
+	Major           int
+	MinorResolvable int
+	MinorDeferred   int
+	Info            int
+}
+
+// ParseFindingsBlock extracts the single <bts-findings> JSON block.
+// Errors on a missing, duplicated, or malformed block, and on any
+// absent required count — callers must fail fast rather than log
+// drifted numbers.
+func ParseFindingsBlock(data []byte) (*FindingsCounts, error) {
+	matches := findingsBlockRe.FindAllSubmatch(data, -1)
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("no <bts-findings> block found")
+	}
+	if len(matches) > 1 {
+		return nil, fmt.Errorf("expected exactly 1 <bts-findings> block, found %d", len(matches))
+	}
+	var raw struct {
+		Critical        *int `json:"critical"`
+		Major           *int `json:"major"`
+		MinorResolvable *int `json:"minor_resolvable"`
+		MinorDeferred   *int `json:"minor_deferred"`
+		Info            int  `json:"info"`
+	}
+	if err := json.Unmarshal(matches[0][1], &raw); err != nil {
+		return nil, fmt.Errorf("invalid JSON in findings block: %w", err)
+	}
+	required := map[string]*int{
+		"critical":         raw.Critical,
+		"major":            raw.Major,
+		"minor_resolvable": raw.MinorResolvable,
+		"minor_deferred":   raw.MinorDeferred,
+	}
+	for _, name := range []string{"critical", "major", "minor_resolvable", "minor_deferred"} {
+		if required[name] == nil {
+			return nil, fmt.Errorf("findings block missing required count %q", name)
+		}
+	}
+	return &FindingsCounts{
+		Critical:        *raw.Critical,
+		Major:           *raw.Major,
+		MinorResolvable: *raw.MinorResolvable,
+		MinorDeferred:   *raw.MinorDeferred,
+		Info:            raw.Info,
+	}, nil
+}
+
 // findingsBlockRe matches <bts-findings>...</bts-findings> with JSON inside.
 // Multi-line (dot matches newline) and non-greedy body.
 var findingsBlockRe = regexp.MustCompile(`(?s)<bts-findings>\s*(\{.*?\})\s*</bts-findings>`)
@@ -567,6 +621,7 @@ func validateChangelogJSONL(path string) []ValidationError {
 				"adjudicate": true, "review": true, "architect": true,
 				"resolve-uncertainties": true,
 				"midrun-review": true,
+				"comment-apply": true,
 			}
 			if !validActions[action] {
 				errs = append(errs, ValidationError{File: "changelog.jsonl", Field: fmt.Sprintf("line %d.action", lineNum), Message: fmt.Sprintf("invalid action '%s'", action)})

@@ -386,6 +386,25 @@ Run scenarios against the spec to find what's missing or wrong.
    under load. Adapt the scenario categories to what matters for this spec rather
    than following a fixed checklist.
 
+3.5 **Canonical format + tags (REQUIRED — Code mode Step 3.5 applies to
+   document simulations too).** `bts validate` parses EVERY
+   `simulations/*.md` file regardless of mode: untagged scenarios raise
+   `untagged_scenarios` (major), and a cross-boundary ratio below
+   `simulate.cross_boundary_ratio` (default 0.30) raises
+   `insufficient_cross_boundary_coverage`.
+   - Use one of the three canonical scenario shapes (Form A
+     `### Scenario sim-001.s1: ...`, Form B `### S01 — ...`, or the
+     Form C Scenario Index table).
+   - Tag every scenario header, SAME LINE, with exactly one of
+     `[cross-boundary: axes=A,B]`, `[single-axis: A]`,
+     `[illegal-cell: <label>]`.
+   - Axes come from `domain.md § 3 State Partitioning`; a scenario is
+     cross-boundary when its steps span 2+ axes owned by different
+     modules in the wireframe component diagram.
+   - For each ILLEGAL cell in `domain.md § 4`, include one
+     `[illegal-cell: ...]` scenario probing whether the spec's
+     enforcement mechanism actually prevents reaching it (Phase 6.2).
+
 4. For each scenario, walk through the spec step by step:
    ```
    Scenario: [name]
@@ -493,7 +512,7 @@ Run scenarios against the spec to find what's missing or wrong.
    so DISPUTED findings are **INCLUDED by default**. Severity may be downgraded based
    on the validator's mitigating evidence. Document both sides' arguments transparently.
 
-8. Save simulation results to `.bts/specs/{id}/simulations/NNN-[category].md`
+8. Save simulation results to `.bts/specs/recipes/{id}/simulations/NNN-[category].md`
 
    Report header should include: `Validation: adversarial (2-round debate)`
 

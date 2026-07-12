@@ -60,9 +60,15 @@ For each dimension, assign: PASS / CONCERN / FAIL
 - Did experts cite specific technologies, benchmarks, or real-world examples?
 - Or did they argue from abstract principles without concrete data?
 - Were trade-offs quantified (latency numbers, memory usage, complexity cost)?
+- **Source hierarchy** (per `.claude/rules/bts-evidence-policy.md`):
+  framework/platform claims and "recommended approach" claims need a
+  `Source:` line on an official domain. Uncited framework claims →
+  CONCERN; claims contradicted by an official source → FAIL.
+- For architecture debates: was the official recommended pattern (research
+  `## Official Guidance`) engaged with? Ignoring it entirely → CONCERN.
 - **Weak evidence**: "X is generally faster", "Y is best practice"
 - **Strong evidence**: "X handles 10k req/s per node (benchmark: Z)", "Y reduced
-  incident rate by 40% at Company W"
+  incident rate by 40% at Company W", "Source: developer.android.com/topic/architecture"
 
 ### 2f. Blind Spots
 - What did the experts NOT discuss that they should have?

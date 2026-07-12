@@ -31,8 +31,8 @@ var HardGates = []HardGate{
 	{
 		ID:          "simulate_at_least_once",
 		Rule:        "bts-recipe-protocol.md §Mandatory Rules rule 5",
-		Enforcement: "internal/cli/recipe.go:checkPhasePreConditions(review)",
-		Summary:     "Phase transition to review warns if no simulation exists",
+		Enforcement: "internal/hook/stop.go:handleSpecDone (blueprint: changelog must contain a simulate action) + internal/cli/recipe.go:checkPhasePreConditions(review) warn",
+		Summary:     "Block <bts>DONE</bts> for blueprint recipes whose changelog has no simulate action",
 	},
 	{
 		ID:          "adjudicate_every_debate",
@@ -43,8 +43,14 @@ var HardGates = []HardGate{
 	{
 		ID:          "sync_check_before_final",
 		Rule:        "bts-recipe-protocol.md §Mandatory Rules rule 8",
-		Enforcement: "internal/hook/stop.go:handleSpecDone",
-		Summary:     "Sync-check records land in verify-log; gate reads latest entry",
+		Enforcement: "internal/cli/sync_check.go (changelog append) + internal/hook/stop.go:handleSpecDone (pass-after-last-modification ordering gate, blueprint)",
+		Summary:     "Block <bts>DONE</bts> unless a passing sync-check changelog entry postdates the last draft/improve/comment-apply action",
+	},
+	{
+		ID:          "deferred_minors_declared",
+		Rule:        "bts-recipe-blueprint SKILL.md §Quality Rules 3b",
+		Enforcement: "internal/hook/stop.go:handleSpecDone (via engine.CheckKnownUncertainties)",
+		Summary:     "Block <bts>DONE</bts> when the last verify entry has minor_deferred>0 but the spec carries no ## Known Uncertainties (### U-NNN) entries",
 	},
 	{
 		ID:          "status_at_finalization",

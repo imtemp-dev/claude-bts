@@ -39,7 +39,7 @@ Read existing project context if available:
 - `.bts/specs/layers/{name}.md` — detail for layers relevant to this analysis
 
 Use Skill("bts-research") to explore the target.
-Save to `.bts/specs/{id}/research/v1.md`.
+Save to `.bts/specs/recipes/{id}/research/v1.md`.
 
 ## Step 2: Draft Analysis Document
 Write a structured analysis:
@@ -49,7 +49,7 @@ Write a structured analysis:
 - Dependencies and integration points
 - Patterns and conventions used
 
-Save to `.bts/specs/{id}/draft.md`.
+Save to `.bts/specs/recipes/{id}/draft.md`.
 
 ## Step 3: Verify Loop (max `verify.max_iterations`, default 3)
 - Skill("bts-cross-check"): file/function references correct?
@@ -66,8 +66,9 @@ Max `verify.max_iterations` (default: 3). If same issues persist →
 
 Log each iteration:
 ```bash
-bts recipe log {id} --iteration N --critical X --major Y --minor Z
+bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md
 ```
+Iteration auto-increments. Fallback (no findings block): `--iteration N --critical X --major Y --minor-resolvable R --minor-deferred D`. Never use legacy `--minor` (it maps all minors to blocking [resolvable]).
 
 ## Step 4: Finalize
 1. Copy `draft.md` to `final.md`.

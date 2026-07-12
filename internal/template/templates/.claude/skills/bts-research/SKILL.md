@@ -40,6 +40,31 @@ Research the given topic and produce a structured document.
    - API references
    - Known issues or limitations
 
+   Follow `.claude/rules/bts-evidence-policy.md` for source hierarchy
+   (Context7 → official domains → site-filtered search). Every external
+   claim recorded in the research document MUST carry a `Source:` line —
+   uncited claims force /bts-verify to re-gather the same evidence
+   later, one iteration per claim.
+
+3.5 **Official Architecture Guidance (MANDATORY when the feature
+   targets a framework/platform).** Identify the tech stack from
+   scope.md / project-map.md, then fetch the platform vendor's OWN
+   recommended architecture for this kind of feature (see the
+   `## Official recommended architectures` section of
+   `bts-evidence-policy.md` for examples: Android Guide to App
+   Architecture, Apple SwiftUI data-flow guidance, React/Next.js docs,
+   go.dev layout guidance, …).
+   Record in the research document:
+   - The recommended pattern's name and structure (layers, state
+     ownership, data flow) with `Source:` lines on official domains
+   - How it maps onto THIS feature's entities
+   - Any parts of it that are overkill for the current scope
+   This section is the required input for `/bts-architect` — one of its
+   alternatives must be grounded in this guidance. If the platform has
+   no official architecture guidance, state that explicitly with the
+   queries attempted (`Gathered:` line) so architect knows the ground
+   truth was checked, not skipped.
+
 4. Synthesize findings into a structured document:
    ```markdown
    # Research: [topic]
@@ -58,6 +83,13 @@ Research the given topic and produce a structured document.
 
    ## Patterns
    - Conventions to follow
+
+   ## Official Guidance
+   - Recommended architecture: {name} (Source: {official URL})
+   - Structure: {layers / state ownership / data flow}
+   - Mapping to this feature: {entities → pattern roles}
+   - Not applicable parts: {list, with reasons}
+   (or: "No official architecture guidance found. Gathered: [...]")
    ```
 
 5. **Scope validation** (if inside a recipe with scope.md):
@@ -69,4 +101,7 @@ Research the given topic and produce a structured document.
      "Research suggests {item} may be needed but is currently out of scope."
    - These flags are included in the research document for /assess to act on.
 
-6. Save to `.bts/specs/{recipe-id}/01-research.md` if inside a recipe
+6. Save to `.bts/specs/recipes/{id}/research/v1.md` if inside a recipe
+   (increment to v2.md, v3.md… for follow-up research rounds). This is
+   the path every downstream skill reads — blueprint resume, wireframe,
+   domain-model, and architect all look for `research/v1.md`.

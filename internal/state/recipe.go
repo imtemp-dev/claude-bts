@@ -58,7 +58,8 @@ type Task struct {
 	PostImageSha      string             `json:"post_image_sha,omitempty"` // sha256 after VERIFY build pass
 	StructureFindings []StructureFinding `json:"structure_findings,omitempty"` // per-task mini-check results (Phase 10)
 	DependsOn         []string           `json:"depends_on,omitempty"`
-	RetryCount        int                `json:"retry_count,omitempty"` // persisted build retry count
+	RetryCount        int                `json:"retry_count,omitempty"` // persisted TOTAL build retry count (hard-cap budget)
+	AttemptsInTier    int                `json:"attempts_in_tier,omitempty"` // Phase 15: attempts within the CURRENT tier — reset to 0 on every tier transition
 	LastError         string             `json:"last_error,omitempty"`  // last build error for stagnation detection
 	RetryTier         int                `json:"retry_tier,omitempty"`  // Phase 15 retry-ladder tier: 1..5
 	EscalationNotes   []string           `json:"escalation_notes,omitempty"` // one entry per tier transition

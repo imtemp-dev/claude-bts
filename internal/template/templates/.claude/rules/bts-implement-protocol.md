@@ -55,7 +55,12 @@ pending → in_progress → done
 
 - Set `in_progress` BEFORE starting work on a task (crash safety)
 - Set `done` AFTER build passes
-- Persist `retry_count` and `last_error` in tasks.json (survives compaction)
+- Persist `retry_count`, `attempts_in_tier`, `retry_tier`, and
+  `last_error` in tasks.json (survives compaction)
+- Two counters, two jobs: `retry_count` is the TOTAL budget checked
+  against `implement.max_build_retries` and is never reset;
+  `attempts_in_tier` is the per-tier ladder budget and MUST be reset
+  to 0 on every tier transition (bts-implement Step 3.4)
 
 ### Stagnation Detection
 If `last_error` is substantially the same across consecutive retries:

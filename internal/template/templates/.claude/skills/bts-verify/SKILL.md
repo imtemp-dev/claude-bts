@@ -46,7 +46,9 @@ If `agents.verifier` is explicitly set in `.bts/config/settings.yaml`, use that 
    - Check for missing transitions: at each state, what happens on
      timeout? invalid input? resource exhaustion? concurrent access?
 
-   **Evidence policy for framework/platform claims:**
+   **Evidence policy for framework/platform claims**
+   (authoritative copy: `.claude/rules/bts-evidence-policy.md` — keep
+   this inline mirror in sync):
 
    Before classifying a claim about framework or platform internals
    (animation timing, reconciler behavior, async runtime semantics,
@@ -134,11 +136,22 @@ recent `verify-log.jsonl` entry. `bts validate` cross-checks the two —
 drift between them surfaces as `verification_log_mismatch` (major)
 per-field.
 
-If you improve the draft and re-run verification, the skill writes a
-fresh verification.md with new counts AND a new verify-log entry
-(via `bts recipe log --iteration N --critical X --major Y ...`).
-Those two operations happen together so the counts stay in lockstep.
-Do not hand-edit verify-log.jsonl or verification.md — use the skill.
+Division of labor — this skill runs in a fork WITHOUT Write/Bash, so it
+cannot save files or run the CLI itself:
+1. The verifier agent returns its findings, `<bts-findings>` block first.
+2. The ORCHESTRATOR (main loop, after the fork returns) writes that
+   output to verification.md VERBATIM — the block must land
+   byte-identical, no re-summarizing.
+3. The orchestrator records the verify-log entry atomically:
+   ```bash
+   bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md
+   ```
+   The CLI parses the block itself, so the two sources cannot drift.
+   Explicit `--critical/--major/--minor-resolvable/--minor-deferred`
+   flags remain as a fallback; NEVER use legacy `--minor` (it maps all
+   minors to blocking [resolvable]).
+
+Do not hand-edit verify-log.jsonl or verification.md.
 
 Migrate-seeded blocks (produced by `bts migrate verification`) carry
 `"source": "migrated-from-verify-log"`. Cross-check mismatches on

@@ -6,7 +6,7 @@ description: >
   single-path trap where the first decomposition the model imagines
   becomes the only one considered.
 user-invocable: true
-allowed-tools: Read Write Edit Grep Glob Bash Agent AskUserQuestion
+allowed-tools: Read Write Edit Grep Glob Bash Agent AskUserQuestion WebSearch WebFetch mcp__context7__resolve-library-id mcp__context7__get-library-docs
 argument-hint: "[recipe-id]"
 effort: max
 ---
@@ -22,16 +22,35 @@ a default, not a decision.
 1. `domain.md` exists and passes `bts verify domain.md` (invariant
    ownership clean)
 2. `scope.md` Status: CONFIRMED
-3. `research/v1.md` exists
+3. `research/v1.md` exists AND contains an `## Official Guidance`
+   section (per bts-research Step 3.5). If the section is missing,
+   gather it NOW before proposing alternatives: identify the stack from
+   scope.md / project-map.md and fetch the platform's officially
+   recommended architecture per `.claude/rules/bts-evidence-policy.md`
+   (Context7 → official docs → site-filtered search). Append the
+   findings to the research doc with `Source:` lines. Do NOT propose
+   decompositions from imagination while the vendor's own guidance
+   sits unread.
 
 If any prerequisite fails, STOP and point the user at the missing step.
 
 ## Step 1: Propose alternatives (min 2, max 4)
 
+**Grounding rule**: when the platform has an officially recommended
+architecture (research `## Official Guidance`), EXACTLY ONE alternative
+MUST be that pattern applied to this feature's domain — carrying its
+official `Source:` URL. It may lose the debate to a simpler
+decomposition, but it must be on the table; rejecting it requires a
+stated reason in the decision block's Rejected list.
+
 For each alternative, produce:
 
 - **Name** — short kebab-case identifier, e.g. `state-machine-centric`,
   `entity-per-file`, `pipeline`, `event-sourced`.
+- **Basis** — one line: `official: {pattern name} (Source: {URL})` for
+  the vendor-guidance alternative, or `custom: {one-sentence rationale}`
+  for the others. Unsourced "official" claims are invalid — the
+  adjudicator treats them as evidence-quality FAIL.
 - **Node list** — files or modules with a ONE-SENTENCE responsibility
   (same "and"/"&"/"및" rule as bts-wireframe Step 1). Include file path
   hints so it is clear what the decomposition produces.
@@ -82,10 +101,13 @@ opening tag `<!-- architect-decision -->` on a line by itself.
 ```
 <!-- architect-decision -->
 Selected: {alternative-name}
+Basis: {official: {pattern} (Source: {URL}) | custom: {rationale}}
 Rationale: {one paragraph — why this decomposition fits the domain
 invariants and scope better than the alternatives}
 Rejected:
-  - {alt-name-1}: {one-line reason}
+  - {alt-name-1}: {one-line reason — if this was the official-guidance
+    alternative, the reason must address why the vendor pattern does
+    not fit here}
   - {alt-name-2}: {one-line reason}
 Invariant ownership:
   - INV-001: {module}

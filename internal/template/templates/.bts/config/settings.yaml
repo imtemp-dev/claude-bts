@@ -22,8 +22,10 @@ simulate:
 
 # Implementation
 implement:
-  max_build_retries: 5           # 5 attempts: enough to try different approaches, not enough to spin
-  max_test_iterations: 5         # Same rationale — if 5 fix cycles don't resolve it, human help needed
+  max_build_retries: 8           # Hard cap on TOTAL attempts per task. 8 = full retry ladder
+                                 # (3 syntactic + 2 semantic + 1 spec + 1 domain + 1 architect).
+                                 # Below 8 the upper escalation tiers become unreachable.
+  max_test_iterations: 5         # If 5 fix cycles don't resolve it, human help needed
   midrun_review_every: 5         # Run a lightweight structural review every N tasks. 0 disables.
   retry_ladder:
     syntactic_max: 3             # In-place retries (tier 1) before moving to strategy switch

@@ -4,7 +4,7 @@ description: >
   Run a structured expert debate with 3 personas. Produces a decision
   document with rationale. State is saved for resuming later.
 user-invocable: true
-allowed-tools: Read Write Bash
+allowed-tools: Read Write Bash Grep Glob WebSearch WebFetch mcp__context7__resolve-library-id mcp__context7__get-library-docs
 argument-hint: "\"topic to debate\""
 effort: high
 ---
@@ -25,6 +25,18 @@ Choose relevant expert perspectives for the topic. Example:
 - For "OAuth2 vs JWT": Security Expert, Performance Expert, Operations Expert
 - For "SQL vs NoSQL": Data Architect, Scale Engineer, Developer Experience Expert
 - For "Monolith vs Microservices": System Architect, DevOps Engineer, Team Lead
+
+### Evidence standard (all rounds)
+
+Positions that rest on framework/platform behavior or on "X is the
+recommended approach" claims MUST carry a `Source:` line per
+`.claude/rules/bts-evidence-policy.md` (Context7 → official docs →
+site-filtered search; blogs and tutorials are not evidence). Look up
+disputed claims DURING the debate rather than arguing from memory —
+an uncited claim is an opinion, and /bts-adjudicate scores it as weak
+evidence. When the debate topic is an architecture choice, read the
+research doc's `## Official Guidance` section first; experts must
+engage with the vendor-recommended pattern, not ignore it.
 
 ### Round 1: Position Statement
 Each expert states their position with supporting evidence.

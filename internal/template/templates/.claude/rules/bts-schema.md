@@ -88,7 +88,7 @@ Required fields:
 - `id` (string): unique recipe identifier
 - `type` (string): "analyze", "design", "blueprint", "fix", or "debug"
 - `topic` (string): what the recipe is about
-- `phase` (string): current phase — "discovery", "scoping", "research", "wireframe", "draft", "assess", "improve", "verify", "debate", "simulate", "audit", "finalize", "cancelled", "implement", "test", "review", "sync", "status", "complete"
+- `phase` (string): current phase — "discovery", "scoping", "research", "domain-model", "architect", "wireframe", "draft", "assess", "improve", "verify", "debate", "simulate", "audit", "finalize", "cancelled", "implement", "test", "review", "sync", "status", "complete"
 - `iteration` (number): current verify iteration count
 - `level` (number): assessed document level 0.0-3.0
 - `started_at` (string): ISO 8601 timestamp
@@ -124,7 +124,7 @@ Each line is a JSON object:
 
 Required fields:
 - `time` (string): ISO 8601 timestamp. **Key name is "time", not "timestamp".**
-- `action` (string): one of "research", "draft", "improve", "verify", "debate", "simulate", "audit", "assess", "sync-check", "finalize", "implement", "test", "sync", "status", "adjudicate", "review", "comment-apply"
+- `action` (string): one of "discover", "research", "domain-model", "architect", "wireframe", "draft", "improve", "verify", "debate", "simulate", "audit", "assess", "sync-check", "finalize", "implement", "test", "sync", "status", "adjudicate", "review", "comment-apply", "resolve-uncertainties", "midrun-review" (must match `validActions` in engine/validator.go)
 
 Optional fields:
 - `input` (string): what was acted on
@@ -140,9 +140,9 @@ Optional fields:
 Located at `.bts/specs/recipes/{id}/verify-log.jsonl`. Each line is a JSON object:
 
 ```json
-{"time":"2026-03-18T10:35:00Z","iteration":1,"critical":2,"major":3,"minor":1}
-{"time":"2026-03-18T11:00:00Z","iteration":2,"critical":0,"major":1,"minor":2}
-{"time":"2026-03-18T11:20:00Z","iteration":3,"critical":0,"major":0,"minor":1}
+{"time":"2026-03-18T10:35:00Z","iteration":1,"critical":2,"major":3,"minor_resolvable":1,"minor_deferred":0,"status":"continue"}
+{"time":"2026-03-18T11:00:00Z","iteration":2,"critical":0,"major":1,"minor_resolvable":2,"minor_deferred":1,"status":"continue"}
+{"time":"2026-03-18T11:20:00Z","iteration":3,"critical":0,"major":0,"minor_resolvable":0,"minor_deferred":1,"status":"converged"}
 ```
 
 Required fields:
@@ -150,12 +150,18 @@ Required fields:
 - `iteration` (number): verify iteration number (1-based)
 - `critical` (number): count of critical issues
 - `major` (number): count of major issues
+- `status` (string): "continue", "converged" (critical=0, major=0, minor_resolvable=0), or "failed"
 
 Optional fields:
-- `minor` (number): count of minor issues
+- `minor_resolvable` (number): [resolvable] minors — block completion
+- `minor_deferred` (number): [deferred] minors — runtime watch-items, do not block
+- `minor` (number): LEGACY pre-split count; readers treat it as resolvable
 - `info` (number): count of info suggestions
 
-Used by the stop hook to gate `<bts>DONE</bts>`: last entry must have critical=0, major=0.
+Entries are written by `bts recipe log {id} --from-verification <verification.md>`
+(preferred — parses the `<bts-findings>` block atomically) or by the
+explicit split flags. Used by the stop hook to gate `<bts>DONE</bts>`:
+last entry must have critical=0, major=0, minor_resolvable=0.
 
 ## debate meta.json
 
@@ -200,18 +206,23 @@ Located at `.bts/specs/recipes/{id}/tasks.json`:
       "action": "create",
       "status": "done",
       "description": "Auth type definitions",
+      "anchor": "src/auth/types.ts create",
       "depends_on": [],
       "retry_count": 0,
       "last_error": ""
     },
     {
       "id": "t-002",
-      "file": "src/auth/oauth.ts",
-      "action": "create",
+      "file": "src/auth/session.ts",
+      "action": "modify",
       "status": "in_progress",
-      "description": "OAuth2 implementation",
+      "description": "Token refresh path",
+      "anchor": "src/auth/session.ts modify scope=validateToken,refreshSession",
+      "modify_scope": ["validateToken", "refreshSession"],
       "depends_on": ["t-001"],
       "retry_count": 2,
+      "attempts_in_tier": 2,
+      "retry_tier": 1,
       "last_error": "TS2345: Argument of type 'string' is not assignable"
     }
   ]
@@ -230,10 +241,24 @@ Task object required fields:
 - `action` (string): "create" or "modify"
 - `status` (string): "pending", "in_progress", "done", "blocked", "skipped"
 - `description` (string): what this task does
+- `anchor` (string): "path action" (Phase 9) — must match a
+  `<!-- task-anchor: path action -->` comment in final.md verbatim;
+  `bts verify` enforces the 1:1 mapping
+- `modify_scope` (array of strings): REQUIRED when action=="modify" —
+  authorized symbol list; the anchor carries the same list after `scope=`
 
 Task object optional fields:
 - `depends_on` (array of strings): task IDs this depends on
-- `retry_count` (number): build retry attempts so far (persisted across sessions)
+- `retry_count` (number): TOTAL build retry attempts (hard-cap budget vs
+  `implement.max_build_retries`; persisted across sessions, never reset)
+- `attempts_in_tier` (number): retry-ladder per-tier counter — reset to 0
+  on every tier transition (Phase 15)
+- `retry_tier` (number): current retry-ladder tier 1..5 (Phase 15)
+- `escalation_notes` (array of strings): one entry per tier transition
+- `structure_findings` (array of objects): per-task MINI-CHECK results
+  `{task_id, category, severity, detail}` (Phase 10)
+- `pre_image_sha` / `post_image_sha` (string): file sha256 before
+  IMPLEMENT / after VERIFY build pass
 - `last_error` (string): last build error message (for stagnation detection)
 
 ## test-results.json

@@ -330,8 +330,9 @@ bts recipe log {id} --phase verify --action verify
 
 Record verify results to verify-log (required for stop hook DONE gate):
 ```bash
-bts recipe log {id} --iteration N --critical X --major Y --minor Z
+bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md
 ```
+Iteration auto-increments. Fallback (no findings block): `--iteration N --critical X --major Y --minor-resolvable R --minor-deferred D`. Never use legacy `--minor` (it maps all minors to blocking [resolvable]).
 
 ## Step 8: Finalize
 

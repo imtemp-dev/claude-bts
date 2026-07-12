@@ -46,7 +46,9 @@ If `agents.auditor` is explicitly set in `.bts/config/settings.yaml`, use that m
    - For each error state: is the error message/response defined? Is cleanup specified?
    - Count: total decision nodes, branches specified, branches missing.
 
-   **Evidence policy for framework/platform claims:**
+   **Evidence policy for framework/platform claims**
+   (authoritative copy: `.claude/rules/bts-evidence-policy.md` — keep
+   this inline mirror in sync):
 
    Before classifying a claim about framework or platform internals
    (animation timing, reconciler behavior, async runtime semantics,
