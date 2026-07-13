@@ -249,7 +249,7 @@ func buildNonRecipeCompactMsg(root string, templatesUpdated bool) string {
 	}
 	var b strings.Builder
 	if templatesUpdated {
-		b.WriteString(fmt.Sprintf("[bts] Templates updated to %s\n", version.GetTemplateVersion()))
+		fmt.Fprintf(&b, "[bts] Templates updated to %s\n", version.GetTemplateVersion())
 	}
 	b.WriteString("[bts] Context compacted (no active recipe).")
 	if len(ss.OpenFiles) > 0 {

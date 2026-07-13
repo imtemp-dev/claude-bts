@@ -699,8 +699,8 @@ var migrateTaskAnchorsCmd = &cobra.Command{
 Legacy recipes have neither the anchor comment in final.md nor the
 Task.anchor field in tasks.json. This command walks each recipe, looks
 up each Task's (file, action), inserts the anchor above the spec block
-most likely describing that file (heuristics: " `+"`"+`{file}`+"`"+` "
-mention, " ### `+"`"+`{file}`+"`"+` " heading, " ## {file} " heading,
+most likely describing that file (heuristics: " ` + "`" + `{file}` + "`" + ` "
+mention, " ### ` + "`" + `{file}` + "`" + ` " heading, " ## {file} " heading,
 first code block citing the path), and backfills Task.anchor.
 
 Ambiguous files (no match in final.md or multiple plausible locations)
@@ -1142,8 +1142,8 @@ deviation.md.bak.driver.`,
 var (
 	// Old "Not Implemented" header. Some recipes added a leading "#"
 	// or "No." column — accept either shape.
-	oldNotImplHeaderRe = regexp.MustCompile(`(?mi)^\|\s*(?:#|No\.?)?\s*\|?\s*Item\s*\|\s*File\s*\|\s*Reason\s*\|\s*$`)
-	oldSpecAddHeaderRe = regexp.MustCompile(`(?mi)^\|\s*(?:#|No\.?)?\s*\|?\s*Item\s*\|\s*File\s*\|\s*Description\s*\|\s*$`)
+	oldNotImplHeaderRe   = regexp.MustCompile(`(?mi)^\|\s*(?:#|No\.?)?\s*\|?\s*Item\s*\|\s*File\s*\|\s*Reason\s*\|\s*$`)
+	oldSpecAddHeaderRe   = regexp.MustCompile(`(?mi)^\|\s*(?:#|No\.?)?\s*\|?\s*Item\s*\|\s*File\s*\|\s*Description\s*\|\s*$`)
 	oldDeviationHeaderRe = regexp.MustCompile(`(?mi)^\|\s*(?:#|No\.?)?\s*\|?\s*Item\s*\|\s*Spec Says\s*\|\s*Code Has\s*\|\s*Resolution\s*\|\s*$`)
 )
 
@@ -1483,10 +1483,8 @@ func migrateOneSimDeviations(recipeDir, deviationPath string, dryRun bool) (int,
 		maxID++
 		id := fmt.Sprintf("D-%03d", maxID)
 		item := firstSentence(s.Detail)
-		appended.WriteString(fmt.Sprintf(
-			"| %s | %s | (see simulations/%s) | (see simulations/%s) | simulate:%s | %s | pending |\n",
-			id, item, s.File, s.File, s.ID, s.Severity,
-		))
+		fmt.Fprintf(&appended, "| %s | %s | (see simulations/%s) | (see simulations/%s) | simulate:%s | %s | pending |\n",
+			id, item, s.File, s.File, s.ID, s.Severity)
 	}
 
 	newContent := appendToDeviationSection(content, appended.String())

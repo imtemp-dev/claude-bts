@@ -114,9 +114,10 @@ func extractAnchors(content string, re *regexp.Regexp) ([]string, []string) {
 			continue
 		}
 		seen[id]++
-		if seen[id] == 1 {
+		switch seen[id] {
+		case 1:
 			ids = append(ids, id)
-		} else if seen[id] == 2 {
+		case 2:
 			dups = append(dups, id)
 		}
 	}

@@ -177,11 +177,11 @@ func runCommentList(cmd *cobra.Command, args []string) error {
 
 	for _, e := range entries {
 		fmt.Printf("%s  %s  %s:L%d  %s\n",
-			e.Comment.ID,
-			string(e.Comment.Kind),
-			e.Comment.File,
-			e.Comment.Line,
-			singleLine(e.Comment.Body),
+			e.ID,
+			string(e.Kind),
+			e.File,
+			e.Line,
+			singleLine(e.Body),
 		)
 	}
 	return nil
@@ -190,10 +190,10 @@ func runCommentList(cmd *cobra.Command, args []string) error {
 // pendingHandoff is the JSON written to .bts/local/recipes/<id>/pending-comments.json.
 // /bts-comment-apply reads this and runs Pass A/B/C.
 type pendingHandoff struct {
-	RecipeID    string                       `json:"recipe_id"`
-	GeneratedAt string                       `json:"generated_at"`
-	Comments    []listEntry                  `json:"comments"`
-	Summary     pendingSummary               `json:"summary"`
+	RecipeID    string         `json:"recipe_id"`
+	GeneratedAt string         `json:"generated_at"`
+	Comments    []listEntry    `json:"comments"`
+	Summary     pendingSummary `json:"summary"`
 }
 
 type pendingSummary struct {
