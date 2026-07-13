@@ -120,23 +120,33 @@ func runRetryNext(cmd *cobra.Command, args []string) error {
 	}
 	decision := engine.NextRetryDecision(tier, attempts, class, cfg)
 
+	// The engine owns the reset decision so the skill never has to infer
+	// it. Compare against the DEFAULTED `tier` (not task.RetryTier): on a
+	// task's first failure the stored tier is 0 but the engine ran tier 1,
+	// so next_tier==1 must read as "same tier, no reset". Comparing to the
+	// raw 0 would spuriously reset attempts_in_tier and, with the default
+	// cap of 8 exactly covering the 3+2+1+1+1 ladder, push architect
+	// escalation (tier 5) past the hard cap — unreachable again.
+	resetAttempts := decision.NextTier != tier
+
 	asJSON, _ := cmd.Flags().GetBool("json")
 	if asJSON {
 		data, err := json.MarshalIndent(map[string]interface{}{
-			"task_id":       task.ID,
-			"error_class":   string(class),
-			"current_tier":  tier,
-			"next_tier":     decision.NextTier,
-			"action":        string(decision.Action),
-			"rationale":     decision.Rationale,
+			"task_id":                task.ID,
+			"error_class":            string(class),
+			"current_tier":           tier,
+			"next_tier":              decision.NextTier,
+			"action":                 string(decision.Action),
+			"rationale":              decision.Rationale,
+			"reset_attempts_in_tier": resetAttempts,
 		}, "", "  ")
 		if err != nil {
 			return err
 		}
 		fmt.Println(string(data))
 	} else {
-		fmt.Printf("task=%s error_class=%s current_tier=%d next_tier=%d action=%s\n",
-			task.ID, class, tier, decision.NextTier, decision.Action)
+		fmt.Printf("task=%s error_class=%s current_tier=%d next_tier=%d action=%s reset_attempts_in_tier=%t\n",
+			task.ID, class, tier, decision.NextTier, decision.Action, resetAttempts)
 		fmt.Println("rationale:", decision.Rationale)
 	}
 	return nil

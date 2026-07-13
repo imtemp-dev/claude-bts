@@ -220,7 +220,13 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 	}
 
 	phaseWeight := map[string]int{
-		"scoping": 1, "research": 2, "draft": 3, "assess": 3, "improve": 3,
+		"scoping": 1, "research": 2,
+		// Pre-draft structural phases (Phase 15+ blueprint flow). Weight 2
+		// keeps them past scoping/research but below draft=3, so doctor
+		// checks scope/research artifacts without false-flagging a missing
+		// draft.md while the recipe is still deciding its decomposition.
+		"domain-model": 2, "architect": 2, "wireframe": 2,
+		"draft": 3, "assess": 3, "improve": 3,
 		"verify": 3, "debate": 3, "simulate": 3, "audit": 3,
 		"finalize": 4, "implement": 5, "test": 6, "review": 7,
 		"sync": 8, "status": 9, "complete": 10,
@@ -540,7 +546,13 @@ func checkFlowCompliance(recipeDir string, recipe *state.RecipeState) []doctorIs
 
 func phaseWeightOf(phase string) int {
 	w := map[string]int{
-		"scoping": 1, "research": 2, "draft": 3, "assess": 3, "improve": 3,
+		"scoping": 1, "research": 2,
+		// Pre-draft structural phases (Phase 15+ blueprint flow). Weight 2
+		// keeps them past scoping/research but below draft=3, so doctor
+		// checks scope/research artifacts without false-flagging a missing
+		// draft.md while the recipe is still deciding its decomposition.
+		"domain-model": 2, "architect": 2, "wireframe": 2,
+		"draft": 3, "assess": 3, "improve": 3,
 		"verify": 3, "debate": 3, "simulate": 3, "audit": 3,
 		"finalize": 4, "implement": 5, "test": 6, "review": 7,
 		"sync": 8, "status": 9, "complete": 10,

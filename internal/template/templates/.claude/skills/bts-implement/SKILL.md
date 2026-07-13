@@ -245,7 +245,8 @@ Run the project's build command:
    ```bash
    bts retry next --recipe {id} --task {task-id} --json
    ```
-   The response carries `{error_class, current_tier, next_tier, action, rationale}`.
+   The response carries `{error_class, current_tier, next_tier, action,
+   rationale, reset_attempts_in_tier}`.
    The engine reads `attempts_in_tier` to decide tier exhaustion —
    without the reset in step 4 below, upper tiers are skipped.
 3. Execute the returned action:
@@ -265,11 +266,15 @@ Run the project's build command:
    - `block`            — ladder exhausted: set status=blocked,
      persist a `last_error: "retry_ladder_exhausted: {signature}"`
      value, move to the next task.
-4. Persist the returned `next_tier` onto `task.retry_tier`. **If
-   `next_tier` differs from the previous tier, reset
-   `task.attempts_in_tier` to 0** — each tier gets its own budget.
-   Append a one-line `task.escalation_notes` entry summarizing the
-   transition (`tier N→M: {action} because {error_class}`).
+4. Persist the returned `next_tier` onto `task.retry_tier`. **If the
+   response's `reset_attempts_in_tier` is `true`, set
+   `task.attempts_in_tier` to 0** — each tier gets its own budget. Use
+   the flag verbatim; do NOT recompute it by comparing tiers yourself
+   (on the first failure the stored tier is 0 while the engine ran
+   tier 1, and a hand-rolled `0 != 1` reset silently costs the ladder
+   its architect-escalation tier). Append a one-line
+   `task.escalation_notes` entry summarizing the transition
+   (`tier N→M: {action} because {error_class}`).
 5. Hard cap still applies: `retry_count >= settings.implement.max_build_retries`
    (default 8 — sized to cover the full ladder: 3+2+1+1+1) forces the
    block action regardless of the ladder's preference.
