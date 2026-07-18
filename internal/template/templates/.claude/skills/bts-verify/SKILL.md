@@ -90,7 +90,11 @@ it independently (single-read discipline; a copy here would be unused).
 
    1. Context7 MCP (preferred): mcp__context7__resolve-library-id then
       mcp__context7__get-library-docs with a topic from the claim.
-   2. WebFetch on OFFICIAL domains only when Context7 misses. Official
+      If the Context7 tools are absent or return errors (rate limit,
+      auth), retry AT MOST once, then fall through to step 2 — record
+      Context7:unavailable (not miss).
+   2. WebFetch on OFFICIAL domains when Context7 misses or is
+      unavailable. Official
       domain = the platform/framework vendor's OWN primary documentation
       domain (e.g. developer.android.com, react.dev, go.dev — apply the
       rule, not a memorized list; the full examples list lives in
@@ -115,7 +119,7 @@ it independently (single-read discipline; a copy here would be unused).
    - Never invent citations. If a fetch fails, write "Evidence unavailable"
      and keep the conservative classification from the table above.
    - For every claim you attempted to evidence, include a line
-     `Gathered: [Context7:<hit|miss> | WebFetch:<url>:<status> | WebSearch:<n>]`
+     `Gathered: [Context7:<hit|miss|unavailable> | WebFetch:<url>:<status> | WebSearch:<n>]`
      so downstream improve cycles can see what was tried.
 
    Budget: evidence-gather only CRITICAL/MAJOR candidates, cap at 5 findings

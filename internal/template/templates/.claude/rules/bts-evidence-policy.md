@@ -27,6 +27,11 @@ recommended architecture patterns, API contracts.
 
 1. **Context7 MCP** (preferred): `mcp__context7__resolve-library-id` →
    `mcp__context7__get-library-docs` with a topic derived from the claim.
+   If Context7 is UNAVAILABLE (tools not present, server error, auth or
+   rate-limit failure), retry AT MOST once, then move to step 2
+   immediately — do not burn turns on a dead tier. Record
+   `Context7:unavailable` (not `miss`) so downstream cycles know the
+   service failed rather than the docs not existing.
 2. **WebFetch on OFFICIAL domains** when Context7 misses. An official
    domain is **the platform/framework vendor's OWN primary documentation
    domain** — the domain the vendor itself publishes docs on. Apply the
@@ -59,7 +64,10 @@ unofficial tutorials, unversioned docs.
 ## Citation format
 
 - `Source: <URL>` — one line per claim; multiple URLs separated by ` | `
-- `Gathered: [Context7:<hit|miss> | WebFetch:<url>:<status> | WebSearch:<n>]`
+- `Gathered: [Context7:<hit|miss|unavailable> | WebFetch:<url>:<status> | WebSearch:<n>]`
+  — `miss` = Context7 answered but has no matching library/topic;
+  `unavailable` = server error, rate limit, or not configured. Only
+  `unavailable` is worth re-trying Context7 for in a later cycle.
 - Never invent citations. Failed fetch → write "Evidence unavailable"
   and keep the conservative classification.
 
@@ -92,4 +100,6 @@ dependency manifests, and the fetched guidance must apply to those
 majors — pattern advice often flips across majors (SwiftUI
 `ObservableObject` → `@Observable`, React class components → hooks).
 A mismatch is not disqualifying, but it must be recorded and addressed
-in the architect debate.
+in the architect debate. When Context7 is unavailable, version-match via
+the vendor docs' own version selector / versioned URL paths instead
+(e.g. `docs.djangoproject.com/en/{major}/`) and note it in `Gathered:`.

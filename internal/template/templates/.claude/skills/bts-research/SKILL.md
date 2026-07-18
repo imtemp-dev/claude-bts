@@ -60,7 +60,9 @@ Research the given topic and produce a structured document.
    pubspec.yaml, pyproject.toml / requirements.txt, Cargo.toml,
    Gemfile) and record the major version of every framework the
    guidance will cover. When resolving Context7 docs, match the
-   detected major (`resolve-library-id` supports version selection).
+   detected major (`resolve-library-id` supports version selection);
+   if Context7 is unavailable, version-match via the vendor docs' own
+   version selector / versioned URL paths instead.
    If the fetched guidance targets a DIFFERENT major than the project
    uses, record the mismatch explicitly — pattern advice often flips
    across majors (SwiftUI `ObservableObject` → `@Observable`, React
