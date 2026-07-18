@@ -1,9 +1,11 @@
 package state
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -53,6 +55,44 @@ func LoadVerifySnapshot(root, recipeID, docBase string) ([]byte, bool, error) {
 		return nil, false, err
 	}
 	return data, true, nil
+}
+
+// DirtyVerifiedDocs returns basenames of documents whose current
+// content differs from their last-verified snapshot — i.e. documents
+// modified AFTER their last verification (rule 3 violations). Returns
+// nil when no snapshot dir exists: legacy recipes (pre --doc) have
+// nothing enforceable, and blocking them would be a false positive.
+// Docs whose snapshot exists but whose current file is gone are
+// skipped — missing-document problems belong to other gates.
+func DirtyVerifiedDocs(root, recipeID string) ([]string, error) {
+	dir := VerifySnapshotDir(root, recipeID)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var dirty []string
+	for _, e := range entries {
+		// .tmp files are leftovers of a crashed atomic write, not snapshots.
+		if e.IsDir() || strings.HasSuffix(e.Name(), ".tmp") {
+			continue
+		}
+		snap, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		cur, err := os.ReadFile(filepath.Join(RecipeDir(root, recipeID), e.Name()))
+		if err != nil {
+			continue
+		}
+		if !bytes.Equal(snap, cur) {
+			dirty = append(dirty, e.Name())
+		}
+	}
+	sort.Strings(dirty)
+	return dirty, nil
 }
 
 // RecipeIDFromDocPath extracts the recipe ID from a document path like

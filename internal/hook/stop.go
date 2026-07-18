@@ -90,7 +90,24 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		)), nil
 	}
 
-	// 2b. Deferred minors must be declared as Known Uncertainties entries
+	// 2b. Rule 3 hard gate: verified documents must be UNCHANGED since
+	// their last verification. Mandatory verification was prompt-level
+	// until v0.9.x; the verify snapshots (`recipe log --doc`) make it
+	// machine-checkable. No snapshots → nothing enforceable (legacy
+	// recipes) — gates 1-2 still apply. Fail-open on read errors: a
+	// tooling failure is not a verification veto (same policy as the
+	// BTS-BLOCK count below).
+	if dirty, derr := state.DirtyVerifiedDocs(root, recipe.ID); derr != nil {
+		fmt.Fprintf(os.Stderr,
+			"[bts] warning: dirty-doc check failed: %v (proceeding without check)\n", derr)
+	} else if len(dirty) > 0 {
+		return blockOutput(fmt.Sprintf(
+			"%s modified after last verification. Rule 3: every modification requires /bts-verify. Re-verify the modified doc(s), record with `bts recipe log %s --from-verification .bts/specs/recipes/%s/verification.md --doc <doc-path>`, then re-emit DONE.",
+			strings.Join(dirty, ", "), recipe.ID, recipe.ID,
+		)), nil
+	}
+
+	// 2c. Deferred minors must be declared as Known Uncertainties entries
 	// (### U-NNN) so /bts-implement inherits the watch-list (blueprint
 	// rule 3b). Without this, deferred findings silently vanish between
 	// spec and implementation.
@@ -101,13 +118,13 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		}
 		if all, _, uerr := engine.CheckKnownUncertainties(specPath); uerr == nil && len(all) == 0 {
 			return blockOutput(fmt.Sprintf(
-				"%d minor [deferred] finding(s) recorded but %s has no '## Known Uncertainties' entries (### U-NNN form). Per blueprint rule 3b, append each deferred minor with its Why-deferred: line, then re-emit DONE.",
+				"%d minor [deferred] finding(s) recorded but %s has no '## Known Uncertainties' entries (### U-NNN form). Per blueprint rule 3b, append each deferred minor with its Why-deferred: line, re-run /bts-verify (the append is a modification — rule 3), then re-emit DONE.",
 				lastEntry.MinorDeferred, filepath.Base(specPath),
 			)), nil
 		}
 	}
 
-	// 2c. Blueprint-only changelog gates: simulate-at-least-once (rule 5)
+	// 2d. Blueprint-only changelog gates: simulate-at-least-once (rule 5)
 	// and sync-check-after-last-modification (rule 8). Both rules are
 	// tagged {gate: hard} — before Sprint 10 neither was actually
 	// machine-enforced (sync-check never touched verify-log; simulate
@@ -330,6 +347,19 @@ func (h *stopHandler) handleFixDone(root string, recipe *state.RecipeState) (*Ho
 	fixSpecPath := filepath.Join(state.RecipeDir(root, recipe.ID), "fix-spec.md")
 	if _, err := os.Stat(fixSpecPath); os.IsNotExist(err) {
 		return blockOutput("No fix-spec.md found. Create fix spec before completing."), nil
+	}
+
+	// 1b. Rule 3 hard gate — same as spec DONE: the verified fix-spec
+	// must be unchanged since its last verification. (Applies only when
+	// snapshots exist; legacy fix recipes pass through.)
+	if dirty, derr := state.DirtyVerifiedDocs(root, recipe.ID); derr != nil {
+		fmt.Fprintf(os.Stderr,
+			"[bts] warning: dirty-doc check failed: %v (proceeding without check)\n", derr)
+	} else if len(dirty) > 0 {
+		return blockOutput(fmt.Sprintf(
+			"%s modified after last verification. Rule 3: re-verify the modified doc(s), record with `bts recipe log %s --from-verification ... --doc <doc-path>`, then re-emit FIX DONE.",
+			strings.Join(dirty, ", "), recipe.ID,
+		)), nil
 	}
 
 	// 2. Check test-results.json

@@ -288,10 +288,18 @@ bts recipe log {id} --phase implement --action implement --result "N files modif
 
 ## Step 8: Test
 
-Run existing test suite + add regression test from fix-spec.md's
-"Regression Test" section:
-- If all pass → Step 9 (Simulate)
-- If fail → re-examine fix-spec.md (back to Step 6)
+Add the regression test from fix-spec.md's "Regression Test" section,
+then run the suite THROUGH bts so status is machine-truthful:
+
+```bash
+bts test run {id} --cmd "<project test command>"
+```
+
+`bts test run` writes test-results.json with `status` derived from the
+actual exit code (`recorded_by: "bts"`) — the FIX DONE gate trusts
+this. Do NOT run tests via plain Bash and hand-write test-results.json.
+- Exits 0 → Step 9 (Simulate)
+- Fails → re-examine fix-spec.md (back to Step 6), then re-run
 
 ```bash
 bts recipe log {id} --phase test --action test --output test-results.json --result "N/N passed"

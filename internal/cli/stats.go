@@ -20,6 +20,7 @@ func init() {
 	statsCmd.Flags().Bool("json", false, "Output as JSON")
 	statsCmd.Flags().Bool("csv", false, "Output as CSV (one row per session)")
 	statsCmd.Flags().Bool("indicators", false, "Emit the Phase 17 14-indicator recipe snapshot as JSON")
+	statsCmd.Flags().Bool("outcomes", false, "Correlate verification quality with implementation outcomes (retries, test iterations, deviations) across recipes")
 	statsCmd.Flags().String("recipe", "", "Recipe ID (with --indicators; defaults to active)")
 }
 
@@ -40,6 +41,11 @@ func runStats(cmd *cobra.Command, args []string) error {
 
 	if ok, _ := cmd.Flags().GetBool("indicators"); ok {
 		return runIndicators(cmd, root, args)
+	}
+
+	if ok, _ := cmd.Flags().GetBool("outcomes"); ok {
+		jsonOutput, _ := cmd.Flags().GetBool("json")
+		return runStatsOutcomes(root, jsonOutput)
 	}
 
 	jsonOutput, _ := cmd.Flags().GetBool("json")

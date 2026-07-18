@@ -275,6 +275,9 @@ Located at `.bts/specs/recipes/{id}/test-results.json`:
   "framework": "jest",
   "iterations": 2,
   "status": "pass",
+  "exit_code": 0,
+  "command": "npx jest",
+  "recorded_by": "bts",
   "total": 15,
   "passed": 15,
   "failed": 0,
@@ -287,6 +290,14 @@ Located at `.bts/specs/recipes/{id}/test-results.json`:
   "notes": ["Fixed off-by-one in token expiry check"]
 }
 ```
+
+The core is written by `bts test run {id} --cmd "..."` — it executes
+the command and derives `status` from the ACTUAL exit code
+(`recorded_by: "bts"`). `status`, `exit_code`, `iterations`,
+`recorded_by` MUST NOT be hand-edited; supplement only the descriptive
+fields (counts, test_files, scenario_coverage, failures, notes) after
+the final run. `bts doctor` flags hand-recorded files (missing
+`recorded_by`).
 
 Required fields:
 - `recipe_id` (string): recipe this test run belongs to

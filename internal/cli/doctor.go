@@ -134,6 +134,8 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		issues = append(issues, checkVerifyLog(recipeDir, recipe.ID)...)
 		issues = append(issues, checkFlowCompliance(recipeDir, recipe)...)
 		issues = append(issues, checkOpenComments(recipeDir, recipe.ID, recipe.Phase)...)
+		issues = append(issues, checkTestResultsProvenance(root, recipe.ID)...)
+		issues = append(issues, checkDirtyVerifiedDocs(root, recipe.ID)...)
 
 		if len(issues) == 0 {
 			fmt.Println("   ✓ All checks pass")
@@ -192,6 +194,20 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		} else {
 			fmt.Printf("   ✓ roadmap.md (%d/%d done)\n", done, total)
 		}
+	}
+
+	// Config drift checks — user-owned files (settings.yaml, .mcp.json)
+	// are preserved by `bts update`, so they silently miss new defaults.
+	driftIssues := checkConfigDrift(root)
+	if len(driftIssues) == 0 {
+		fmt.Println("   ✓ config drift: none")
+	}
+	for _, iss := range driftIssues {
+		fmt.Printf("   ⚠ [%s] %s\n", iss.section, iss.message)
+		if iss.fix != "" {
+			fmt.Printf("     → %s\n", iss.fix)
+		}
+		totalWarnings++
 	}
 
 	fmt.Printf("\n%d error(s), %d warning(s)\n", totalErrors, totalWarnings)

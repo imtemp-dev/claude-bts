@@ -1,0 +1,130 @@
+package cli
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/imtemp-dev/claude-bts/internal/state"
+)
+
+func writeProjectFile(t *testing.T, root, rel, content string) {
+	t.Helper()
+	path := filepath.Join(root, rel)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCheckConfigDrift_ActiveReviewerSecurity(t *testing.T) {
+	root := t.TempDir()
+	writeProjectFile(t, root, ".bts/config/settings.yaml", `
+agents:
+  # verifier: sonnet
+  reviewer_security: sonnet
+  # reviewer_arch: sonnet
+`)
+	issues := checkConfigDrift(root)
+	if len(issues) != 1 || !strings.Contains(issues[0].message, "reviewer_security") {
+		t.Fatalf("expected reviewer_security drift warning, got %v", issues)
+	}
+	if issues[0].level != "warning" {
+		t.Errorf("must be warning (may be intentional), got %s", issues[0].level)
+	}
+}
+
+func TestCheckConfigDrift_CommentedOverrideIsClean(t *testing.T) {
+	root := t.TempDir()
+	writeProjectFile(t, root, ".bts/config/settings.yaml", `
+agents:
+  # reviewer_security: sonnet
+`)
+	if issues := checkConfigDrift(root); len(issues) != 0 {
+		t.Fatalf("commented override must not warn: %v", issues)
+	}
+}
+
+func TestCheckConfigDrift_McpWithoutKeyPassthrough(t *testing.T) {
+	root := t.TempDir()
+	writeProjectFile(t, root, ".mcp.json",
+		`{"mcpServers":{"context7":{"command":"/bin/bash","args":["-l","-c","exec npx -y @upstash/context7-mcp@latest"]}}}`)
+	issues := checkConfigDrift(root)
+	if len(issues) != 1 || !strings.Contains(issues[0].message, "CONTEXT7_API_KEY") {
+		t.Fatalf("expected passthrough warning, got %v", issues)
+	}
+}
+
+func TestCheckConfigDrift_McpWithPassthroughClean(t *testing.T) {
+	root := t.TempDir()
+	writeProjectFile(t, root, ".mcp.json",
+		`{"mcpServers":{"context7":{"command":"/bin/bash","args":["-l","-c","exec npx -y @upstash/context7-mcp@latest ${CONTEXT7_API_KEY:+--api-key \"$CONTEXT7_API_KEY\"}"]}}}`)
+	if issues := checkConfigDrift(root); len(issues) != 0 {
+		t.Fatalf("passthrough present must not warn: %v", issues)
+	}
+}
+
+func TestCheckConfigDrift_MissingFilesClean(t *testing.T) {
+	root := t.TempDir()
+	if issues := checkConfigDrift(root); len(issues) != 0 {
+		t.Fatalf("missing config files must not warn: %v", issues)
+	}
+}
+
+func TestCheckTestResultsProvenance(t *testing.T) {
+	root := t.TempDir()
+	id := "r-100-prov"
+	dir := filepath.Join(root, ".bts", "specs", "recipes", id)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// No file → clean.
+	if issues := checkTestResultsProvenance(root, id); len(issues) != 0 {
+		t.Fatalf("no file must be clean: %v", issues)
+	}
+
+	// Hand-recorded → warning.
+	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/test-results.json",
+		`{"recipe_id":"`+id+`","status":"pass","total":5,"passed":5}`)
+	issues := checkTestResultsProvenance(root, id)
+	if len(issues) != 1 || !strings.Contains(issues[0].message, "hand-recorded") {
+		t.Fatalf("expected hand-recorded warning, got %v", issues)
+	}
+
+	// Machine-recorded → clean.
+	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/test-results.json",
+		`{"recipe_id":"`+id+`","status":"pass","recorded_by":"bts","exit_code":0}`)
+	if issues := checkTestResultsProvenance(root, id); len(issues) != 0 {
+		t.Fatalf("bts-recorded must be clean: %v", issues)
+	}
+}
+
+func TestCheckDirtyVerifiedDocsDoctor(t *testing.T) {
+	root := t.TempDir()
+	id := "r-101-dirty"
+	dir := filepath.Join(root, ".bts", "specs", "recipes", id)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	doc := filepath.Join(dir, "draft.md")
+	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/draft.md", "verified")
+	if err := state.SaveVerifySnapshot(root, id, doc); err != nil {
+		t.Fatal(err)
+	}
+
+	// Clean while unchanged.
+	if issues := checkDirtyVerifiedDocs(root, id); len(issues) != 0 {
+		t.Fatalf("unchanged doc must be clean: %v", issues)
+	}
+
+	// Warn after modification.
+	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/draft.md", "edited after verify")
+	issues := checkDirtyVerifiedDocs(root, id)
+	if len(issues) != 1 || !strings.Contains(issues[0].message, "draft.md") {
+		t.Fatalf("expected dirty warning naming draft.md, got %v", issues)
+	}
+}

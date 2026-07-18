@@ -130,6 +130,8 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 			msg = fmt.Sprintf("[bts] Resuming. %s\nRun /bts-implement %s to start coding.", ws.Summary, recipe.ID)
 		}
 
+		msg += dirtyDocWarning(root, recipe.ID)
+
 		if updated {
 			msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)
 		}
@@ -181,6 +183,8 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 		)
 	}
 
+	msg += dirtyDocWarning(root, recipe.ID)
+
 	if updated {
 		msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)
 	}
@@ -191,6 +195,20 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 			AdditionalContext: msg,
 		},
 	}, nil
+}
+
+// dirtyDocWarning returns a rule-3 warning when verified documents were
+// modified after their last verification (per verify snapshots), ""
+// otherwise. Best-effort: errors and legacy recipes (no snapshots)
+// produce no warning.
+func dirtyDocWarning(root, recipeID string) string {
+	dirty, err := state.DirtyVerifiedDocs(root, recipeID)
+	if err != nil || len(dirty) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(
+		"\n⚠ %s modified after last verification — run /bts-verify before continuing (rule 3).",
+		strings.Join(dirty, ", "))
 }
 
 // buildHint chooses the most actionable next-step description.

@@ -208,5 +208,77 @@ $BTS recipe log gp-001 --iteration 1 --critical 0 --major 0 --doc .bts/specs/rec
 echo "New line for focus" >> .bts/specs/recipes/gp-001/draft.md
 $BTS recipe verify-focus .bts/specs/recipes/gp-001/draft.md | grep -q "+ New line for focus" && echo "✓ 33. verify-focus snapshot diff" || { echo "✗ 33. verify-focus diff"; exit 1; }
 
+# --- Rule 3 dirty-doc gate + machine-truth test run + outcomes/doctor ---
+# Park earlier still-active fixtures so ad-001 is the single active recipe
+# (stop gates fire only for the active recipe).
+for rid in disc-001 ptu-001 gp-001; do
+  python3 -c "
+import json
+p = '.bts/specs/recipes/$rid/recipe.json'
+d = json.load(open(p)); d['phase'] = 'complete'
+json.dump(d, open(p, 'w'))
+"
+done
+
+# 34. Dirty-doc gate — converged + snapshotted spec allows DONE
+mkdir -p .bts/specs/recipes/ad-001
+echo '{"id":"ad-001","type":"blueprint","topic":"Dirty gate","phase":"verify","iteration":1,"level":2.5,"started_at":"2026-03-18T00:00:00Z","updated_at":"2026-03-18T00:00:00Z"}' > .bts/specs/recipes/ad-001/recipe.json
+printf '# Draft\n\nVerified content v1.\n' > .bts/specs/recipes/ad-001/draft.md
+echo "# Verification findings" > .bts/specs/recipes/ad-001/verification.md
+$BTS recipe log ad-001 --action improve --output draft.md > /dev/null
+$BTS recipe log ad-001 --action simulate --output simulations/sim-001.md --gaps 0 --result "5 scenarios, 0 gaps" > /dev/null
+$BTS recipe log ad-001 --iteration 1 --critical 0 --major 0 --doc .bts/specs/recipes/ad-001/draft.md > /dev/null
+python3 -c "
+import json
+p = '.bts/specs/recipes/ad-001/manifest.json'
+m = json.load(open(p))
+d = m['documents']['draft.md']
+d['verified_by'] = 'verification.md'
+d['resolves'] = ['simulations/sim-001.md']
+json.dump(m, open(p, 'w'))
+"
+$BTS sync-check ad-001 > /dev/null 2>&1 || { echo "✗ 34. sync-check pass"; exit 1; }
+RESULT=$(echo '{"session_id":"t","cwd":"'"$TEST_DIR"'","hook_event_name":"stop","content":"<bts>DONE</bts>"}' | $BTS hook stop 2>&1; echo "EXIT:$?")
+echo "$RESULT" | grep -q "EXIT:0" && echo "✓ 34. DONE allows with clean snapshot" || { echo "✗ 34. clean snapshot allow: $RESULT"; exit 1; }
+
+# 35. Modifying the doc AFTER verification blocks DONE (changelog gates
+# cannot see raw file edits — the snapshot gate must catch it).
+python3 -c "
+import json
+p = '.bts/specs/recipes/ad-001/recipe.json'
+d = json.load(open(p)); d['phase'] = 'verify'
+json.dump(d, open(p, 'w'))
+"
+echo "sneaky post-verify edit" >> .bts/specs/recipes/ad-001/draft.md
+RESULT=$(echo '{"session_id":"t","cwd":"'"$TEST_DIR"'","hook_event_name":"stop","content":"<bts>DONE</bts>"}' | $BTS hook stop 2>&1; echo "EXIT:$?")
+echo "$RESULT" | grep -q "EXIT:2" && echo "$RESULT" | grep -q "modified after last verification" && echo "✓ 35. dirty doc blocks DONE" || { echo "✗ 35. dirty block: $RESULT"; exit 1; }
+
+# 36. Re-verifying (log --doc re-snapshots) unblocks DONE
+$BTS recipe log ad-001 --iteration 2 --critical 0 --major 0 --doc .bts/specs/recipes/ad-001/draft.md > /dev/null
+RESULT=$(echo '{"session_id":"t","cwd":"'"$TEST_DIR"'","hook_event_name":"stop","content":"<bts>DONE</bts>"}' | $BTS hook stop 2>&1; echo "EXIT:$?")
+echo "$RESULT" | grep -q "EXIT:0" && echo "✓ 36. re-verify unblocks DONE" || { echo "✗ 36. re-verify allow: $RESULT"; exit 1; }
+
+# 37. bts test run — status is machine-truth from the exit code
+$BTS test run ad-001 --cmd "exit 0" > /dev/null 2>&1 || { echo "✗ 37. test run pass"; exit 1; }
+grep -q '"recorded_by": "bts"' .bts/specs/recipes/ad-001/test-results.json || { echo "✗ 37. recorded_by"; exit 1; }
+grep -q '"status": "pass"' .bts/specs/recipes/ad-001/test-results.json || { echo "✗ 37. pass status"; exit 1; }
+if $BTS test run ad-001 --cmd "exit 1" > /dev/null 2>&1; then echo "✗ 37. fail exit"; exit 1; fi
+grep -q '"status": "fail"' .bts/specs/recipes/ad-001/test-results.json && grep -q '"iterations": 2' .bts/specs/recipes/ad-001/test-results.json && echo "✓ 37. test run machine-truth (pass→fail, iteration 2)" || { echo "✗ 37. fail status"; exit 1; }
+
+# 38. stats --outcomes runs and correlates
+$BTS stats --outcomes | grep -q "Grouped means" && echo "✓ 38. stats --outcomes" || { echo "✗ 38. outcomes"; exit 1; }
+
+# 39. doctor flags config drift + hand-recorded test results
+python3 -c "
+import re
+p = '.bts/config/settings.yaml'
+s = open(p).read()
+s = s.replace('# reviewer_security: sonnet', 'reviewer_security: sonnet')
+open(p, 'w').write(s)
+"
+DOCTOR=$($BTS doctor 2>&1 || true)
+echo "$DOCTOR" | grep -q "reviewer_security" || { echo "✗ 39. doctor drift"; exit 1; }
+echo "$DOCTOR" | grep -q "hand-recorded" && echo "✓ 39. doctor drift + provenance" || { echo "✗ 39. doctor provenance"; exit 1; }
+
 echo ""
-echo "=== All 33 tests passed ==="
+echo "=== All 39 tests passed ==="

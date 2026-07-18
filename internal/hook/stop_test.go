@@ -457,3 +457,104 @@ func TestStopImplementDone_NoUncertaintySectionPasses(t *testing.T) {
 		t.Fatalf("absent uncertainty section should not block: %s", out.Reason)
 	}
 }
+
+// --- Rule 3 dirty-doc gate (verify snapshots) ---
+
+func writeSnapshotAndDoc(t *testing.T, root, recipeID, base, snapContent, docContent string) {
+	t.Helper()
+	docPath := filepath.Join(state.RecipeDir(root, recipeID), base)
+	if err := os.WriteFile(docPath, []byte(snapContent), 0644); err != nil {
+		t.Fatalf("write doc: %v", err)
+	}
+	if err := state.SaveVerifySnapshot(root, recipeID, docPath); err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if docContent != snapContent {
+		if err := os.WriteFile(docPath, []byte(docContent), 0644); err != nil {
+			t.Fatalf("rewrite doc: %v", err)
+		}
+	}
+}
+
+// TestStopSpecDone_BlocksDirtyDoc — a doc modified after its last
+// verification must block DONE even when the verify-log is converged.
+func TestStopSpecDone_BlocksDirtyDoc(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 0, Major: 0, Status: "converged"},
+	})
+	writeSnapshotAndDoc(t, root, recipeID, "draft.md", "verified content\n", "edited AFTER verify\n")
+
+	h := NewStopHandler()
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision != "block" {
+		t.Fatalf("expected block, got %q (reason=%q)", out.Decision, out.Reason)
+	}
+	if !strings.Contains(out.Reason, "draft.md") || !strings.Contains(out.Reason, "modified after last verification") {
+		t.Errorf("reason should name the dirty doc and rule: %q", out.Reason)
+	}
+}
+
+// TestStopSpecDone_AllowsCleanSnapshot — matching snapshot passes.
+func TestStopSpecDone_AllowsCleanSnapshot(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 0, Major: 0, Status: "converged"},
+	})
+	writeSnapshotAndDoc(t, root, recipeID, "draft.md", "verified content\n", "verified content\n")
+
+	h := NewStopHandler()
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision == "block" {
+		t.Fatalf("clean snapshot must not block: %q", out.Reason)
+	}
+}
+
+// TestStopSpecDone_LegacyNoSnapshotsAllows — recipes that never used
+// --doc (pre-v0.8.0) must not be blocked by the new gate.
+func TestStopSpecDone_LegacyNoSnapshotsAllows(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 0, Major: 0, Status: "converged"},
+	})
+	// No snapshots at all — gate must pass through.
+	h := NewStopHandler()
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision == "block" {
+		t.Fatalf("legacy recipe must not block: %q", out.Reason)
+	}
+}
+
+// TestStopFixDone_BlocksDirtyFixSpec — same rule-3 gate on FIX DONE.
+func TestStopFixDone_BlocksDirtyFixSpec(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	recipe, _ := state.LoadRecipeState(root, recipeID)
+	recipe.Type = "fix"
+	if err := state.SaveRecipeState(root, recipe); err != nil {
+		t.Fatalf("save recipe: %v", err)
+	}
+	writeSnapshotAndDoc(t, root, recipeID, "fix-spec.md", "verified fix\n", "tweaked after verify\n")
+	// Passing tests so only the dirty gate can block.
+	tr := `{"recipe_id":"` + recipeID + `","status":"pass","total":3,"passed":3,"failed":0,"skipped":0}`
+	if err := os.WriteFile(filepath.Join(state.RecipeDir(root, recipeID), "test-results.json"), []byte(tr), 0644); err != nil {
+		t.Fatalf("write test results: %v", err)
+	}
+
+	h := NewStopHandler()
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>FIX DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision != "block" || !strings.Contains(out.Reason, "fix-spec.md") {
+		t.Fatalf("expected fix-spec dirty block, got decision=%q reason=%q", out.Decision, out.Reason)
+	}
+}

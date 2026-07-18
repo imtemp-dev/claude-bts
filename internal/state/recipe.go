@@ -89,6 +89,47 @@ type TestResults struct {
 	Failed     int      `json:"failed"`
 	Skipped    int      `json:"skipped"`
 	TestFiles  []string `json:"test_files,omitempty"`
+	// Machine-truth fields written by `bts test run`. RecordedBy=="bts"
+	// means Status was derived from the actual exit code by the CLI, not
+	// transcribed by the orchestrator. Legacy hand-written files lack
+	// these; `bts doctor` flags them.
+	ExitCode   int    `json:"exit_code"`
+	Command    string `json:"command,omitempty"`
+	RecordedBy string `json:"recorded_by,omitempty"`
+}
+
+// SaveTestResults persists test-results.json for a recipe.
+func SaveTestResults(root, recipeID string, tr *TestResults) error {
+	return WriteJSON(filepath.Join(RecipeDir(root, recipeID), "test-results.json"), tr)
+}
+
+// ReadVerifyLog returns all verify-log entries in file order.
+// Malformed lines are skipped; a missing file returns nil, nil.
+func ReadVerifyLog(root, recipeID string) ([]VerifyLogEntry, error) {
+	f, err := os.Open(filepath.Join(RecipeDir(root, recipeID), "verify-log.jsonl"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	defer f.Close()
+
+	var entries []VerifyLogEntry
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var e VerifyLogEntry
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			continue
+		}
+		entries = append(entries, e)
+	}
+	return entries, scanner.Err()
 }
 
 // LoadTaskState reads tasks.json from a recipe directory.

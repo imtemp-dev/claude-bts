@@ -124,14 +124,20 @@ Track failure history for oscillation detection.
 Repeat the following (max `settings.implement.max_test_iterations` — authoritative source is `.bts/config/settings.yaml`; do NOT hardcode a default here):
 
 ### RUN
-Execute the test suite:
+Execute the test suite via the CLI so status is machine-truthful:
 ```bash
-# Detect and run appropriate test command
-# Node.js: npx jest / npx vitest / npm test
-# Go: go test ./...
-# Python: pytest
-# Rust: cargo test
+# Detect the project's test command, then run it THROUGH bts:
+bts test run {id} --cmd "go test ./..."
+# Node.js: --cmd "npx jest" / "npx vitest run" / "npm test"
+# Python:  --cmd "pytest"        Rust: --cmd "cargo test"
 ```
+`bts test run` executes the command itself, streams the output, and
+writes test-results.json with `status` derived from the ACTUAL exit
+code (`recorded_by: "bts"`), auto-incrementing `iterations`. It exits
+non-zero on failure. Do NOT run the test command via plain Bash and
+hand-write test-results.json — the DONE gates trust the
+machine-recorded status, and `bts doctor` flags hand-recorded files.
+Full output is also saved to `.bts/local/recipes/{id}/test-output.log`.
 
 ### ASSESS
 If all tests pass → proceed to Step 4.
@@ -163,7 +169,9 @@ Manual intervention needed."
 These modifications will appear as deviations in the sync step — this is expected.
 
 ### RUN again
-- Re-run tests after fixes
+- Re-run via `bts test run {id} --cmd ...` after fixes (iterations
+  auto-increment; each run rewrites the machine-truth core and clears
+  prior annotations)
 - Continue until all pass or max iterations reached
 
 If max iterations reached with failures:
@@ -172,14 +180,18 @@ If max iterations reached with failures:
 
 ## Step 4: Record Results
 
-1. Save test results to `.bts/specs/recipes/{id}/test-results.json`:
+1. The final `bts test run` invocation already wrote the machine-truth
+   core of `.bts/specs/recipes/{id}/test-results.json`: `status`,
+   `exit_code`, `iterations`, `command`, `recorded_by: "bts"`.
+   **NEVER hand-edit these fields** — the DONE gates trust them.
+   Counts can be passed at run time (`--total 15 --passed 15 --failed 0
+   --skipped 0`) or supplemented in step 2.
+
+2. Supplement the SAME file with the descriptive fields via the Edit
+   tool (add keys; do not rewrite the file — and only AFTER the final
+   run, since each `bts test run` resets annotations):
    ```json
    {
-     "recipe_id": "{id}",
-     "run_at": "ISO8601",
-     "framework": "jest",
-     "iterations": 3,
-     "status": "pass",
      "total": 15,
      "passed": 15,
      "failed": 0,
