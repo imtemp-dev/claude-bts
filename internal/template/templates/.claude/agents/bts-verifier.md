@@ -24,6 +24,12 @@ finding with `Source:` and `Gathered:` lines. Never invent citations —
 if evidence is unavailable, write "Evidence unavailable" and keep the
 conservative classification.
 
+**Mermaid path enumeration**: when the caller's prompt includes a
+precomputed "Mermaid Graph Analysis" block, treat its path enumeration
+as authoritative — judge specification coverage per listed path instead
+of re-enumerating. Only enumerate manually for diagrams the analysis
+flags as unparsed, truncated, or unsupported.
+
 You do NOT:
 - Modify any files
 - Suggest improvements (only find errors)

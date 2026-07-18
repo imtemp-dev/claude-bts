@@ -99,7 +99,7 @@ ASSESS determines what to do next based on the document's current state.
 7. Record verify results to verify-log (atomic — parses the `<bts-findings>`
    block from verification.md so counts can never drift):
    ```bash
-   bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md
+   bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md --doc {verified-doc-path}
    ```
    Iteration auto-increments from the last entry. Fallback (only if the
    findings block is missing): pass explicit SPLIT counts —

@@ -5,7 +5,7 @@ description: >
   edge cases, and hidden assumptions. Includes mermaid branch completeness
   analysis. Use after verify and cross-check.
 user-invocable: true
-allowed-tools: Read Grep Glob Agent WebSearch WebFetch mcp__context7__resolve-library-id mcp__context7__get-library-docs
+allowed-tools: Read Grep Glob Bash Agent WebSearch WebFetch mcp__context7__resolve-library-id mcp__context7__get-library-docs
 argument-hint: "[file-path]"
 context: fork
 ---
@@ -19,10 +19,22 @@ Audit the specified document for missing items.
 Audit requires finding what's missing — it uses the main session model by default.
 If `agents.auditor` is explicitly set in `.bts/config/settings.yaml`, use that model instead.
 
+Bash in this fork is ONLY for the read-only command in step 1. Never run
+state-mutating bts commands or write files from this fork.
+
 ## Steps
 
-1. Read the target document fully
-2. Spawn Agent(auditor) with the following prompt:
+Do NOT read the target document in this fork — the auditor agent reads
+it independently (single-read discipline; a copy here would be unused).
+
+1. Run the deterministic graph analysis:
+   ```bash
+   bts graph paths $ARGUMENTS
+   ```
+   Capture the full output as GRAPH_ANALYSIS.
+
+2. Spawn Agent(auditor) with the following prompt, appending
+   GRAPH_ANALYSIS verbatim at the end:
 
    ```
    You are a completeness audit specialist. Read the document at $ARGUMENTS.
@@ -37,12 +49,17 @@ If `agents.auditor` is explicitly set in `.bts/config/settings.yaml`, use that m
    system needs and what the document leaves unanswered.
 
    **Flow completeness (mermaid diagrams):**
-   If the document contains mermaid diagrams:
+   A deterministic "Mermaid Graph Analysis" block is appended to this
+   prompt — its path/cycle/dead-end/orphan enumeration is AUTHORITATIVE;
+   do not re-enumerate (fall back to manual enumeration only for diagrams
+   it flags as unparsed, truncated, or unsupported). Using it:
    - At EVERY decision node: are ALL branches specified? (yes/no/error/timeout)
    - At EVERY state: what happens on timeout? invalid input? resource exhaustion?
      concurrent access? If unspecified, flag as a completeness gap.
-   - Are there states that can only be reached through a single path?
+   - States appearing in only ONE listed path are single-path-reachable
      (fragile — what if that path fails?)
+   - Listed dead-ends and orphans are completeness gaps unless the text
+     justifies them.
    - For each error state: is the error message/response defined? Is cleanup specified?
    - Count: total decision nodes, branches specified, branches missing.
 

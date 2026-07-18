@@ -20,6 +20,7 @@ func init() {
 	recipeCmd.AddCommand(
 		recipeStatusCmd, recipeListCmd, recipeLogCmd,
 		recipeCancelCmd, recipeCreateCmd, recipeReconcileCmd,
+		recipeVerifyFocusCmd,
 	)
 	recipeCreateCmd.Flags().String("type", "blueprint", "Recipe type (blueprint, design, analyze, fix, debug)")
 	recipeCreateCmd.Flags().String("topic", "", "Recipe topic description")
@@ -268,10 +269,66 @@ var recipeLogCmd = &cobra.Command{
 				fmt.Fprintf(os.Stderr, "warning: append changelog: %v\n", err)
 			}
 
+			// Snapshot the just-verified doc revision so the next
+			// verify round can diff against it (verify-focus).
+			if doc, _ := cmd.Flags().GetString("doc"); doc != "" {
+				if err := state.SaveVerifySnapshot(root, recipeID, doc); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: verify snapshot: %v\n", err)
+				}
+			}
+
 			fmt.Printf("Logged iteration %d: critical=%d major=%d minor_resolvable=%d minor_deferred=%d → %s\n",
 				iteration, critical, major, minorR, minorD, status)
 		}
 
+		return nil
+	},
+}
+
+// recipeVerifyFocusCmd prints changes since the last verified snapshot
+// of a document. /bts-verify prepends this to the verifier prompt as
+// focus hints — full re-verification still applies; this only directs
+// extra scrutiny at changed sections and their ripple effects.
+var recipeVerifyFocusCmd = &cobra.Command{
+	Use:   "verify-focus <doc-path>",
+	Short: "Print changes since the doc's last verified snapshot (focus hints for /bts-verify)",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cwd, _ := os.Getwd()
+		root, err := state.FindRoot(cwd)
+		if err != nil {
+			return fmt.Errorf("not a bts project: %w", err)
+		}
+
+		docPath := args[0]
+		recipeID := state.RecipeIDFromDocPath(docPath)
+		if recipeID == "" {
+			fmt.Println("Not a recipe document (no recipes/<id>/ in path) — no focus hints. Full verification only.")
+			return nil
+		}
+
+		current, err := os.ReadFile(docPath)
+		if err != nil {
+			return fmt.Errorf("read doc: %w", err)
+		}
+
+		snap, ok, err := state.LoadVerifySnapshot(root, recipeID, filepath.Base(docPath))
+		if err != nil {
+			return fmt.Errorf("load snapshot: %w", err)
+		}
+		if !ok {
+			fmt.Printf("FIRST VERIFICATION of %s — no previous verified snapshot. Full verification only; no focus hints.\n", filepath.Base(docPath))
+			return nil
+		}
+
+		diff, changed := engine.UnifiedLineDiff(string(snap), string(current))
+		if !changed {
+			fmt.Println("No changes since the last verified snapshot.")
+			return nil
+		}
+		fmt.Println("## Changes since last verified revision (focus hints — full verification still required)")
+		fmt.Println()
+		fmt.Print(diff)
 		return nil
 	},
 }
@@ -360,6 +417,7 @@ func init() {
 	recipeLogCmd.Flags().Int("minor-deferred", 0, "Minor [deferred] count — runtime-observable, does not block")
 	recipeLogCmd.Flags().Int("info", 0, "Info suggestion count")
 	recipeLogCmd.Flags().String("from-verification", "", "Parse counts from a verification.md <bts-findings> block (atomic; iteration auto-increments unless --iteration given)")
+	recipeLogCmd.Flags().String("doc", "", "Path of the verified document — snapshots it so the next `bts recipe verify-focus` can diff against this verified revision")
 	// Changelog flags
 	recipeLogCmd.Flags().String("action", "", "Action type (research, improve, verify, debate, simulate, audit, assess, implement, test, sync, status)")
 	recipeLogCmd.Flags().String("output", "", "Output file path")

@@ -160,7 +160,10 @@ Optional fields:
 
 Entries are written by `bts recipe log {id} --from-verification <verification.md>`
 (preferred — parses the `<bts-findings>` block atomically) or by the
-explicit split flags. Used by the stop hook to gate `<bts>DONE</bts>`:
+explicit split flags. Also pass `--doc <verified-doc-path>` — it
+snapshots the just-verified revision so the next round's
+`bts recipe verify-focus <doc>` can emit focus-hint diffs.
+Used by the stop hook to gate `<bts>DONE</bts>`:
 last entry must have critical=0, major=0, minor_resolvable=0.
 
 ## debate meta.json

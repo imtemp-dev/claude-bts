@@ -6,11 +6,25 @@ description: >
 user-invocable: true
 allowed-tools: Read Bash
 argument-hint: "[file-path]"
+context: fork
 ---
 
 # Document Assessment
 
 Assess the document and decide the next action.
+
+## Division of labor
+
+This skill runs in a FORK: the full document read in step 3 stays out
+of the main loop's context (repeated assess rounds were its largest
+context accumulator). Everything the loop needs comes back as your
+final output — the `<bts-decision>` block (Part A) plus the
+human-readable rationale (Part B). The ORCHESTRATOR parses the block
+and executes the action; you only decide.
+
+Bash in this fork is ONLY for read-only commands (`bts verify`,
+`bts recipe status`). Never run state-mutating bts commands (log,
+create, finalize, …) or write files from this fork.
 
 ## Steps
 

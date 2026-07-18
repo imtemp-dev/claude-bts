@@ -14,9 +14,28 @@ import (
 
 func init() {
 	rootCmd.AddCommand(graphCmd)
+	graphCmd.AddCommand(graphPathsCmd)
 	graphCmd.Flags().Bool("all", false, "Show project structure with all recipe internals")
 	graphCmd.Flags().Bool("import", false, "Render the import graph for the recipe's implemented files")
 	graphCmd.Flags().String("recipe", "", "Recipe ID (for --import; defaults to active recipe)")
+}
+
+// graphPathsCmd deterministically enumerates mermaid diagram paths in a
+// document. /bts-verify feeds this to the verifier agent so the LLM
+// judges specification coverage per path instead of enumerating paths
+// itself (which miscounts on large diagrams).
+var graphPathsCmd = &cobra.Command{
+	Use:   "paths <file>",
+	Short: "Enumerate mermaid diagram paths, cycles, dead-ends, and orphans in a document",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		data, err := os.ReadFile(args[0])
+		if err != nil {
+			return fmt.Errorf("read %s: %w", args[0], err)
+		}
+		fmt.Print(engine.AnalyzeMermaidDocument(string(data)))
+		return nil
+	},
 }
 
 var graphCmd = &cobra.Command{

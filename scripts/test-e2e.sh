@@ -56,9 +56,26 @@ $BTS sync-check test-001 2>&1 | grep -qE "sync|UNVERIFIED|issue" && echo "✓ 10
 RESULT=$(echo '{"session_id":"t","cwd":"'"$TEST_DIR"'","hook_event_name":"stop","content":"<bts>DONE</bts>"}' | $BTS hook stop 2>&1; echo "EXIT:$?")
 echo "$RESULT" | grep -q "EXIT:2" && echo "✓ 11. stop hook blocks (critical>0)" || { echo "✗ 11. stop block"; exit 1; }
 
-# 12. Add converged entry + verification.md, stop hook should ALLOW
-echo '{"iteration":2,"critical":0,"major":0,"minor":1,"status":"converged","timestamp":"2026-03-18T00:01:00Z"}' >> .bts/specs/recipes/test-001/verify-log.jsonl
+# 12. Satisfy every DONE gate, stop hook should ALLOW.
+# Gates (hardened in v0.7.x): converged verify-log with zero blocking
+# findings, a simulate action in the changelog, a verified current
+# draft with resolved simulation gaps, and a passing sync-check logged
+# after the last draft modification.
+$BTS recipe log test-001 --action simulate --output simulations/sim-001.md --gaps 0 --result "5 scenarios, 0 gaps" > /dev/null
+$BTS recipe log test-001 --iteration 2 --critical 0 --major 0 > /dev/null
 echo "# Verification findings" > .bts/specs/recipes/test-001/verification.md
+# The orchestrator normally records these manifest fields per
+# bts-document-management; the fixture patches them directly.
+python3 - <<'PYEOF'
+import json
+p = ".bts/specs/recipes/test-001/manifest.json"
+m = json.load(open(p))
+d = m["documents"]["draft.md"]
+d["verified_by"] = "verification.md"
+d["resolves"] = ["simulations/sim-001.md"]
+json.dump(m, open(p, "w"), indent=2)
+PYEOF
+$BTS sync-check test-001 > /dev/null 2>&1 && echo "✓ 12a. sync-check passes" || { echo "✗ 12a. sync-check pass"; exit 1; }
 RESULT=$(echo '{"session_id":"t","cwd":"'"$TEST_DIR"'","hook_event_name":"stop","content":"<bts>DONE</bts>"}' | $BTS hook stop 2>&1; echo "EXIT:$?")
 echo "$RESULT" | grep -q "EXIT:0" && echo "✓ 12. stop hook allows (converged)" || { echo "✗ 12. stop allow"; exit 1; }
 
@@ -178,5 +195,18 @@ mkdir -p .bts/specs/recipes/disc-001
 echo '{"id":"disc-001","type":"blueprint","topic":"Test","phase":"discovery","iteration":0,"level":0,"started_at":"2026-03-18T00:00:00Z","updated_at":"2026-03-18T00:00:00Z"}' > .bts/specs/recipes/disc-001/recipe.json
 $BTS validate 2>&1 | grep -qv "invalid.*phase" && echo "✓ 31. validate accepts phase=discovery" || { echo "✗ 31. discovery phase"; exit 1; }
 
+# --- Verify support commands (graph paths + verify-focus) ---
+# 32. graph paths — deterministic mermaid enumeration for /bts-verify
+mkdir -p .bts/specs/recipes/gp-001
+printf '# Doc\n\n```mermaid\nstateDiagram-v2\n[*] --> A\nA --> B : ok\nA --> C : fail\nB --> [*]\n```\n' > .bts/specs/recipes/gp-001/draft.md
+$BTS graph paths .bts/specs/recipes/gp-001/draft.md | grep -q "paths_total: 2" && echo "✓ 32. graph paths enumerates" || { echo "✗ 32. graph paths"; exit 1; }
+
+# 33. verify-focus — first verify has no snapshot; after log --doc, diff shows edits
+echo '{"id":"gp-001","type":"blueprint","topic":"GP","phase":"verify","iteration":1,"level":2.0,"started_at":"2026-03-18T00:00:00Z","updated_at":"2026-03-18T00:00:00Z"}' > .bts/specs/recipes/gp-001/recipe.json
+$BTS recipe verify-focus .bts/specs/recipes/gp-001/draft.md | grep -q "FIRST VERIFICATION" || { echo "✗ 33. verify-focus first"; exit 1; }
+$BTS recipe log gp-001 --iteration 1 --critical 0 --major 0 --doc .bts/specs/recipes/gp-001/draft.md > /dev/null
+echo "New line for focus" >> .bts/specs/recipes/gp-001/draft.md
+$BTS recipe verify-focus .bts/specs/recipes/gp-001/draft.md | grep -q "+ New line for focus" && echo "✓ 33. verify-focus snapshot diff" || { echo "✗ 33. verify-focus diff"; exit 1; }
+
 echo ""
-echo "=== All 31 tests passed ==="
+echo "=== All 33 tests passed ==="
