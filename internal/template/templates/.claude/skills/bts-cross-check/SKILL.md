@@ -8,6 +8,7 @@ user-invocable: true
 allowed-tools: Read Grep Glob Bash Agent
 argument-hint: "[file-path]"
 context: fork
+model: sonnet
 ---
 
 # Internal Consistency Check

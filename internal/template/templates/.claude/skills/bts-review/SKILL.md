@@ -16,8 +16,12 @@ Review code for: $ARGUMENTS
 
 ## Settings
 
-Quality and architecture review require deep reasoning — they use the main session model by default.
-Security review uses sonnet (pattern-based). Override any agent model via `.bts/config/settings.yaml`:
+Quality, security, and architecture review require deep reasoning — all
+three use the main session model by default. Security is recall-bound:
+semantic flaws (authz bypass, state-dependent privilege escalation) that
+the initial sweep misses can never be rescued by the rebuttal step, so
+the sweep itself needs the strong model. Override any agent model via
+`.bts/config/settings.yaml`:
 `agents.reviewer_quality`, `agents.reviewer_security`, `agents.reviewer_arch`.
 
 ## Step 1: Determine Review Mode

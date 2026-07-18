@@ -7,6 +7,7 @@ description: >
 user-invocable: true
 allowed-tools: Read Write Edit Grep Glob Bash Agent AskUserQuestion WebSearch WebFetch mcp__context7__resolve-library-id mcp__context7__get-library-docs
 argument-hint: "[debate-id or recipe-id]"
+effort: high
 ---
 
 # Adjudicate: Debate Conclusion Review

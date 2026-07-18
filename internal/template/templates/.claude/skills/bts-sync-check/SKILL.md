@@ -7,6 +7,7 @@ user-invocable: true
 allowed-tools: Read Bash
 argument-hint: "[recipe-id]"
 context: fork
+model: sonnet
 ---
 
 # Document Sync Check

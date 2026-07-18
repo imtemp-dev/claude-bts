@@ -9,7 +9,7 @@ description: >
 user-invocable: true
 allowed-tools: Read Write Edit Grep Glob Bash Agent AskUserQuestion
 argument-hint: "[recipe-id]"
-effort: high
+effort: max
 ---
 
 # Domain Model

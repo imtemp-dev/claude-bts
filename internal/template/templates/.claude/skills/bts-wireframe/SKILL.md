@@ -7,7 +7,7 @@ description: >
 user-invocable: true
 allowed-tools: Read Write Edit Grep Glob Bash Agent
 argument-hint: "[recipe-id]"
-effort: high
+effort: xhigh
 ---
 
 # Wireframe: System Structure Design

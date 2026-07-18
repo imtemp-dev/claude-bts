@@ -8,6 +8,7 @@ user-invocable: true
 allowed-tools: Read Grep Glob Bash Agent WebSearch WebFetch mcp__context7__resolve-library-id mcp__context7__get-library-docs
 argument-hint: "[file-path]"
 context: fork
+effort: max
 ---
 
 # Completeness Audit

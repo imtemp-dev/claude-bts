@@ -59,15 +59,18 @@ vision:
   min_roadmap_items: 3           # Below 3, decomposition adds overhead without benefit
 
 # Agent models — options: sonnet, opus, haiku
-# Core gates (verify, audit, simulate, review-quality, review-arch) use session model by default.
+# Core gates (verify, audit, simulate, review-quality, review-security, review-arch) use session model by default.
+#   review-security is recall-bound: semantic flaws (authz bypass, state-dependent privilege
+#   escalation) missed by the initial sweep can never be rescued by the rebuttal step.
 # Deep reasoning (review-rebuttal, simulator-rebuttal, diagnosis-validator, diagnosis-rebuttal) uses session model — needs concrete scenario construction and code path tracing.
-# Pattern-based checks (cross-check, sync-check, review-security, review-validator, simulator-validator) use sonnet.
+# Pattern-based checks (review-validator, simulator-validator) default to sonnet via agent
+# frontmatter; cross-check and sync-check run on sonnet via their SKILL.md `model:` field.
 agents:
   # verifier: sonnet
   # auditor: sonnet
   # simulator: sonnet
   # reviewer_quality: sonnet
-  reviewer_security: sonnet
+  # reviewer_security: sonnet
   # reviewer_arch: sonnet
   # reviewer_validator: sonnet
   # reviewer_rebuttal: sonnet
@@ -76,11 +79,15 @@ agents:
   # diagnosis_validator: sonnet
   # diagnosis_rebuttal: sonnet
 
-# Skill effort levels — options: low, medium, high, max
-# effort:
-#   verify: max
-#   simulate: max
-#   review: high
+# Skill effort levels are configured in each skill's frontmatter
+# (.claude/skills/<name>/SKILL.md, `effort:` field — low/medium/high/xhigh/max).
+# Nothing reads an effort section from this file; current assignments:
+# domain-model/architect/verify/simulate/audit = max (deep-reasoning gates;
+# domain-model's invariant ownership and state-cell enumeration cascade into
+# everything downstream), wireframe = xhigh (path-enumeration design),
+# discover/research/debate/adjudicate/review = high (structure carries the
+# quality; conversational or multi-round stages), status = low.
+# Unset skills (assess, implement, test, …) inherit the session effort.
 
 # Privacy
 privacy:
