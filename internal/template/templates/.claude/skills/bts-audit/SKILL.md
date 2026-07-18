@@ -65,8 +65,9 @@ it independently (single-read discipline; a copy here would be unused).
    - Count: total decision nodes, branches specified, branches missing.
 
    **Evidence policy for framework/platform claims**
-   (authoritative copy: `.claude/rules/bts-evidence-policy.md` — keep
-   this inline mirror in sync):
+   (authoritative policy: `.claude/rules/bts-evidence-policy.md` — this
+   inline carries the rules; the official-domain examples list lives
+   only in that file):
 
    Before classifying a claim about framework or platform internals
    (animation timing, reconciler behavior, async runtime semantics,
@@ -76,13 +77,15 @@ it independently (single-read discipline; a copy here would be unused).
 
    1. Context7 MCP (preferred): mcp__context7__resolve-library-id then
       mcp__context7__get-library-docs with a topic from the claim.
-   2. WebFetch on OFFICIAL domains only when Context7 misses:
-      developer.apple.com, developer.android.com, react.dev, nodejs.org,
-      docs.swift.org, kotlinlang.org, pytorch.org, tensorflow.org,
-      learn.microsoft.com, docs.oracle.com, official GitHub RFCs/issues
-      in the framework's own repo, WWDC / Google I/O official transcripts.
-   3. WebSearch as last resort, always with site: filters on the same
-      official domains. Never generic queries.
+   2. WebFetch on OFFICIAL domains only when Context7 misses. Official
+      domain = the platform/framework vendor's OWN primary documentation
+      domain (e.g. developer.android.com, react.dev, go.dev — apply the
+      rule, not a memorized list; the full examples list lives in
+      `.claude/rules/bts-evidence-policy.md`). Official GitHub
+      RFCs/issues in the framework's own repo and WWDC / Google I/O
+      official transcripts also count.
+   3. WebSearch as last resort, always with site: filters on the
+      vendor's official domains (same rule). Never generic queries.
 
    NOT evidence: Medium, dev.to, personal blogs, StackOverflow (lead only),
    unofficial tutorials, unversioned docs.

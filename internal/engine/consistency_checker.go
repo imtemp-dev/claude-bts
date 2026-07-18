@@ -133,6 +133,7 @@ func VerifyDocument(docPath string, projectRoot string) (*VerifyResult, error) {
 	if strings.EqualFold(base, "wireframe.md") {
 		appendIssues(result, CheckWireframeResponsibilities(docPath))
 		appendIssues(result, CheckArchitectDecisionHeader(docPath))
+		appendIssues(result, CheckArchitectInvariantCoverage(docPath))
 	}
 
 	return result, nil

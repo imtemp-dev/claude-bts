@@ -9,9 +9,11 @@ authoritative_for:
 # BTS Evidence Policy
 
 Single source of truth for how BTS skills and agents ground
-framework/platform claims. `bts-verify` and `bts-audit` embed an inline
-copy of the reclassification rules inside their agent prompts — keep
-those in sync with this file when editing.
+framework/platform claims. `bts-verify` and `bts-audit` embed the
+gathering order and reclassification rules inline in their agent
+prompts, but the official-domain examples list lives ONLY in this file —
+the inline copies state the rule and point here, so the list cannot
+drift again.
 
 ## When evidence is required
 
@@ -25,14 +27,21 @@ recommended architecture patterns, API contracts.
 
 1. **Context7 MCP** (preferred): `mcp__context7__resolve-library-id` →
    `mcp__context7__get-library-docs` with a topic derived from the claim.
-2. **WebFetch on OFFICIAL domains** when Context7 misses:
-   developer.apple.com, developer.android.com, react.dev, nodejs.org,
-   docs.swift.org, kotlinlang.org, pytorch.org, tensorflow.org,
-   learn.microsoft.com, docs.oracle.com, go.dev, docs.python.org,
-   nextjs.org, vuejs.org, angular.dev, official GitHub RFCs/issues in
-   the framework's own repo, WWDC / Google I/O official transcripts.
-3. **WebSearch as last resort**, always with `site:` filters on the same
-   official domains. Never generic queries.
+2. **WebFetch on OFFICIAL domains** when Context7 misses. An official
+   domain is **the platform/framework vendor's OWN primary documentation
+   domain** — the domain the vendor itself publishes docs on. Apply the
+   rule; the list below is non-exhaustive examples, not a closed
+   whitelist:
+   developer.apple.com, developer.android.com, react.dev, nextjs.org,
+   nodejs.org, docs.swift.org, kotlinlang.org, go.dev, docs.python.org,
+   docs.djangoproject.com, guides.rubyonrails.org, spring.io,
+   svelte.dev, vuejs.org, angular.dev, flutter.dev, dart.dev,
+   doc.rust-lang.org, developer.mozilla.org (web platform standards),
+   learn.microsoft.com, docs.oracle.com, pytorch.org, tensorflow.org,
+   kubernetes.io, official GitHub RFCs/issues in the framework's own
+   repo, WWDC / Google I/O official transcripts.
+3. **WebSearch as last resort**, always with `site:` filters on the
+   vendor's official domains (same rule as above). Never generic queries.
 
 NOT evidence: Medium, dev.to, personal blogs, StackOverflow (lead only),
 unofficial tutorials, unversioned docs.
@@ -76,3 +85,11 @@ The official pattern may LOSE the debate to a simpler decomposition —
 but it must be on the table with a `Source:` line, and rejecting it
 requires a stated reason in the `<!-- architect-decision -->` block's
 Rejected list.
+
+Guidance must be **version-matched**: `/bts-research` Step 3.5 records
+the project's target framework majors (`Target versions:` line) from the
+dependency manifests, and the fetched guidance must apply to those
+majors — pattern advice often flips across majors (SwiftUI
+`ObservableObject` → `@Observable`, React class components → hooks).
+A mismatch is not disqualifying, but it must be recorded and addressed
+in the architect debate.

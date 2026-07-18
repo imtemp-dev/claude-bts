@@ -66,7 +66,11 @@ For each dimension, assign: PASS / CONCERN / FAIL
   `Source:` line on an official domain. Uncited framework claims →
   CONCERN; claims contradicted by an official source → FAIL.
 - For architecture debates: was the official recommended pattern (research
-  `## Official Guidance`) engaged with? Ignoring it entirely → CONCERN.
+  `## Official Guidance`) engaged with? When the guidance documents a
+  recommended pattern and the debate never engaged it → **FAIL** (extend
+  with a prep brief that forces engagement — the vendor's documented
+  rationale must be argued against, not skipped). Engaged but only
+  superficially (name-dropped without addressing its rationale) → CONCERN.
 - **Weak evidence**: "X is generally faster", "Y is best practice"
 - **Strong evidence**: "X handles 10k req/s per node (benchmark: Z)", "Y reduced
   incident rate by 40% at Company W", "Source: developer.android.com/topic/architecture"
@@ -156,7 +160,7 @@ If VERDICT is EXTEND DEBATE:
    Do NOT exit adjudicate after kicking off a debate. Wait for the debate to
    finish, then re-evaluate its conclusion before returning a final verdict.
 
-## Step 6: Max Extensions Check
+## Step 5: Max Extensions Check
 
 Track extension count by counting follow-up debate directories in
 `.bts/specs/recipes/{id}/debates/` that contain "-followup" in their name.

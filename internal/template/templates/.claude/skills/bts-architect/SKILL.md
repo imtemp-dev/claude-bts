@@ -47,10 +47,14 @@ For each alternative, produce:
 
 - **Name** — short kebab-case identifier, e.g. `state-machine-centric`,
   `entity-per-file`, `pipeline`, `event-sourced`.
-- **Basis** — one line: `official: {pattern name} (Source: {URL})` for
-  the vendor-guidance alternative, or `custom: {one-sentence rationale}`
-  for the others. Unsourced "official" claims are invalid — the
-  adjudicator treats them as evidence-quality FAIL.
+- **Basis** — one line: `official: {pattern name} for {framework}@{major}
+  (Source: {URL})` for the vendor-guidance alternative, or
+  `custom: {one-sentence rationale}` for the others. The official
+  alternative must state which framework major the guidance applies to
+  and it must match research's `Target versions:` line — a mismatch is
+  not disqualifying but the debate must address it. Unsourced "official"
+  claims are invalid — the adjudicator treats them as evidence-quality
+  FAIL.
 - **Node list** — files or modules with a ONE-SENTENCE responsibility
   (same "and"/"&"/"및" rule as bts-wireframe Step 1). Include file path
   hints so it is clear what the decomposition produces.
@@ -101,7 +105,7 @@ opening tag `<!-- architect-decision -->` on a line by itself.
 ```
 <!-- architect-decision -->
 Selected: {alternative-name}
-Basis: {official: {pattern} (Source: {URL}) | custom: {rationale}}
+Basis: {official: {pattern} for {framework}@{major} (Source: {URL}) | custom: {rationale}}
 Rationale: {one paragraph — why this decomposition fits the domain
 invariants and scope better than the alternatives}
 Rejected:
@@ -142,10 +146,13 @@ For recipes with a very small scope (entity count ≤ 2 in domain.md §1
 AND file estimate ≤ 3 in scope.md), the architect step can be skipped:
 
 1. Write a minimal `<!-- architect-decision -->` block with
-   `Selected: single-path` and `Rejected: (none — scope too small to
-   warrant alternatives)`.
+   `Selected: single-path`,
+   `Basis: custom: scope too small to warrant alternatives`, and
+   `Rejected: (none — scope too small to warrant alternatives)`.
+   The `Basis:` line is required — `bts verify` checks for it.
 2. Still record invariant ownership — skipping the debate does NOT
-   skip the ownership contract.
+   skip the ownership contract (`bts verify` cross-checks the mapping
+   against domain.md § 2).
 
 This keeps wireframe's header-presence gate consistent while avoiding
 unnecessary process overhead on trivial additions.

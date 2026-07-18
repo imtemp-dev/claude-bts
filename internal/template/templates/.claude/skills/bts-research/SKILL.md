@@ -54,9 +54,24 @@ Research the given topic and produce a structured document.
    `bts-evidence-policy.md` for examples: Android Guide to App
    Architecture, Apple SwiftUI data-flow guidance, React/Next.js docs,
    go.dev layout guidance, …).
+
+   **Pin target versions FIRST**: read the project's dependency
+   manifests (package.json, go.mod, build.gradle(.kts), Package.swift,
+   pubspec.yaml, pyproject.toml / requirements.txt, Cargo.toml,
+   Gemfile) and record the major version of every framework the
+   guidance will cover. When resolving Context7 docs, match the
+   detected major (`resolve-library-id` supports version selection).
+   If the fetched guidance targets a DIFFERENT major than the project
+   uses, record the mismatch explicitly — pattern advice often flips
+   across majors (SwiftUI `ObservableObject` → `@Observable`, React
+   class components → hooks). Never assume the pattern you remember
+   matches the version the project pins.
+
    Record in the research document:
+   - `Target versions: {framework}@{major}, … (from {manifest file})`
    - The recommended pattern's name and structure (layers, state
-     ownership, data flow) with `Source:` lines on official domains
+     ownership, data flow) with `Source:` lines on official domains,
+     noting which framework major the guidance applies to
    - How it maps onto THIS feature's entities
    - Any parts of it that are overkill for the current scope
    This section is the required input for `/bts-architect` — one of its
@@ -85,10 +100,12 @@ Research the given topic and produce a structured document.
    - Conventions to follow
 
    ## Official Guidance
-   - Recommended architecture: {name} (Source: {official URL})
+   - Target versions: {framework}@{major}, … (from {manifest file})
+   - Recommended architecture: {name} for {framework}@{major} (Source: {official URL})
    - Structure: {layers / state ownership / data flow}
    - Mapping to this feature: {entities → pattern roles}
    - Not applicable parts: {list, with reasons}
+   - Version mismatch: {none | guidance targets {major}, project pins {major} — implications}
    (or: "No official architecture guidance found. Gathered: [...]")
    ```
 
