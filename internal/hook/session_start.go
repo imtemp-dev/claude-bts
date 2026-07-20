@@ -305,11 +305,16 @@ func autoUpdateTemplates(root string) bool {
 		return false // same version, skip
 	}
 
-	// Deploy templates (overwrite all except user config files)
+	// Deploy templates (overwrite all except user-owned files).
+	// .gitignore is user-owned — merged via EnsureGitignore below, never overwritten.
 	_, _ = template.DeployForce(root, []string{
 		".bts/config/settings.yaml",
 		".mcp.json",
+		".gitignore",
 	})
+
+	// Ensure .gitignore ignores bts local data without destroying existing rules.
+	_ = template.EnsureGitignore(root)
 
 	// Ensure hooks are registered in settings.local.json
 	_ = template.MergeHookSettings(root)

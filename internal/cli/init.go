@@ -58,8 +58,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Deploy templates
-	skipFiles := []string{".bts/config/settings.yaml", ".mcp.json"}
+	// Deploy templates. .gitignore is user-owned — never deploy/overwrite it;
+	// EnsureGitignore below merges the bts rule in without clobbering user rules.
+	skipFiles := []string{".bts/config/settings.yaml", ".mcp.json", ".gitignore"}
 	var created []string
 	if force {
 		created, err = template.DeployForce(absRoot, skipFiles)
@@ -68,6 +69,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 	if err != nil {
 		return fmt.Errorf("deploy templates: %w", err)
+	}
+
+	// Ensure .gitignore ignores bts local data without destroying existing rules.
+	if err := template.EnsureGitignore(absRoot); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: update .gitignore: %v\n", err)
 	}
 
 	// Record template version

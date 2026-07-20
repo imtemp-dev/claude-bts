@@ -37,11 +37,17 @@ var updateCmd = &cobra.Command{
 			return nil
 		}
 
-		// DeployForce (same skip list as auto-update and init --force)
-		skipFiles := []string{".bts/config/settings.yaml", ".mcp.json"}
+		// DeployForce (same skip list as auto-update and init --force).
+		// .gitignore is user-owned — merged via EnsureGitignore, never overwritten.
+		skipFiles := []string{".bts/config/settings.yaml", ".mcp.json", ".gitignore"}
 		updated, err := template.DeployForce(root, skipFiles)
 		if err != nil {
 			return fmt.Errorf("update templates: %w", err)
+		}
+
+		// Ensure .gitignore ignores bts local data without destroying existing rules.
+		if err := template.EnsureGitignore(root); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: update .gitignore: %v\n", err)
 		}
 
 		// Write new version
