@@ -1,6 +1,8 @@
 package state
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 )
@@ -153,5 +155,64 @@ func TestEvidencePrune(t *testing.T) {
 	list, _ := ListEvidence(root)
 	if len(list) != 1 {
 		t.Errorf("%d entries remain, want 1", len(list))
+	}
+}
+
+// The blueprint loop runs /bts-verify and /bts-audit concurrently and
+// both gather evidence. A read-modify-write cache silently drops one of
+// two simultaneous puts; appends cannot.
+func TestEvidenceConcurrentPutsDoNotLoseEntries(t *testing.T) {
+	root := t.TempDir()
+	const n = 24
+	var wg sync.WaitGroup
+	errs := make(chan error, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs <- PutEvidence(root, &EvidenceEntry{
+				Library: "lib", Topic: "topic",
+				Claim:   fmt.Sprintf("claim number %d", i),
+				Verdict: EvidenceSilent, Gathered: "Context7:miss",
+			})
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent put: %v", err)
+		}
+	}
+	for i := 0; i < n; i++ {
+		got, err := GetEvidence(root, "lib", "topic", fmt.Sprintf("claim number %d", i), 30)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got == nil {
+			t.Fatalf("entry %d was lost by a concurrent put", i)
+		}
+	}
+}
+
+// Re-putting the same claim must update it, not duplicate it.
+func TestEvidencePutOverwritesSameKey(t *testing.T) {
+	root := t.TempDir()
+	for _, v := range []string{EvidenceUnavailable, EvidenceSilent} {
+		if err := PutEvidence(root, &EvidenceEntry{
+			Library: "lib", Topic: "t", Claim: "c", Verdict: v,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	list, err := ListEvidence(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("want 1 folded entry, got %d", len(list))
+	}
+	if list[0].Verdict != EvidenceSilent {
+		t.Errorf("verdict = %q, want the later write %q", list[0].Verdict, EvidenceSilent)
 	}
 }

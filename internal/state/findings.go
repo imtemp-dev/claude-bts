@@ -171,27 +171,51 @@ func ReadFindingEvents(root, recipeID string) ([]FindingEvent, error) {
 }
 
 // FoldFindings collapses the event log into per-ID current state,
-// counting open rounds and fixed→open reopenings along the way.
+// counting open rounds and reopenings along the way.
+//
+// Events are raw observations — they record what a verifier reported.
+// The fold is where adjudication policy applies: a dismissal is sticky,
+// so a later round raising the point again does NOT clear it. Without
+// that, one re-raise would flip the finding back to open, drop it out of
+// the carry-forward block's DISMISSED section, and the next verifier
+// would never learn the point was settled — making a dismissed finding
+// re-litigable forever, which is the opposite of what `dismiss` is for.
 func FoldFindings(events []FindingEvent) map[string]*FindingState {
 	states := make(map[string]*FindingState, len(events))
+	dismissals := make(map[string]FindingEvent)
 	for _, e := range events {
 		st, ok := states[e.ID]
 		if !ok {
 			st = &FindingState{FindingEvent: e, FirstIteration: e.Iteration}
 			states[e.ID] = st
 		}
-		if st.Status == FindingFixed && e.Status == FindingOpen {
+		if e.Status == FindingDismissed {
+			dismissals[e.ID] = e
+		}
+		_, dismissed := dismissals[e.ID]
+
+		// A reopen is a settled finding being raised again: either a
+		// fixed one coming back (the last IMPROVE regressed) or a
+		// dismissed one being re-litigated. `bts recipe log` reports
+		// both, so this view must count both or the two disagree.
+		if e.Status == FindingOpen && (st.Status == FindingFixed || dismissed) {
 			st.Reopened++
 		}
 		if e.Status == FindingOpen {
 			st.OpenRounds++
 		}
+
 		// Later events win for the mutable fields; keep the original
 		// FirstIteration and the accumulated counters.
 		first, rounds, reopened := st.FirstIteration, st.OpenRounds, st.Reopened
 		st.FindingEvent = e
 		st.FirstIteration, st.OpenRounds, st.Reopened = first, rounds, reopened
 		st.LastIteration = e.Iteration
+
+		if d, ok := dismissals[e.ID]; ok {
+			st.Status = FindingDismissed
+			st.Reason = d.Reason
+		}
 	}
 	return states
 }
@@ -303,11 +327,11 @@ func SyncFindings(root, recipeID, docBase string, iteration int, reported []Repo
 		if st.Doc != docBase || seen[id] {
 			continue
 		}
-		if st.Status != FindingOpen && st.Status != FindingDeferred {
+		// Only open findings can be closed by absence. Deferred items
+		// persist by design (runtime watch-items carried into implement),
+		// and dismissed ones stay dismissed.
+		if st.Status != FindingOpen {
 			continue
-		}
-		if st.Status == FindingDeferred {
-			continue // deferred items persist by design; they are not "fixed"
 		}
 		toAppend = append(toAppend, FindingEvent{
 			ID: id, Doc: docBase, Iteration: iteration,

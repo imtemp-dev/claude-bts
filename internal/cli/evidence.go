@@ -43,7 +43,9 @@ call, and record the outcome afterwards:
   bts evidence put --library swiftui --topic "safeAreaInset" --claim "..." \
       --verdict silent --gathered "Context7:miss | WebFetch:developer.apple.com:200"
 
-Entries live in .bts/local/evidence-cache.json (machine-local, never committed).
+Entries live in .bts/local/evidence-cache.jsonl (machine-local, never committed).
+The log is append-only so concurrent verify/audit forks cannot lose entries;
+"bts evidence prune" compacts it.
 Successful lookups expire after verify.evidence_ttl_days; "unavailable" results
 expire after one hour so an outage never pins a claim for long.`,
 }

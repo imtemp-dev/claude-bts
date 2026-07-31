@@ -1,6 +1,8 @@
 package state
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -49,13 +51,17 @@ type EvidenceEntry struct {
 	FetchedAt string   `json:"fetched_at"`
 }
 
-type evidenceCacheFile struct {
-	Version int                       `json:"version"`
-	Entries map[string]*EvidenceEntry `json:"entries"`
-}
-
+// The cache is an append-only JSONL log folded on read (last write per
+// key wins), not a rewritten JSON object.
+//
+// The blueprint loop runs /bts-verify and /bts-audit concurrently, and
+// both gather evidence. A read-modify-write of a single JSON document
+// loses one of two concurrent puts: each process reads the same map,
+// adds its own key, and the second rename overwrites the first. Appends
+// cannot lose an entry, and this matches how every other multi-writer
+// store in the repo works (changelog, verify-log, findings).
 func evidenceCachePath(root string) string {
-	return filepath.Join(LocalPath(root), "evidence-cache.json")
+	return filepath.Join(LocalPath(root), "evidence-cache.jsonl")
 }
 
 // EvidenceKey derives the cache key for a claim lookup. Library and
@@ -68,37 +74,62 @@ func EvidenceKey(library, topic, claim string) string {
 	return hex.EncodeToString(sum[:])[:16]
 }
 
-func loadEvidenceCache(root string) (*evidenceCacheFile, error) {
-	c := &evidenceCacheFile{Version: 1, Entries: map[string]*EvidenceEntry{}}
-	data, err := os.ReadFile(evidenceCachePath(root))
+// loadEvidenceCache folds the append-only log into the live entry set.
+// Malformed lines are skipped: a damaged cache is a latency artifact,
+// not project truth, so it must never fail a verification round.
+func loadEvidenceCache(root string) (map[string]*EvidenceEntry, error) {
+	entries := map[string]*EvidenceEntry{}
+	f, err := os.Open(evidenceCachePath(root))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return c, nil
+			return entries, nil
 		}
 		return nil, err
 	}
-	if err := json.Unmarshal(data, c); err != nil {
-		// A corrupt cache is a performance artifact, not project truth —
-		// start over rather than failing the verification round.
-		return &evidenceCacheFile{Version: 1, Entries: map[string]*EvidenceEntry{}}, nil
+	defer f.Close()
+
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64*1024), 1<<20)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" {
+			continue
+		}
+		var e EvidenceEntry
+		if json.Unmarshal([]byte(line), &e) != nil || e.Key == "" {
+			continue
+		}
+		entries[e.Key] = &e // later lines win
 	}
-	if c.Entries == nil {
-		c.Entries = map[string]*EvidenceEntry{}
-	}
-	return c, nil
+	return entries, sc.Err()
 }
 
-func saveEvidenceCache(root string, c *evidenceCacheFile) error {
+// rewriteEvidenceCache replaces the log with exactly the given entries.
+// Only prune uses it — it is a whole-file rewrite and therefore races
+// with concurrent appends, which is acceptable for an explicit
+// maintenance command but never on the put path.
+func rewriteEvidenceCache(root string, entries map[string]*EvidenceEntry) error {
 	path := evidenceCachePath(root)
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("mkdir: %w", err)
 	}
-	data, err := json.MarshalIndent(c, "", "  ")
-	if err != nil {
-		return err
+	keys := make([]string, 0, len(entries))
+	for k := range entries {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var buf bytes.Buffer
+	for _, k := range keys {
+		data, err := json.Marshal(entries[k])
+		if err != nil {
+			return err
+		}
+		buf.Write(data)
+		buf.WriteByte('\n')
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
+	if err := os.WriteFile(tmp, buf.Bytes(), 0644); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)
@@ -128,59 +159,57 @@ func EvidenceExpired(e *EvidenceEntry, ttlDays int, now time.Time) bool {
 
 // GetEvidence returns a live cache entry, or nil on miss or expiry.
 func GetEvidence(root, library, topic, claim string, ttlDays int) (*EvidenceEntry, error) {
-	c, err := loadEvidenceCache(root)
+	entries, err := loadEvidenceCache(root)
 	if err != nil {
 		return nil, err
 	}
-	e, ok := c.Entries[EvidenceKey(library, topic, claim)]
+	e, ok := entries[EvidenceKey(library, topic, claim)]
 	if !ok || EvidenceExpired(e, ttlDays, time.Now().UTC()) {
 		return nil, nil
 	}
 	return e, nil
 }
 
-// PutEvidence records a lookup result, overwriting any prior entry.
+// PutEvidence records a lookup result. Appends rather than rewriting, so
+// two concurrent verify/audit forks cannot lose each other's entry; the
+// fold on read takes the last line for a key.
 func PutEvidence(root string, e *EvidenceEntry) error {
-	c, err := loadEvidenceCache(root)
-	if err != nil {
-		return err
-	}
 	e.Key = EvidenceKey(e.Library, e.Topic, e.Claim)
 	if e.FetchedAt == "" {
 		e.FetchedAt = time.Now().UTC().Format(time.RFC3339)
 	}
-	c.Entries[e.Key] = e
-	return saveEvidenceCache(root, c)
+	return AppendJSONL(evidenceCachePath(root), e)
 }
 
 // PruneEvidence drops expired entries and returns how many were removed.
+// This compacts the append-only log, so run it when the loop is idle.
 func PruneEvidence(root string, ttlDays int) (int, error) {
-	c, err := loadEvidenceCache(root)
+	entries, err := loadEvidenceCache(root)
 	if err != nil {
 		return 0, err
 	}
 	now := time.Now().UTC()
 	removed := 0
-	for k, e := range c.Entries {
+	for k, e := range entries {
 		if EvidenceExpired(e, ttlDays, now) {
-			delete(c.Entries, k)
+			delete(entries, k)
 			removed++
 		}
 	}
 	if removed == 0 {
 		return 0, nil
 	}
-	return removed, saveEvidenceCache(root, c)
+	return removed, rewriteEvidenceCache(root, entries)
 }
 
 // ListEvidence returns cached entries sorted newest first.
 func ListEvidence(root string) ([]*EvidenceEntry, error) {
-	c, err := loadEvidenceCache(root)
+	entries, err := loadEvidenceCache(root)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*EvidenceEntry, 0, len(c.Entries))
-	for _, e := range c.Entries {
+	out := make([]*EvidenceEntry, 0, len(entries))
+	for _, e := range entries {
 		out = append(out, e)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].FetchedAt > out[j].FetchedAt })

@@ -52,7 +52,7 @@ recommended architecture patterns, API contracts.
      outage never pins a claim to "evidence unavailable" beyond the
      incident. Successful lookups live for `verify.evidence_ttl_days`
      (default 30).
-   - The cache is machine-local (`.bts/local/evidence-cache.json`) and
+   - The cache is machine-local (`.bts/local/evidence-cache.jsonl`) and
      never committed. It is a latency optimisation, not project truth —
      when in doubt, `bts evidence prune` and re-gather.
 

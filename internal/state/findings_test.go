@@ -205,3 +205,73 @@ not json at all
 		t.Errorf("want 2 parsed events, got %d", len(events))
 	}
 }
+
+// A dismissal is an adjudication: the verifier raising the point again
+// must NOT silently un-dismiss it. Otherwise one re-raise erases the
+// "do NOT re-raise" hint and the finding is re-litigated forever —
+// defeating the purpose of `bts recipe findings dismiss`.
+func TestDismissalIsStickyAcrossReRaises(t *testing.T) {
+	root, id := findingsRoot(t)
+	title := "uses deprecated lifecycle hook"
+	if _, err := SyncFindings(root, id, "draft.md", 1, []ReportedFinding{
+		{Severity: "major", Title: title},
+	}, 3); err != nil {
+		t.Fatal(err)
+	}
+	fid := FindingID("draft.md", title)
+	if err := DismissFinding(root, id, fid, "official docs confirm the hook is current"); err != nil {
+		t.Fatal(err)
+	}
+	// Round 2: a fresh verifier raises it again.
+	if _, err := SyncFindings(root, id, "draft.md", 2, []ReportedFinding{
+		{Severity: "major", Title: title},
+	}, 3); err != nil {
+		t.Fatal(err)
+	}
+
+	states, _ := LoadFindings(root, id, "draft.md")
+	if len(states) != 1 {
+		t.Fatalf("want 1 finding, got %d", len(states))
+	}
+	st := states[0]
+	if st.Status != FindingDismissed {
+		t.Errorf("status = %q, want %q — a verifier must not override an adjudicated dismissal",
+			st.Status, FindingDismissed)
+	}
+	if st.Reason == "" {
+		t.Error("dismissal reason was lost on re-raise")
+	}
+	if st.Reopened != 1 {
+		t.Errorf("Reopened = %d, want 1 — re-litigating a dismissed finding is the signal the ledger exists to surface", st.Reopened)
+	}
+
+	// Round 3 must still carry the do-not-re-raise warning.
+	block := CarryForwardBlock(states)
+	if !strings.Contains(block, "do NOT re-raise") || !strings.Contains(block, fid) {
+		t.Errorf("carry-forward lost the dismissal warning after a re-raise:\n%s", block)
+	}
+}
+
+// FoldFindings (what `bts recipe findings list` shows) and SyncFindings
+// (what `bts recipe log` prints) must agree on what counts as a reopen.
+func TestReopenCountersAgreeBetweenFoldAndSync(t *testing.T) {
+	root, id := findingsRoot(t)
+	title := "retry policy contradicts timeout"
+	report := []ReportedFinding{{Severity: "critical", Title: title}}
+
+	if _, err := SyncFindings(root, id, "draft.md", 1, report, 3); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SyncFindings(root, id, "draft.md", 2, nil, 3); err != nil { // fixed
+		t.Fatal(err)
+	}
+	sync, err := SyncFindings(root, id, "draft.md", 3, report, 3) // back again
+	if err != nil {
+		t.Fatal(err)
+	}
+	states, _ := LoadFindings(root, id, "draft.md")
+	if len(sync.Reopened) != states[0].Reopened {
+		t.Errorf("SyncResult.Reopened=%d but FindingState.Reopened=%d — the two views disagree",
+			len(sync.Reopened), states[0].Reopened)
+	}
+}
