@@ -280,5 +280,100 @@ DOCTOR=$($BTS doctor 2>&1 || true)
 echo "$DOCTOR" | grep -q "reviewer_security" || { echo "✗ 39. doctor drift"; exit 1; }
 echo "$DOCTOR" | grep -q "hand-recorded" && echo "✓ 39. doctor drift + provenance" || { echo "✗ 39. doctor provenance"; exit 1; }
 
+# 40. Findings ledger — stable IDs, carry-forward, fixed/reopened tracking
+mkdir -p .bts/specs/recipes/fl-001
+echo '{"id":"fl-001","type":"blueprint","topic":"ledger","phase":"verify","iteration":0,"level":1.0,"started_at":"2026-03-18T00:00:00Z","updated_at":"2026-03-18T00:00:00Z"}' > .bts/specs/recipes/fl-001/recipe.json
+echo "# Draft" > .bts/specs/recipes/fl-001/draft.md
+cat > .bts/specs/recipes/fl-001/verification.md <<'VEOF'
+<bts-findings>
+{"critical": 1, "major": 0, "minor_resolvable": 0, "minor_deferred": 0, "info": 0,
+ "findings": [{"severity": "critical", "title": "retry policy contradicts timeout section"}]}
+</bts-findings>
+VEOF
+$BTS recipe log fl-001 --from-verification .bts/specs/recipes/fl-001/verification.md --doc .bts/specs/recipes/fl-001/draft.md > /dev/null
+FID=$($BTS recipe findings list fl-001 --json | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['id'])")
+$BTS recipe findings carry-forward fl-001 --doc draft.md | grep -q "$FID" && echo "✓ 40. findings ledger + carry-forward" || { echo "✗ 40. carry-forward"; exit 1; }
+
+# 41. A finding absent from the next round is recorded as fixed, and its
+#     return is a reopen — the regression signal positional #N numbering
+#     could never express.
+cat > .bts/specs/recipes/fl-001/verification.md <<'VEOF'
+<bts-findings>
+{"critical": 0, "major": 0, "minor_resolvable": 0, "minor_deferred": 0, "info": 0, "findings": []}
+</bts-findings>
+VEOF
+$BTS recipe log fl-001 --from-verification .bts/specs/recipes/fl-001/verification.md --doc .bts/specs/recipes/fl-001/draft.md | grep -q "1 fixed" || { echo "✗ 41. fixed"; exit 1; }
+cat > .bts/specs/recipes/fl-001/verification.md <<'VEOF'
+<bts-findings>
+{"critical": 1, "major": 0, "minor_resolvable": 0, "minor_deferred": 0, "info": 0,
+ "findings": [{"severity": "critical", "title": "retry policy contradicts timeout section"}]}
+</bts-findings>
+VEOF
+$BTS recipe log fl-001 --from-verification .bts/specs/recipes/fl-001/verification.md --doc .bts/specs/recipes/fl-001/draft.md | grep -q "1 reopened" && echo "✓ 41. fixed → reopened tracked" || { echo "✗ 41. reopened"; exit 1; }
+
+# 42. A findings array inconsistent with its counts is rejected outright
+cat > .bts/specs/recipes/fl-001/bad.md <<'VEOF'
+<bts-findings>
+{"critical": 2, "major": 0, "minor_resolvable": 0, "minor_deferred": 0, "info": 0,
+ "findings": [{"severity": "critical", "title": "only one entry for a count of two"}]}
+</bts-findings>
+VEOF
+if $BTS recipe log fl-001 --from-verification .bts/specs/recipes/fl-001/bad.md --doc .bts/specs/recipes/fl-001/draft.md > /dev/null 2>&1; then
+  echo "✗ 42. inconsistent findings array accepted"; exit 1
+fi
+echo "✓ 42. findings/counts mismatch rejected"
+
+# 43. Convergence budget halts a loop that stops making progress
+mkdir -p .bts/specs/recipes/cv-001
+echo '{"id":"cv-001","type":"blueprint","topic":"converge","phase":"verify","iteration":0,"level":1.0,"started_at":"2026-03-18T00:00:00Z","updated_at":"2026-03-18T00:00:00Z"}' > .bts/specs/recipes/cv-001/recipe.json
+echo "# Draft" > .bts/specs/recipes/cv-001/draft.md
+cat > .bts/specs/recipes/cv-001/verification.md <<'VEOF'
+<bts-findings>
+{"critical": 0, "major": 2, "minor_resolvable": 0, "minor_deferred": 0, "info": 0,
+ "findings": [{"severity": "major", "title": "stuck finding one"}, {"severity": "major", "title": "stuck finding two"}]}
+</bts-findings>
+VEOF
+for i in 1 2 3; do
+  $BTS recipe log cv-001 --from-verification .bts/specs/recipes/cv-001/verification.md --doc .bts/specs/recipes/cv-001/draft.md > /dev/null 2>&1 || true
+done
+OUT=$($BTS recipe log cv-001 --from-verification .bts/specs/recipes/cv-001/verification.md --doc .bts/specs/recipes/cv-001/draft.md 2>&1 || true)
+echo "$OUT" | grep -q "CONVERGENCE FAILED" && echo "✓ 43. convergence budget halts a stalled loop" || { echo "✗ 43. convergence: $OUT"; exit 1; }
+grep -q '"status":"failed"' .bts/specs/recipes/cv-001/verify-log.jsonl || { echo "✗ 43. failed status not recorded"; exit 1; }
+
+# 44. assess-precheck answers FINALIZE from state, without an LLM round
+mkdir -p .bts/specs/recipes/pc-001
+echo '{"id":"pc-001","type":"blueprint","topic":"precheck","phase":"verify","iteration":0,"level":1.0,"started_at":"2026-03-18T00:00:00Z","updated_at":"2026-03-18T00:00:00Z"}' > .bts/specs/recipes/pc-001/recipe.json
+echo "# Draft" > .bts/specs/recipes/pc-001/draft.md
+cat > .bts/specs/recipes/pc-001/verification.md <<'VEOF'
+<bts-findings>
+{"critical": 0, "major": 0, "minor_resolvable": 0, "minor_deferred": 0, "info": 0, "findings": []}
+</bts-findings>
+VEOF
+# A clean DELTA round must not finalize — untouched sections were never re-checked.
+$BTS recipe log pc-001 --from-verification .bts/specs/recipes/pc-001/verification.md --doc .bts/specs/recipes/pc-001/draft.md --scope delta > /dev/null
+$BTS recipe assess-precheck pc-001 --doc .bts/specs/recipes/pc-001/draft.md | grep -q '"action": "VERIFY"' || { echo "✗ 44. delta finalized"; exit 1; }
+# A clean FULL round on an unchanged doc does.
+$BTS recipe log pc-001 --from-verification .bts/specs/recipes/pc-001/verification.md --doc .bts/specs/recipes/pc-001/draft.md --scope full > /dev/null
+$BTS recipe assess-precheck pc-001 --doc .bts/specs/recipes/pc-001/draft.md | grep -q '"action": "FINALIZE"' || { echo "✗ 44. full pass did not finalize"; exit 1; }
+# Editing the doc reopens the obligation to re-verify.
+echo "edited after verification" >> .bts/specs/recipes/pc-001/draft.md
+$BTS recipe assess-precheck pc-001 --doc .bts/specs/recipes/pc-001/draft.md | grep -q '"action": "VERIFY"' && echo "✓ 44. assess-precheck: delta/full/dirty decisions" || { echo "✗ 44. dirty doc"; exit 1; }
+
+# 45. Per-document verify state — a clean wireframe round must not
+#     satisfy a dirty draft's gate (one shared counter before v0.10).
+$BTS recipe log pc-001 --from-verification .bts/specs/recipes/pc-001/verification.md --doc .bts/specs/recipes/pc-001/wireframe.md --scope full > /dev/null 2>&1 || true
+echo "# Wireframe" > .bts/specs/recipes/pc-001/wireframe.md
+$BTS recipe log pc-001 --from-verification .bts/specs/recipes/pc-001/verification.md --doc .bts/specs/recipes/pc-001/wireframe.md --scope full > /dev/null
+$BTS recipe assess-precheck pc-001 --doc .bts/specs/recipes/pc-001/draft.md | grep -q '"action": "VERIFY"' && echo "✓ 45. wireframe round cannot clear draft.md" || { echo "✗ 45. cross-doc leak"; exit 1; }
+
+# 46. Evidence cache — miss, put, normalised hit, and citation discipline
+$BTS evidence get --library swiftui --topic "safeAreaInset" --claim "does not propagate into sheets" > /dev/null 2>&1 && { echo "✗ 46. unexpected hit"; exit 1; }
+$BTS evidence put --library swiftui --topic "safeAreaInset" --claim "does not propagate into sheets" --verdict silent --gathered "Context7:miss" > /dev/null
+$BTS evidence get --library SwiftUI --topic "  safeAreaInset " --claim "does not propagate into sheets" | grep -q "HIT" || { echo "✗ 46. normalised lookup missed"; exit 1; }
+if $BTS evidence put --library go --claim "maps are ordered" --verdict confirms > /dev/null 2>&1; then
+  echo "✗ 46. uncited confirms accepted"; exit 1
+fi
+echo "✓ 46. evidence cache (miss/put/hit, citation required)"
+
 echo ""
-echo "=== All 39 tests passed ==="
+echo "=== All 46 tests passed ==="

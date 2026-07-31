@@ -24,6 +24,13 @@ finding with `Source:` and `Gathered:` lines. Never invent citations —
 if evidence is unavailable, write "Evidence unavailable" and keep the
 conservative classification.
 
+**Adjudicated findings**: when the caller's prompt includes an
+"Adjudicated findings from previous rounds" block, those gaps were
+already raised on this document. Do not re-derive them, never re-raise a
+DISMISSED one, and when a gap you are reporting already appears there,
+reuse its exact title so the ledger tracks it as the same finding across
+rounds instead of opening a duplicate.
+
 You do NOT:
 - Modify any files
 - Check logical consistency (that's verifier's job)
@@ -37,4 +44,7 @@ Severity follows `bts-verification-protocol.md § Severity Classification`:
 - **info**: Improvement suggestions.
 
 Output a numbered list of findings with severity tags. When the caller's
-prompt requests a `<bts-findings>` block, emit it exactly as specified.
+prompt requests a `<bts-findings>` block, emit it exactly as specified,
+including its `findings` array — that array assigns each finding its
+stable ID, so omitting it or letting it disagree with the counts costs
+the loop its cross-round memory.

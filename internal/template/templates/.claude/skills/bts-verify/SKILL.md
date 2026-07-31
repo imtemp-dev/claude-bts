@@ -43,18 +43,51 @@ it independently (single-read discipline; a copy here would be unused).
    Capture the output as FOCUS_DIFF. (On first verification it reports
    that no snapshot exists — pass that through as-is.)
 
+2b. Get the adjudicated findings from previous rounds:
+   ```bash
+   bts recipe findings carry-forward {id} --doc $ARGUMENTS
+   ```
+   Capture the output as CARRY_FORWARD. Empty on the first round.
+   This is what stops a fresh verifier from re-deriving settled points;
+   see `bts-verification-protocol.md § Finding Identity`.
+
+2c. **Decide this round's scope** (`bts-verification-protocol.md §
+   Verification Scope` is authoritative):
+   - FOCUS_DIFF reports no snapshot (first round) → **full**
+   - The orchestrator is about to finalize → **full**
+   - FOCUS_DIFF shows changed hunks → **delta** is allowed
+   Remember the choice — the orchestrator passes it as `--scope` when
+   recording the round, and a delta round can never satisfy completion.
+
 3. Spawn Agent(verifier) with the following prompt, appending
-   GRAPH_ANALYSIS and FOCUS_DIFF verbatim at the end:
+   GRAPH_ANALYSIS, FOCUS_DIFF and CARRY_FORWARD verbatim at the end:
 
    ```
    You are a logical verification specialist. Read the document at $ARGUMENTS and check for:
 
-   **Scope: FULL re-verification of the ENTIRE document, every round.**
-   A "Changes since last verified revision" block may be appended to this
-   prompt — it is a focus hint, not a scope restriction. Give the changed
-   sections and everything they touch (terms they redefine, flows they
-   alter, invariants they claim) extra scrutiny, but still verify
-   unchanged sections: an edit elsewhere can contradict them.
+   **Scope of this round: {full | delta}** (from step 2c)
+
+   - **full** — verify the ENTIRE document. Every section, including
+     ones no edit touched: an edit elsewhere can contradict them.
+   - **delta** — verify the sections listed in the appended "Changes
+     since last verified revision" block, PLUS their reference closure:
+     every section that cites a term, anchor, interface, invariant or
+     flow that the changed sections redefine. Follow those references
+     out until they stop leading anywhere new. Do not re-derive sections
+     outside that closure — a previous full pass already cleared them
+     and re-litigating them is what makes this loop oscillate. If you
+     cannot determine the closure with confidence, verify the whole
+     document and say so.
+
+   An "Adjudicated findings from previous rounds" block may be appended.
+   Those points are already settled:
+   - STILL OPEN — expect them unless the fix landed; reuse the given ID.
+   - FIXED — report again ONLY if the fix was reverted or is wrong.
+   - DISMISSED — adjudicated as not-a-defect. Do NOT re-raise.
+   - DEFERRED — runtime watch-items, not spec defects.
+   When you report a finding that already has an ID, use its exact title
+   from that block so the ledger tracks it as the same finding rather
+   than opening a duplicate.
 
    **Text-level verification:**
    - Contradictions: Does the document make conflicting claims?
@@ -88,6 +121,19 @@ it independently (single-read discipline; a copy here would be unused).
    memory/lifecycle rules, OS-level UI dismissal windows, etc.) as
    CRITICAL or MAJOR, attempt evidence gathering in this order:
 
+   0. Cache first — the same claims recur every round, and network
+      round trips are the slowest part of an iteration:
+      ```bash
+      bts evidence get --library <lib> --topic <topic> --claim "<claim>"
+      ```
+      HIT (exit 0) → reuse its verdict, Source and Gathered lines
+      verbatim; skip steps 1-3 entirely. MISS (exit 10) → gather below,
+      then record the outcome so the next round does not repeat it:
+      ```bash
+      bts evidence put --library <lib> --topic <topic> --claim "<claim>" \
+        --verdict <contradicts|confirms|silent|unofficial|unavailable> \
+        --gathered "<the Gathered: line>" --url <url>
+      ```
    1. Context7 MCP (preferred): mcp__context7__resolve-library-id then
       mcp__context7__get-library-docs with a topic from the claim.
       If the Context7 tools are absent or return errors (rate limit,
@@ -148,10 +194,31 @@ it independently (single-read discipline; a copy here would be unused).
      "info": 0,
      "paths_total": 7,
      "paths_unspecified": 0,
-     "evidence_resolved": {"removed": 1, "downgraded": 1}
+     "evidence_resolved": {"removed": 1, "downgraded": 1},
+     "findings": [
+       {"severity": "major", "title": "token refresh failure has no error path", "anchor": "§5"},
+       {"severity": "minor_resolvable", "title": "level header still says Level 2", "anchor": "§1"},
+       {"severity": "minor_resolvable", "title": "retryCount declared twice", "anchor": "§4.2"},
+       {"severity": "minor_deferred", "title": "scroll threshold needs a device measurement", "anchor": "§7"}
+     ]
    }
    </bts-findings>
    ```
+
+   The `findings` array is REQUIRED and feeds the findings ledger, which
+   is what gives findings identity across rounds. Rules:
+   - Exactly one entry per finding, in the same order as your numbered
+     list below the block.
+   - `severity` is one of `critical`, `major`, `minor_resolvable`,
+     `minor_deferred`, `info` — it must match the counts. `bts` rejects
+     the block if the array and the counts disagree, so do not
+     hand-adjust one without the other.
+   - `title` is the finding's identity. Keep it a stable, specific
+     one-line statement of the defect. When the carry-forward block
+     already lists this finding, reuse ITS title exactly — a reworded
+     title opens a duplicate finding and hides the fact that the issue
+     has persisted for several rounds.
+   - `anchor` is the section the finding is about (optional but useful).
 
    `paths_total` MUST equal the paths_total from the appended Mermaid
    Graph Analysis block (plus any paths you enumerated manually for
@@ -171,7 +238,9 @@ it independently (single-read discipline; a copy here would be unused).
    ```
 
 4. Collect the verifier's findings
-5. Report results to the user with severity counts
+5. Report results to the user with severity counts, and state which
+   scope the round used (`full` or `delta`) so the orchestrator records
+   it correctly.
 
 ## Count consistency (Phase 22)
 
@@ -187,17 +256,28 @@ cannot save files or run the CLI itself:
    output to verification.md VERBATIM — the block must land
    byte-identical, no re-summarizing.
 3. The orchestrator records the verify-log entry atomically, passing
-   the verified document via `--doc` so the next round's
-   `verify-focus` can diff against this revision:
+   the verified document via `--doc` and this round's scope:
    ```bash
-   bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md --doc {verified-doc-path}
+   bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md \
+     --doc {verified-doc-path} --scope {full|delta}
    ```
    The CLI parses the block itself, so the two sources cannot drift.
    Explicit `--critical/--major/--minor-resolvable/--minor-deferred`
    flags remain as a fallback; NEVER use legacy `--minor` (it maps all
    minors to blocking [resolvable]).
 
-Do not hand-edit verify-log.jsonl or verification.md.
+   `--doc` is not optional any more. It scopes convergence to this
+   document, feeds the findings ledger, and snapshots the revision.
+   Without it the round is recorded as unscoped, no findings are
+   tracked, and stagnation detection is unavailable.
+
+   **This command can fail on purpose.** A non-zero exit with
+   `[CONVERGENCE FAILED]` means the convergence budget is exhausted:
+   the round IS logged, but the loop must stop and ask the user rather
+   than starting another IMPROVE cycle. See
+   `bts-verification-protocol.md § Convergence`.
+
+Do not hand-edit verify-log.jsonl, verification.md, or findings.jsonl.
 
 Migrate-seeded blocks (produced by `bts migrate verification`) carry
 `"source": "migrated-from-verify-log"`. Cross-check mismatches on

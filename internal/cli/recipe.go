@@ -207,6 +207,19 @@ var recipeLogCmd = &cobra.Command{
 			minorR, _ := cmd.Flags().GetInt("minor-resolvable")
 			minorD, _ := cmd.Flags().GetInt("minor-deferred")
 			infoCt, _ := cmd.Flags().GetInt("info")
+			doc, _ := cmd.Flags().GetString("doc")
+			scope, _ := cmd.Flags().GetString("scope")
+
+			if scope != "full" && scope != "delta" {
+				return fmt.Errorf("--scope must be full or delta, got %q", scope)
+			}
+			docBase := ""
+			if doc != "" {
+				docBase = filepath.Base(doc)
+			}
+
+			var reported []state.ReportedFinding
+			haveFindingsArray := false
 
 			if fromVerification, _ := cmd.Flags().GetString("from-verification"); fromVerification != "" {
 				data, err := os.ReadFile(fromVerification)
@@ -223,8 +236,24 @@ var recipeLogCmd = &cobra.Command{
 				minorD = counts.MinorDeferred
 				infoCt = counts.Info
 				minor = 0
+				reported = counts.Findings
+				haveFindingsArray = len(counts.Findings) > 0 || counts.Total() == 0
 				if iteration == 0 {
-					if last, err := state.LastVerifyEntry(root, recipeID); err == nil && last != nil {
+					// Iteration numbering follows the document's own
+					// history when one is recorded — a wireframe round
+					// must not advance the draft's counter.
+					var last *state.VerifyLogEntry
+					if docBase != "" {
+						if e, derr := state.LastVerifyEntryForDoc(root, recipeID, docBase); derr == nil {
+							last = e
+						}
+					}
+					if last == nil {
+						if e, lerr := state.LastVerifyEntry(root, recipeID); lerr == nil {
+							last = e
+						}
+					}
+					if last != nil {
 						iteration = last.Iteration + 1
 					} else {
 						iteration = 1
@@ -253,7 +282,52 @@ var recipeLogCmd = &cobra.Command{
 				MinorResolvable: minorR,
 				MinorDeferred:   minorD,
 				Info:            infoCt,
+				Doc:             docBase,
+				FullPass:        scope == "full",
 				Status:          status,
+			}
+
+			// Convergence budget (bts-verification-protocol.md § Convergence).
+			// Evaluated on this document's history INCLUDING the round being
+			// logged, so the streak the operator sees is the real one.
+			settings, serr := engine.LoadSettings(root)
+			if serr != nil {
+				return fmt.Errorf("load settings: %w", serr)
+			}
+			history, herr := state.ReadVerifyLog(root, recipeID)
+			if herr != nil {
+				fmt.Fprintf(os.Stderr, "warning: read verify-log for convergence check: %v\n", herr)
+			}
+			// Narrow to this document's history, then append the round
+			// being logged. Copy rather than append in place: the slice
+			// may alias `history`'s backing array, and filepath.Base("")
+			// is "." — an unscoped round must fall back to the whole
+			// stream, not match a document literally named ".".
+			priorRounds := history
+			if docBase != "" {
+				priorRounds = state.VerifyEntriesForDoc(history, docBase)
+			}
+			scopedHistory := make([]state.VerifyLogEntry, 0, len(priorRounds)+1)
+			scopedHistory = append(scopedHistory, priorRounds...)
+			scopedHistory = append(scopedHistory, *entry)
+			verdict := engine.EvaluateConvergence(scopedHistory, settings.Verify.MaxIterations)
+
+			// Ledger sync gives findings identity across rounds, which is
+			// what makes the stagnation half of the rule computable.
+			var sync *state.SyncResult
+			if haveFindingsArray && docBase != "" {
+				s, serr := state.SyncFindings(root, recipeID, docBase, iteration, reported, settings.Verify.MaxIterations)
+				if serr != nil {
+					fmt.Fprintf(os.Stderr, "warning: findings ledger sync: %v\n", serr)
+				} else {
+					sync = s
+					verdict.Stagnant = s.Stagnant
+				}
+			}
+
+			if verdict.Exceeded {
+				entry.Status = "failed"
+				status = "failed"
 			}
 
 			if err := state.AppendVerifyLog(root, recipeID, entry); err != nil {
@@ -270,15 +344,49 @@ var recipeLogCmd = &cobra.Command{
 			}
 
 			// Snapshot the just-verified doc revision so the next
-			// verify round can diff against it (verify-focus).
-			if doc, _ := cmd.Flags().GetString("doc"); doc != "" {
+			// verify round can diff against it (verify-focus). Only full
+			// passes update the snapshot: a delta round verified part of
+			// the document, so the next round's focus diff must still
+			// carry everything not covered since the last full pass.
+			if doc != "" && scope == "full" {
 				if err := state.SaveVerifySnapshot(root, recipeID, doc); err != nil {
 					fmt.Fprintf(os.Stderr, "warning: verify snapshot: %v\n", err)
 				}
 			}
 
-			fmt.Printf("Logged iteration %d: critical=%d major=%d minor_resolvable=%d minor_deferred=%d → %s\n",
-				iteration, critical, major, minorR, minorD, status)
+			label := docBase
+			if label == "" {
+				label = "(unscoped)"
+			}
+			fmt.Printf("Logged iteration %d [%s, %s pass]: critical=%d major=%d minor_resolvable=%d minor_deferred=%d → %s\n",
+				iteration, label, scope, critical, major, minorR, minorD, status)
+
+			if sync != nil {
+				fmt.Printf("Findings ledger: %d new, %d carried, %d fixed, %d reopened\n",
+					len(sync.New), len(sync.Carried), len(sync.Fixed), len(sync.Reopened))
+				if len(sync.Reopened) > 0 {
+					fmt.Printf("  reopened (previously fixed or dismissed): %v\n", sync.Reopened)
+				}
+			} else if docBase == "" {
+				fmt.Fprintln(os.Stderr,
+					"[bts] note: no --doc given — verify state stays unscoped and the findings ledger is skipped.")
+			} else if !haveFindingsArray {
+				fmt.Fprintln(os.Stderr,
+					"[bts] note: <bts-findings> has no \"findings\" array — ledger skipped, so stagnation detection is unavailable this round.")
+			}
+
+			if verdict.Exceeded {
+				// The round WAS logged; this is a loop-control outcome,
+				// not a misuse of flags, so suppress cobra's usage dump —
+				// it would bury the report the operator needs to read.
+				cmd.SilenceUsage = true
+				fmt.Fprintln(os.Stderr, verdict.Message(label))
+				return fmt.Errorf("convergence budget exhausted after %d rounds without progress", verdict.Streak)
+			}
+			if verdict.Budget > 0 && verdict.Streak > 0 {
+				fmt.Printf("Convergence: %d/%d rounds without progress (best so far: %s)\n",
+					verdict.Streak, verdict.Budget, verdict.Best)
+			}
 		}
 
 		return nil
@@ -417,7 +525,10 @@ func init() {
 	recipeLogCmd.Flags().Int("minor-deferred", 0, "Minor [deferred] count — runtime-observable, does not block")
 	recipeLogCmd.Flags().Int("info", 0, "Info suggestion count")
 	recipeLogCmd.Flags().String("from-verification", "", "Parse counts from a verification.md <bts-findings> block (atomic; iteration auto-increments unless --iteration given)")
-	recipeLogCmd.Flags().String("doc", "", "Path of the verified document — snapshots it so the next `bts recipe verify-focus` can diff against this verified revision")
+	// No backticks in flag usage strings: cobra reads the first
+	// backtick-quoted word as the value placeholder name.
+	recipeLogCmd.Flags().String("doc", "", "Path of the verified document — scopes the verify state and findings ledger to it, and snapshots the revision for the next verify-focus diff")
+	recipeLogCmd.Flags().String("scope", "full", "Verification scope of this round: full (whole document) or delta (changed sections + reference closure). Only a full pass may satisfy the completion gate.")
 	// Changelog flags
 	recipeLogCmd.Flags().String("action", "", "Action type (research, improve, verify, debate, simulate, audit, assess, implement, test, sync, status)")
 	recipeLogCmd.Flags().String("output", "", "Output file path")

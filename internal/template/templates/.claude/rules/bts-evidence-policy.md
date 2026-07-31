@@ -25,6 +25,37 @@ recommended architecture patterns, API contracts.
 
 ## Gathering order
 
+0. **Local evidence cache** — always first. The verification loop
+   re-checks the same framework claims on every round, and network round
+   trips are the slowest part of an iteration.
+
+   ```bash
+   bts evidence get --library <lib> --topic <topic> --claim "<claim>"
+   ```
+
+   - **HIT** (exit 0): reuse the cached verdict and reproduce its
+     `Source:` and `Gathered:` lines verbatim. Skip steps 1-3.
+   - **MISS** (exit 10): gather via steps 1-3, then record the outcome
+     so later rounds do not repeat the work:
+     ```bash
+     bts evidence put --library <lib> --topic <topic> --claim "<claim>" \
+       --verdict <contradicts|confirms|silent|unofficial|unavailable> \
+       --gathered "<Gathered: line>" --url <url> --summary "<one line>"
+     ```
+
+   Cache semantics that matter for correctness:
+   - `contradicts` and `confirms` REQUIRE at least one `--url`; the CLI
+     refuses them otherwise. A cached verdict is replayed verbatim into
+     later rounds, so an uncited one would launder an invented citation
+     into every future round.
+   - `unavailable` entries expire after **one hour**, so a Context7
+     outage never pins a claim to "evidence unavailable" beyond the
+     incident. Successful lookups live for `verify.evidence_ttl_days`
+     (default 30).
+   - The cache is machine-local (`.bts/local/evidence-cache.json`) and
+     never committed. It is a latency optimisation, not project truth —
+     when in doubt, `bts evidence prune` and re-gather.
+
 1. **Context7 MCP** (preferred): `mcp__context7__resolve-library-id` →
    `mcp__context7__get-library-docs` with a topic derived from the claim.
    If Context7 is UNAVAILABLE (tools not present, server error, auth or

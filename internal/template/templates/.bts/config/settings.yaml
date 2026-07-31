@@ -4,7 +4,14 @@
 
 # Verification
 verify:
-  max_iterations: 3              # After 3 cycles without level change, diminishing returns — ask user
+  max_iterations: 3              # Convergence budget: consecutive rounds allowed to make no
+                                 # progress on (critical, major, minor_resolvable) before the
+                                 # loop must stop and ask. Enforced by `bts recipe log`, which
+                                 # exits non-zero with [CONVERGENCE FAILED]. Evaluated per
+                                 # verified document.
+  evidence_ttl_days: 30          # How long a cached framework-claim lookup stays usable.
+                                 # 0 = never expire. "unavailable" results always expire after
+                                 # an hour so an outage never pins a claim.
   convergence:
     require_zero_critical: true
     require_zero_major: true

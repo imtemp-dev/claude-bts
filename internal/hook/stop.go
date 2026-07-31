@@ -75,18 +75,50 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		return blockOutput("No verification.md found. Run /bts-verify on draft.md before completing."), nil
 	}
 
-	// 2. Check verify-log has passing entry
+	// 2. Check verify-log has passing entry.
+	//
+	// Prefer the spec document's OWN verification state. Before v0.10 the
+	// log was undifferentiated, so a wireframe.md round could satisfy this
+	// gate for draft.md — the counts checked belonged to a different
+	// document. state.VerifyEntriesForDoc falls back to the whole stream
+	// for legacy logs that record no doc, so old recipes are unaffected.
 	logPath := filepath.Join(recipeDir, "verify-log.jsonl")
 	lastEntry, err := readLastVerifyEntry(logPath)
 	if err != nil {
 		return blockOutput("No verification log found. Run verification before completing."), nil
 	}
+	gateDoc := "draft.md"
+	if e, derr := state.LastVerifyEntryForDoc(root, recipe.ID, gateDoc); derr == nil && e != nil {
+		lastEntry = e
+	}
 
 	resolvable := lastEntry.EffectiveResolvable()
 	if lastEntry.Critical > 0 || lastEntry.Major > 0 || resolvable > 0 {
 		return blockOutput(fmt.Sprintf(
-			"Verification not passed: %d critical, %d major, %d minor [resolvable] remain. Fix and re-verify. Deferred minors are runtime watch-items and do not block here.",
-			lastEntry.Critical, lastEntry.Major, resolvable,
+			"Verification not passed for %s: %d critical, %d major, %d minor [resolvable] remain. Fix and re-verify. Deferred minors are runtime watch-items and do not block here.",
+			lastEntry.Doc, lastEntry.Critical, lastEntry.Major, resolvable,
+		)), nil
+	}
+
+	if lastEntry.Status == "failed" {
+		return blockOutput(
+			"Last verification round is marked failed (convergence budget exhausted). " +
+				"The loop stopped making progress — resolve with the user rather than re-emitting DONE. " +
+				"See `bts recipe findings list --open` for the findings that would not clear.",
+		), nil
+	}
+
+	// 2a. Only a FULL pass may satisfy completion. Scoped delta rounds
+	// verify the changed sections plus their reference closure, which
+	// keeps iteration cheap, but finalizing on one would ship a spec
+	// whose untouched sections were never re-checked against the edits.
+	// Entries written before the scope flag existed carry FullPass=false
+	// with no Doc; only enforce when the log is doc-scoped (v0.10+).
+	if lastEntry.Doc != "" && !lastEntry.FullPass {
+		return blockOutput(fmt.Sprintf(
+			"%s is clean but its last verification was a scoped delta pass. Run one full pass "+
+				"(`/bts-verify` then `bts recipe log %s --from-verification .bts/specs/recipes/%s/verification.md --doc %s --scope full`) before completing.",
+			lastEntry.Doc, recipe.ID, recipe.ID, lastEntry.Doc,
 		)), nil
 	}
 

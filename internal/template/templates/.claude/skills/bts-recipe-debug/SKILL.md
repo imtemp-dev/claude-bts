@@ -322,7 +322,10 @@ Run /bts-verify on the current draft:
 
 If issues found → Edit draft.md → re-verify. Do NOT stop to report — fix and continue.
 When critical=0, major=0 → continue immediately to Step 8.
-Max `verify.max_iterations` (default: 3) → [CONVERGENCE FAILED] → ask user.
+`verify.max_iterations` (default: 3) consecutive rounds without progress →
+`bts recipe log` exits non-zero with `[CONVERGENCE FAILED]` and names the
+stagnant finding IDs → stop and ask the user. Enforced in code, not by
+self-counting (`bts-verification-protocol.md § Convergence`).
 
 ```bash
 bts recipe log {id} --phase verify --action verify
@@ -330,7 +333,8 @@ bts recipe log {id} --phase verify --action verify
 
 Record verify results to verify-log (required for stop hook DONE gate):
 ```bash
-bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md --doc {verified-doc-path}
+bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md \
+  --doc {verified-doc-path} --scope {full|delta}
 ```
 Iteration auto-increments. Fallback (no findings block): `--iteration N --critical X --major Y --minor-resolvable R --minor-deferred D`. Never use legacy `--minor` (it maps all minors to blocking [resolvable]).
 

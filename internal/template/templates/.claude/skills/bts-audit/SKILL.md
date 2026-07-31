@@ -34,11 +34,23 @@ it independently (single-read discipline; a copy here would be unused).
    ```
    Capture the full output as GRAPH_ANALYSIS.
 
+1b. Get the adjudicated findings from previous rounds:
+   ```bash
+   bts recipe findings carry-forward {id} --doc $ARGUMENTS
+   ```
+   Capture the output as CARRY_FORWARD (empty on the first round).
+
 2. Spawn Agent(auditor) with the following prompt, appending
-   GRAPH_ANALYSIS verbatim at the end:
+   GRAPH_ANALYSIS and CARRY_FORWARD verbatim at the end:
 
    ```
    You are a completeness audit specialist. Read the document at $ARGUMENTS.
+
+   An "Adjudicated findings from previous rounds" block may be appended.
+   Those gaps were already raised on this document: do not re-derive
+   them, never re-raise a DISMISSED one, and when reporting a gap that
+   already has an ID there, reuse its exact title so the ledger tracks
+   it as the same finding rather than opening a duplicate.
 
    Your goal: find everything the document fails to address that could cause
    problems at runtime, during deployment, or under adversarial conditions.
@@ -75,6 +87,15 @@ it independently (single-read discipline; a copy here would be unused).
    modes, etc.) as CRITICAL or MAJOR, attempt evidence gathering in this
    order:
 
+   0. Cache first — these claims recur every round and network round
+      trips dominate iteration time:
+      ```bash
+      bts evidence get --library <lib> --topic <topic> --claim "<claim>"
+      ```
+      HIT (exit 0) → reuse its verdict, Source and Gathered lines
+      verbatim and skip steps 1-3. MISS (exit 10) → gather below, then
+      record the result with `bts evidence put` (same flags plus
+      `--verdict` and `--gathered`).
    1. Context7 MCP (preferred): mcp__context7__resolve-library-id then
       mcp__context7__get-library-docs with a topic from the claim.
       If the Context7 tools are absent or return errors (rate limit,
@@ -140,10 +161,25 @@ it independently (single-read discipline; a copy here would be unused).
      "info": 0,
      "branches_total": 12,
      "branches_unspecified": 2,
-     "evidence_resolved": {"removed": 0, "downgraded": 1}
+     "evidence_resolved": {"removed": 0, "downgraded": 1},
+     "findings": [
+       {"severity": "major", "title": "no behaviour specified for concurrent session refresh", "anchor": "§6"},
+       {"severity": "major", "title": "deployment rollback path is unaddressed", "anchor": "§9"},
+       {"severity": "minor_resolvable", "title": "glossary omits the term 'snap'", "anchor": "§1"},
+       {"severity": "minor_deferred", "title": "cold-start budget needs a production measurement", "anchor": "§8"},
+       {"severity": "minor_deferred", "title": "OCR accuracy on glossy covers is unmeasured", "anchor": "§4"},
+       {"severity": "minor_deferred", "title": "keyboard dismissal window is device-specific", "anchor": "§5"}
+     ]
    }
    </bts-findings>
    ```
+
+   The `findings` array is REQUIRED: one entry per finding, in the same
+   order as the numbered list, with severities that match the counts
+   exactly (`bts` rejects a block whose array and counts disagree).
+   `title` is the finding's identity — keep it stable across rounds, and
+   reuse the carry-forward block's title verbatim when it already lists
+   the gap.
 
    Output findings as a numbered list with severity tags AFTER the block.
    For each finding also include (when applicable):

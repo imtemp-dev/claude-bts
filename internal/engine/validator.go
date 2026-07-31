@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/imtemp-dev/claude-bts/internal/state"
 )
 
 // ValidationError represents one schema violation.
@@ -170,6 +172,27 @@ type FindingsCounts struct {
 	MinorResolvable int
 	MinorDeferred   int
 	Info            int
+
+	// Findings is the optional per-finding array. When present it feeds
+	// the findings ledger (findings.jsonl), which is what gives findings
+	// identity across rounds. Absent on verification.md files written
+	// before v0.10 and on migrate-seeded blocks — callers degrade to
+	// counts-only rather than failing, but lose stagnation detection.
+	Findings []state.ReportedFinding
+}
+
+// Total returns the number of findings the counts describe. Used to
+// cross-check the findings array against the counts.
+func (c *FindingsCounts) Total() int {
+	return c.Critical + c.Major + c.MinorResolvable + c.MinorDeferred + c.Info
+}
+
+// validFindingSeverities is the enum accepted in the findings array.
+// It mirrors the count field names so a findings entry maps 1:1 onto
+// the count it contributes to.
+var validFindingSeverities = map[string]bool{
+	"critical": true, "major": true, "minor_resolvable": true,
+	"minor_deferred": true, "info": true,
 }
 
 // ParseFindingsBlock extracts the single <bts-findings> JSON block.
@@ -185,11 +208,12 @@ func ParseFindingsBlock(data []byte) (*FindingsCounts, error) {
 		return nil, fmt.Errorf("expected exactly 1 <bts-findings> block, found %d", len(matches))
 	}
 	var raw struct {
-		Critical        *int `json:"critical"`
-		Major           *int `json:"major"`
-		MinorResolvable *int `json:"minor_resolvable"`
-		MinorDeferred   *int `json:"minor_deferred"`
-		Info            int  `json:"info"`
+		Critical        *int                    `json:"critical"`
+		Major           *int                    `json:"major"`
+		MinorResolvable *int                    `json:"minor_resolvable"`
+		MinorDeferred   *int                    `json:"minor_deferred"`
+		Info            int                     `json:"info"`
+		Findings        []state.ReportedFinding `json:"findings"`
 	}
 	if err := json.Unmarshal(matches[0][1], &raw); err != nil {
 		return nil, fmt.Errorf("invalid JSON in findings block: %w", err)
@@ -205,13 +229,48 @@ func ParseFindingsBlock(data []byte) (*FindingsCounts, error) {
 			return nil, fmt.Errorf("findings block missing required count %q", name)
 		}
 	}
-	return &FindingsCounts{
+	out := &FindingsCounts{
 		Critical:        *raw.Critical,
 		Major:           *raw.Major,
 		MinorResolvable: *raw.MinorResolvable,
 		MinorDeferred:   *raw.MinorDeferred,
 		Info:            raw.Info,
-	}, nil
+		Findings:        raw.Findings,
+	}
+
+	// The array is optional, but a present array must be consistent with
+	// the counts — a mismatch means the ledger would silently disagree
+	// with the gate, which is the exact drift class Phase 22 exists to
+	// prevent. Fail fast instead of logging a half-truth.
+	if len(out.Findings) > 0 {
+		for i, f := range out.Findings {
+			if !validFindingSeverities[f.Severity] {
+				return nil, fmt.Errorf("findings[%d]: invalid severity %q (want critical|major|minor_resolvable|minor_deferred|info)", i, f.Severity)
+			}
+			if strings.TrimSpace(f.Title) == "" {
+				return nil, fmt.Errorf("findings[%d]: empty title — titles are the identity key for the ledger", i)
+			}
+		}
+		if len(out.Findings) != out.Total() {
+			return nil, fmt.Errorf("findings array has %d entries but counts total %d (critical=%d major=%d minor_resolvable=%d minor_deferred=%d info=%d)",
+				len(out.Findings), out.Total(), out.Critical, out.Major,
+				out.MinorResolvable, out.MinorDeferred, out.Info)
+		}
+		per := map[string]int{}
+		for _, f := range out.Findings {
+			per[f.Severity]++
+		}
+		for name, want := range map[string]int{
+			"critical": out.Critical, "major": out.Major,
+			"minor_resolvable": out.MinorResolvable,
+			"minor_deferred":   out.MinorDeferred, "info": out.Info,
+		} {
+			if per[name] != want {
+				return nil, fmt.Errorf("findings array has %d %s entries but count says %d", per[name], name, want)
+			}
+		}
+	}
+	return out, nil
 }
 
 // findingsBlockRe matches <bts-findings>...</bts-findings> with JSON inside.

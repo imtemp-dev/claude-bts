@@ -61,12 +61,16 @@ After each skill completes, immediately proceed to the next check.
 When all checks pass (critical=0, major=0), continue directly to Step 4.
 If issues found, fix them and re-run the loop — do NOT stop to report.
 
-Max `verify.max_iterations` (default: 3). If same issues persist →
-[CONVERGENCE FAILED], report findings and ask user for guidance.
+The convergence budget (`verify.max_iterations`, default: 3) is enforced
+by `bts recipe log`: after that many consecutive rounds without progress
+it exits non-zero with `[CONVERGENCE FAILED]` and names the stagnant
+finding IDs. Stop there and ask the user — do not start another fix
+cycle. See `bts-verification-protocol.md § Convergence`.
 
 Log each iteration:
 ```bash
-bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md --doc {verified-doc-path}
+bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md \
+  --doc {verified-doc-path} --scope {full|delta}
 ```
 Iteration auto-increments. Fallback (no findings block): `--iteration N --critical X --major Y --minor-resolvable R --minor-deferred D`. Never use legacy `--minor` (it maps all minors to blocking [resolvable]).
 

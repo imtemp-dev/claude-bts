@@ -154,6 +154,30 @@ var HardGates = []HardGate{
 		Enforcement: "internal/engine/validator.go:validateVerificationLogConsistency",
 		Summary:     "verification.md <bts-findings> counts must match the last verify-log.jsonl entry",
 	},
+	{
+		ID:          "findings_array_consistency",
+		Rule:        "bts-verification-protocol.md §Finding Identity",
+		Enforcement: "internal/engine/validator.go:ParseFindingsBlock",
+		Summary:     "A <bts-findings> findings array must match the block's counts per severity and carry non-empty titles; a mismatch fails `bts recipe log` so a round cannot be recorded with an unusable ledger",
+	},
+	{
+		ID:          "convergence_budget",
+		Rule:        "bts-verification-protocol.md §Convergence",
+		Enforcement: "internal/engine/convergence.go:EvaluateConvergence + internal/cli/recipe.go:recipeLogCmd",
+		Summary:     "verify.max_iterations consecutive rounds without progress on (critical, major, minor_resolvable) marks the entry failed and stops the loop",
+	},
+	{
+		ID:          "full_pass_before_final",
+		Rule:        "bts-verification-protocol.md §Verification Scope",
+		Enforcement: "internal/hook/stop.go:handleSpecDone",
+		Summary:     "Block <bts>DONE</bts> when the spec's last verify entry is a scoped delta pass rather than a full-document pass",
+	},
+	{
+		ID:          "per_document_verify_state",
+		Rule:        "bts-verification-protocol.md §Convergence",
+		Enforcement: "internal/state/recipe.go:VerifyEntriesForDoc + internal/hook/stop.go:handleSpecDone",
+		Summary:     "Convergence is evaluated per verified document; a wireframe round can no longer satisfy or reopen draft.md's completion gate",
+	},
 }
 
 // InvariantGates lists domain-level checks enforced via `bts verify`.

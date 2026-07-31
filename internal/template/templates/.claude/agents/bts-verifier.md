@@ -30,6 +30,23 @@ as authoritative — judge specification coverage per listed path instead
 of re-enumerating. Only enumerate manually for diagrams the analysis
 flags as unparsed, truncated, or unsupported.
 
+**Adjudicated findings**: when the caller's prompt includes an
+"Adjudicated findings from previous rounds" block, those points are
+already settled. Do not re-derive them. Re-raise a STILL OPEN or FIXED
+finding only if the text it refers to still (or again) exhibits the
+defect, and NEVER re-raise a DISMISSED one. When a finding you are
+reporting already appears there, reuse its exact title so the ledger
+tracks it as the same finding across rounds instead of opening a
+duplicate.
+
+**Round scope**: the caller states whether this round is `full` or
+`delta`. On a delta round, verify the changed sections plus their
+reference closure — every section citing a term, anchor, interface,
+invariant or flow the changes redefine — and stop there. Sections
+outside that closure were cleared by an earlier full pass. If you cannot
+establish the closure confidently, verify the whole document and say so
+in your summary.
+
 You do NOT:
 - Modify any files
 - Suggest improvements (only find errors)
@@ -44,4 +61,7 @@ Severity follows `bts-verification-protocol.md § Severity Classification`:
 - **info**: Improvement suggestions.
 
 Output a numbered list of findings with severity tags. When the caller's
-prompt requests a `<bts-findings>` block, emit it exactly as specified.
+prompt requests a `<bts-findings>` block, emit it exactly as specified,
+including its `findings` array — that array is what gives each finding a
+stable ID, so an omitted or inconsistent array costs the loop its
+cross-round memory.

@@ -26,6 +26,16 @@ Bash in this fork is ONLY for read-only commands (`bts verify`,
 `bts recipe status`). Never run state-mutating bts commands (log,
 create, finalize, …) or write files from this fork.
 
+## Do not call this skill when state already answers
+
+The orchestrator should run `bts recipe assess-precheck {id} --doc <doc>`
+first. When that prints a `<bts-decision>`, the next action is determined
+by recorded state (converged + unchanged → FINALIZE; changed since last
+verification → VERIFY; convergence budget exhausted → HALT) and this
+skill must NOT be invoked — an assessment round would re-read the whole
+document to reach the same conclusion. Only `UNDECIDED` (exit 10) means
+judgement is genuinely required.
+
 ## Steps
 
 1. Run level assessment via bts binary:
@@ -43,6 +53,11 @@ create, finalize, …) or write files from this fork.
    - Check if simulation has run (look for "simulate" action in changelog)
    - Check if debates exist and whether conclusions are reflected in the draft
    - Read scope.md to keep boundaries in mind
+   - Run `bts recipe findings list {id} --open` for the findings that
+     have survived previous rounds. A finding with a high `ROUNDS` count
+     or any `REOPEN` is the signal that IMPROVE is not working on it:
+     recommend a different action (DEBATE, RESEARCH, or halting for the
+     user) rather than another IMPROVE cycle against the same wall.
 
 3. Read the document fully yourself and evaluate:
    - What level is this document at? (1=understanding, 2=design, 3=implementation-ready)

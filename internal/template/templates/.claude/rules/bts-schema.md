@@ -140,31 +140,65 @@ Optional fields:
 Located at `.bts/specs/recipes/{id}/verify-log.jsonl`. Each line is a JSON object:
 
 ```json
-{"time":"2026-03-18T10:35:00Z","iteration":1,"critical":2,"major":3,"minor_resolvable":1,"minor_deferred":0,"status":"continue"}
-{"time":"2026-03-18T11:00:00Z","iteration":2,"critical":0,"major":1,"minor_resolvable":2,"minor_deferred":1,"status":"continue"}
-{"time":"2026-03-18T11:20:00Z","iteration":3,"critical":0,"major":0,"minor_resolvable":0,"minor_deferred":1,"status":"converged"}
+{"time":"2026-03-18T10:35:00Z","iteration":1,"critical":2,"major":3,"minor_resolvable":1,"minor_deferred":0,"doc":"draft.md","full_pass":true,"status":"continue"}
+{"time":"2026-03-18T11:00:00Z","iteration":2,"critical":0,"major":1,"minor_resolvable":2,"minor_deferred":1,"doc":"draft.md","status":"continue"}
+{"time":"2026-03-18T11:20:00Z","iteration":3,"critical":0,"major":0,"minor_resolvable":0,"minor_deferred":1,"doc":"draft.md","full_pass":true,"status":"converged"}
 ```
 
 Required fields:
 - `time` (string): ISO 8601 timestamp
-- `iteration` (number): verify iteration number (1-based)
+- `iteration` (number): verify iteration number (1-based, per document)
 - `critical` (number): count of critical issues
 - `major` (number): count of major issues
-- `status` (string): "continue", "converged" (critical=0, major=0, minor_resolvable=0), or "failed"
+- `status` (string): "continue", "converged" (critical=0, major=0, minor_resolvable=0), or "failed" (convergence budget exhausted)
 
 Optional fields:
 - `minor_resolvable` (number): [resolvable] minors — block completion
 - `minor_deferred` (number): [deferred] minors — runtime watch-items, do not block
 - `minor` (number): LEGACY pre-split count; readers treat it as resolvable
 - `info` (number): count of info suggestions
+- `doc` (string): basename of the verified document. Absent on legacy
+  entries, when all documents shared one iteration counter and one
+  convergence verdict — so a wireframe round could satisfy draft.md's
+  completion gate. Readers narrow by this field; a log with no `doc`
+  anywhere is treated as one undifferentiated legacy stream.
+- `full_pass` (bool): true when the round verified the whole document,
+  false/absent for a `--scope delta` round. Only a full pass may satisfy
+  completion (`full_pass_before_final`).
 
 Entries are written by `bts recipe log {id} --from-verification <verification.md>`
 (preferred — parses the `<bts-findings>` block atomically) or by the
-explicit split flags. Also pass `--doc <verified-doc-path>` — it
-snapshots the just-verified revision so the next round's
-`bts recipe verify-focus <doc>` can emit focus-hint diffs.
-Used by the stop hook to gate `<bts>DONE</bts>`:
-last entry must have critical=0, major=0, minor_resolvable=0.
+explicit split flags. Always pass `--doc <verified-doc-path>`: it scopes
+convergence and the findings ledger to that document and snapshots the
+verified revision for `bts recipe verify-focus <doc>`. Pass
+`--scope full|delta` to record the round's coverage.
+Used by the stop hook to gate `<bts>DONE</bts>`: the spec document's own
+last entry must have critical=0, major=0, minor_resolvable=0, be a full
+pass, and not be `status: failed`.
+
+## findings.jsonl
+
+Located at `.bts/specs/recipes/{id}/findings.jsonl`. Append-only event
+log giving verification findings a stable identity across rounds — the
+substrate the stagnation rule in `bts-verification-protocol.md` needs.
+Written automatically by `bts recipe log --from-verification --doc` when
+the `<bts-findings>` block carries a `findings` array.
+
+```json
+{"id":"F-7fb1c391","doc":"draft.md","iteration":1,"severity":"critical","title":"retry policy contradicts the timeout section","anchor":"§3","status":"open","timestamp":"2026-03-18T10:35:00Z"}
+{"id":"F-7fb1c391","doc":"draft.md","iteration":2,"severity":"critical","title":"retry policy contradicts the timeout section","status":"fixed","timestamp":"2026-03-18T11:00:00Z"}
+```
+
+Fields:
+- `id` (string): `F-` + 8 hex chars of sha256(doc + normalised title).
+  Assigned by `bts`, never by hand.
+- `doc`, `iteration`, `severity`, `title`, `anchor`: as reported
+- `status` (string): `open`, `fixed`, `deferred`, `dismissed`
+- `reason` (string, optional): why it was dismissed
+
+Current state is the fold of the events (last event per ID wins, with
+open-round and reopen counters accumulated). Inspect with
+`bts recipe findings list {id}`; never hand-edit the file.
 
 ## debate meta.json
 

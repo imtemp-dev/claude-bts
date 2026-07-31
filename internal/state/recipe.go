@@ -132,6 +132,59 @@ func ReadVerifyLog(root, recipeID string) ([]VerifyLogEntry, error) {
 	return entries, scanner.Err()
 }
 
+// VerifyEntriesForDoc narrows a verify-log to one document's history.
+//
+// Entries carrying no Doc are legacy (pre-v0.10), when every document
+// shared a single stream. If the log has no doc-scoped entries at all,
+// the whole stream is returned unchanged so legacy recipes keep the
+// convergence verdict they already had rather than suddenly reading as
+// unverified. Once any entry records a Doc, only matching entries count
+// for that document — that is the point of the field.
+//
+// docBase is matched on basename, so callers may pass either
+// "draft.md" or ".bts/specs/recipes/r-001/draft.md". An empty docBase
+// means "no document in particular" and returns the whole stream —
+// without this guard filepath.Base("") would be "." and match nothing.
+func VerifyEntriesForDoc(entries []VerifyLogEntry, docBase string) []VerifyLogEntry {
+	if docBase == "" {
+		return entries
+	}
+	scoped := false
+	for i := range entries {
+		if entries[i].Doc != "" {
+			scoped = true
+			break
+		}
+	}
+	if !scoped {
+		return entries
+	}
+	want := filepath.Base(docBase)
+	var out []VerifyLogEntry
+	for i := range entries {
+		if entries[i].Doc == want {
+			out = append(out, entries[i])
+		}
+	}
+	return out
+}
+
+// LastVerifyEntryForDoc returns the most recent entry describing docBase,
+// or nil when that document has never been verified. A nil result with a
+// nil error means "no history for this doc" — distinct from a read error.
+func LastVerifyEntryForDoc(root, recipeID, docBase string) (*VerifyLogEntry, error) {
+	entries, err := ReadVerifyLog(root, recipeID)
+	if err != nil {
+		return nil, err
+	}
+	scoped := VerifyEntriesForDoc(entries, docBase)
+	if len(scoped) == 0 {
+		return nil, nil
+	}
+	last := scoped[len(scoped)-1]
+	return &last, nil
+}
+
 // LoadTaskState reads tasks.json from a recipe directory.
 func LoadTaskState(root, recipeID string) (*TaskState, error) {
 	path := filepath.Join(RecipeDir(root, recipeID), "tasks.json")
@@ -171,6 +224,16 @@ func IsImplementPhase(phase string) bool {
 // Legacy entries written before the split carry only the Minor field.
 // Readers should treat Minor as MinorResolvable when MinorResolvable and
 // MinorDeferred are both zero (see stop hook and CLI log handler).
+// Doc scopes an entry to the document that was verified. Entries written
+// before v0.10 carry no Doc: every document shared one iteration counter
+// and one convergence verdict, so verifying wireframe.md could satisfy
+// (or reopen) draft.md's gate. Readers must treat "" as the legacy
+// undifferentiated stream — see VerifyEntriesForDoc.
+//
+// FullPass records whether the round re-verified the whole document or
+// only the changed sections plus their reference closure. Delta rounds
+// are cheap but are not sufficient evidence for finalization; the stop
+// hook requires the last entry to be a full pass.
 type VerifyLogEntry struct {
 	Iteration       int    `json:"iteration"`
 	Critical        int    `json:"critical"`
@@ -179,7 +242,9 @@ type VerifyLogEntry struct {
 	MinorResolvable int    `json:"minor_resolvable,omitempty"`
 	MinorDeferred   int    `json:"minor_deferred,omitempty"`
 	Info            int    `json:"info,omitempty"`
-	Status          string `json:"status"` // continue, converged, failed
+	Doc             string `json:"doc,omitempty"`       // basename of the verified document
+	FullPass        bool   `json:"full_pass,omitempty"` // whole-document round (vs. scoped delta)
+	Status          string `json:"status"`              // continue, converged, failed
 	Timestamp       string `json:"timestamp"`
 }
 

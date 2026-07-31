@@ -55,7 +55,15 @@ type SimulateSettings struct {
 // not referenced from Go stay undeclared here and pass through the
 // parser untouched.
 type VerifySettings struct {
+	// MaxIterations is the convergence budget: consecutive verify rounds
+	// allowed to make no progress on (critical, major, minor_resolvable)
+	// before the loop must stop and ask the user. Enforced in
+	// engine/convergence.go and `bts recipe log`.
 	MaxIterations int `yaml:"max_iterations"`
+	// EvidenceTTLDays is how long a cached framework-claim lookup stays
+	// usable. 0 disables expiry for successful lookups; "unavailable"
+	// results always expire after an hour regardless.
+	EvidenceTTLDays int `yaml:"evidence_ttl_days"`
 }
 
 // DefaultSettings returns the built-in defaults matching the comments
@@ -83,7 +91,8 @@ func DefaultSettings() *Settings {
 			CrossBoundaryRatio: DefaultCrossBoundaryRatio,
 		},
 		Verify: VerifySettings{
-			MaxIterations: 3,
+			MaxIterations:   3,
+			EvidenceTTLDays: 30,
 		},
 	}
 }
@@ -128,6 +137,11 @@ func LoadSettings(root string) (*Settings, error) {
 	}
 	if s.Verify.MaxIterations <= 0 {
 		s.Verify.MaxIterations = def.Verify.MaxIterations
+	}
+	// 0 is meaningful here (never expire), so only a negative value
+	// falls back to the default.
+	if s.Verify.EvidenceTTLDays < 0 {
+		s.Verify.EvidenceTTLDays = def.Verify.EvidenceTTLDays
 	}
 	if s.Implement.RetryLadder.SyntacticMax <= 0 {
 		s.Implement.RetryLadder.SyntacticMax = def.Implement.RetryLadder.SyntacticMax

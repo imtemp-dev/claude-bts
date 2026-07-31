@@ -58,7 +58,14 @@ If active, check the phase to determine resume strategy:
 
 Do NOT read on resume: research documents (already incorporated into the draft).
 
-Then run `/bts-assess` on the current draft to determine the next action.
+Then determine the next action:
+```bash
+bts recipe assess-precheck {id} --doc .bts/specs/recipes/{id}/draft.md
+```
+Execute the printed `<bts-decision>` if there is one; only run
+`/bts-assess` when the precheck reports `UNDECIDED`. Resuming is exactly
+the case where state already holds the answer — a converged, unchanged
+draft needs finalization, not a fresh assessment round.
 
 ## Adaptive Loop
 
@@ -94,24 +101,49 @@ ASSESS determines what to do next based on the document's current state.
    - Add to `resolves` array if a simulation gap was addressed
    - Clear `verified_by` to `""` (draft changed, not yet re-verified)
 4. Run `bts validate` to verify schema compliance
-5. Run /verify on draft.md → save findings to `verification.md` (overwrite previous)
+5. Run the semantic pass on draft.md. When both /bts-verify and
+   /bts-audit are due this round, **invoke them in a single message so
+   the two forks run concurrently** — they are independent (logical
+   consistency vs. completeness), read the same document, and share no
+   state. Do NOT run them one after the other. Once critical=0, /bts-simulate
+   joins the same concurrent batch (see Quality Rule 4).
+   Save the verify findings to `verification.md` (overwrite previous).
 6. After /verify, update manifest: set draft.md `verified_by` to `"verification.md"`
 7. Record verify results to verify-log (atomic — parses the `<bts-findings>`
    block from verification.md so counts can never drift):
    ```bash
-   bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md --doc {verified-doc-path}
+   bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md \
+     --doc {verified-doc-path} --scope {full|delta}
    ```
-   Iteration auto-increments from the last entry. Fallback (only if the
-   findings block is missing): pass explicit SPLIT counts —
-   `--iteration N --critical X --major Y --minor-resolvable R --minor-deferred D`.
-   NEVER use the legacy `--minor` flag: it maps every minor to
-   [resolvable] and blocks finalization even when only [deferred]
-   minors remain (contradicting rule 3b).
+   `--doc` is REQUIRED: it scopes convergence and the findings ledger to
+   that document and snapshots the revision. `--scope` records whether
+   the round covered the whole document or only the changed sections
+   plus their reference closure (`bts-verification-protocol.md §
+   Verification Scope`). Iteration auto-increments per document.
+   Fallback (only if the findings block is missing): pass explicit SPLIT
+   counts — `--iteration N --critical X --major Y --minor-resolvable R
+   --minor-deferred D`. NEVER use the legacy `--minor` flag: it maps
+   every minor to [resolvable] and blocks finalization even when only
+   [deferred] minors remain (contradicting rule 3b).
    This writes to verify-log.jsonl which the stop hook checks at completion.
-8. Run /assess to determine the next action
-9. **IMMEDIATELY execute the action** recommended by /assess. Do NOT output the
-   assessment and stop. The loop is autonomous — continue executing until Level 3
-   is achieved or a human intervention point is reached.
+
+   **This command can fail on purpose.** A non-zero exit carrying
+   `[CONVERGENCE FAILED]` means the convergence budget is exhausted —
+   the round was logged, but do NOT start another IMPROVE cycle. Report
+   the message and its stagnant finding IDs to the user and stop (this
+   is the `[CONVERGENCE FAILED]` intervention point below).
+8. Ask state before asking a model:
+   ```bash
+   bts recipe assess-precheck {id} --doc .bts/specs/recipes/{id}/draft.md
+   ```
+   - Prints a `<bts-decision>` (exit 0) → execute that action directly.
+     **Skip /assess entirely** — the answer came from recorded state, so
+     an assessment round would only re-derive it at the cost of a full
+     document read.
+   - `UNDECIDED` (exit 10) → run /assess for a judgement round.
+9. **IMMEDIATELY execute the action** from the precheck or /assess. Do NOT
+   output the assessment and stop. The loop is autonomous — continue executing
+   until Level 3 is achieved or a human intervention point is reached.
 
 **Refer to `.claude/rules/bts-schema.md` for exact JSON field names, types, and structures.**
 
@@ -382,9 +414,23 @@ and assess behavior.
 ### Quality Rules
 
 1. **Every document modification → /verify.** No exceptions.
-   **Max `verify.max_iterations` (default: 3) consecutive IMPROVE→VERIFY cycles without level change.**
-   If that many cycles pass and the level hasn't increased, report [CONVERGENCE FAILED]
-   and ask the user for guidance. Check verify-log.jsonl iteration count.
+   The convergence budget (`verify.max_iterations`, default: 3) is
+   enforced by `bts recipe log`, not by counting rounds yourself: after
+   that many consecutive rounds without progress on
+   `(critical, major, minor_resolvable)` the command exits non-zero with
+   `[CONVERGENCE FAILED]` and names the stagnant finding IDs. Stop the
+   loop there and ask the user. See `bts-verification-protocol.md §
+   Convergence`.
+1a. **Round scope.** The first verification of a document is a full
+   pass. Later rounds may be `--scope delta` (changed sections plus
+   their reference closure), which is what keeps a long loop cheap —
+   but the round before finalization MUST be a full pass, and the stop
+   hook blocks `<bts>DONE</bts>` otherwise. When in doubt, run full.
+1b. **Findings carry forward.** Each verify round receives the previous
+   rounds' adjudicated findings, so settled points are not re-derived.
+   If a finding comes back as `reopened`, the last IMPROVE regressed
+   something — fix the fix, do not treat it as a new finding. Inspect
+   with `bts recipe findings list {id} --open`.
 2. **Every debate conclusion → /adjudicate → if accepted → update draft → /verify.**
 3. **Every simulation gap found → update draft → /verify.**
 3a. **Prose-minimal IMPROVE — avoid amplification.** Each IMPROVE step
@@ -424,6 +470,10 @@ and assess behavior.
    - First verify has critical=0 → run /simulate immediately (before more IMPROVE cycles)
    - First verify has critical>0 → fix criticals first, then /simulate
    - Run /simulate again before finalization if major structural changes were made
+   - Once critical=0, /simulate belongs in the SAME concurrent batch as
+     /bts-verify and /bts-audit (loop protocol step 5) — all three read
+     the same document and answer independent questions, so running them
+     sequentially triples the wall-clock of every round for no gain.
 5. **/debate for every uncertain technical choice.** Don't guess.
 6. **/sync-check before finalizing.** All documents must be in sync.
 
@@ -459,11 +509,13 @@ If /debate reports [DEBATE DEADLOCK] instead of a conclusion:
 ├── recipe.json
 ├── manifest.json
 ├── changelog.jsonl
-├── verify-log.jsonl
+├── verify-log.jsonl           # One entry per verify round, scoped by doc + scope
+├── findings.jsonl             # Append-only findings ledger (stable IDs across rounds)
 ├── scope.md
 ├── research/v1.md
 ├── draft.md                  # Single file, Edit-based
-├── verification.md            # Single file, overwritten each cycle
+├── verification.md            # Latest round only, overwritten each cycle —
+│                              # cross-round history lives in findings.jsonl
 ├── debates/001-topic/
 │   ├── meta.json
 │   ├── round-1.md
@@ -479,13 +531,20 @@ After each action:
 
 ### Finalization
 
-When /assess declares Level 3 achieved AND /sync-check passes:
+When the precheck or /assess declares Level 3 achieved AND /sync-check passes:
+0. **Confirm the last round was a full pass.** If the most recent verify
+   entry for draft.md used `--scope delta`, run one more /bts-verify at
+   full scope and record it with `--scope full` first. The precheck
+   reports this as `action: VERIFY` with a "delta pass" reason; the stop
+   hook blocks DONE on it either way.
 1. Copy `draft.md` to `final.md`
 2. Run Skill("bts-status") with arguments: {id}
    This updates project-status.md, roadmap.md, and project-map.md.
 3. Output `<bts>DONE</bts>`
 4. Stop hook will verify:
-   - verify-log last entry: critical=0, major=0
+   - draft.md's own last verify entry: critical=0, major=0, no resolvable minors
+   - that entry is a full pass, not a scoped delta pass
+   - that entry is not `status: failed` (convergence budget exhausted)
    - All sync checks passed
 5. Tell the user (plaintext, after the marker):
    > **Blueprint complete** — `{id}` spec finalized.
