@@ -7,6 +7,7 @@ authoritative_for:
   - minor_subclassification
   - verification_scope
   - finding_identity
+  - decision_handoff
 ---
 
 # BTS Verification Protocol
@@ -113,7 +114,43 @@ generate new findings faster than edits resolved them.
 - Stagnation detector: findings still open across the whole streak are
   reported by name in the `[CONVERGENCE FAILED]` message. Do not retry
   them; bring them to the user.
+- Every logged round records the `budget` it was judged under. Changing
+  `verify.max_iterations` mid-document re-judges that document's whole
+  history, so `bts recipe log` prints a notice when it changes.
 
 This is enforced in code (`internal/engine/convergence.go`), not by
 self-counting. Recipes measured before it existed ran up to 15 verify
 rounds against a cap of 3.
+
+## Handing a question to the user {gate: hard}
+
+"Stop the loop and ask the user" is only half a handoff. The question and
+its answer live in the conversation, and a compaction, a new session, or
+simply the next day loses both — while the recipe's own state still looks
+like ordinary in-progress work.
+
+When the loop stops for a decision only the user can make — a convergence
+failure, or a finding that needs a product call rather than a spec edit —
+record it before ending the turn:
+
+```bash
+bts recipe decision hold {id} --key <stable-key> \
+    --question "<what the user must decide>" \
+    [--option A --option B] [--doc draft.md] [--blocks <finding-id>]
+```
+
+- The key is the decision's identity across rounds. Reuse it when the same
+  question comes back; never reuse it for a different question (rejected).
+- While any decision is open the recipe is BLOCKED: the completion gate
+  refuses to finalize, session start leads with it, `bts doctor` reports
+  it as an error, and the status line shows `⛔N`.
+- Ending the turn with an open decision recorded is correct — that IS the
+  handoff. Ending it with the question only in chat is not.
+- Record the answer, never assume it:
+  `bts recipe decision resolve {id} <key> --answer "..."`.
+  If the question stopped mattering, retire it with
+  `bts recipe decision drop {id} <key> --reason "..."` rather than
+  inventing an answer.
+
+The ledger is `decisions.jsonl` in the recipe's tracked directory: a
+decision that shaped a spec is part of that spec's provenance.

@@ -294,6 +294,11 @@ var recipeLogCmd = &cobra.Command{
 			if serr != nil {
 				return fmt.Errorf("load settings: %w", serr)
 			}
+			// Stamp the budget this round is judged under. The verdict below
+			// is recomputed over the whole history from CURRENT settings, so
+			// without this stamp the log cannot say which regime produced a
+			// given Status — see state.VerifyLogEntry.Budget.
+			entry.Budget = settings.Verify.MaxIterations
 			history, herr := state.ReadVerifyLog(root, recipeID)
 			if herr != nil {
 				fmt.Fprintf(os.Stderr, "warning: read verify-log for convergence check: %v\n", herr)
@@ -307,10 +312,30 @@ var recipeLogCmd = &cobra.Command{
 			if docBase != "" {
 				priorRounds = state.VerifyEntriesForDoc(history, docBase)
 			}
+			label := docBase
+			if label == "" {
+				label = "(unscoped)"
+			}
+			// Tie this record to a fork actually having run. Evidence, not
+			// a gate — see state.VerifyLogEntry.AgentEvidence.
+			entry.AgentEvidence = agentEvidenceSince(root, recipeID, priorRounds)
 			scopedHistory := make([]state.VerifyLogEntry, 0, len(priorRounds)+1)
 			scopedHistory = append(scopedHistory, priorRounds...)
 			scopedHistory = append(scopedHistory, *entry)
 			verdict := engine.EvaluateConvergence(scopedHistory, settings.Verify.MaxIterations)
+
+			// A budget change re-judges this document's whole history on the
+			// next evaluation. That is a legitimate operator action, but it
+			// must not happen silently: an earlier round's stored "failed"
+			// was decided under the old budget and would not be reproduced
+			// under the new one.
+			if prev, drifted := state.BudgetDrift(priorRounds, settings.Verify.MaxIterations); drifted {
+				fmt.Fprintf(os.Stderr,
+					"[bts] note: verify.max_iterations changed %d → %d since the last round of %s. "+
+						"Earlier rounds were judged under the old budget; the convergence verdict is "+
+						"recomputed from the current one.\n",
+					prev, settings.Verify.MaxIterations, label)
+			}
 
 			// Ledger sync gives findings identity across rounds, which is
 			// what makes the stagnation half of the rule computable.
@@ -354,12 +379,8 @@ var recipeLogCmd = &cobra.Command{
 				}
 			}
 
-			label := docBase
-			if label == "" {
-				label = "(unscoped)"
-			}
-			fmt.Printf("Logged iteration %d [%s, %s pass]: critical=%d major=%d minor_resolvable=%d minor_deferred=%d → %s\n",
-				iteration, label, scope, critical, major, minorR, minorD, status)
+			fmt.Printf("Logged iteration %d [%s, %s pass]: critical=%d major=%d minor_resolvable=%d minor_deferred=%d → %s (budget=%d)\n",
+				iteration, label, scope, critical, major, minorR, minorD, status, entry.Budget)
 
 			if sync != nil {
 				fmt.Printf("Findings ledger: %d new, %d carried, %d fixed, %d reopened\n",
@@ -678,6 +699,28 @@ func countNonHidden(entries []os.DirEntry) int {
 		}
 	}
 	return count
+}
+
+// agentEvidenceSince classifies whether a subagent finished between the
+// previous recorded round for this document and now. Returns "" when the
+// signal cannot be read at all, so an unreadable metrics log records no
+// claim rather than a false "none".
+func agentEvidenceSince(root, recipeID string, priorRounds []state.VerifyLogEntry) string {
+	var since time.Time
+	for i := len(priorRounds) - 1; i >= 0; i-- {
+		if ts, err := time.Parse(time.RFC3339, priorRounds[i].Timestamp); err == nil {
+			since = ts
+			break
+		}
+	}
+	active, ok := metrics.SubagentActivitySince(root, recipeID, since)
+	if !ok {
+		return ""
+	}
+	if active {
+		return state.AgentEvidenceObserved
+	}
+	return state.AgentEvidenceNone
 }
 
 func truncate(s string, max int) string {

@@ -16,6 +16,46 @@ Update project status for: $ARGUMENTS
 If argument is a recipe ID, update status for that recipe only.
 If argument is "all" or empty, scan all recipes.
 
+## The report contract {gate: hard}
+
+Both the chat reply and the "Where things stand" section of
+`project-status.md` render **exactly these four sections, in this order**:
+
+1. **Your Call** — items that need the *user's own* action now: an open
+   decision, a spec waiting on approval, a credential, a blocker only they
+   can clear.
+2. **Recently Landed** — recipes that reached `complete`, plus merged
+   follow-ups, in the current baseline.
+3. **Underway** — work progressing on its own, one line of current state
+   per recipe.
+4. **Charted Next** — queued or gated work waiting on the project or on
+   another recipe, never on the user.
+
+Rules that make the contract unambiguous:
+
+- **Every section always renders**, even when empty, with its short
+  empty-state sentence. Never omit a section.
+  - Your Call → "Nothing needs your action right now."
+  - Recently Landed → "No recent completions."
+  - Underway → "Nothing is underway."
+  - Charted Next → "Nothing is queued."
+- **The four buckets are mutually exclusive.** Every item lands in exactly
+  one: needs-your-action is Your Call, done is Recently Landed,
+  self-progressing is Underway, not-yet-started or blocked-on-something-
+  else is Charted Next.
+- **Action-free items never enter Your Call.** A recipe mid-verify-loop, a
+  recipe blocked on another recipe, a completed recipe's deviation report,
+  and a failing test the loop is still retrying all belong to one of the
+  other three sections. Your Call is for things that stay stuck until the
+  user personally does something.
+- **Every report is a complete current snapshot, never a delta.** Do NOT
+  read the previous `project-status.md` to decide what changed, what to
+  omit, or what to call new. Regenerate from the recipe state on disk every
+  time. A report that describes itself relative to an earlier report
+  compounds every error the earlier one made.
+- Recently Landed renders its current baseline every run, even when the
+  same completions appeared last time.
+
 ## Step 1: Scan Recipes
 
 Read `.bts/specs/recipes/` directory:
@@ -31,6 +71,13 @@ For each recipe directory, read:
 - `review.md` → code review findings (if exists)
 - `final.md` → spec exists? (if exists)
 
+Then collect the cross-recipe signals that decide bucket placement:
+
+```bash
+bts recipe decision list <id> --open --json   # per recipe: questions owed by the user
+bts doctor                                     # errors that need a person
+```
+
 ## Step 2: Determine Recipe States
 
 For each recipe, determine its state:
@@ -45,14 +92,49 @@ For each recipe, determine its state:
 | `synced` | deviation.md exists |
 | `complete` | tested + synced |
 
+Then assign each recipe to exactly one bucket:
+
+| Signal | Bucket |
+|--------|--------|
+| any open decision (`bts recipe decision list --open`) | **Your Call** |
+| verify-log last entry `status: failed` (convergence gave up) | **Your Call** |
+| state `spec` — spec finalized, implementation not started | **Your Call** |
+| state `complete` | **Recently Landed** |
+| state `drafting`, `implementing`, `implemented`, `tested`, `synced` | **Underway** |
+| blocked on another recipe, or a roadmap item with no recipe yet | **Charted Next** |
+
+A recipe matching more than one row takes the **topmost** match, which is
+what keeps the buckets mutually exclusive.
+
 ## Step 3: Generate project-status.md
 
-Write to `.bts/specs/project-status.md`:
+Write to `.bts/specs/project-status.md`, regenerating the whole file from
+the scan above — never by editing the previous version:
 
 ```markdown
 # Project Status
 
 Updated: {ISO8601}
+
+## Where things stand
+
+### Your Call
+- **r-xxx** "OAuth2" — decision `token-storage` open: keychain or httpOnly cookie?
+  → `bts recipe decision resolve r-xxx token-storage --answer "..."`
+(or: Nothing needs your action right now.)
+
+### Recently Landed
+- **r-yyy** "API routes" — complete, 15/15 tests pass, 0 unresolved deviations
+(or: No recent completions.)
+
+### Underway
+- **r-zzz** "Session store" — implementing, 4/9 tasks done
+(or: Nothing is underway.)
+
+### Charted Next
+- **Rate limiting** — roadmap item, no recipe yet
+- **r-www** "Admin UI" — blocked on r-zzz
+(or: Nothing is queued.)
 
 ## Features
 
@@ -90,18 +172,10 @@ Aggregate all deviation.md findings:
 |--------|------|----------|-----------|
 | r-xxx | full | 0 | 2 |
 
-## Next Steps
+## Roadmap
 
-Based on current state, recommend what to do next:
-- Recipes in `spec` state → "Run /implement {id}"
-- Recipes in `implementing` state → "Resume /implement {id}"
-- Recipes in `implemented` state → "Run /test {id}"
-- Recipes with failing tests → "Fix failures in ..."
-- Complete recipes with deviations → "Follow-up: review deviation.md for improvements"
-
-If `.bts/specs/roadmap.md` exists:
-- Add roadmap progress: "Roadmap: {done}/{total} done"
-- If next pending item: "Next roadmap item: {description}"
+If `.bts/specs/roadmap.md` exists: "Roadmap: {done}/{total} done", and the
+next pending item.
 ```
 
 **Note**: `project-status.md` is a global derived document at `.bts/specs/` level.
@@ -178,4 +252,9 @@ Validate:
 bts validate
 ```
 
-Output the status summary to the user directly.
+## Step 6: Report to the user
+
+Render the same four sections in chat, in the same order, each always
+present. Keep it to one scannable line per item; the detail belongs in the
+file. Do not add a fifth section, and do not describe the report as a
+change relative to a previous run.

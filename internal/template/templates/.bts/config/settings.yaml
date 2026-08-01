@@ -12,10 +12,19 @@ verify:
   evidence_ttl_days: 30          # How long a cached framework-claim lookup stays usable.
                                  # 0 = never expire. "unavailable" results always expire after
                                  # an hour so an outage never pins a claim.
-  convergence:
-    require_zero_critical: true
-    require_zero_major: true
-    allow_minor: true
+
+  # The completion gate itself is NOT configurable. A spec finalizes only at
+  # zero critical, zero major, and zero resolvable minor; [deferred] minors are
+  # runtime watch-items and never block. That rule is fixed in the stop hook
+  # (internal/hook/stop.go) on purpose — a project that can lower its own bar
+  # has no bar. Earlier versions of this file listed require_zero_critical /
+  # require_zero_major / allow_minor keys here; nothing ever read them, so they
+  # were removed rather than left advertising a knob that does not exist.
+  #
+  # max_iterations above IS read, and every verify-log entry records the value
+  # it was judged under (`budget` field). Changing it re-judges the convergence
+  # verdict for a document's whole history, so `bts recipe log` prints a notice
+  # when it changes mid-document.
 
 # Debate
 debate:

@@ -130,6 +130,7 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 			msg = fmt.Sprintf("[bts] Resuming. %s\nRun /bts-implement %s to start coding.", ws.Summary, recipe.ID)
 		}
 
+		msg += openDecisionNotice(root, recipe.ID)
 		msg += dirtyDocWarning(root, recipe.ID)
 
 		if updated {
@@ -183,6 +184,7 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 		)
 	}
 
+	msg += openDecisionNotice(root, recipe.ID)
 	msg += dirtyDocWarning(root, recipe.ID)
 
 	if updated {
@@ -195,6 +197,28 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 			AdditionalContext: msg,
 		},
 	}, nil
+}
+
+// openDecisionNotice surfaces questions the recipe is waiting on. A new
+// session has no memory of the conversation that raised them, so without
+// this the recipe looks like ordinary in-progress work and the loop
+// resumes as if nobody owed an answer. Best-effort: a read error produces
+// no notice.
+func openDecisionNotice(root, recipeID string) string {
+	open, err := state.OpenDecisions(root, recipeID)
+	if err != nil || len(open) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "\n⛔ BLOCKED on %d decision(s) awaiting you — do not resume the loop until they are answered:", len(open))
+	for _, d := range open {
+		fmt.Fprintf(&sb, "\n   • [%s] %s", d.Key, strings.Join(strings.Fields(d.Question), " "))
+		if len(d.Options) > 0 {
+			fmt.Fprintf(&sb, "\n     options: %s", strings.Join(d.Options, " | "))
+		}
+		fmt.Fprintf(&sb, "\n     record the answer: bts recipe decision resolve %s %s --answer \"...\"", recipeID, d.Key)
+	}
+	return sb.String()
 }
 
 // dirtyDocWarning returns a rule-3 warning when verified documents were

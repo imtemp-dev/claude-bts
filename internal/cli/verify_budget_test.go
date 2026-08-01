@@ -1,0 +1,145 @@
+package cli
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/imtemp-dev/claude-bts/internal/state"
+)
+
+// runRecipeLog executes `bts recipe log` against root with the given args,
+// capturing stderr so the budget-drift notice can be asserted. The command
+// resolves the project from the working directory, so the test chdirs.
+func runRecipeLog(t *testing.T, root string, args ...string) string {
+	t.Helper()
+	t.Chdir(root)
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	origErr := os.Stderr
+	os.Stderr = w
+
+	rootCmd.SetArgs(append([]string{"recipe", "log"}, args...))
+	runErr := rootCmd.Execute()
+
+	_ = w.Close()
+	os.Stderr = origErr
+	var sb strings.Builder
+	buf := make([]byte, 4096)
+	for {
+		n, rerr := r.Read(buf)
+		sb.Write(buf[:n])
+		if rerr != nil {
+			break
+		}
+	}
+	_ = r.Close()
+
+	if runErr != nil {
+		// A CONVERGENCE FAILED exit is a legitimate outcome for some
+		// callers; surface it as stderr text rather than failing here.
+		sb.WriteString(runErr.Error())
+	}
+	return sb.String()
+}
+
+// The round being logged must record the budget it was judged under.
+// Without it the log cannot say which regime produced a given Status.
+func TestRecipeLog_StampsBudget(t *testing.T) {
+	root := newRecipeFixture(t, "r-b01", "draft", 0, 0, nil)
+	writeProjectFile(t, root, ".bts/config/settings.yaml", "verify:\n  max_iterations: 4\n")
+
+	runRecipeLog(t, root, "r-b01", "--iteration", "1", "--critical", "1", "--doc", "draft.md")
+
+	entries, err := state.ReadVerifyLog(root, "r-b01")
+	if err != nil {
+		t.Fatalf("read verify-log: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
+	}
+	if entries[0].Budget != 4 {
+		t.Errorf("budget: got %d, want 4 (settings.yaml verify.max_iterations)", entries[0].Budget)
+	}
+}
+
+// With no settings.yaml the default budget still gets recorded, so a
+// default-configured project's log is self-describing too.
+func TestRecipeLog_StampsDefaultBudget(t *testing.T) {
+	root := newRecipeFixture(t, "r-b02", "draft", 0, 0, nil)
+
+	runRecipeLog(t, root, "r-b02", "--iteration", "1", "--critical", "1", "--doc", "draft.md")
+
+	entries, err := state.ReadVerifyLog(root, "r-b02")
+	if err != nil {
+		t.Fatalf("read verify-log: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Budget != 3 {
+		t.Fatalf("got budget %v, want the built-in default 3", entries)
+	}
+}
+
+// Changing the budget re-judges the document's whole history on the next
+// evaluation. That must be announced, not silent.
+func TestRecipeLog_AnnouncesBudgetDrift(t *testing.T) {
+	root := newRecipeFixture(t, "r-b03", "draft", 0, 1, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 1, Doc: "draft.md", Status: "continue", Budget: 3},
+	})
+	writeProjectFile(t, root, ".bts/config/settings.yaml", "verify:\n  max_iterations: 6\n")
+
+	out := runRecipeLog(t, root, "r-b03", "--iteration", "2", "--critical", "1", "--doc", "draft.md")
+
+	if !strings.Contains(out, "max_iterations changed 3 → 6") {
+		t.Errorf("expected a drift notice naming both budgets, got:\n%s", out)
+	}
+	if !strings.Contains(out, "draft.md") {
+		t.Errorf("drift notice must name the document, got:\n%s", out)
+	}
+}
+
+// An unchanged budget must stay quiet — the notice is for regime changes,
+// not for every round.
+func TestRecipeLog_NoDriftNoticeWhenBudgetUnchanged(t *testing.T) {
+	root := newRecipeFixture(t, "r-b04", "draft", 0, 1, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 1, Doc: "draft.md", Status: "continue", Budget: 3},
+	})
+
+	out := runRecipeLog(t, root, "r-b04", "--iteration", "2", "--critical", "1", "--doc", "draft.md")
+
+	if strings.Contains(out, "max_iterations changed") {
+		t.Errorf("unchanged budget must not announce drift, got:\n%s", out)
+	}
+}
+
+// A pre-budget log (legacy entries, no budget field) must not be reported
+// as drift — there is no recorded regime to have changed.
+func TestRecipeLog_LegacyLogIsNotDrift(t *testing.T) {
+	root := newRecipeFixture(t, "r-b05", "draft", 0, 1, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 1, Doc: "draft.md", Status: "continue"},
+	})
+	writeProjectFile(t, root, ".bts/config/settings.yaml", "verify:\n  max_iterations: 6\n")
+
+	out := runRecipeLog(t, root, "r-b05", "--iteration", "2", "--critical", "1", "--doc", "draft.md")
+
+	if strings.Contains(out, "max_iterations changed") {
+		t.Errorf("legacy log has no recorded budget, so nothing drifted; got:\n%s", out)
+	}
+}
+
+// The settings template must not advertise gate knobs that no code reads.
+// The completion gate is fixed in the stop hook.
+func TestSettingsTemplate_HasNoInertConvergenceKnobs(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "template", "templates", ".bts", "config", "settings.yaml"))
+	if err != nil {
+		t.Fatalf("read settings template: %v", err)
+	}
+	for _, knob := range []string{"require_zero_critical:", "require_zero_major:", "allow_minor:"} {
+		if strings.Contains(string(data), knob) {
+			t.Errorf("settings.yaml still advertises %q, but nothing reads it — the gate is hardcoded in internal/hook/stop.go", knob)
+		}
+	}
+}

@@ -136,6 +136,8 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		issues = append(issues, checkOpenComments(recipeDir, recipe.ID, recipe.Phase)...)
 		issues = append(issues, checkTestResultsProvenance(root, recipe.ID)...)
 		issues = append(issues, checkDirtyVerifiedDocs(root, recipe.ID)...)
+		issues = append(issues, checkOpenDecisions(root, recipe.ID)...)
+		issues = append(issues, checkGateEvidence(root, recipe.ID)...)
 
 		if len(issues) == 0 {
 			fmt.Println("   ✓ All checks pass")
@@ -346,6 +348,63 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 		}
 	}
 
+	return issues
+}
+
+// checkGateEvidence reports verify rounds recorded with no sign that a
+// fork ever ran.
+//
+// It is deliberately self-calibrating. A harness that never emits
+// subagent events would mark every round "none", and warning on all of
+// them would be noise that says nothing about this project. So the check
+// stays silent unless the SAME recipe has also produced rounds WITH
+// evidence — the only configuration in which an evidence-free round is a
+// genuine outlier rather than a missing signal.
+//
+// Warning, never error: this is evidence about how a round was produced,
+// not a verification verdict.
+func checkGateEvidence(root, recipeID string) []doctorIssue {
+	entries, err := state.ReadVerifyLog(root, recipeID)
+	if err != nil || len(entries) == 0 {
+		return nil
+	}
+	var observed int
+	var bare []string
+	for _, e := range entries {
+		switch e.AgentEvidence {
+		case state.AgentEvidenceObserved:
+			observed++
+		case state.AgentEvidenceNone:
+			label := e.Doc
+			if label == "" {
+				label = "(unscoped)"
+			}
+			bare = append(bare, fmt.Sprintf("#%d %s", e.Iteration, label))
+		}
+	}
+	if observed == 0 || len(bare) == 0 {
+		return nil
+	}
+	return []doctorIssue{{"warning", "evidence",
+		fmt.Sprintf("%d verify round(s) recorded with no subagent activity: %s",
+			len(bare), strings.Join(bare, ", ")),
+		"Verification must run in a fork (/bts-verify), not inline — re-run it for those rounds if the spec still depends on them"}}
+}
+
+// checkOpenDecisions reports questions the recipe is waiting on. This is
+// the state that otherwise looks identical to "still working" — the whole
+// point of the ledger is that a person, not the loop, owes the next move.
+func checkOpenDecisions(root, recipeID string) []doctorIssue {
+	open, err := state.OpenDecisions(root, recipeID)
+	if err != nil || len(open) == 0 {
+		return nil
+	}
+	issues := make([]doctorIssue, 0, len(open))
+	for _, d := range open {
+		issues = append(issues, doctorIssue{"error", "decision",
+			fmt.Sprintf("blocked on your decision %q: %s", d.Key, truncate(oneLine(d.Question), 60)),
+			fmt.Sprintf("bts recipe decision resolve %s %s --answer \"...\"", recipeID, d.Key)})
+	}
 	return issues
 }
 

@@ -1,0 +1,36 @@
+{
+  "_comment": [
+    "Audience classification for every maintained prose surface, consumed by `bts docs check`.",
+    "",
+    "Why this file exists: the checks that make sense for a surface depend on what the",
+    "surface is for. A README that names a command bts does not have is a defect. A roadmap",
+    "that names a command bts does not have YET is the roadmap doing its job. Without this",
+    "distinction the check either produces false alarms on design docs or has to skip the",
+    "name checks entirely, and then it catches nothing.",
+    "",
+    "A surface missing from this file is itself an error: a new document that nobody",
+    "classified is a document nobody decided the rules for.",
+    "",
+    "Audiences:",
+    "  user-reference          Current behavior for users. Every skill, command, link, and",
+    "                          counted claim must resolve against what ships today.",
+    "  maintainer-verification Evidence for a current guarantee. Links must resolve; names may",
+    "                          refer to test functions and historical versions.",
+    "  maintainer-design       Architecture, roadmap, and rationale. Links must resolve; names",
+    "                          may describe intended or retired state."
+  ],
+  "surfaces": {
+    "README.md": "user-reference",
+    "README.ko.md": "user-reference",
+    "README.zh.md": "user-reference",
+    "README.ja.md": "user-reference",
+    "llms.txt": "user-reference",
+    "docs/verification/README.md": "maintainer-verification",
+    "docs/verification/completion-gates.md": "maintainer-verification",
+    "docs/bts-flow-metrics.md": "maintainer-design",
+    "docs/design/01-overview.md": "maintainer-design",
+    "docs/design/02-architecture.md": "maintainer-design",
+    "docs/design/03-skills-and-recipes.md": "maintainer-design",
+    "docs/design/04-roadmap.md": "maintainer-design"
+  }
+}

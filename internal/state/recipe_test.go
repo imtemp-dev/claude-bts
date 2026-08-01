@@ -305,6 +305,86 @@ func TestAppendVerifyLog(t *testing.T) {
 	}
 }
 
+func TestVerifyLogEntry_BudgetRoundTrips(t *testing.T) {
+	root := setupRecipeRoot(t)
+	recipeID := "r-budget"
+	os.MkdirAll(RecipeDir(root, recipeID), 0755)
+
+	if err := AppendVerifyLog(root, recipeID, &VerifyLogEntry{
+		Iteration: 1, Doc: "draft.md", Status: "continue", Budget: 7,
+	}); err != nil {
+		t.Fatalf("append: %v", err)
+	}
+	entries, err := ReadVerifyLog(root, recipeID)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
+	}
+	if entries[0].Budget != 7 {
+		t.Errorf("budget: got %d, want 7 — the log must be self-describing about the regime it was judged under", entries[0].Budget)
+	}
+}
+
+func TestBudgetDrift(t *testing.T) {
+	tests := []struct {
+		name     string
+		entries  []VerifyLogEntry
+		current  int
+		wantPrev int
+		wantOK   bool
+	}{
+		{"empty log", nil, 3, 0, false},
+		{
+			"legacy entries record no budget",
+			[]VerifyLogEntry{{Iteration: 1}, {Iteration: 2}},
+			3, 0, false,
+		},
+		{
+			"unchanged budget is not drift",
+			[]VerifyLogEntry{{Iteration: 1, Budget: 3}, {Iteration: 2, Budget: 3}},
+			3, 0, false,
+		},
+		{
+			"lowered budget drifts",
+			[]VerifyLogEntry{{Iteration: 1, Budget: 5}},
+			3, 5, true,
+		},
+		{
+			"raised budget drifts",
+			[]VerifyLogEntry{{Iteration: 1, Budget: 3}},
+			5, 3, true,
+		},
+		{
+			// Only the most recent recorded regime matters: an older
+			// budget that has already been superseded is history, not drift.
+			"most recent recorded budget wins",
+			[]VerifyLogEntry{{Iteration: 1, Budget: 5}, {Iteration: 2, Budget: 3}},
+			3, 0, false,
+		},
+		{
+			// A legacy tail must not mask the last real regime.
+			"skips legacy tail to reach the last recorded budget",
+			[]VerifyLogEntry{{Iteration: 1, Budget: 3}, {Iteration: 2}},
+			5, 3, true,
+		},
+		{
+			"disabled budget never drifts",
+			[]VerifyLogEntry{{Iteration: 1, Budget: 3}},
+			0, 0, false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			prev, ok := BudgetDrift(tt.entries, tt.current)
+			if ok != tt.wantOK || prev != tt.wantPrev {
+				t.Errorf("got (%d, %v), want (%d, %v)", prev, ok, tt.wantPrev, tt.wantOK)
+			}
+		})
+	}
+}
+
 func TestRecipeDir(t *testing.T) {
 	got := RecipeDir("/project", "r-1000")
 	want := filepath.Join("/project", ".bts", "specs", "recipes", "r-1000")

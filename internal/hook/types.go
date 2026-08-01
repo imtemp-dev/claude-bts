@@ -25,6 +25,11 @@ type HookInput struct {
 
 	// Stop hook fields
 	StopHookContent string `json:"content,omitempty"`
+	// StopHookActive is set by Claude Code on every stop that follows a
+	// stop-hook continuation. It cannot distinguish the second block from
+	// the tenth, so it is recorded for diagnostics but the actual loop
+	// bound is state.ChargeStopBlock's budget.
+	StopHookActive bool `json:"stop_hook_active,omitempty"`
 
 	// Subagent fields
 	AgentID string `json:"agent_id,omitempty"`

@@ -104,7 +104,7 @@ func renderRecipeSegment(root string) string {
 	ws, _ := state.LoadWorkState(root)
 	if ws != nil && ws.RecipeID != "" {
 		detail := renderPhaseFromWorkState(ws, root)
-		return agentDot + detail
+		return agentDot + blockedMarker(root, ws.RecipeID) + detail
 	}
 
 	// Fall back to recipe state
@@ -116,7 +116,21 @@ func renderRecipeSegment(root string) string {
 		return ""
 	}
 
-	return agentDot + recipe.Phase
+	return agentDot + blockedMarker(root, recipe.ID) + recipe.Phase
+}
+
+// blockedMarker prefixes the phase when the recipe is waiting on a user
+// decision. Without it "blocked on a person" and "working" render
+// identically, which is the confusion the decision ledger exists to end.
+func blockedMarker(root, recipeID string) string {
+	if recipeID == "" {
+		return ""
+	}
+	open, err := state.OpenDecisions(root, recipeID)
+	if err != nil || len(open) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("⛔%d ", len(open))
 }
 
 // renderPhaseFromWorkState builds a detailed phase string.

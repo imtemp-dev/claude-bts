@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/imtemp-dev/claude-bts/internal/comment"
 	"github.com/imtemp-dev/claude-bts/internal/engine"
@@ -30,6 +31,37 @@ func (h *stopHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return &HookOutput{}, nil
 	}
 
+	out, err := h.decide(root, input)
+	if err != nil {
+		return out, err
+	}
+	if out == nil || out.Decision != "block" {
+		// Any allowed stop ends the episode: a recipe that recovered gets
+		// a full budget for whatever it hits next.
+		state.ClearStopBudget(root)
+		return out, nil
+	}
+
+	// Bound the block loop. The identity is the reason text itself: when
+	// the model makes progress the message changes (different counts,
+	// different gate) and the count restarts, so only a genuinely
+	// unchanging complaint burns the budget.
+	count, exhausted := state.ChargeStopBlock(root, input.SessionID, out.Reason, state.DefaultStopBlockBudget)
+	if exhausted {
+		state.ClearStopBudget(root)
+		fmt.Fprintf(os.Stderr,
+			"[bts] The completion gate blocked %d times on the same issue and is standing down.\n"+
+				"      Unresolved: %s\n"+
+				"      Nothing was marked complete. Resolve it with the user, or run `bts doctor` for the full state.\n",
+			count, out.Reason)
+		return &HookOutput{}, nil
+	}
+	return out, nil
+}
+
+// decide runs the gates and returns the raw decision, before the block
+// budget is applied.
+func (h *stopHandler) decide(root string, input *HookInput) (*HookOutput, error) {
 	recipe, err := state.GetActiveRecipe(root)
 	if err != nil || recipe == nil {
 		// Check for finalized recipe (ready for implementation)
@@ -57,17 +89,167 @@ func (h *stopHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return h.handleSpecDone(root, recipe)
 	}
 
-	// No completion marker — allow stop without blocking.
-	// Print next-step hint to stderr so user sees it immediately.
-	if next := nextStepHint(root, recipe); next != "" {
-		fmt.Fprintf(os.Stderr, "[bts] %s\n", next)
+	// No completion marker. A marker-only gate has a trivial bypass: a
+	// turn that simply never says DONE ends with the recipe mid-loop and
+	// nothing is checked at all. The backstop below catches the states
+	// where ending here would silently mislead the next session.
+	return h.handleBlindStop(root, recipe)
+}
+
+// handleBlindStop is the state-based backstop for a turn that ends with no
+// completion marker.
+//
+// It deliberately does NOT block merely because a recipe has open findings
+// — that is the normal, expected mid-loop state, and blocking on it would
+// make it impossible to stop for the day. It blocks only where ending the
+// turn leaves the recipe's own records inconsistent, so that the next
+// session (or `bts doctor`) would read a state that is not true:
+//
+//	A. a verification ran but was never logged — the findings ledger,
+//	   convergence budget, and completion gate all read verify-log.jsonl,
+//	   so an unlogged round is work that silently did not happen;
+//	B. a verified document was modified after its verification — rule 3;
+//	C. the convergence budget was exhausted — the loop gave up, and
+//	   ending quietly means the next session resumes as if it had not.
+//
+// Scope is the spec loop. Implement-side phases run their own gates and
+// stop mid-task constantly by design; /bts-sync legitimately rewrites
+// final.md there, so condition B would fire on normal work.
+//
+// Every check fails open: a tooling error is not a veto (same policy as
+// the DONE-path gates).
+func (h *stopHandler) handleBlindStop(root string, recipe *state.RecipeState) (*HookOutput, error) {
+	hint := nextStepHint(root, recipe)
+	allow := func() (*HookOutput, error) {
+		if hint != "" {
+			fmt.Fprintf(os.Stderr, "[bts] %s\n", hint)
+		}
+		return &HookOutput{}, nil
 	}
-	return &HookOutput{}, nil
+
+	if state.IsImplementPhase(recipe.Phase) ||
+		recipe.Phase == "finalize" || recipe.Phase == "complete" || recipe.Phase == "cancelled" {
+		return allow()
+	}
+
+	recipeDir := state.RecipeDir(root, recipe.ID)
+
+	// An open decision is a legitimate reason for the turn to end — the
+	// recipe is waiting on a person, and blocking would make it
+	// impossible to hand the question over. Surface it and allow.
+	if open, derr := state.OpenDecisions(root, recipe.ID); derr == nil && len(open) > 0 {
+		fmt.Fprintf(os.Stderr,
+			"[bts] %s is blocked on %d decision(s) awaiting you: %s\n",
+			recipe.ID, len(open), decisionSummary(open))
+		return &HookOutput{}, nil
+	}
+
+	// C. Convergence budget exhausted. Checked first: it is the most
+	// consequential state to leave unannounced, and it is terminal for
+	// the loop rather than a step the model can just redo.
+	if last, err := readLastVerifyEntry(filepath.Join(recipeDir, "verify-log.jsonl")); err == nil && last.Status == "failed" {
+		budget := "the convergence budget"
+		if last.Budget > 0 {
+			budget = fmt.Sprintf("verify.max_iterations=%d", last.Budget)
+		}
+		return blockOutput(fmt.Sprintf(
+			"The verify loop for %s gave up: %s was exhausted with %d critical, %d major, %d minor [resolvable] still open. "+
+				"Do not end the turn silently. Tell the user the loop stopped converging (`bts recipe findings list --open %s`), "+
+				"and record the question you need answered with `bts recipe decision hold %s --key <key> --question \"...\"` "+
+				"so it survives this session.",
+			lastVerifyLabel(last), budget, last.Critical, last.Major, last.EffectiveResolvable(), recipe.ID, recipe.ID,
+		)), nil
+	}
+
+	// A. Verification produced but never recorded.
+	if unlogged, doc := unloggedVerification(root, recipe.ID); unlogged {
+		return blockOutput(fmt.Sprintf(
+			".bts/specs/recipes/%s/verification.md is newer than the last recorded verify round. The findings ledger, "+
+				"convergence budget, and completion gate all read verify-log.jsonl, so this verification did not happen "+
+				"as far as bts is concerned. Record it with `bts recipe log %s --from-verification "+
+				".bts/specs/recipes/%s/verification.md --doc %s --scope <full|delta>` before ending the turn.",
+			recipe.ID, recipe.ID, recipe.ID, doc,
+		)), nil
+	}
+
+	// B. Verified document edited after its verification.
+	if dirty, derr := state.DirtyVerifiedDocs(root, recipe.ID); derr != nil {
+		fmt.Fprintf(os.Stderr,
+			"[bts] warning: dirty-doc check failed: %v (proceeding without check)\n", derr)
+	} else if len(dirty) > 0 {
+		return blockOutput(fmt.Sprintf(
+			"%s changed after its last verification. Rule 3: every modification requires /bts-verify. "+
+				"Either re-verify and record it, or tell the user the doc is left unverified — do not end the turn as if it were still verified.",
+			strings.Join(dirty, ", "),
+		)), nil
+	}
+
+	return allow()
+}
+
+// decisionSummary renders open decision keys for a one-line message.
+func decisionSummary(open []state.DecisionState) string {
+	keys := make([]string, 0, len(open))
+	for _, d := range open {
+		keys = append(keys, d.Key)
+	}
+	return strings.Join(keys, ", ")
+}
+
+// lastVerifyLabel names the document a verify entry belongs to, falling
+// back to the recipe-wide stream for unscoped legacy entries.
+func lastVerifyLabel(e *state.VerifyLogEntry) string {
+	if e.Doc != "" {
+		return e.Doc
+	}
+	return "this recipe"
+}
+
+// unloggedVerification reports whether verification.md is newer than the
+// most recent verify-log entry. Returns the doc basename the round most
+// likely belongs to, for the recovery command.
+//
+// Fails closed toward "logged" on any read error: an unreadable timestamp
+// must not manufacture a block.
+func unloggedVerification(root, recipeID string) (bool, string) {
+	recipeDir := state.RecipeDir(root, recipeID)
+	vinfo, err := os.Stat(filepath.Join(recipeDir, "verification.md"))
+	if err != nil {
+		return false, ""
+	}
+	last, err := readLastVerifyEntry(filepath.Join(recipeDir, "verify-log.jsonl"))
+	if err != nil {
+		// verification.md exists with no log at all — the round was never
+		// recorded. Name draft.md, the document the spec loop verifies.
+		return true, "draft.md"
+	}
+	logged, perr := time.Parse(time.RFC3339, last.Timestamp)
+	if perr != nil {
+		return false, ""
+	}
+	doc := last.Doc
+	if doc == "" {
+		doc = "draft.md"
+	}
+	// One second of slack: the log entry is written moments after the
+	// verification file, and filesystem timestamp granularity varies.
+	return vinfo.ModTime().After(logged.Add(time.Second)), doc
 }
 
 // handleSpecDone validates spec recipe completion via verify-log.
 func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*HookOutput, error) {
 	recipeDir := state.RecipeDir(root, recipe.ID)
+
+	// 0. A spec cannot finalize while a question that shaped it is still
+	// unanswered. Fail-open on a read error, like the other gates.
+	if open, derr := state.OpenDecisions(root, recipe.ID); derr == nil && len(open) > 0 {
+		return blockOutput(fmt.Sprintf(
+			"%d decision(s) still waiting on the user: %s. Finalizing now would bake in an answer nobody gave. "+
+				"Get the answer and record it with `bts recipe decision resolve %s <key> --answer \"...\"`, "+
+				"or retire the question with `bts recipe decision drop`.",
+			len(open), decisionSummary(open), recipe.ID,
+		)), nil
+	}
 
 	// 1. Check verification.md exists (proves /verify was actually run)
 	verifyDocPath := filepath.Join(recipeDir, "verification.md")
@@ -101,11 +283,16 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 	}
 
 	if lastEntry.Status == "failed" {
-		return blockOutput(
-			"Last verification round is marked failed (convergence budget exhausted). " +
-				"The loop stopped making progress — resolve with the user rather than re-emitting DONE. " +
+		budget := "unrecorded"
+		if lastEntry.Budget > 0 {
+			budget = fmt.Sprintf("verify.max_iterations=%d", lastEntry.Budget)
+		}
+		return blockOutput(fmt.Sprintf(
+			"Last verification round is marked failed (convergence budget exhausted under %s). "+
+				"The loop stopped making progress — resolve with the user rather than re-emitting DONE. "+
 				"See `bts recipe findings list --open` for the findings that would not clear.",
-		), nil
+			budget,
+		)), nil
 	}
 
 	// 2a. Only a FULL pass may satisfy completion. Scoped delta rounds

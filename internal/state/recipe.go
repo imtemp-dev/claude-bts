@@ -245,7 +245,60 @@ type VerifyLogEntry struct {
 	Doc             string `json:"doc,omitempty"`       // basename of the verified document
 	FullPass        bool   `json:"full_pass,omitempty"` // whole-document round (vs. scoped delta)
 	Status          string `json:"status"`              // continue, converged, failed
-	Timestamp       string `json:"timestamp"`
+	// Budget is the verify.max_iterations value in effect when this round
+	// was judged. Without it the log is not self-describing: the
+	// convergence verdict is recomputed over the WHOLE history using
+	// whatever settings.yaml says today (cli/recipe.go, recipe_findings.go),
+	// so lowering or raising the budget silently re-judges every past
+	// round, and a stored Status:"failed" written under one budget can
+	// disagree with a fresh evaluation under another. Recording the
+	// budget per round makes that regime change visible instead of
+	// silent. 0 means "written before this field existed".
+	Budget int `json:"budget,omitempty"`
+	// AgentEvidence records whether any subagent finished between the
+	// previous round and this one: "observed", "none", or "" for rounds
+	// written before the field existed.
+	//
+	// bts's central claim is that verification runs in a context that
+	// does not share the writing session's blind spots. The gate skills
+	// carry `context: fork` and spawn their own agent, so the isolation
+	// is harness-enforced — but the ORCHESTRATOR is what writes
+	// verification.md and runs `bts recipe log`, and nothing tied that
+	// write to a fork having run. This field is that tie.
+	//
+	// It is evidence, not proof, and deliberately not a gate: a missing
+	// signal can mean the harness does not emit subagent events here, not
+	// that anyone cheated. `bts doctor` only reports it when the same
+	// project has ALSO produced rounds with evidence, which is the only
+	// case where absence is informative.
+	AgentEvidence string `json:"agent_evidence,omitempty"`
+	Timestamp     string `json:"timestamp"`
+}
+
+// Agent evidence values for VerifyLogEntry.AgentEvidence.
+const (
+	AgentEvidenceObserved = "observed"
+	AgentEvidenceNone     = "none"
+)
+
+// BudgetDrift reports the most recent budget recorded in entries that
+// differs from current. ok=false when every recorded budget matches, when
+// none of the entries recorded one (legacy log), or when current is
+// non-positive (budget disabled). Callers use it to surface a regime
+// change at log time rather than letting the verdict shift silently.
+func BudgetDrift(entries []VerifyLogEntry, current int) (int, bool) {
+	if current <= 0 {
+		return 0, false
+	}
+	for i := len(entries) - 1; i >= 0; i-- {
+		if b := entries[i].Budget; b > 0 {
+			if b != current {
+				return b, true
+			}
+			return 0, false
+		}
+	}
+	return 0, false
 }
 
 // EffectiveResolvable returns the resolvable-minor count to use for gating,

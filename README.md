@@ -126,6 +126,7 @@ bts init [dir]              Initialize project
 bts doctor [recipe-id]      Health check
 bts recipe list|status|create|cancel   Manage recipes
 bts recipe log <id>         Record action / phase
+bts recipe decision hold|list|resolve|drop   Questions only you can answer
 bts stats [recipe-id]       Metrics and cost (--json, --csv)
 bts graph [recipe-id]       Document relationship graph
 bts verify <file>           Check document consistency
@@ -139,7 +140,7 @@ bts version                 Show versions
 
 **Go binary** — single statically-linked binary (~5ms startup), zero runtime dependencies. Manages state, validates completion, deploys templates, tracks metrics.
 
-**Claude Code integration** — 21 skills, 8 lifecycle hooks, 6 rules. Verification always runs in separate agent contexts.
+**Claude Code integration** — 24 skills, 8 lifecycle hooks, 7 rules. Verification always runs in separate agent contexts.
 
 **File structure:**
 
