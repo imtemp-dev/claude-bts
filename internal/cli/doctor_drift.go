@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/imtemp-dev/claude-bts/internal/state"
@@ -84,5 +85,52 @@ func checkDirtyVerifiedDocs(root, recipeID string) []doctorIssue {
 		section: "verification",
 		message: fmt.Sprintf("%s modified after last verification (rule 3)", strings.Join(dirty, ", ")),
 		fix:     "run /bts-verify on the modified doc(s), then `bts recipe log " + recipeID + " --from-verification ... --doc <path>`",
+	}}
+}
+
+// checkUnenforceableRule3 reports documents whose rule-3 gate is
+// currently inert.
+//
+// A document is enforceable when its last full pass recorded a content
+// hash, or when its local snapshot is still on disk. Neither holds for a
+// round logged before hashes existed and then carried into a fresh clone
+// or worktree — .bts/local/ is gitignored, so nothing came across. The
+// gate does not fire, and silence there reads exactly like "verified and
+// unchanged". This check is what makes the difference visible; one full
+// pass re-arms it.
+func checkUnenforceableRule3(root, recipeID string) []doctorIssue {
+	entries, err := state.ReadVerifyLog(root, recipeID)
+	if err != nil || len(entries) == 0 {
+		return nil
+	}
+	hashed := state.LastFullPassHashes(entries)
+
+	seen := map[string]bool{}
+	var gaps []string
+	for i := range entries {
+		doc := entries[i].Doc
+		if doc == "" || !entries[i].FullPass || seen[doc] {
+			continue
+		}
+		seen[doc] = true
+		if _, ok := hashed[doc]; ok {
+			continue
+		}
+		if _, serr := os.Stat(state.VerifySnapshotPath(root, recipeID, doc)); serr == nil {
+			continue
+		}
+		gaps = append(gaps, doc)
+	}
+	if len(gaps) == 0 {
+		return nil
+	}
+	sort.Strings(gaps)
+	return []doctorIssue{{
+		level:   "warning",
+		section: "verification",
+		message: fmt.Sprintf(
+			"rule 3 is unenforceable for %s: the round that verified it recorded no content hash and its local snapshot is absent, so an edit since then would pass every gate unnoticed",
+			strings.Join(gaps, ", ")),
+		fix: "run one full pass to re-arm it: /bts-verify, then `bts recipe log " + recipeID + " --from-verification ... --doc <path> --scope full`",
 	}}
 }

@@ -272,7 +272,27 @@ type VerifyLogEntry struct {
 	// project has ALSO produced rounds with evidence, which is the only
 	// case where absence is informative.
 	AgentEvidence string `json:"agent_evidence,omitempty"`
-	Timestamp     string `json:"timestamp"`
+	// DocHash is the content hash of the verified document, and
+	// VerificationHash the content hash of the recipe's verification.md,
+	// both as of the moment this round was recorded.
+	//
+	// These exist because the two rule-3 gates used to compare against
+	// state that does not survive a checkout. Dirty-doc detection read
+	// .bts/local/verify-snapshots/, which is gitignored, so the gate was
+	// silently inert in every worktree and fresh clone. The
+	// unrecorded-verification gate compared verification.md's mtime
+	// against this timestamp, and `git checkout` stamps mtime with the
+	// checkout time, so it fired on every fresh worktree of a recipe that
+	// had already been verified.
+	//
+	// A hash in the tracked verify-log fixes both: it travels with the
+	// branch, it is independent of mtime, and it answers the question the
+	// gates actually ask — is the file on disk the one that was verified.
+	// Empty means "written before these fields existed"; both gates fall
+	// back rather than manufacture a verdict from a missing hash.
+	DocHash          string `json:"doc_hash,omitempty"`
+	VerificationHash string `json:"verification_hash,omitempty"`
+	Timestamp        string `json:"timestamp"`
 }
 
 // Agent evidence values for VerifyLogEntry.AgentEvidence.

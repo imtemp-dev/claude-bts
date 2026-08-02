@@ -88,8 +88,9 @@ anchor, interface, or invariant).
   delta pass (`full_pass_before_final`). A delta pass never re-checked
   the untouched sections against the edits, so it is not sufficient
   evidence that the whole spec still holds together.
-- **Only full passes advance the verify snapshot**, so a delta round
-  does not shrink the next round's focus diff.
+- **Only full passes advance the verified revision**, so a delta round
+  does not shrink the next round's focus diff, and does not clear a
+  rule-3 dirty flag on the document as a whole.
 
 Rationale: a document is not re-randomised by an edit to one section.
 Re-deriving all of it every round is what let untouched sections

@@ -128,3 +128,61 @@ func TestCheckDirtyVerifiedDocsDoctor(t *testing.T) {
 		t.Fatalf("expected dirty warning naming draft.md, got %v", issues)
 	}
 }
+
+// A recipe verified before content hashes existed, then opened in a
+// worktree or fresh clone, has no way to enforce rule 3 — and a gate
+// that cannot fire looks exactly like a gate that passed. doctor is
+// where that silence has to become visible.
+func TestCheckUnenforceableRule3(t *testing.T) {
+	root := t.TempDir()
+	id := "r-102-legacy"
+	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/draft.md", "whatever is here now")
+
+	// Legacy round: full pass, no hash, and no local snapshot survived.
+	if err := state.AppendVerifyLog(root, id, &state.VerifyLogEntry{
+		Iteration: 1, Doc: "draft.md", FullPass: true, Status: "converged",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	issues := checkUnenforceableRule3(root, id)
+	if len(issues) != 1 || !strings.Contains(issues[0].message, "draft.md") {
+		t.Fatalf("expected one warning naming draft.md, got %v", issues)
+	}
+	if !strings.Contains(issues[0].fix, "--scope full") {
+		t.Errorf("the fix must say how to re-arm the gate, got: %s", issues[0].fix)
+	}
+
+	// One full pass with a hash re-arms it.
+	if err := state.AppendVerifyLog(root, id, &state.VerifyLogEntry{
+		Iteration: 2, Doc: "draft.md", FullPass: true, Status: "converged",
+		DocHash: state.ContentHash([]byte("whatever is here now")),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if issues := checkUnenforceableRule3(root, id); len(issues) != 0 {
+		t.Fatalf("a hashed full pass must clear the warning, got %v", issues)
+	}
+	if issues := checkDirtyVerifiedDocs(root, id); len(issues) != 0 {
+		t.Fatalf("and the doc itself is clean, got %v", issues)
+	}
+}
+
+// A surviving snapshot is enough on its own — no need to nag a project
+// that is still working from the branch it verified on.
+func TestCheckUnenforceableRule3_SnapshotCounts(t *testing.T) {
+	root := t.TempDir()
+	id := "r-103-snap"
+	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/draft.md", "verified")
+	if err := state.SaveVerifySnapshot(root, id,
+		filepath.Join(root, ".bts", "specs", "recipes", id, "draft.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.AppendVerifyLog(root, id, &state.VerifyLogEntry{
+		Iteration: 1, Doc: "draft.md", FullPass: true, Status: "converged",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if issues := checkUnenforceableRule3(root, id); len(issues) != 0 {
+		t.Fatalf("a live snapshot keeps the gate enforceable, got %v", issues)
+	}
+}

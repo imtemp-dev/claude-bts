@@ -165,13 +165,28 @@ Optional fields:
 - `full_pass` (bool): true when the round verified the whole document,
   false/absent for a `--scope delta` round. Only a full pass may satisfy
   completion (`full_pass_before_final`).
+- `budget` (number): the `verify.max_iterations` in effect when the round
+  was judged. The convergence verdict is recomputed over the whole
+  history from CURRENT settings, so without this the log cannot say which
+  regime produced a given `status`.
+- `agent_evidence` (string): "observed" or "none" — whether a subagent
+  finished between the previous round and this one. Evidence that
+  verification ran in a forked context, deliberately not a gate.
+- `doc_hash` / `verification_hash` (string): `sha256:<hex>` of the
+  verified document and of `verification.md` as of this round, with line
+  endings normalised. These are what the rule-3 gates compare against.
+  They live here, in tracked state, precisely so the gates hold in a
+  worktree or a fresh clone — the local snapshot directory does not
+  travel, and a file's mtime describes the checkout rather than the
+  document's history.
 
 Entries are written by `bts recipe log {id} --from-verification <verification.md>`
 (preferred — parses the `<bts-findings>` block atomically) or by the
 explicit split flags. Always pass `--doc <verified-doc-path>`: it scopes
-convergence and the findings ledger to that document and snapshots the
-verified revision for `bts recipe verify-focus <doc>`. Pass
-`--scope full|delta` to record the round's coverage.
+convergence and the findings ledger to that document, records the
+verified revision's hash, and snapshots it for
+`bts recipe verify-focus <doc>`. Pass `--scope full|delta` to record the
+round's coverage.
 Used by the stop hook to gate `<bts>DONE</bts>`: the spec document's own
 last entry must have critical=0, major=0, minor_resolvable=0, be a full
 pass, and not be `status: failed`.

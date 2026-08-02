@@ -319,6 +319,13 @@ var recipeLogCmd = &cobra.Command{
 			// Tie this record to a fork actually having run. Evidence, not
 			// a gate — see state.VerifyLogEntry.AgentEvidence.
 			entry.AgentEvidence = agentEvidenceSince(root, recipeID, priorRounds)
+
+			// Record what was verified, by content. Both rule-3 gates read
+			// these instead of mtimes and gitignored snapshots, so they
+			// behave the same in a worktree as on the branch the recipe
+			// started on — see state.VerifyLogEntry.DocHash.
+			stampContentHashes(root, recipeID, doc, entry)
+
 			scopedHistory := make([]state.VerifyLogEntry, 0, len(priorRounds)+1)
 			scopedHistory = append(scopedHistory, priorRounds...)
 			scopedHistory = append(scopedHistory, *entry)
@@ -721,6 +728,37 @@ func agentEvidenceSince(root, recipeID string, priorRounds []state.VerifyLogEntr
 		return state.AgentEvidenceObserved
 	}
 	return state.AgentEvidenceNone
+}
+
+// stampContentHashes records the content identity of what this round
+// verified: the document itself, and the recipe's verification.md.
+//
+// verification.md is always taken from the recipe directory rather than
+// from whatever path --from-verification named, because that is the file
+// the unrecorded-verification gate inspects. Hashing anything else would
+// leave the gate comparing against a document it never reads.
+//
+// A hash that cannot be computed is left empty and warned about: the
+// gates fall back rather than treat a missing hash as a mismatch, so a
+// read failure degrades coverage instead of manufacturing a block.
+func stampContentHashes(root, recipeID, docPath string, entry *state.VerifyLogEntry) {
+	if docPath != "" {
+		h, ok, err := state.FileContentHash(docPath)
+		switch {
+		case err != nil:
+			fmt.Fprintf(os.Stderr, "warning: hash %s: %v\n", docPath, err)
+		case ok:
+			entry.DocHash = h
+		}
+	}
+	vpath := filepath.Join(state.RecipeDir(root, recipeID), "verification.md")
+	h, ok, err := state.FileContentHash(vpath)
+	switch {
+	case err != nil:
+		fmt.Fprintf(os.Stderr, "warning: hash verification.md: %v\n", err)
+	case ok:
+		entry.VerificationHash = h
+	}
 }
 
 func truncate(s string, max int) string {

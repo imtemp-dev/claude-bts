@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/imtemp-dev/claude-bts/internal/comment"
 	"github.com/imtemp-dev/claude-bts/internal/engine"
@@ -164,9 +163,9 @@ func (h *stopHandler) handleBlindStop(root string, recipe *state.RecipeState) (*
 	// A. Verification produced but never recorded.
 	if unlogged, doc := unloggedVerification(root, recipe.ID); unlogged {
 		return blockOutput(fmt.Sprintf(
-			".bts/specs/recipes/%s/verification.md is newer than the last recorded verify round. The findings ledger, "+
-				"convergence budget, and completion gate all read verify-log.jsonl, so this verification did not happen "+
-				"as far as bts is concerned. Record it with `bts recipe log %s --from-verification "+
+			".bts/specs/recipes/%s/verification.md holds a verification the log does not account for. The findings "+
+				"ledger, convergence budget, and completion gate all read verify-log.jsonl, so this verification did "+
+				"not happen as far as bts is concerned. Record it with `bts recipe log %s --from-verification "+
 				".bts/specs/recipes/%s/verification.md --doc %s --scope <full|delta>` before ending the turn.",
 			recipe.ID, recipe.ID, recipe.ID, doc,
 		)), nil
@@ -205,16 +204,27 @@ func lastVerifyLabel(e *state.VerifyLogEntry) string {
 	return "this recipe"
 }
 
-// unloggedVerification reports whether verification.md is newer than the
-// most recent verify-log entry. Returns the doc basename the round most
-// likely belongs to, for the recovery command.
+// unloggedVerification reports whether the verification.md on disk is a
+// different document from the one the last verify-log entry recorded —
+// i.e. a verification round was produced but never logged. Returns the
+// doc basename the round most likely belongs to, for the recovery
+// command.
 //
-// Fails closed toward "logged" on any read error: an unreadable timestamp
+// Comparison is by content hash, not mtime. mtime is a property of the
+// checkout, not of the file's history: `git checkout` stamps every file
+// it materialises with the checkout time, so an mtime comparison
+// reported "newer than the last round" for every recipe carried into a
+// fresh worktree, and blocked turns that had done nothing wrong. The
+// recorded hash travels with the branch and says what was actually
+// verified.
+//
+// Fails closed toward "logged" whenever the evidence is missing or
+// unreadable — an absent hash (a round logged before the field existed)
 // must not manufacture a block.
 func unloggedVerification(root, recipeID string) (bool, string) {
 	recipeDir := state.RecipeDir(root, recipeID)
-	vinfo, err := os.Stat(filepath.Join(recipeDir, "verification.md"))
-	if err != nil {
+	current, ok, err := state.FileContentHash(filepath.Join(recipeDir, "verification.md"))
+	if err != nil || !ok {
 		return false, ""
 	}
 	last, err := readLastVerifyEntry(filepath.Join(recipeDir, "verify-log.jsonl"))
@@ -223,17 +233,14 @@ func unloggedVerification(root, recipeID string) (bool, string) {
 		// recorded. Name draft.md, the document the spec loop verifies.
 		return true, "draft.md"
 	}
-	logged, perr := time.Parse(time.RFC3339, last.Timestamp)
-	if perr != nil {
-		return false, ""
-	}
 	doc := last.Doc
 	if doc == "" {
 		doc = "draft.md"
 	}
-	// One second of slack: the log entry is written moments after the
-	// verification file, and filesystem timestamp granularity varies.
-	return vinfo.ModTime().After(logged.Add(time.Second)), doc
+	if last.VerificationHash == "" {
+		return false, doc
+	}
+	return current != last.VerificationHash, doc
 }
 
 // handleSpecDone validates spec recipe completion via verify-log.
@@ -311,11 +318,12 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 
 	// 2b. Rule 3 hard gate: verified documents must be UNCHANGED since
 	// their last verification. Mandatory verification was prompt-level
-	// until v0.9.x; the verify snapshots (`recipe log --doc`) make it
-	// machine-checkable. No snapshots → nothing enforceable (legacy
-	// recipes) — gates 1-2 still apply. Fail-open on read errors: a
-	// tooling failure is not a verification veto (same policy as the
-	// BTS-BLOCK count below).
+	// until v0.9.x; the content hash recorded by `recipe log --doc` makes
+	// it machine-checkable, and because that hash lives in the tracked
+	// verify-log it holds in a worktree too. No recorded revision →
+	// nothing enforceable (legacy recipes) — gates 1-2 still apply.
+	// Fail-open on read errors: a tooling failure is not a verification
+	// veto (same policy as the BTS-BLOCK count below).
 	if dirty, derr := state.DirtyVerifiedDocs(root, recipe.ID); derr != nil {
 		fmt.Fprintf(os.Stderr,
 			"[bts] warning: dirty-doc check failed: %v (proceeding without check)\n", derr)
@@ -570,7 +578,7 @@ func (h *stopHandler) handleFixDone(root string, recipe *state.RecipeState) (*Ho
 
 	// 1b. Rule 3 hard gate — same as spec DONE: the verified fix-spec
 	// must be unchanged since its last verification. (Applies only when
-	// snapshots exist; legacy fix recipes pass through.)
+	// a verified revision was recorded; legacy fix recipes pass through.)
 	if dirty, derr := state.DirtyVerifiedDocs(root, recipe.ID); derr != nil {
 		fmt.Fprintf(os.Stderr,
 			"[bts] warning: dirty-doc check failed: %v (proceeding without check)\n", derr)

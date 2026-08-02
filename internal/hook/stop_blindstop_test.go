@@ -10,13 +10,36 @@ import (
 	"github.com/imtemp-dev/claude-bts/internal/state"
 )
 
-// touchVerification sets verification.md's mtime, so a test can place it
-// before or after the last recorded verify round.
-func touchVerification(t *testing.T, root, recipeID string, when time.Time) {
+// recordVerification marks the recipe's CURRENT verification.md as the
+// one the verify-log already accounts for, by stamping its content hash
+// onto every recorded round — what `bts recipe log --from-verification`
+// does for real. This is the state the unrecorded-verification gate
+// reads, and it is deliberately not an mtime: mtime says when this
+// checkout materialised the file, not which verification it holds.
+func recordVerification(t *testing.T, root, recipeID string) {
+	t.Helper()
+	hash, ok, err := state.FileContentHash(
+		filepath.Join(state.RecipeDir(root, recipeID), "verification.md"))
+	if err != nil || !ok {
+		t.Fatalf("hash verification.md: err=%v exists=%v", err, ok)
+	}
+	entries, err := state.ReadVerifyLog(root, recipeID)
+	if err != nil {
+		t.Fatalf("read verify-log: %v", err)
+	}
+	for i := range entries {
+		entries[i].VerificationHash = hash
+	}
+	writeVerifyLog(t, root, recipeID, entries)
+}
+
+// writeVerification replaces verification.md's content, standing in for
+// a fresh verification round.
+func writeVerification(t *testing.T, root, recipeID, content string) {
 	t.Helper()
 	path := filepath.Join(state.RecipeDir(root, recipeID), "verification.md")
-	if err := os.Chtimes(path, when, when); err != nil {
-		t.Fatalf("chtimes: %v", err)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("write verification.md: %v", err)
 	}
 }
 
@@ -39,7 +62,7 @@ func TestBlindStop_OpenFindingsAlone_Allows(t *testing.T) {
 		{Iteration: 1, Critical: 2, Major: 1, Doc: "draft.md", Status: "continue",
 			Budget: 3, Timestamp: logged.UTC().Format(time.RFC3339)},
 	})
-	touchVerification(t, root, recipeID, logged.Add(-time.Minute))
+	recordVerification(t, root, recipeID)
 
 	if out := blindStop(t, root); out.Decision == "block" {
 		t.Fatalf("mid-loop open findings must not block a turn end, got: %s", out.Reason)
@@ -55,7 +78,7 @@ func TestBlindStop_ConvergenceFailed_Blocks(t *testing.T) {
 		{Iteration: 4, Critical: 1, Major: 2, Doc: "draft.md", Status: "failed",
 			Budget: 3, Timestamp: logged.UTC().Format(time.RFC3339)},
 	})
-	touchVerification(t, root, recipeID, logged.Add(-time.Minute))
+	recordVerification(t, root, recipeID)
 
 	out := blindStop(t, root)
 	if out.Decision != "block" {
@@ -78,12 +101,13 @@ func TestBlindStop_UnloggedVerification_Blocks(t *testing.T) {
 		{Iteration: 1, Critical: 1, Doc: "draft.md", Status: "continue",
 			Budget: 3, Timestamp: logged.UTC().Format(time.RFC3339)},
 	})
-	// verification.md rewritten after that round was logged.
-	touchVerification(t, root, recipeID, time.Now())
+	recordVerification(t, root, recipeID)
+	// A second round rewrote verification.md and was never logged.
+	writeVerification(t, root, recipeID, "round 2: 1 critical remains")
 
 	out := blindStop(t, root)
 	if out.Decision != "block" {
-		t.Fatal("a verification newer than the last logged round must block")
+		t.Fatal("a verification the log does not account for must block")
 	}
 	if !strings.Contains(out.Reason, "--from-verification") {
 		t.Errorf("reason must give the recovery command, got: %s", out.Reason)
@@ -113,7 +137,7 @@ func TestBlindStop_DirtyVerifiedDoc_Blocks(t *testing.T) {
 		{Iteration: 1, Critical: 0, Major: 0, Doc: "draft.md", Status: "converged",
 			Budget: 3, Timestamp: logged.UTC().Format(time.RFC3339)},
 	})
-	touchVerification(t, root, recipeID, logged.Add(-time.Minute))
+	recordVerification(t, root, recipeID)
 
 	recipeDir := state.RecipeDir(root, recipeID)
 	if err := os.WriteFile(filepath.Join(recipeDir, "draft.md"), []byte("edited after verify"), 0644); err != nil {
@@ -136,6 +160,54 @@ func TestBlindStop_DirtyVerifiedDoc_Blocks(t *testing.T) {
 	}
 }
 
+// The v0.13.0 regression, in the shape that produced it: a recipe carried
+// into a fresh `git worktree`. Everything tracked comes across, .bts/local
+// does not exist, and `git checkout` stamps every file it materialises
+// with the checkout time — so verification.md is always "newer" than the
+// round that recorded it. The old mtime comparison blocked every such
+// turn for work that was already properly logged.
+func TestBlindStop_FreshWorktreeMtimeDoesNotBlock(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 1, Doc: "draft.md", Status: "continue", Budget: 3,
+			Timestamp: time.Now().Add(-72 * time.Hour).UTC().Format(time.RFC3339)},
+	})
+	recordVerification(t, root, recipeID)
+
+	// What the checkout does: content untouched, mtime set to now.
+	now := time.Now()
+	for _, name := range []string{"verification.md", "draft.md"} {
+		p := filepath.Join(state.RecipeDir(root, recipeID), name)
+		if _, err := os.Stat(p); err != nil {
+			continue
+		}
+		if err := os.Chtimes(p, now, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if out := blindStop(t, root); out.Decision == "block" {
+		t.Fatalf("a fresh checkout must not read as unrecorded work, got: %s", out.Reason)
+	}
+}
+
+// The gate must not invent a verdict out of a missing hash: a round
+// logged before the field existed says nothing about which verification
+// is on disk, and treating that silence as a mismatch would block every
+// upgraded project on its next turn.
+func TestBlindStop_HashlessLegacyRound_DoesNotBlock(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 1, Doc: "draft.md", Status: "continue", Budget: 3,
+			Timestamp: time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)},
+	})
+	writeVerification(t, root, recipeID, "a verification with no recorded hash")
+
+	if out := blindStop(t, root); out.Decision == "block" {
+		t.Fatalf("an absent hash must not manufacture a block, got: %s", out.Reason)
+	}
+}
+
 // Implement-side phases run their own gates and stop mid-task by design;
 // /bts-sync legitimately rewrites final.md there.
 func TestBlindStop_ImplementPhase_Allows(t *testing.T) {
@@ -153,7 +225,8 @@ func TestBlindStop_ImplementPhase_Allows(t *testing.T) {
 		{Iteration: 4, Critical: 1, Doc: "draft.md", Status: "failed",
 			Budget: 3, Timestamp: logged.UTC().Format(time.RFC3339)},
 	})
-	touchVerification(t, root, recipeID, time.Now())
+	recordVerification(t, root, recipeID)
+	writeVerification(t, root, recipeID, "unlogged round")
 
 	if out := blindStop(t, root); out.Decision == "block" {
 		t.Fatalf("implement phase is out of the backstop's scope, got: %s", out.Reason)
@@ -206,7 +279,7 @@ func TestStopBlockBudget_ProgressResetsCount(t *testing.T) {
 		{Iteration: 1, Critical: 3, Major: 0, Doc: "draft.md", Status: "failed",
 			Budget: 3, Timestamp: logged.UTC().Format(time.RFC3339)},
 	})
-	touchVerification(t, root, recipeID, logged.Add(-time.Minute))
+	recordVerification(t, root, recipeID)
 	for i := 0; i < 2; i++ {
 		if out := blindStop(t, root); out.Decision != "block" {
 			t.Fatalf("round %d: expected block", i)
@@ -218,7 +291,7 @@ func TestStopBlockBudget_ProgressResetsCount(t *testing.T) {
 		{Iteration: 2, Critical: 2, Major: 0, Doc: "draft.md", Status: "failed",
 			Budget: 3, Timestamp: logged.UTC().Format(time.RFC3339)},
 	})
-	touchVerification(t, root, recipeID, logged.Add(-time.Minute))
+	recordVerification(t, root, recipeID)
 
 	for i := 0; i < 2; i++ {
 		if out := blindStop(t, root); out.Decision != "block" {
@@ -245,7 +318,7 @@ func TestStopBlockBudget_AllowClearsCounter(t *testing.T) {
 		{Iteration: 1, Critical: 1, Doc: "draft.md", Status: "continue",
 			Budget: 3, Timestamp: logged.UTC().Format(time.RFC3339)},
 	})
-	touchVerification(t, root, recipeID, logged.Add(-time.Minute))
+	recordVerification(t, root, recipeID)
 
 	if out := blindStop(t, root); out.Decision == "block" {
 		t.Fatalf("condition resolved, expected allow, got: %s", out.Reason)

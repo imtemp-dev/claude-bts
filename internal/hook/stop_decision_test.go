@@ -74,7 +74,7 @@ func TestBlindStop_OpenDecisionAllowsTurnEnd(t *testing.T) {
 		{Iteration: 4, Critical: 1, Doc: "draft.md", Status: "failed",
 			Budget: 3, Timestamp: logged.UTC().Format(time.RFC3339)},
 	})
-	touchVerification(t, root, recipeID, logged.Add(-time.Minute))
+	recordVerification(t, root, recipeID)
 	holdDecision(t, root, recipeID, "scope-call", "drop the offline mode or extend the deadline?")
 
 	// Without the hold this state blocks (convergence failed). With the
