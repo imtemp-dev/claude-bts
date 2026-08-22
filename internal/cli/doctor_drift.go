@@ -197,7 +197,7 @@ func checkActiveOverrides(root, recipeID string) []doctorIssue {
 		return nil
 	}
 	var issues []doctorIssue
-	for _, r := range state.LiveOverrides(records) {
+	for _, r := range state.LiveOverrides(records, state.CurrentDocHashes(root, recipeID, records)) {
 		what := r.Gate
 		if r.Doc != "" {
 			what += " on " + r.Doc

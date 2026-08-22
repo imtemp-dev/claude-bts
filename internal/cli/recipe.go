@@ -78,7 +78,7 @@ var recipeStatusCmd = &cobra.Command{
 		// measured recipe finalized past two hard gates and every status
 		// surface went on reporting it as a clean completion.
 		if recs, oerr := state.ReadOverrides(root, recipe.ID); oerr == nil {
-			if summary := state.OverrideSummary(recs); summary != "" {
+			if summary := state.OverrideSummary(root, recipe.ID, recs); summary != "" {
 				fmt.Printf("  Overrides:    %s\n", summary)
 				fmt.Printf("                (gates bypassed by recorded operator decision — `bts recipe override list`)\n")
 			}
@@ -849,7 +849,18 @@ func stampContentHashes(root, recipeID, docPath string, entry *state.VerifyLogEn
 	switch {
 	case err != nil:
 		fmt.Fprintf(os.Stderr, "warning: hash verification.md: %v\n", err)
-	case ok:
+	case !ok:
+		// Silence here was worse than for the document, because it does
+		// not merely disarm a gate — it makes completion UNREACHABLE. The
+		// replication check needs each confirming round to cite its own
+		// verification.md content; rounds that all record nothing are
+		// indistinguishable, so the count stops at 1 no matter how many
+		// more rounds are run, and the operator is told to run more.
+		fmt.Fprintf(os.Stderr,
+			"[bts] warning: no verification.md at %s, so this round records no verification_hash. "+
+				"Completion needs consecutive rounds to be told apart by it, and rounds that record none "+
+				"cannot be — write the round's verification output there before logging it.\n", vpath)
+	default:
 		entry.VerificationHash = h
 	}
 }

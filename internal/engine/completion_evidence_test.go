@@ -198,3 +198,40 @@ func TestCompletionEvidence_NeedOneRestoresTheOldRule(t *testing.T) {
 		t.Fatalf("confirm_passes=1 should accept a single clean round, got %+v", ev)
 	}
 }
+
+// The evaluator named one unmet condition at a time, so an override of
+// that one silently carried the rest. An unclean round fails the clean
+// check before anything else is looked at, which made
+// `verification_not_passed` the only gate a delta, dimensionless,
+// revision-less round ever reported.
+func TestCompletionEvidence_ReportsEveryUnmetCondition(t *testing.T) {
+	weak := state.VerifyLogEntry{Iteration: 1, Doc: "draft.md", Major: 2, FullPass: false}
+	ev := EvaluateCompletionEvidence([]state.VerifyLogEntry{weak}, 2)
+	if ev.Confirmed {
+		t.Fatal("a round failing four conditions must not confirm")
+	}
+	got := map[string]bool{}
+	for _, f := range ev.Failures {
+		got[f.Gate] = true
+		if f.Reason == "" || f.Remedy == "" {
+			t.Errorf("%s carries no reason or remedy: %+v", f.Gate, f)
+		}
+	}
+	for _, want := range []string{
+		"verification_not_passed", "full_pass_before_final",
+		"all_dimensions_before_final", "revision_recorded_before_final",
+	} {
+		if !got[want] {
+			t.Errorf("failures = %v, want it to include %s", ev.Failures, want)
+		}
+	}
+	if ev.Gate != "verification_not_passed" {
+		t.Errorf("the headline should stay the first failure, got %q", ev.Gate)
+	}
+
+	// A round that fails only one still reports only one.
+	one := cleanRound(1, "sha256:aaa", allDims, false)
+	if ev := EvaluateCompletionEvidence([]state.VerifyLogEntry{one}, 2); len(ev.Failures) != 1 {
+		t.Errorf("failures = %v, want exactly the delta-pass one", ev.Failures)
+	}
+}

@@ -16,12 +16,12 @@ func init() {
 }
 
 var initCmd = &cobra.Command{
-	Use:   "init [directory]",
-	Short: "Initialize bts in a project",
-	Long:  "Deploy skills, agents, hooks, and rules to .claude/ and create .bts/ for state management.",
-	Args:  cobra.MaximumNArgs(1),
+	Use:     "init [directory]",
+	Short:   "Initialize bts in a project",
+	Long:    "Deploy skills, agents, hooks, and rules to .claude/ and create .bts/ for state management.",
+	Args:    cobra.MaximumNArgs(1),
 	GroupID: "project",
-	RunE:  runInit,
+	RunE:    runInit,
 }
 
 func runInit(cmd *cobra.Command, args []string) error {

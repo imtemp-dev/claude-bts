@@ -41,6 +41,14 @@ import (
 // own verification.md content — otherwise "two agreeing rounds" is one
 // round recorded twice, and the gate reads a copy as a corroboration.
 
+// GateFailure is one unmet condition, named by the gate registry ID an
+// override would have to cite to excuse it.
+type GateFailure struct {
+	Gate   string
+	Reason string
+	Remedy string
+}
+
 // CompletionEvidence is the verdict on whether a document's verify
 // history can support finalization.
 type CompletionEvidence struct {
@@ -48,24 +56,42 @@ type CompletionEvidence struct {
 	Need      int    // verify.confirm_passes
 	Have      int    // consecutive independent qualifying clean rounds on one revision
 	Revision  string // doc_hash those rounds agree on
-	Reason    string // why not, when Confirmed is false
+	Reason    string // why not, when Confirmed is false — the first failure
 	Remedy    string // what to run next, when Confirmed is false
-	// Gate is the gate_registry ID this verdict failed on, so the
-	// completion gate can name it in an override instruction rather than
-	// leaving the operator to guess which knob applies.
+	// Gate is the gate_registry ID of the FIRST unmet condition.
 	Gate string
+	// Failures is EVERY unmet condition, not just the first.
+	//
+	// Reporting one at a time made an override of that one silently
+	// excuse the others. An unclean round fails the clean check first, so
+	// a delta round with no dimensions and no recorded revision reported
+	// only `verification_not_passed` — and one grant of that gate let it
+	// finalize without full_pass, dimensions or replication ever being
+	// evaluated. An override names one gate; it must not carry the ones
+	// that happened to be behind it in the evaluation order.
+	Failures []GateFailure
 }
 
-// qualifies reports whether one round is strong enough to count toward
-// completion, and names the first condition it fails.
-func qualifies(e *state.VerifyLogEntry) (bool, string, string) {
+// qualifyFailures returns EVERY condition the round fails to meet, in
+// evaluation order. An empty result means the round is strong enough to
+// count toward completion.
+func qualifyFailures(e *state.VerifyLogEntry, doc string) []GateFailure {
+	var out []GateFailure
 	if !ProgressKeyOf(e).Clean() {
-		return false, "verification_not_passed", fmt.Sprintf("round %d is not clean (%s)", e.Iteration, ProgressKeyOf(e))
+		out = append(out, GateFailure{
+			Gate:   "verification_not_passed",
+			Reason: fmt.Sprintf("round %d is not clean (%s)", e.Iteration, ProgressKeyOf(e)),
+			Remedy: "Resolve the open findings (`bts recipe findings list --open`), then re-verify.",
+		})
 	}
 	if !e.FullPass {
-		return false, "full_pass_before_final", fmt.Sprintf(
-			"round %d is clean but was a scoped delta pass — it never re-read the untouched sections against the edits",
-			e.Iteration)
+		out = append(out, GateFailure{
+			Gate: "full_pass_before_final",
+			Reason: fmt.Sprintf(
+				"round %d was a scoped delta pass — it never re-read the untouched sections against the edits",
+				e.Iteration),
+			Remedy: fullPassRemedy(doc),
+		})
 	}
 	// Recording no dimensions does not mean all of them ran. An earlier
 	// draft of this gate exempted dimensionless rounds so that recipes
@@ -73,23 +99,51 @@ func qualifies(e *state.VerifyLogEntry) (bool, string, string) {
 	// inverted the incentive it was written to create: declaring
 	// `--dimension verify` truthfully blocked completion while declaring
 	// nothing passed it. The honest caller was the only one penalised.
-	// Legacy rounds are stranded by exactly one extra round, which the
-	// replication clause below asks for anyway.
 	if !e.HasAllDimensions() {
 		ran := "no dimensions at all"
 		if len(e.Dimensions) > 0 {
 			ran = strings.Join(e.Dimensions, "+") + " only"
 		}
-		return false, "all_dimensions_before_final", fmt.Sprintf(
-			"round %d is clean but recorded %s — completion needs %s, because a clean result from one instrument is not evidence the others agree",
-			e.Iteration, ran, strings.Join(state.VerifyDimensions, "+"))
+		out = append(out, GateFailure{
+			Gate: "all_dimensions_before_final",
+			Reason: fmt.Sprintf(
+				"round %d recorded %s — completion needs %s, because a clean result from one instrument is not evidence the others agree",
+				e.Iteration, ran, strings.Join(state.VerifyDimensions, "+")),
+			Remedy: fullPassRemedy(doc),
+		})
 	}
 	if e.DocHash == "" {
-		return false, "revision_recorded_before_final", fmt.Sprintf(
-			"round %d recorded no doc_hash, so bts cannot tell which revision it verified",
-			e.Iteration)
+		out = append(out, GateFailure{
+			Gate: "revision_recorded_before_final",
+			Reason: fmt.Sprintf(
+				"round %d recorded no doc_hash, so bts cannot tell which revision it verified",
+				e.Iteration),
+			Remedy: "Re-run `bts recipe log` with a --doc path that resolves, so the revision is recorded. " +
+				"`bts recipe log` warns on stderr when it could not read the document.",
+		})
 	}
-	return true, "", ""
+	return out
+}
+
+func fullPassRemedy(doc string) string {
+	if doc == "" {
+		doc = "<doc>"
+	}
+	return fmt.Sprintf(
+		"Run one more round covering %s over the whole document: "+
+			"`bts recipe log {id} --from-verification <verification.md> --doc %s --scope full --dimension %s`.",
+		strings.Join(state.VerifyDimensions, "+"), doc,
+		strings.Join(state.VerifyDimensions, " --dimension "))
+}
+
+// apply records the failures on the verdict, keeping the first as the
+// headline the block message renders.
+func (ev *CompletionEvidence) apply(failures []GateFailure) {
+	ev.Failures = failures
+	if len(failures) == 0 {
+		return
+	}
+	ev.Gate, ev.Reason, ev.Remedy = failures[0].Gate, failures[0].Reason, failures[0].Remedy
 }
 
 // EvaluateCompletionEvidence walks a single document's rounds, newest
@@ -112,27 +166,17 @@ func EvaluateCompletionEvidence(entries []state.VerifyLogEntry, need int) Comple
 	}
 	ev := CompletionEvidence{Need: need}
 	if len(entries) == 0 {
-		ev.Gate = "verification_not_passed"
-		ev.Reason = "no verification history for this document"
-		ev.Remedy = "Run /bts-verify and record it with `bts recipe log ... --doc <doc> --scope full`."
+		ev.apply([]GateFailure{{
+			Gate:   "verification_not_passed",
+			Reason: "no verification history for this document",
+			Remedy: "Run /bts-verify and record it with `bts recipe log ... --doc <doc> --scope full`.",
+		}})
 		return ev
 	}
 
 	last := &entries[len(entries)-1]
-	if ok, gate, why := qualifies(last); !ok {
-		ev.Gate, ev.Reason = gate, why
-		switch {
-		case !ProgressKeyOf(last).Clean():
-			ev.Remedy = "Resolve the open findings (`bts recipe findings list --open`), then re-verify."
-		case last.DocHash == "":
-			ev.Remedy = "Re-run `bts recipe log` from the project root with a --doc path that resolves, so the revision is recorded."
-		default:
-			ev.Remedy = fmt.Sprintf(
-				"Run one more round covering %s over the whole document: "+
-					"`bts recipe log {id} --from-verification <verification.md> --doc %s --scope full --dimension %s`.",
-				strings.Join(state.VerifyDimensions, "+"), last.Doc,
-				strings.Join(state.VerifyDimensions, " --dimension "))
-		}
+	if failures := qualifyFailures(last, last.Doc); len(failures) > 0 {
+		ev.apply(failures)
 		return ev
 	}
 
@@ -144,7 +188,7 @@ func EvaluateCompletionEvidence(entries []state.VerifyLogEntry, need int) Comple
 		if e.DocHash != ev.Revision {
 			break
 		}
-		if ok, _, _ := qualifies(e); !ok {
+		if len(qualifyFailures(e, e.Doc)) > 0 {
 			break
 		}
 		if seen[e.VerificationHash] {
@@ -173,19 +217,19 @@ func EvaluateCompletionEvidence(entries []state.VerifyLogEntry, need int) Comple
 		ev.Confirmed = true
 		return ev
 	}
-	ev.Gate = "replicated_clean_pass"
-	ev.Reason = fmt.Sprintf(
+	reason := fmt.Sprintf(
 		"%d of %d independent confirming rounds on revision %s — a single clean round is a sample, not a measurement "+
 			"(unchanged documents in this project have produced criticals on re-verification)",
 		ev.Have, need, shortHash(ev.Revision))
 	if stop != "" {
-		ev.Reason += "; " + stop
+		reason += "; " + stop
 	}
-	ev.Remedy = fmt.Sprintf(
+	remedy := fmt.Sprintf(
 		"Run %d more full pass(es) over the unchanged document, writing a fresh verification.md each time, and record each with "+
 			"`--from-verification <verification.md> --scope full --dimension %s`. "+
 			"Editing the document resets the count, which is the point; re-recording the same verification.md does not raise it.",
 		need-ev.Have, strings.Join(state.VerifyDimensions, " --dimension "))
+	ev.apply([]GateFailure{{Gate: "replicated_clean_pass", Reason: reason, Remedy: remedy}})
 	return ev
 }
 

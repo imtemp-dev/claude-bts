@@ -1,6 +1,8 @@
 package hook
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -359,5 +361,94 @@ func TestStopSpecDone_StaleOverrideDoesNotApply(t *testing.T) {
 	}
 	if out.Decision != "block" {
 		t.Fatalf("a stale override must not apply, got %q", out.Decision)
+	}
+}
+
+// One override must excuse one gate. An unclean round fails the clean
+// check first, so overriding `verification_not_passed` used to let a
+// delta, dimensionless round finalize without full_pass, dimensions or
+// replication ever being evaluated.
+func TestStopSpecDone_OverridingOneGateDoesNotCarryTheOthers(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 1, Doc: "draft.md", Critical: 0, Major: 2, FullPass: false,
+			DocHash: "sha256:aaa", VerificationHash: "sha256:v1", Status: "continue"},
+	})
+	if err := state.AppendOverride(root, recipeID, &state.OverrideRecord{
+		Gate: "verification_not_passed", Doc: "draft.md", DocHash: "sha256:aaa",
+		Reason:   "both majors are false claims in justification prose",
+		Findings: []string{"F-abc12345", "F-def67890"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	h := NewStopHandler()
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision != "block" {
+		t.Fatalf("excusing the findings must not also excuse the delta pass, got %q", out.Decision)
+	}
+	if !strings.Contains(out.Reason, "delta pass") {
+		t.Errorf("the block should now name the next unmet condition, got %q", out.Reason)
+	}
+}
+
+// revision_recorded_before_final was unoverridable in principle: grant
+// always pins a hash, and a pinned record read as stale against the
+// empty round hash the gate fires on — so the block message named a
+// command whose result could never apply. The pin now falls back to what
+// the document hashes to right now, which is the question it asks.
+func TestStopSpecDone_PinnedOverrideAppliesWhenTheRoundRecordedNoRevision(t *testing.T) {
+	// setup returns a root whose last round recorded no doc_hash, with an
+	// override of that gate pinned to pinTo.
+	setup := func(t *testing.T, contents, pinTo string) string {
+		t.Helper()
+		root, recipeID := setupStopRoot(t)
+		writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+			{Iteration: 1, Doc: "draft.md", Critical: 0, Major: 0, FullPass: true,
+				Dimensions:       []string{"audit", "simulate", "verify"},
+				VerificationHash: "sha256:v1", Status: "converged"}, // no DocHash
+		})
+		docPath := filepath.Join(state.RecipeDir(root, recipeID), "draft.md")
+		if err := os.WriteFile(docPath, []byte(contents), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if pinTo == "" {
+			h, ok, err := state.FileContentHash(docPath)
+			if err != nil || !ok {
+				t.Fatalf("hash draft.md: %v ok=%v", err, ok)
+			}
+			pinTo = h
+		}
+		if err := state.AppendOverride(root, recipeID, &state.OverrideRecord{
+			Gate: "revision_recorded_before_final", Doc: "draft.md", DocHash: pinTo,
+			Reason: "the log predates --doc resolution; this is the text that was read",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return root
+	}
+
+	// Pinned to the text on disk: the override applies.
+	root := setup(t, "# draft\n", "")
+	out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision == "block" && strings.Contains(out.Reason, "no doc_hash") {
+		t.Fatalf("a pin matching the document on disk must apply, blocked with: %s", out.Reason)
+	}
+
+	// Pinned to text the document no longer carries: it does not.
+	stale := setup(t, "# draft, revised\n", "sha256:"+strings.Repeat("a", 64))
+	out2, err := NewStopHandler().Handle(&HookInput{CWD: stale, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out2.Decision != "block" {
+		t.Errorf("an override pinned to a vanished revision must not apply; got decision=%q reason=%q",
+			out2.Decision, out2.Reason)
 	}
 }

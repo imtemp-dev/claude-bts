@@ -192,7 +192,7 @@ var recipeOverrideListCmd = &cobra.Command{
 		all, _ := cmd.Flags().GetBool("all")
 		shown := records
 		if !all {
-			shown = state.LiveOverrides(records)
+			shown = state.LiveOverrides(records, state.CurrentDocHashes(root, recipeID, records))
 		}
 		if asJSON, _ := cmd.Flags().GetBool("json"); asJSON {
 			enc := json.NewEncoder(os.Stdout)
@@ -239,20 +239,55 @@ var recipeOverrideRevokeCmd = &cobra.Command{
 		gate, _ := cmd.Flags().GetString("gate")
 		reason, _ := cmd.Flags().GetString("reason")
 		doc, _ := cmd.Flags().GetString("doc")
+
+		// grant validates the gate name; revoke did not, and reported
+		// success either way. A typo therefore filed a revocation that
+		// matched no grant while telling the operator the gate was
+		// enforced again — the one message they must be able to trust.
+		if !engine.IsOverridableGate(gate) {
+			return fmt.Errorf("unknown gate %q — run `bts recipe override list --gates` for the IDs that can be overridden", gate)
+		}
+
 		rec := &state.OverrideRecord{Gate: gate, Reason: reason, Revoked: true}
 		if doc != "" {
 			rec.Doc = filepath.Base(doc)
 		}
+
+		// Say what was actually taken back. Revoking nothing is not an
+		// error — an operator tidying up should not be blocked — but it
+		// must not read as having restored a gate.
+		var matched []state.OverrideRecord
+		if records, rerr := state.ReadOverrides(root, recipeID); rerr == nil {
+			for _, live := range state.LiveOverrides(records, nil) {
+				if live.Gate == gate && (rec.Doc == "" || live.Doc == "" || live.Doc == rec.Doc) {
+					matched = append(matched, live)
+				}
+			}
+		}
+
 		if err := state.AppendOverride(root, recipeID, rec); err != nil {
 			return fmt.Errorf("record revocation: %w", err)
 		}
-		fmt.Printf("Override revoked: %s. The gate is enforced again.\n", gate)
+		if len(matched) == 0 {
+			fmt.Printf("Revocation recorded for %s, but no override of that gate was in force%s — nothing changed.\n",
+				gate, docSuffix(rec.Doc))
+			return nil
+		}
+		fmt.Printf("Override revoked: %s%s (%d record(s)). The gate is enforced again.\n",
+			gate, docSuffix(rec.Doc), len(matched))
 		return nil
 	},
 }
 
 // resolveDocPath turns a --doc value into something readable from the
 // project root, accepting both a bare basename and a full path.
+func docSuffix(doc string) string {
+	if doc == "" {
+		return ""
+	}
+	return " on " + doc
+}
+
 func resolveDocPath(root, recipeID, doc string) string {
 	if filepath.IsAbs(doc) {
 		return doc

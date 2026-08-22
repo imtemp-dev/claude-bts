@@ -327,12 +327,19 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		}
 		scoped := state.VerifyEntriesForDoc(history, lastEntry.Doc)
 		if ev := engine.EvaluateCompletionEvidence(scoped, confirmPasses); !ev.Confirmed {
-			if out, blocked := gateBlock(root, recipe.ID, ev.Gate,
-				lastEntry.Doc, lastEntry.DocHash, fmt.Sprintf(
-					"%s cannot be finalized on the evidence recorded: %s.\n%s",
-					lastEntry.Doc, ev.Reason, ev.Remedy,
-				)); blocked {
-				return out, nil
+			// EVERY unmet condition has to be excused, not just the one
+			// the evaluator names first. Reporting one at a time meant a
+			// grant of `verification_not_passed` — the condition an
+			// unclean round fails before any other is even looked at —
+			// carried full_pass, dimensions and replication with it.
+			for _, f := range ev.Failures {
+				if out, blocked := gateBlock(root, recipe.ID, f.Gate,
+					lastEntry.Doc, lastEntry.DocHash, fmt.Sprintf(
+						"%s cannot be finalized on the evidence recorded: %s.\n%s",
+						lastEntry.Doc, f.Reason, f.Remedy,
+					)); blocked {
+					return out, nil
+				}
 			}
 		}
 	}
@@ -752,6 +759,20 @@ func overrideFooter(recipeID, gate, doc string) string {
 func overrideAllows(root, recipeID, gate, docBase, docHash string) (bool, string) {
 	if gate == "" {
 		return false, ""
+	}
+	// When the ROUND recorded no revision, fall back to what the document
+	// hashes to right now. Without this, `revision_recorded_before_final`
+	// was unoverridable in principle: `override grant` refuses to record
+	// an unpinned override, and every pinned one reads as stale against
+	// an empty round hash — so the block message told the operator to run
+	// a command whose result could never apply. Hashing the file answers
+	// the question the pin actually asks: is the text in front of us the
+	// text that was judged.
+	if docHash == "" && docBase != "" {
+		if h, ok, err := state.FileContentHash(
+			filepath.Join(state.RecipeDir(root, recipeID), docBase)); err == nil && ok {
+			docHash = h
+		}
 	}
 	// The CLI refuses to grant an override for a non-overridable gate,
 	// but overrides.jsonl is a plain file in the repo. Re-check here so a

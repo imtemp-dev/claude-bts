@@ -154,17 +154,25 @@ func ActiveOverride(records []OverrideRecord, gate, docBase, docHash string) Ove
 }
 
 // LiveOverrides folds the ledger to the set of overrides currently in
-// force, newest record per gate+doc, revocations removed. Used by
-// status, doctor and stats so an overridden recipe never reads as an
-// ordinary one.
+// force: newest record per gate+doc, revocations removed, and — when
+// `current` is supplied — records pinned to a revision the document no
+// longer has dropped as stale.
+//
+// `current` maps a document basename to its content hash right now. Pass
+// nil only where the documents genuinely cannot be read; a nil map skips
+// the staleness filter, which is the behaviour this function used to
+// have unconditionally. That was a divergence with teeth: the stop hook
+// correctly refused a stale override and re-blocked, while `bts recipe
+// status` and `bts doctor` went on printing "override in force" and
+// `bts stats` went on excluding the recipe from the correlation it added
+// specifically to avoid over-claiming. Every surface disagreed with the
+// gate, in the direction that flatters the override.
 //
 // Revocation matching mirrors ActiveOverride: a revocation naming no
 // document takes back every override of that gate. Keying revocations
 // the same way as grants meant `revoke --gate G` (no --doc) filed itself
-// under a key nothing had ever granted — the gate stopped being
-// overridden while status, doctor and stats went on displaying it as
-// overridden indefinitely.
-func LiveOverrides(records []OverrideRecord) []OverrideRecord {
+// under a key nothing had ever granted.
+func LiveOverrides(records []OverrideRecord, current map[string]string) []OverrideRecord {
 	byKey := map[string]OverrideRecord{}
 	var order []string
 	for _, r := range records {
@@ -185,16 +193,39 @@ func LiveOverrides(records []OverrideRecord) []OverrideRecord {
 	}
 	var out []OverrideRecord
 	for _, key := range order {
-		if r, ok := byKey[key]; ok {
-			out = append(out, r)
+		r, ok := byKey[key]
+		if !ok {
+			continue
+		}
+		if current != nil && r.DocHash != "" && current[r.Doc] != r.DocHash {
+			continue // granted on text the document no longer carries
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// CurrentDocHashes hashes every document named by the given records, so
+// LiveOverrides can drop the ones granted on a revision that is gone.
+// Documents that cannot be read are omitted, which makes their overrides
+// stale — the same answer ActiveOverride gives when it cannot confirm
+// the text.
+func CurrentDocHashes(root, recipeID string, records []OverrideRecord) map[string]string {
+	out := map[string]string{}
+	for _, r := range records {
+		if r.Doc == "" || out[r.Doc] != "" {
+			continue
+		}
+		if h, ok, err := FileContentHash(filepath.Join(RecipeDir(root, recipeID), r.Doc)); err == nil && ok {
+			out[r.Doc] = h
 		}
 	}
 	return out
 }
 
 // OverrideSummary renders live overrides for a one-line status display.
-func OverrideSummary(records []OverrideRecord) string {
-	live := LiveOverrides(records)
+func OverrideSummary(root, recipeID string, records []OverrideRecord) string {
+	live := LiveOverrides(records, CurrentDocHashes(root, recipeID, records))
 	if len(live) == 0 {
 		return ""
 	}

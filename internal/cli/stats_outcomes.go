@@ -71,7 +71,7 @@ func gatherOutcomes(root string) ([]RecipeOutcome, error) {
 		}
 
 		if recs, oerr := state.ReadOverrides(root, r.ID); oerr == nil {
-			for _, o2 := range state.LiveOverrides(recs) {
+			for _, o2 := range state.LiveOverrides(recs, state.CurrentDocHashes(root, r.ID, recs)) {
 				o.Overrides = append(o.Overrides, o2.Gate)
 			}
 		}

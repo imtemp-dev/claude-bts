@@ -79,7 +79,7 @@ func TestRevocationCancelsAnEarlierGrant(t *testing.T) {
 	if st := ActiveOverride(recs, "convergence_budget", "draft.md", ""); st.Active {
 		t.Error("a revoked override must not apply")
 	}
-	if live := LiveOverrides(recs); len(live) != 0 {
+	if live := LiveOverrides(recs, nil); len(live) != 0 {
 		t.Errorf("LiveOverrides = %v, want none", live)
 	}
 	// And a later grant re-arms it.
@@ -94,12 +94,13 @@ func TestOverrideSummaryNamesGatesAndFindingCounts(t *testing.T) {
 		{Gate: "replicated_clean_pass", Doc: "draft.md", Reason: "r"},
 		{Gate: "convergence_budget", Doc: "draft.md", Findings: []string{"F-1", "F-2"}, Reason: "r"},
 	}
-	got := OverrideSummary(recs)
+	root, id := overrideRoot(t)
+	got := OverrideSummary(root, id, recs)
 	want := "replicated_clean_pass, convergence_budget(2 findings)"
 	if got != want {
 		t.Errorf("summary = %q, want %q", got, want)
 	}
-	if OverrideSummary(nil) != "" {
+	if OverrideSummary(root, id, nil) != "" {
 		t.Error("no overrides must render as empty, so callers can omit the line entirely")
 	}
 }
@@ -171,7 +172,7 @@ func TestRevokeWithoutDocClearsEveryDisplayForThatGate(t *testing.T) {
 	if st := ActiveOverride(records, "replicated_clean_pass", "draft.md", "sha256:aaa"); st.Active {
 		t.Fatal("the gate is no longer overridden — precondition")
 	}
-	live := LiveOverrides(records)
+	live := LiveOverrides(records, nil)
 	for _, r := range live {
 		if r.Gate == "replicated_clean_pass" {
 			t.Errorf("a revoked gate must disappear from the display too, got %+v", live)
@@ -180,7 +181,7 @@ func TestRevokeWithoutDocClearsEveryDisplayForThatGate(t *testing.T) {
 	if len(live) != 1 || live[0].Gate != "full_pass_before_final" {
 		t.Errorf("the untouched gate must survive the revocation, got %+v", live)
 	}
-	if s := OverrideSummary(records); strings.Contains(s, "replicated_clean_pass") {
+	if s := OverrideSummary(t.TempDir(), "r-001", records); strings.Contains(s, "replicated_clean_pass") {
 		t.Errorf("status summary still shows the revoked gate: %q", s)
 	}
 }
@@ -192,8 +193,37 @@ func TestRevokeWithDocIsNarrow(t *testing.T) {
 		{Gate: "replicated_clean_pass", Doc: "wireframe.md", DocHash: "sha256:bbb", Reason: "b"},
 		{Gate: "replicated_clean_pass", Doc: "draft.md", Reason: "done with this one", Revoked: true},
 	}
-	live := LiveOverrides(records)
+	live := LiveOverrides(records, nil)
 	if len(live) != 1 || live[0].Doc != "wireframe.md" {
 		t.Errorf("only draft.md's override should be revoked, got %+v", live)
+	}
+}
+
+// A stale override is not in force, and every display has to agree with
+// the gate about that. It did not: the stop hook re-blocked while
+// status, doctor and stats went on treating the recipe as overridden.
+func TestLiveOverridesDropsOnesGrantedOnAVanishedRevision(t *testing.T) {
+	records := []OverrideRecord{
+		{Gate: "replicated_clean_pass", Doc: "draft.md", DocHash: "sha256:aaa", Reason: "frozen"},
+		{Gate: "full_pass_before_final", Doc: "wireframe.md", DocHash: "sha256:bbb", Reason: "still valid"},
+	}
+	current := map[string]string{"draft.md": "sha256:zzz", "wireframe.md": "sha256:bbb"}
+
+	live := LiveOverrides(records, current)
+	if len(live) != 1 || live[0].Gate != "full_pass_before_final" {
+		t.Errorf("live = %+v, want only the override still on its own revision", live)
+	}
+	// The gate agrees.
+	if st := ActiveOverride(records, "replicated_clean_pass", "draft.md", "sha256:zzz"); st.Active {
+		t.Error("precondition: the stale override must not be active")
+	}
+	// nil means "cannot read the documents" and skips the filter.
+	if live := LiveOverrides(records, nil); len(live) != 2 {
+		t.Errorf("a nil map must not drop anything, got %+v", live)
+	}
+	// A document that cannot be read is absent from the map, which makes
+	// its override stale — the same answer ActiveOverride gives.
+	if live := LiveOverrides(records, map[string]string{}); len(live) != 0 {
+		t.Errorf("unreadable documents leave their overrides unconfirmable, got %+v", live)
 	}
 }
