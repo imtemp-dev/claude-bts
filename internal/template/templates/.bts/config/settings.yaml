@@ -43,9 +43,12 @@ verify:
                                  # findings per 100 lines), so length is the one lever on the
                                  # loop's total cost that is knowable before the loop starts.
                                  # 0 disables.
-  section_span_severity: info    # How those reports are classified. "info" records them in the
-                                 # ledger without blocking; "major" makes an oversize section a
-                                 # completion blocker.
+  section_span_severity: info    # How `bts verify` classifies those reports. "critical" or "major"
+                                 # make `bts verify` exit non-zero; "minor_resolvable" and "info"
+                                 # do not. It is a report to the operator and to the verifying
+                                 # agent — it does NOT enter findings.jsonl or verify-log.jsonl
+                                 # (those come from the <bts-findings> block in verification.md),
+                                 # so no value here blocks <bts>DONE</bts> on its own.
 
 # Debate
 debate:

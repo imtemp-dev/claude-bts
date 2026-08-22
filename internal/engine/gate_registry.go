@@ -37,8 +37,8 @@ var HardGates = []HardGate{
 	{
 		ID:          "adjudicate_every_debate",
 		Rule:        "bts-recipe-protocol.md §Mandatory Rules rule 7",
-		Enforcement: "internal/engine/validator.go:validateDebateMetaJSON",
-		Summary:     "Every debate directory must carry a state file (debate.json) with a decided boolean and, when decided, a string conclusion — checked in both the project-level and recipe-level debate trees",
+		Enforcement: "internal/engine/validator.go:validateDebates + internal/cli/doctor_drift.go:checkOrphanedProjectDebates",
+		Summary:     "Every debate must carry a state file (debate.json) with a decided boolean and, when decided, a string conclusion — validated per debate ID across the recipe and project trees, and by `bts doctor` for project-tree debates that belong to no recipe",
 	},
 	{
 		ID:          "sync_check_before_final",
@@ -211,8 +211,8 @@ var HardGates = []HardGate{
 	{
 		ID:          "absence_is_not_closure",
 		Rule:        "bts-verification-protocol.md §Finding Identity",
-		Enforcement: "internal/state/findings.go:SyncFindings",
-		Summary:     "A finding that stops being reported goes to `unreported`, and closes only after a second silent round on an anchor that has stopped producing findings — so a restated finding cannot fold into `fixed` and read as progress",
+		Enforcement: "internal/state/findings.go:SyncFindings + internal/hook/stop.go:handleSpecDone",
+		Summary:     "A finding that stops being reported goes to `unreported`, blocks <bts>DONE</bts> while it stays there, and closes only after a second silent round on an anchor that has stopped producing findings — so a restated finding cannot fold into `fixed` and read as progress",
 	},
 	{
 		ID:          "per_document_verify_state",
@@ -263,6 +263,7 @@ var InvariantGates = []HardGate{
 // bts lie about what was verified, only about whether that was enough.
 var overridableGates = map[string]bool{
 	"verification_not_passed":        true,
+	"absence_is_not_closure":         true,
 	"convergence_budget":             true,
 	"full_pass_before_final":         true,
 	"all_dimensions_before_final":    true,
@@ -286,6 +287,7 @@ func IsOverridableGate(gate string) bool { return overridableGates[gate] }
 // asked for an ID that could not exist, so it failed on first use.
 var findingGates = map[string]bool{
 	"verification_not_passed":  true,
+	"absence_is_not_closure":   true,
 	"convergence_budget":       true,
 	"deferred_minors_declared": true,
 }

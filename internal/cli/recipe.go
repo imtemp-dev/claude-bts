@@ -831,6 +831,12 @@ func stampContentHashes(root, recipeID, docPath string, entry *state.VerifyLogEn
 		// carry no doc_hash at all, and why the two rule-3 gates that
 		// read it stood down without anyone noticing.
 		resolved := resolveDocPath(root, recipeID, docPath)
+		// Record WHERE, not just what. Doc carries only the basename, so
+		// without this the rule-3 dirty check can only look under the
+		// recipe directory.
+		if rel, rerr := filepath.Rel(root, resolved); rerr == nil && !strings.HasPrefix(rel, "..") {
+			entry.DocPath = filepath.ToSlash(rel)
+		}
 		h, ok, err := state.FileContentHash(resolved)
 		switch {
 		case err != nil:

@@ -836,6 +836,24 @@ func validateDebates(recipeDir string) []ValidationError {
 	return errs
 }
 
+// ValidateDebateDir validates ONE debate directory in isolation: it must
+// carry a state file, and that file must be well-formed and adjudicated.
+// Used by the project-level sweep for debates that belong to no recipe.
+func ValidateDebateDir(dir string) []ValidationError {
+	dirs := []string{dir}
+	if statePath := findDebateState(dirs); statePath != "" {
+		return validateDebateMetaJSON(statePath)
+	}
+	if !anyDebateContent(dirs) {
+		return nil
+	}
+	return []ValidationError{{
+		File:    filepath.Base(dir),
+		Field:   "debate.json",
+		Message: "debate has rounds but no state file — `bts debate log` records the conclusion and whether it was decided",
+	}}
+}
+
 // findDebateState returns the first state file found across a debate's
 // directories, accepting the name the CLI writes (debate.json) and the
 // legacy one this validator used to look for (meta.json).

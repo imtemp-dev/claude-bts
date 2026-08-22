@@ -15,12 +15,12 @@ import (
 // RecipeState tracks the current state of a recipe execution.
 type RecipeState struct {
 	ID           string  `json:"id"`
-	Type         string  `json:"type"`          // analyze, design, blueprint
-	Topic        string  `json:"topic"`         // user's description
-	Phase        string  `json:"phase"`         // scoping, research, draft, assess, improve, verify, debate, simulate, audit, finalize, cancelled, implement, test, sync, status, complete
-	Iteration    int     `json:"iteration"`     // current verify iteration
+	Type         string  `json:"type"`                    // analyze, design, blueprint
+	Topic        string  `json:"topic"`                   // user's description
+	Phase        string  `json:"phase"`                   // scoping, research, draft, assess, improve, verify, debate, simulate, audit, finalize, cancelled, implement, test, sync, status, complete
+	Iteration    int     `json:"iteration"`               // current verify iteration
 	DraftVersion int     `json:"draft_version,omitempty"` // deprecated: single draft.md, no versioning
-	Level        float64 `json:"level"`         // assessed document level (0.0 ~ 3.0)
+	Level        float64 `json:"level"`                   // assessed document level (0.0 ~ 3.0)
 	StartedAt    string  `json:"started_at"`
 	UpdatedAt    string  `json:"updated_at"`
 	RefRecipe    string  `json:"ref_recipe,omitempty"` // referenced recipe ID (for fix recipes)
@@ -50,19 +50,19 @@ type TaskState struct {
 type Task struct {
 	ID                string             `json:"id"`
 	File              string             `json:"file"`
-	Action            string             `json:"action"`      // create, modify, delete
-	Status            string             `json:"status"`      // pending, in_progress, done, blocked, skipped
+	Action            string             `json:"action"` // create, modify, delete
+	Status            string             `json:"status"` // pending, in_progress, done, blocked, skipped
 	Description       string             `json:"description"`
-	Anchor            string             `json:"anchor,omitempty"` // "path action" — matches <!-- task-anchor: path action -->
-	ModifyScope       []string           `json:"modify_scope,omitempty"` // required when Action=="modify"
-	PreImageSha       string             `json:"pre_image_sha,omitempty"` // sha256 of file before IMPLEMENT
-	PostImageSha      string             `json:"post_image_sha,omitempty"` // sha256 after VERIFY build pass
+	Anchor            string             `json:"anchor,omitempty"`             // "path action" — matches <!-- task-anchor: path action -->
+	ModifyScope       []string           `json:"modify_scope,omitempty"`       // required when Action=="modify"
+	PreImageSha       string             `json:"pre_image_sha,omitempty"`      // sha256 of file before IMPLEMENT
+	PostImageSha      string             `json:"post_image_sha,omitempty"`     // sha256 after VERIFY build pass
 	StructureFindings []StructureFinding `json:"structure_findings,omitempty"` // per-task mini-check results (Phase 10)
 	DependsOn         []string           `json:"depends_on,omitempty"`
-	RetryCount        int                `json:"retry_count,omitempty"` // persisted TOTAL build retry count (hard-cap budget)
+	RetryCount        int                `json:"retry_count,omitempty"`      // persisted TOTAL build retry count (hard-cap budget)
 	AttemptsInTier    int                `json:"attempts_in_tier,omitempty"` // Phase 15: attempts within the CURRENT tier — reset to 0 on every tier transition
-	LastError         string             `json:"last_error,omitempty"`  // last build error for stagnation detection
-	RetryTier         int                `json:"retry_tier,omitempty"`  // Phase 15 retry-ladder tier: 1..5
+	LastError         string             `json:"last_error,omitempty"`       // last build error for stagnation detection
+	RetryTier         int                `json:"retry_tier,omitempty"`       // Phase 15 retry-ladder tier: 1..5
 	EscalationNotes   []string           `json:"escalation_notes,omitempty"` // one entry per tier transition
 }
 
@@ -239,7 +239,7 @@ type VerifyLogEntry struct {
 	Iteration       int    `json:"iteration"`
 	Critical        int    `json:"critical"`
 	Major           int    `json:"major"`
-	Minor           int    `json:"minor,omitempty"`             // legacy pre-split count
+	Minor           int    `json:"minor,omitempty"` // legacy pre-split count
 	MinorResolvable int    `json:"minor_resolvable,omitempty"`
 	MinorDeferred   int    `json:"minor_deferred,omitempty"`
 	Info            int    `json:"info,omitempty"`
@@ -310,7 +310,16 @@ type VerifyLogEntry struct {
 	// gates actually ask — is the file on disk the one that was verified.
 	// Empty means "written before these fields existed"; both gates fall
 	// back rather than manufacture a verdict from a missing hash.
-	DocHash          string `json:"doc_hash,omitempty"`
+	DocHash string `json:"doc_hash,omitempty"`
+	// DocPath is the verified document's path relative to the project
+	// root. Doc carries only the basename, and the rule-3 dirty check
+	// looked the basename up under the RECIPE directory — so a --doc that
+	// legitimately resolved elsewhere (`docs/api-spec.md` from the
+	// project root) got a doc_hash recorded and then never re-checked:
+	// FileContentHash returned ok=false on the wrong path and the check
+	// skipped it. Empty means "written before this field existed" or "the
+	// document lives in the recipe directory", which is the fallback.
+	DocPath          string `json:"doc_path,omitempty"`
 	VerificationHash string `json:"verification_hash,omitempty"`
 	Timestamp        string `json:"timestamp"`
 }

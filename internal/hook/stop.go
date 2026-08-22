@@ -344,6 +344,51 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		}
 	}
 
+	// 2a-bis. The findings ledger has to agree that nothing is still
+	// owed. `absence_is_not_closure` was in the gate registry as a hard
+	// gate but blocked nothing: the completion path reads verify-log
+	// TOTALS, and a round's totals come from the same <bts-findings>
+	// block the verifier writes. So a verifier that simply stopped
+	// reporting eight majors produced a clean round, the ledger demoted
+	// all eight to `unreported`, two such rounds confirmed each other,
+	// and DONE went through with eight findings nobody had resolved.
+	//
+	// The ledger is the one record that survives a round going quiet, so
+	// it is the one that can say so. This is satisfiable by construction:
+	// with two clean rounds required, whatever goes `unreported` on the
+	// first is confirmed `fixed` on the second, because a clean round
+	// leaves every anchor quiet.
+	if lastEntry.Doc != "" {
+		if states, ferr := state.LoadFindings(root, recipe.ID, lastEntry.Doc); ferr == nil {
+			var owed []string
+			for _, st := range states {
+				if state.NotClosed(st.Status) {
+					owed = append(owed, fmt.Sprintf("%s [%s] %s", st.ID, st.Status, firstLine(st.Title)))
+				}
+			}
+			if len(owed) > 0 {
+				shown := owed
+				if len(shown) > 5 {
+					shown = shown[:5]
+				}
+				body := fmt.Sprintf(
+					"%d finding(s) in the ledger for %s are still owed — neither confirmed fixed nor dismissed:\n  %s",
+					len(owed), lastEntry.Doc, strings.Join(shown, "\n  "))
+				if len(owed) > len(shown) {
+					body += fmt.Sprintf("\n  ... and %d more", len(owed)-len(shown))
+				}
+				body += "\n\nA finding that stopped being reported is `unreported`, not fixed: absence is equally the " +
+					"signature of a repair and of a verifier rewording the same defect. Resolve them and re-verify, or " +
+					"dismiss the ones that are not defects with `bts recipe findings dismiss`. " +
+					"See `bts recipe findings list " + recipe.ID + " --doc " + lastEntry.Doc + " --open`."
+				if out, blocked := gateBlock(root, recipe.ID, "absence_is_not_closure",
+					lastEntry.Doc, lastEntry.DocHash, body); blocked {
+					return out, nil
+				}
+			}
+		}
+	}
+
 	// 2b. Rule 3 hard gate: verified documents must be UNCHANGED since
 	// their last verification. Mandatory verification was prompt-level
 	// until v0.9.x; the content hash recorded by `recipe log --doc` makes

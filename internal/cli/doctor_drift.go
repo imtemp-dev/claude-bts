@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/imtemp-dev/claude-bts/internal/engine"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 )
 
@@ -326,8 +327,69 @@ func checkDebateTreeDivergence(root, recipeID string) []doctorIssue {
 	return issues
 }
 
+// checkOrphanedProjectDebates validates debates that live ONLY in the
+// project tree.
+//
+// `bts validate <recipe>` takes its debate IDs from the recipe's own
+// tree, so one recipe is never held to another's. That leaves a hole at
+// the other end: `bts debate log` writes only to
+// .bts/specs/debates/{id}/, and a debate recorded that way and never
+// touched by /bts-debate belongs to no recipe — so nothing validated it
+// at all, which is the same "passes by finding nothing" outcome the
+// recipe-side fix removed. The project is the right scope for a
+// project-level tree.
+func checkOrphanedProjectDebates(root string) []doctorIssue {
+	projectTree := filepath.Join(state.SpecsPath(root), "debates")
+	entries, err := os.ReadDir(projectTree)
+	if err != nil {
+		return nil
+	}
+
+	// Every debate ID any recipe already answers for.
+	claimed := map[string]bool{}
+	recipes, rerr := state.ListRecipes(root)
+	if rerr == nil {
+		for _, r := range recipes {
+			rd, derr := os.ReadDir(filepath.Join(state.RecipeDir(root, r.ID), "debates"))
+			if derr != nil {
+				continue
+			}
+			for _, e := range rd {
+				if e.IsDir() {
+					claimed[e.Name()] = true
+				}
+			}
+		}
+	}
+
+	var orphans []string
+	for _, e := range entries {
+		if !e.IsDir() || claimed[e.Name()] {
+			continue
+		}
+		dir := filepath.Join(projectTree, e.Name())
+		for _, errv := range engine.ValidateDebateDir(dir) {
+			orphans = append(orphans, fmt.Sprintf("%s (%s)", e.Name(), errv.Message))
+		}
+	}
+	if len(orphans) == 0 {
+		return nil
+	}
+	sort.Strings(orphans)
+	return []doctorIssue{{
+		level:   "warning",
+		section: "documents",
+		message: fmt.Sprintf("%d debate(s) in %s belong to no recipe and do not adjudicate: %s",
+			len(orphans), projectTree, strings.Join(orphans, ", ")),
+		fix: "`bts validate <recipe>` only sees debates under that recipe's own tree. Record the conclusion with " +
+			"`bts debate log`, or move the debate under the recipe that owns it",
+	}}
+}
+
 // divergentFiles returns the names present in both directories whose
-// contents differ.
+// contents differ. A file present in only one tree is not a divergence:
+// the normal arrangement puts the round markdown beside the recipe and
+// the machine state in the project tree.
 func divergentFiles(a, b string) []string {
 	entries, err := os.ReadDir(a)
 	if err != nil {

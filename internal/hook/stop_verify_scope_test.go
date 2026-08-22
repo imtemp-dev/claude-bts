@@ -452,3 +452,55 @@ func TestStopSpecDone_PinnedOverrideAppliesWhenTheRoundRecordedNoRevision(t *tes
 			out2.Decision, out2.Reason)
 	}
 }
+
+// absence_is_not_closure was in the gate registry as a hard gate and
+// blocked nothing. A round's totals come from the same <bts-findings>
+// block the verifier writes, so a verifier that simply stopped reporting
+// its findings produced a clean round; the ledger demoted them all to
+// `unreported`, two such rounds confirmed each other, and DONE went
+// through with findings nobody had resolved.
+func TestStopSpecDone_BlocksWhileTheLedgerStillOwesFindings(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	all := []string{"audit", "simulate", "verify"}
+
+	// Round 1 reports two majors; rounds 2 and 3 report nothing at all.
+	if _, err := state.SyncFindings(root, recipeID, "draft.md", 1, []state.ReportedFinding{
+		{Severity: "major", Title: "the retry ceiling contradicts the timeout", Anchor: "## One"},
+		{Severity: "major", Title: "the error path for a dropped connection is unspecified", Anchor: "## Two"},
+	}, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := state.SyncFindings(root, recipeID, "draft.md", 2, nil, 0); err != nil {
+		t.Fatal(err)
+	}
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 2, Doc: "draft.md", FullPass: true, Dimensions: all,
+			DocHash: "sha256:aaa", VerificationHash: "sha256:v2", Status: "converged"},
+		{Iteration: 3, Doc: "draft.md", FullPass: true, Dimensions: all,
+			DocHash: "sha256:aaa", VerificationHash: "sha256:v3", Status: "converged"},
+	})
+
+	out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision != "block" {
+		t.Fatalf("two clean rounds must not finalize while the ledger still owes findings, got %q", out.Decision)
+	}
+	if !strings.Contains(out.Reason, "still owed") {
+		t.Errorf("the block must say what is owed, got %q", out.Reason)
+	}
+
+	// The gate is satisfiable: one more silent round confirms the
+	// closures, because a clean round leaves every anchor quiet.
+	if _, err := state.SyncFindings(root, recipeID, "draft.md", 3, nil, 0); err != nil {
+		t.Fatal(err)
+	}
+	out2, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out2.Decision == "block" && strings.Contains(out2.Reason, "still owed") {
+		t.Errorf("confirmed closures must clear the gate, blocked with: %s", out2.Reason)
+	}
+}
