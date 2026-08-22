@@ -283,10 +283,13 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 
 	resolvable := lastEntry.EffectiveResolvable()
 	if lastEntry.Critical > 0 || lastEntry.Major > 0 || resolvable > 0 {
-		return blockOutput(fmt.Sprintf(
-			"Verification not passed for %s: %d critical, %d major, %d minor [resolvable] remain. Fix and re-verify. Deferred minors are runtime watch-items and do not block here.",
-			lastEntry.Doc, lastEntry.Critical, lastEntry.Major, resolvable,
-		)), nil
+		if out, blocked := gateBlock(root, recipe.ID, "verification_not_passed",
+			lastEntry.Doc, lastEntry.DocHash, fmt.Sprintf(
+				"Verification not passed for %s: %d critical, %d major, %d minor [resolvable] remain. Fix and re-verify. Deferred minors are runtime watch-items and do not block here.",
+				lastEntry.Doc, lastEntry.Critical, lastEntry.Major, resolvable,
+			)); blocked {
+			return out, nil
+		}
 	}
 
 	if lastEntry.Status == "failed" {
@@ -294,26 +297,44 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		if lastEntry.Budget > 0 {
 			budget = fmt.Sprintf("verify.max_iterations=%d", lastEntry.Budget)
 		}
-		return blockOutput(fmt.Sprintf(
-			"Last verification round is marked failed (convergence budget exhausted under %s). "+
-				"The loop stopped making progress — resolve with the user rather than re-emitting DONE. "+
-				"See `bts recipe findings list --open` for the findings that would not clear.",
-			budget,
-		)), nil
+		if out, blocked := gateBlock(root, recipe.ID, "convergence_budget",
+			lastEntry.Doc, lastEntry.DocHash, fmt.Sprintf(
+				"Last verification round is marked failed (convergence budget exhausted under %s). "+
+					"The loop stopped making progress — resolve with the user rather than re-emitting DONE. "+
+					"See `bts recipe findings list --open` for the findings that would not clear.",
+				budget,
+			)); blocked {
+			return out, nil
+		}
 	}
 
-	// 2a. Only a FULL pass may satisfy completion. Scoped delta rounds
-	// verify the changed sections plus their reference closure, which
-	// keeps iteration cheap, but finalizing on one would ship a spec
-	// whose untouched sections were never re-checked against the edits.
+	// 2a. Completion evidence: the clean result must come from a strong
+	// enough measurement, repeated on one revision. This subsumes the
+	// old full-pass-only rule and adds the two conditions that rule was
+	// missing — every dimension, and replication. See
+	// engine/completion_evidence.go for the measurements behind it.
+	//
 	// Entries written before the scope flag existed carry FullPass=false
 	// with no Doc; only enforce when the log is doc-scoped (v0.10+).
-	if lastEntry.Doc != "" && !lastEntry.FullPass {
-		return blockOutput(fmt.Sprintf(
-			"%s is clean but its last verification was a scoped delta pass. Run one full pass "+
-				"(`/bts-verify` then `bts recipe log %s --from-verification .bts/specs/recipes/%s/verification.md --doc %s --scope full`) before completing.",
-			lastEntry.Doc, recipe.ID, recipe.ID, lastEntry.Doc,
-		)), nil
+	if lastEntry.Doc != "" {
+		confirmPasses := 2
+		if s, serr := engine.LoadSettings(root); serr == nil {
+			confirmPasses = s.Verify.ConfirmPasses
+		}
+		history, herr := state.ReadVerifyLog(root, recipe.ID)
+		if herr != nil {
+			fmt.Fprintf(os.Stderr, "[bts] warning: read verify-log: %v\n", herr)
+		}
+		scoped := state.VerifyEntriesForDoc(history, lastEntry.Doc)
+		if ev := engine.EvaluateCompletionEvidence(scoped, confirmPasses); !ev.Confirmed {
+			if out, blocked := gateBlock(root, recipe.ID, ev.Gate,
+				lastEntry.Doc, lastEntry.DocHash, fmt.Sprintf(
+					"%s cannot be finalized on the evidence recorded: %s.\n%s",
+					lastEntry.Doc, ev.Reason, ev.Remedy,
+				)); blocked {
+				return out, nil
+			}
+		}
 	}
 
 	// 2b. Rule 3 hard gate: verified documents must be UNCHANGED since
@@ -344,10 +365,13 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 			specPath = filepath.Join(recipeDir, "draft.md")
 		}
 		if all, _, uerr := engine.CheckKnownUncertainties(specPath); uerr == nil && len(all) == 0 {
-			return blockOutput(fmt.Sprintf(
-				"%d minor [deferred] finding(s) recorded but %s has no '## Known Uncertainties' entries (### U-NNN form). Per blueprint rule 3b, append each deferred minor with its Why-deferred: line, re-run /bts-verify (the append is a modification — rule 3), then re-emit DONE.",
-				lastEntry.MinorDeferred, filepath.Base(specPath),
-			)), nil
+			if out, blocked := gateBlock(root, recipe.ID, "deferred_minors_declared",
+				lastEntry.Doc, lastEntry.DocHash, fmt.Sprintf(
+					"%d minor [deferred] finding(s) recorded but %s has no '## Known Uncertainties' entries (### U-NNN form). Per blueprint rule 3b, append each deferred minor with its Why-deferred: line, re-run /bts-verify (the append is a modification — rule 3), then re-emit DONE.",
+					lastEntry.MinorDeferred, filepath.Base(specPath),
+				)); blocked {
+				return out, nil
+			}
 		}
 	}
 
@@ -380,8 +404,11 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 			}
 		}
 		if !simulated {
-			return blockOutput(
-				"No simulate action in changelog. Rule 5: run /bts-simulate (5+ scenarios) at least once before declaring Level 3, then /bts-sync-check, then re-emit DONE."), nil
+			if out, blocked := gateBlock(root, recipe.ID, "simulate_at_least_once",
+				lastEntry.Doc, lastEntry.DocHash,
+				"No simulate action in changelog. Rule 5: run /bts-simulate (5+ scenarios) at least once before declaring Level 3, then /bts-sync-check, then re-emit DONE."); blocked {
+				return out, nil
+			}
 		}
 		if lastSyncCheckPass == -1 || lastSyncCheckPass < lastModify {
 			return blockOutput(
@@ -669,4 +696,109 @@ func readLastVerifyEntry(path string) (*state.VerifyLogEntry, error) {
 	}
 
 	return &last, nil
+}
+
+// overrideAllows reports whether a recorded operator override lets this
+// turn proceed past `gate`, and the note to print when it does.
+//
+// An override is deliberately noisy rather than silent. The point is not
+// to make the gate stop mattering — it is to make the bypass leave a
+// mark, on this turn's stderr and in the recipe's tracked state, instead
+// of happening outside the system where nothing can see it.
+//
+// A stale override — one granted on a different revision — does NOT
+// apply. The operator weighed a specific text; an edit since then is
+// exactly when that judgement has to be made again.
+// gateBlock renders a hard-gate block, first honouring any recorded
+// override for that gate. It returns (nil, false) when an override
+// applies, so the caller falls through to the next gate.
+//
+// Every overridable gate goes through here so the footer names the grant
+// invocation the CLI will actually accept. Before this, one hard-coded
+// footer served all of them and named `--finding <F-...>` for gates that
+// fire on rounds with no findings at all.
+func gateBlock(root, recipeID, gate, doc, docHash, body string) (*HookOutput, bool) {
+	if ok, note := overrideAllows(root, recipeID, gate, doc, docHash); ok {
+		fmt.Fprintf(os.Stderr, "[bts] %s\n", note)
+		return nil, false
+	}
+	if footer := overrideFooter(recipeID, gate, doc); footer != "" {
+		body += "\n\n" + footer
+	}
+	return blockOutput(body), true
+}
+
+func overrideFooter(recipeID, gate, doc string) string {
+	if !engine.IsOverridableGate(gate) {
+		return ""
+	}
+	selector := "--no-findings"
+	if engine.GateExcusesFindings(gate) {
+		selector = "--finding <F-...>"
+	}
+	docArg := ""
+	if doc != "" {
+		docArg = " --doc " + doc
+	}
+	return fmt.Sprintf(
+		"If proceeding is the right call, record it rather than working around it:\n"+
+			"  bts recipe override grant %s --gate %s%s \\\n"+
+			"      %s --reason \"<why this is acceptable>\"\n"+
+			"The recipe then reports as overridden in status, doctor and stats — which an "+
+			"undocumented bypass does not.",
+		recipeID, gate, docArg, selector)
+}
+
+func overrideAllows(root, recipeID, gate, docBase, docHash string) (bool, string) {
+	if gate == "" {
+		return false, ""
+	}
+	// The CLI refuses to grant an override for a non-overridable gate,
+	// but overrides.jsonl is a plain file in the repo. Re-check here so a
+	// hand-written record cannot excuse a gate that protects the
+	// integrity of the record rather than a judgement call.
+	if !engine.IsOverridableGate(gate) {
+		return false, ""
+	}
+	records, err := state.ReadOverrides(root, recipeID)
+	if err != nil || len(records) == 0 {
+		return false, ""
+	}
+	st := state.ActiveOverride(records, gate, docBase, docHash)
+	switch {
+	case st.Active:
+		note := fmt.Sprintf("proceeding past %s under a recorded override", gate)
+		if n := len(st.Record.Findings); n > 0 {
+			note += fmt.Sprintf(" excusing %d finding(s)", n)
+		}
+		note += ": " + firstLine(st.Record.Reason)
+		return true, note
+	case st.Stale:
+		on := "an unrecorded revision"
+		if docHash != "" {
+			on = "revision " + shortRev(docHash)
+		}
+		fmt.Fprintf(os.Stderr,
+			"[bts] the %s override was granted on revision %s of %s but this round is on %s, so it no longer applies — "+
+				"re-grant it against the current text if the judgement still holds\n",
+			gate, shortRev(st.Granted), docBase, on)
+	}
+	return false, ""
+}
+
+// shortRev trims a digest to something a hook line can carry.
+func shortRev(h string) string {
+	h = strings.TrimPrefix(h, "sha256:")
+	if len(h) > 12 {
+		return h[:12]
+	}
+	return h
+}
+
+// firstLine trims a multi-line reason to something a hook line can carry.
+func firstLine(s string) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[:i]
+	}
+	return state.TruncateRunes(strings.TrimSpace(s), 160)
 }

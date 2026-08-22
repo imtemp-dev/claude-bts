@@ -5,7 +5,48 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
+
+// isRuntimeState reports whether an embedded path is per-project runtime
+// state rather than a template.
+//
+// `//go:embed all:templates` deliberately includes dot-directories, so
+// anything that appears under templates/.bts/local/ on a developer's
+// machine is compiled into the binary and then written into every user's
+// project. That directory fills itself: state.FindRoot walks upward for a
+// `.bts/`, and templates/.bts/ is one, so any bts command or hook run with
+// a working directory inside the template tree records its metrics there.
+//
+// DeployForce overwrites, so shipping one of those files would replace a
+// user's own metrics.jsonl or tool-trace.jsonl with a stranger's.
+//
+// The test is an allowlist, not a list of known-bad directories. .bts/
+// holds a short, fixed set of template names; every other name under it
+// — local/, specs/, and anything a later version adds — is
+// per-project state that fills itself by the same FindRoot mechanism.
+// An earlier form named .bts/local/ alone, which left .bts/specs/ (a
+// developer's own recipes, drafts and verify logs, and NOT gitignored)
+// one stray command away from being embedded into a release binary and
+// force-written over a user's live spec state.
+// templatePathsUnderBTS is every top-level name under .bts/ that the
+// template legitimately ships. TestEmbeddedTemplatesCarryOnlyTemplates
+// fails if the embedded tree ever holds a name that is not listed here,
+// so adding a new template file is a deliberate edit in two places
+// rather than a silent widening.
+var templatePathsUnderBTS = map[string]bool{
+	"config":         true,
+	"status_line.sh": true,
+}
+
+func isRuntimeState(path string) bool {
+	rest, ok := strings.CutPrefix(path, ".bts/")
+	if !ok {
+		return false // ".bts" itself must be walked into
+	}
+	top, _, _ := strings.Cut(rest, "/")
+	return !templatePathsUnderBTS[top]
+}
 
 // DeployForce overwrites existing files except those in skipFiles.
 // skipFiles paths are relative to projectRoot (e.g., ".bts/config/settings.yaml").
@@ -25,6 +66,12 @@ func DeployForce(projectRoot string, skipFiles []string) ([]string, error) {
 	err = fs.WalkDir(tmplFS, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if isRuntimeState(path) {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
 		}
 
 		targetPath := filepath.Join(projectRoot, path)
@@ -80,6 +127,12 @@ func Deploy(projectRoot string) ([]string, error) {
 	err = fs.WalkDir(tmplFS, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if isRuntimeState(path) {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
 		}
 
 		targetPath := filepath.Join(projectRoot, path)

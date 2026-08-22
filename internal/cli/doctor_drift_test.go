@@ -186,3 +186,69 @@ func TestCheckUnenforceableRule3_SnapshotCounts(t *testing.T) {
 		t.Fatalf("a live snapshot keeps the gate enforceable, got %v", issues)
 	}
 }
+
+// unrecordedFixture writes a verify-log and returns the root and recipe id.
+func unrecordedFixture(t *testing.T, entries []state.VerifyLogEntry) (string, string) {
+	t.Helper()
+	root := t.TempDir()
+	id := "r-200-hashgap"
+	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/draft.md", "body")
+	for i := range entries {
+		if err := state.AppendVerifyLog(root, id, &entries[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root, id
+}
+
+// The measured gap: hashes recorded for the early rounds, none for the
+// recent tail. checkUnenforceableRule3 stays quiet because the last full
+// pass still carries a hash, so this check is what makes the silence
+// visible.
+func TestCheckUnrecordedRevisions_ReportsRecentTail(t *testing.T) {
+	root, id := unrecordedFixture(t, []state.VerifyLogEntry{
+		{Iteration: 26, Doc: "draft.md", FullPass: true, DocHash: "sha256:aaa", Status: "continue"},
+		{Iteration: 27, Doc: "draft.md", FullPass: true, DocHash: "sha256:bbb", Status: "continue"},
+		{Iteration: 28, Doc: "draft.md", FullPass: true, Status: "failed"},
+		{Iteration: 29, Doc: "draft.md", Status: "failed"},
+		{Iteration: 30, Doc: "draft.md", Status: "failed"},
+	})
+	if issues := checkUnenforceableRule3(root, id); len(issues) != 0 {
+		t.Fatalf("precondition: the last-full-pass check should stay quiet here, got %v", issues)
+	}
+	issues := checkUnrecordedRevisions(root, id)
+	if len(issues) != 1 {
+		t.Fatalf("got %d issues, want 1: %+v", len(issues), issues)
+	}
+	if !strings.Contains(issues[0].message, "3 of the last 5") {
+		t.Errorf("message should count the gap, got %q", issues[0].message)
+	}
+	if !strings.Contains(issues[0].message, "iteration 30") {
+		t.Errorf("message should name the most recent gap, got %q", issues[0].message)
+	}
+	if issues[0].fix == "" {
+		t.Error("a warning must say what to do about it")
+	}
+}
+
+func TestCheckUnrecordedRevisions_QuietWhenAllRoundsRecordRevisions(t *testing.T) {
+	root, id := unrecordedFixture(t, []state.VerifyLogEntry{
+		{Iteration: 1, Doc: "draft.md", FullPass: true, DocHash: "sha256:aaa", Status: "continue"},
+		{Iteration: 2, Doc: "draft.md", FullPass: true, DocHash: "sha256:bbb", Status: "converged"},
+	})
+	if issues := checkUnrecordedRevisions(root, id); len(issues) != 0 {
+		t.Fatalf("want no issues, got %+v", issues)
+	}
+}
+
+// Legacy unscoped rounds have no document to hash against and must not
+// be reported as a gap.
+func TestCheckUnrecordedRevisions_IgnoresUnscopedLegacyRounds(t *testing.T) {
+	root, id := unrecordedFixture(t, []state.VerifyLogEntry{
+		{Iteration: 1, Status: "continue"},
+		{Iteration: 2, Status: "converged"},
+	})
+	if issues := checkUnrecordedRevisions(root, id); len(issues) != 0 {
+		t.Fatalf("want no issues for a legacy unscoped log, got %+v", issues)
+	}
+}

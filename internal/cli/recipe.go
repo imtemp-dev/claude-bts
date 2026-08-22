@@ -74,6 +74,15 @@ var recipeStatusCmd = &cobra.Command{
 		fmt.Printf("  Level:        %.1f\n", recipe.Level)
 		fmt.Printf("  Started:      %s\n", recipe.StartedAt)
 		fmt.Printf("  Updated:      %s\n", recipe.UpdatedAt)
+		// An overridden recipe must never read as an ordinary one. A
+		// measured recipe finalized past two hard gates and every status
+		// surface went on reporting it as a clean completion.
+		if recs, oerr := state.ReadOverrides(root, recipe.ID); oerr == nil {
+			if summary := state.OverrideSummary(recs); summary != "" {
+				fmt.Printf("  Overrides:    %s\n", summary)
+				fmt.Printf("                (gates bypassed by recorded operator decision — `bts recipe override list`)\n")
+			}
+		}
 		return nil
 	},
 }
@@ -209,9 +218,29 @@ var recipeLogCmd = &cobra.Command{
 			infoCt, _ := cmd.Flags().GetInt("info")
 			doc, _ := cmd.Flags().GetString("doc")
 			scope, _ := cmd.Flags().GetString("scope")
+			rawDims, _ := cmd.Flags().GetStringSlice("dimension")
 
 			if scope != "full" && scope != "delta" {
 				return fmt.Errorf("--scope must be full or delta, got %q", scope)
+			}
+			dims, derr := state.NormalizeDimensions(rawDims)
+			if derr != nil {
+				return fmt.Errorf("--dimension: %w", derr)
+			}
+			// A prompt-level requirement nothing notices is the failure
+			// mode this whole field exists to fix: verify.max_iterations
+			// was prose the model was expected to honour, and measured
+			// recipes ran 15 rounds against a cap of 3. So an omitted
+			// --dimension is not an error (that would strand callers
+			// mid-upgrade) but it is never silent — a round with no
+			// declared dimensions is incomparable with every round that
+			// declares them, which quietly costs the budget its meaning.
+			if len(dims) == 0 {
+				fmt.Fprintf(os.Stderr,
+					"[bts] note: no --dimension recorded for this round. It is compared only against other "+
+						"dimensionless rounds by the convergence budget, and it cannot count toward completion — "+
+						"recording nothing is not a claim that every pass ran. Add one per pass that actually ran, "+
+						"e.g. --dimension verify --dimension audit.\n")
 			}
 			docBase := ""
 			if doc != "" {
@@ -267,13 +296,6 @@ var recipeLogCmd = &cobra.Command{
 				minorR = minor
 			}
 
-			// Converged requires critical=0, major=0, and no resolvable minors.
-			// [deferred] minors do not block — they are runtime watch-items.
-			status := "continue"
-			if critical == 0 && major == 0 && minorR == 0 {
-				status = "converged"
-			}
-
 			entry := &state.VerifyLogEntry{
 				Iteration:       iteration,
 				Critical:        critical,
@@ -284,8 +306,60 @@ var recipeLogCmd = &cobra.Command{
 				Info:            infoCt,
 				Doc:             docBase,
 				FullPass:        scope == "full",
-				Status:          status,
+				Dimensions:      dims,
 			}
+
+			// Converged requires a clean triple — critical=0, major=0, no
+			// resolvable minors ([deferred] minors are runtime watch-items
+			// and do not block) — AND a measurement strong enough for that
+			// triple to mean something.
+			//
+			// A clean number is a property of the measurement before it is
+			// a property of the document. A measured recipe recorded
+			// `converged` from a scoped delta round; the very next round
+			// re-read the same bytes in full and found two criticals. A
+			// second recorded its best triple on a verify-only round that
+			// no completeness pass had ever touched. Both numbers were
+			// true about the sample and false about the document.
+			//
+			// Record what was verified, by content, BEFORE deciding the
+			// status: "converged" is a claim about a specific revision,
+			// and a round that cannot say which revision it read has not
+			// earned it. Both rule-3 gates read these hashes instead of
+			// mtimes and gitignored snapshots, so they behave the same in
+			// a worktree as on the branch the recipe started on — see
+			// state.VerifyLogEntry.DocHash.
+			stampContentHashes(root, recipeID, doc, entry)
+
+			status := "continue"
+			switch {
+			case critical != 0 || major != 0 || minorR != 0:
+				// not clean
+			case !entry.FullPass:
+				fmt.Fprintf(os.Stderr, "[bts] note: clean triple on a scoped delta round — "+
+					"not recorded as converged. A delta pass never re-read the untouched "+
+					"sections against the edits. Re-run with --scope full.\n")
+			case !entry.HasAllDimensions():
+				// Recording nothing is not recording everything. The
+				// earlier form exempted dimensionless rounds, so the
+				// caller who declared `--dimension verify` truthfully was
+				// held back and the caller who declared nothing was not.
+				ran := "no dimensions"
+				if len(dims) > 0 {
+					ran = strings.Join(dims, "+") + " only"
+				}
+				fmt.Fprintf(os.Stderr, "[bts] note: clean triple with %s — not recorded as "+
+					"converged. Completion needs every dimension (%s): a clean result from one "+
+					"instrument is not evidence the others agree.\n",
+					ran, strings.Join(state.VerifyDimensions, ", "))
+			case doc != "" && entry.DocHash == "":
+				fmt.Fprintf(os.Stderr, "[bts] note: clean triple but no revision was recorded for %s — "+
+					"not recorded as converged. Without a doc_hash no later round can confirm this one.\n",
+					docBase)
+			default:
+				status = "converged"
+			}
+			entry.Status = status
 
 			// Convergence budget (bts-verification-protocol.md § Convergence).
 			// Evaluated on this document's history INCLUDING the round being
@@ -319,12 +393,6 @@ var recipeLogCmd = &cobra.Command{
 			// Tie this record to a fork actually having run. Evidence, not
 			// a gate — see state.VerifyLogEntry.AgentEvidence.
 			entry.AgentEvidence = agentEvidenceSince(root, recipeID, priorRounds)
-
-			// Record what was verified, by content. Both rule-3 gates read
-			// these instead of mtimes and gitignored snapshots, so they
-			// behave the same in a worktree as on the branch the recipe
-			// started on — see state.VerifyLogEntry.DocHash.
-			stampContentHashes(root, recipeID, doc, entry)
 
 			scopedHistory := make([]state.VerifyLogEntry, 0, len(priorRounds)+1)
 			scopedHistory = append(scopedHistory, priorRounds...)
@@ -380,8 +448,12 @@ var recipeLogCmd = &cobra.Command{
 			// passes update the snapshot: a delta round verified part of
 			// the document, so the next round's focus diff must still
 			// carry everything not covered since the last full pass.
+			// Same resolution as the hash stamp above: --doc arrives as a
+			// bare basename far more often than as a path that resolves
+			// from the caller's cwd, and a snapshot that silently failed
+			// left verify-focus with nothing to diff against.
 			if doc != "" && scope == "full" {
-				if err := state.SaveVerifySnapshot(root, recipeID, doc); err != nil {
+				if err := state.SaveVerifySnapshot(root, recipeID, resolveDocPath(root, recipeID, doc)); err != nil {
 					fmt.Fprintf(os.Stderr, "warning: verify snapshot: %v\n", err)
 				}
 			}
@@ -390,8 +462,15 @@ var recipeLogCmd = &cobra.Command{
 				iteration, label, scope, critical, major, minorR, minorD, status, entry.Budget)
 
 			if sync != nil {
-				fmt.Printf("Findings ledger: %d new, %d carried, %d fixed, %d reopened\n",
-					len(sync.New), len(sync.Carried), len(sync.Fixed), len(sync.Reopened))
+				fmt.Printf("Findings ledger: %d new, %d carried, %d unreported, %d confirmed fixed, %d reopened\n",
+					len(sync.New), len(sync.Carried), len(sync.Unreported), len(sync.Fixed), len(sync.Reopened))
+				if len(sync.Unreported) > 0 {
+					fmt.Printf("  unreported this round — NOT closures, confirm or re-raise each: %v\n", sync.Unreported)
+				}
+				if len(sync.Restated) > 0 {
+					fmt.Printf("  held back from closure (their anchor is still producing findings — likely restated under a new title): %v\n",
+						sync.Restated)
+				}
 				if len(sync.Reopened) > 0 {
 					fmt.Printf("  reopened (previously fixed or dismissed): %v\n", sync.Reopened)
 				}
@@ -557,6 +636,7 @@ func init() {
 	// backtick-quoted word as the value placeholder name.
 	recipeLogCmd.Flags().String("doc", "", "Path of the verified document — scopes the verify state and findings ledger to it, and snapshots the revision for the next verify-focus diff")
 	recipeLogCmd.Flags().String("scope", "full", "Verification scope of this round: full (whole document) or delta (changed sections + reference closure). Only a full pass may satisfy the completion gate.")
+	recipeLogCmd.Flags().StringSlice("dimension", nil, "Semantic pass(es) that produced this round's counts: verify, audit, simulate. Repeatable or comma-separated. Rounds are only compared against rounds of the same dimensions+scope, and completion needs all three.")
 	// Changelog flags
 	recipeLogCmd.Flags().String("action", "", "Action type (research, improve, verify, debate, simulate, audit, assess, implement, test, sync, status)")
 	recipeLogCmd.Flags().String("output", "", "Output file path")
@@ -743,11 +823,24 @@ func agentEvidenceSince(root, recipeID string, priorRounds []state.VerifyLogEntr
 // read failure degrades coverage instead of manufacturing a block.
 func stampContentHashes(root, recipeID, docPath string, entry *state.VerifyLogEntry) {
 	if docPath != "" {
-		h, ok, err := state.FileContentHash(docPath)
+		// Resolve exactly as `override grant` does. --doc is routinely
+		// given as a bare basename ("draft.md") from the project root,
+		// where the file does not exist; FileContentHash then returned
+		// ok=false with a nil error and this function recorded an empty
+		// hash in silence. That is why a measured recipe's last rounds
+		// carry no doc_hash at all, and why the two rule-3 gates that
+		// read it stood down without anyone noticing.
+		resolved := resolveDocPath(root, recipeID, docPath)
+		h, ok, err := state.FileContentHash(resolved)
 		switch {
 		case err != nil:
-			fmt.Fprintf(os.Stderr, "warning: hash %s: %v\n", docPath, err)
-		case ok:
+			fmt.Fprintf(os.Stderr, "warning: hash %s: %v\n", resolved, err)
+		case !ok:
+			fmt.Fprintf(os.Stderr,
+				"[bts] warning: %s not found (looked in %s), so this round records no revision. "+
+					"The rule-3 gates and the completion replication check both need it — "+
+					"re-run with a --doc path that resolves.\n", docPath, resolved)
+		default:
 			entry.DocHash = h
 		}
 	}
@@ -777,20 +870,20 @@ func truncate(s string, max int) string {
 // tracking. Kept in a single var so tests and the --force path share
 // one source.
 var reconcileEligiblePhases = map[string]bool{
-	"discovery":     true,
-	"scoping":       true,
-	"domain-model":  true,
-	"wireframe":     true,
-	"architect":     true,
-	"research":      true,
-	"draft":         true,
-	"assess":        true,
-	"improve":       true,
-	"verify":        true,
-	"debate":        true,
-	"simulate":      true,
-	"audit":         true,
-	"sync-check":    true, // sync-check is still blueprint-side
+	"discovery":    true,
+	"scoping":      true,
+	"domain-model": true,
+	"wireframe":    true,
+	"architect":    true,
+	"research":     true,
+	"draft":        true,
+	"assess":       true,
+	"improve":      true,
+	"verify":       true,
+	"debate":       true,
+	"simulate":     true,
+	"audit":        true,
+	"sync-check":   true, // sync-check is still blueprint-side
 }
 
 // Sentinel errors callers (and tests) match on for specific remediation.

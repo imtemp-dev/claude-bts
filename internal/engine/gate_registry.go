@@ -38,7 +38,7 @@ var HardGates = []HardGate{
 		ID:          "adjudicate_every_debate",
 		Rule:        "bts-recipe-protocol.md §Mandatory Rules rule 7",
 		Enforcement: "internal/engine/validator.go:validateDebateMetaJSON",
-		Summary:     "Debate meta.json must carry a decided boolean and, when decided, a string conclusion",
+		Summary:     "Every debate directory must carry a state file (debate.json) with a decided boolean and, when decided, a string conclusion — checked in both the project-level and recipe-level debate trees",
 	},
 	{
 		ID:          "sync_check_before_final",
@@ -161,6 +161,12 @@ var HardGates = []HardGate{
 		Summary:     "A <bts-findings> findings array must match the block's counts per severity and carry non-empty titles; a mismatch fails `bts recipe log` so a round cannot be recorded with an unusable ledger",
 	},
 	{
+		ID:          "verification_not_passed",
+		Rule:        "bts-verification-protocol.md §Completion Evidence",
+		Enforcement: "internal/hook/stop.go:handleSpecDone",
+		Summary:     "Block <bts>DONE</bts> while the spec document's last verify round still reports critical, major or resolvable-minor findings",
+	},
+	{
 		ID:          "convergence_budget",
 		Rule:        "bts-verification-protocol.md §Convergence",
 		Enforcement: "internal/engine/convergence.go:EvaluateConvergence + internal/cli/recipe.go:recipeLogCmd",
@@ -168,9 +174,45 @@ var HardGates = []HardGate{
 	},
 	{
 		ID:          "full_pass_before_final",
-		Rule:        "bts-verification-protocol.md §Verification Scope",
-		Enforcement: "internal/hook/stop.go:handleSpecDone",
+		Rule:        "bts-verification-protocol.md §Completion Evidence",
+		Enforcement: "internal/engine/completion_evidence.go:EvaluateCompletionEvidence + internal/hook/stop.go:handleSpecDone",
 		Summary:     "Block <bts>DONE</bts> when the spec's last verify entry is a scoped delta pass rather than a full-document pass",
+	},
+	{
+		ID:          "measurement_class_comparability",
+		Rule:        "bts-verification-protocol.md §Measurement Strength",
+		Enforcement: "internal/engine/convergence.go:NoProgressStreak + internal/state/recipe.go:StrengthClass",
+		Summary:     "A round's triple is only compared against rounds that ran the same dimensions over the same scope, so a weaker instrument's smaller number cannot become a target no honest round can beat",
+	},
+	{
+		ID:          "all_dimensions_before_final",
+		Rule:        "bts-verification-protocol.md §Completion Evidence",
+		Enforcement: "internal/engine/completion_evidence.go:qualifies + internal/cli/recipe.go:recipeLogCmd",
+		Summary:     "A clean triple counts toward completion only when the round ran verify, audit and simulate; a clean result from one instrument is not evidence the others agree",
+	},
+	{
+		ID:          "replicated_clean_pass",
+		Rule:        "bts-verification-protocol.md §Completion Evidence",
+		Enforcement: "internal/engine/completion_evidence.go:EvaluateCompletionEvidence + internal/hook/stop.go:handleSpecDone",
+		Summary:     "verify.confirm_passes consecutive qualifying clean rounds on the SAME recorded doc_hash are required before <bts>DONE</bts>; a single clean round is a sample, not a measurement",
+	},
+	{
+		ID:          "revision_recorded_before_final",
+		Rule:        "bts-verification-protocol.md §Completion Evidence",
+		Enforcement: "internal/engine/completion_evidence.go:qualifies + internal/cli/doctor.go",
+		Summary:     "A verify round with no doc_hash cannot be replicated against, so completion blocks and `bts doctor` reports the gap instead of the gate falling open silently",
+	},
+	{
+		ID:          "gate_override_recorded",
+		Rule:        "bts-verification-protocol.md §Gate Overrides",
+		Enforcement: "internal/state/override.go + internal/hook/stop.go:overrideAllows",
+		Summary:     "Proceeding past a hard gate requires a recorded override naming that one gate, enumerating the findings it excuses, and pinned to the revision it was granted on; it surfaces in status, doctor and stats for the life of the recipe",
+	},
+	{
+		ID:          "absence_is_not_closure",
+		Rule:        "bts-verification-protocol.md §Finding Identity",
+		Enforcement: "internal/state/findings.go:SyncFindings",
+		Summary:     "A finding that stops being reported goes to `unreported`, and closes only after a second silent round on an anchor that has stopped producing findings — so a restated finding cannot fold into `fixed` and read as progress",
 	},
 	{
 		ID:          "per_document_verify_state",
@@ -208,4 +250,74 @@ var InvariantGates = []HardGate{
 		Enforcement: "engine.NextRetryDecision + `bts retry next` CLI (advisory — monitored in Phase 17)",
 		Summary:     "Blocked tasks should have escalated through the ladder; tasks ending at tier<5 are flagged in monitoring as skipped escalations",
 	},
+}
+
+// overridableGates are the hard gates `bts recipe override grant` accepts.
+//
+// Not every entry in the registry is here. A gate is overridable when
+// the thing it protects is a judgement the operator can legitimately
+// make differently — "these seven majors are false claims in
+// justification prose and none of them changes a line of code" is such a
+// judgement. Gates that protect the integrity of the RECORD rather than
+// the quality of the work are not overridable: an override cannot make
+// bts lie about what was verified, only about whether that was enough.
+var overridableGates = map[string]bool{
+	"verification_not_passed":        true,
+	"convergence_budget":             true,
+	"full_pass_before_final":         true,
+	"all_dimensions_before_final":    true,
+	"replicated_clean_pass":          true,
+	"revision_recorded_before_final": true,
+	"deferred_minors_declared":       true,
+	"simulate_at_least_once":         true,
+}
+
+// IsOverridableGate reports whether gate accepts an override record.
+func IsOverridableGate(gate string) bool { return overridableGates[gate] }
+
+// findingGates are the overridable gates whose subject is a set of
+// findings, so `override grant` wants --finding for them and
+// --no-findings for the rest.
+//
+// Without the distinction every block message printed the same
+// `--finding <F-...>` footer, including on the structural gates — and
+// those fire on rounds with ZERO findings (a clean round that was a
+// delta pass, or that nobody replicated). The documented escape hatch
+// asked for an ID that could not exist, so it failed on first use.
+var findingGates = map[string]bool{
+	"verification_not_passed":  true,
+	"convergence_budget":       true,
+	"deferred_minors_declared": true,
+}
+
+// GateExcusesFindings reports whether an override of gate should
+// enumerate finding IDs (--finding) rather than declare that the gate is
+// not about findings (--no-findings).
+func GateExcusesFindings(gate string) bool { return findingGates[gate] }
+
+// recipeScopedGates are the overridable gates that are not about any one
+// document, so `override grant` cannot ask for --doc.
+var recipeScopedGates = map[string]bool{
+	"simulate_at_least_once": true,
+}
+
+// GateIsDocumentScoped reports whether an override of gate must name the
+// document it applies to. Everything about a verify round is
+// document-scoped; a grant without --doc records no doc and no doc_hash,
+// which matches every document at every revision and never goes stale —
+// a permanent project-wide bypass filed under the command whose whole
+// purpose is to keep bypasses narrow.
+func GateIsDocumentScoped(gate string) bool {
+	return overridableGates[gate] && !recipeScopedGates[gate]
+}
+
+// OverridableGates returns the registry entries an override may name.
+func OverridableGates() []HardGate {
+	var out []HardGate
+	for _, g := range HardGates {
+		if overridableGates[g.ID] {
+			out = append(out, g)
+		}
+	}
+	return out
 }

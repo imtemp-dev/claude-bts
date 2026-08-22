@@ -124,7 +124,7 @@ func TestVerifyDocument_ChecksDraftAnchors(t *testing.T) {
 <!-- path-id: path-2 -->`,
 		`<!-- path: wireframe.md#path-1 -->`)
 
-	result, err := VerifyDocument(draft, "")
+	result, err := VerifyDocument(draft, "", true)
 	if err != nil {
 		t.Fatalf("verify: %v", err)
 	}

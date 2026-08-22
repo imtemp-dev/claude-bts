@@ -17,12 +17,22 @@ import (
 // This file makes the budget a computation over verify-log.jsonl.
 //
 // Progress is measured lexicographically on (critical, major,
-// minor_resolvable) — the same triple the completion gate requires to
-// reach (0,0,0). A round makes progress only if it beats the best triple
-// seen so far in this document's history. Trading a critical for three
-// majors is progress; trading a major for a minor is not regression but
-// is not progress either. Deferred minors and info are excluded: they
-// never block completion, so churn in them must not reset the budget.
+// minor_resolvable). Trading a critical for three majors is progress;
+// trading a major for a minor is not regression but is not progress
+// either. Deferred minors and info are excluded: they never block
+// completion, so churn in them must not reset the budget.
+//
+// A round makes progress only if it beats the best triple reached by an
+// earlier round of the SAME measurement class — same dimensions, same
+// scope. A triple carries "the document got better" only against another
+// triple produced by the same instruments; see NoProgressStreak and
+// state.VerifyLogEntry.StrengthClass for what went wrong without that.
+// The first round of a class has no such predecessor, so it sets that
+// class's baseline without resetting the streak.
+//
+// The clean triple (0,0,0) is necessary for completion but no longer
+// sufficient — the gate also requires every dimension, a full pass, and
+// replication on one revision. See completion_evidence.go.
 
 // ProgressKey is the ordered triple that defines verification progress.
 type ProgressKey struct {
@@ -53,7 +63,10 @@ func (k ProgressKey) Better(other ProgressKey) bool {
 	return k.MinorResolvable < other.MinorResolvable
 }
 
-// Clean reports whether the triple satisfies the completion gate.
+// Clean reports whether the triple is at (0,0,0). That is necessary for
+// completion, not sufficient: the gate also asks which instruments
+// produced it, over how much of the document, and whether an independent
+// round agreed. See completion_evidence.go.
 func (k ProgressKey) Clean() bool {
 	return k.Critical == 0 && k.Major == 0 && k.MinorResolvable == 0
 }
@@ -63,27 +76,79 @@ func (k ProgressKey) String() string {
 		k.Critical, k.Major, k.MinorResolvable)
 }
 
-// NoProgressStreak counts how many trailing entries failed to improve on
-// the best triple seen before them. A log whose last entry set a new
-// best returns 0. An empty log returns 0.
+// NoProgressStreak counts how many trailing rounds failed to demonstrate
+// progress. A round demonstrates progress only by strictly beating the
+// best triple reached by an earlier round of the SAME measurement class.
+// An empty log returns 0.
+//
+// The per-class best is the correction that makes the budget mean what
+// the protocol says it means. Progress is "this document got better",
+// and a triple only carries that meaning against another triple
+// produced by the same instruments over the same scope. Comparing a
+// three-dimension round against a one-dimension round's best measures
+// the instrument, not the document — and because the weaker instrument
+// reliably reports the smaller number, its best becomes a target no
+// honest round can ever beat. See state.VerifyLogEntry.StrengthClass.
+//
+// The streak itself is global, and a class appearing for the first time
+// does NOT reset it. That asymmetry is the whole point: per-class bests
+// stop the weak round from anchoring the strong one, but if a first
+// sighting also reset the counter, the budget would be escapable by
+// rotating instruments — and the protocol now tells the verifier to
+// declare only the dimensions it actually ran, which makes rotation the
+// normal case rather than an exotic one. A round with no same-class
+// predecessor is not evidence of improvement; it is the baseline for a
+// measurement nobody has taken before, so it is recorded as that class's
+// best and counted toward the streak.
+//
+// The single exception is the first round in the document's history:
+// with no prior measurement of any kind it cannot have failed to improve
+// on anything, so it establishes the baseline at streak 0.
 //
 // Callers should pass entries already narrowed to a single document via
 // state.VerifyEntriesForDoc — a wireframe round must not reset the
 // draft's budget, which is exactly what the undifferentiated log did.
 func NoProgressStreak(entries []state.VerifyLogEntry) int {
 	streak := 0
-	var best *ProgressKey
+	best := make(map[string]ProgressKey, 4)
 	for i := range entries {
+		class := entries[i].StrengthClass()
 		k := ProgressKeyOf(&entries[i])
-		if best == nil || k.Better(*best) {
-			b := k
-			best = &b
+		b, seen := best[class]
+		switch {
+		case !seen && len(best) == 0:
+			// Baseline for the whole document: nothing to fail against.
+			best[class] = k
+		case !seen:
+			// New instrument, no same-class predecessor. Record the
+			// baseline, but do not read it as progress.
+			best[class] = k
+			streak++
+		case k.Better(b):
+			best[class] = k
 			streak = 0
-			continue
+		default:
+			streak++
 		}
-		streak++
 	}
 	return streak
+}
+
+// BestForClass returns the best triple reached by rounds of the given
+// measurement class, and whether any round of that class exists.
+func BestForClass(entries []state.VerifyLogEntry, class string) (ProgressKey, bool) {
+	var best ProgressKey
+	found := false
+	for i := range entries {
+		if entries[i].StrengthClass() != class {
+			continue
+		}
+		k := ProgressKeyOf(&entries[i])
+		if !found || k.Better(best) {
+			best, found = k, true
+		}
+	}
+	return best, found
 }
 
 // ConvergenceVerdict is the outcome of applying the budget to a log.
@@ -91,19 +156,21 @@ type ConvergenceVerdict struct {
 	Streak    int         // consecutive rounds without progress
 	Budget    int         // verify.max_iterations in effect
 	Exceeded  bool        // streak >= budget (and budget > 0)
-	Best      ProgressKey // best triple reached
+	Best      ProgressKey // best triple reached by a round of Class
 	Latest    ProgressKey // triple of the most recent round
 	Stagnant  []string    // finding IDs unchanged across the streak
 	Iteration int         // iteration number of the most recent round
+	Class     string      // measurement class of the most recent round
 }
 
 // Message renders the operator-facing [CONVERGENCE FAILED] report.
 func (v ConvergenceVerdict) Message(docBase string) string {
 	msg := fmt.Sprintf(
 		"[CONVERGENCE FAILED] %s: %d consecutive verify rounds without progress (budget: verify.max_iterations=%d).\n"+
-			"  best reached : %s\n"+
+			"  measurement  : %s (dimensions/scope)\n"+
+			"  best reached : %s  — by a round of the same measurement\n"+
 			"  latest round : %s\n",
-		docBase, v.Streak, v.Budget, v.Best, v.Latest)
+		docBase, v.Streak, v.Budget, v.Class, v.Best, v.Latest)
 	if len(v.Stagnant) > 0 {
 		msg += fmt.Sprintf("  stagnant findings (unresolved across the streak): %v\n", v.Stagnant)
 	}
@@ -125,13 +192,15 @@ func EvaluateConvergence(entries []state.VerifyLogEntry, budget int) Convergence
 	v.Latest = ProgressKeyOf(last)
 	v.Iteration = last.Iteration
 
-	best := ProgressKeyOf(&entries[0])
-	for i := range entries {
-		if k := ProgressKeyOf(&entries[i]); k.Better(best) {
-			best = k
-		}
-	}
-	v.Best = best
+	// The best worth reporting is the best a round of the LATEST round's
+	// own class reached. Reporting a global best would name a target the
+	// latest measurement was never judged against, which is how the
+	// [CONVERGENCE FAILED] message came to cite (0,0,0) at an operator
+	// who could see the document had never been measured that way.
+	// entries is non-empty and Class is the last entry's own class, so
+	// there is always at least one round of it to report.
+	v.Class = last.StrengthClass()
+	v.Best, _ = BestForClass(entries, v.Class)
 
 	// A clean document is converged, never "failed" — the streak counts
 	// rounds that could not improve on (0,0,0), which is unimprovable.

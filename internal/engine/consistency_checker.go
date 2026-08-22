@@ -20,17 +20,17 @@ type Issue struct {
 
 // LevelScore represents the assessed document level.
 type LevelScore struct {
-	Level     float64            `json:"level"`      // 0.0 ~ 3.0
-	Checklist map[string]bool    `json:"checklist"`   // each criterion: met or not
-	Missing   []string           `json:"missing"`     // what's needed for next level
+	Level     float64         `json:"level"`     // 0.0 ~ 3.0
+	Checklist map[string]bool `json:"checklist"` // each criterion: met or not
+	Missing   []string        `json:"missing"`   // what's needed for next level
 }
 
 // VerifyResult contains all verification results.
 type VerifyResult struct {
-	File       string     `json:"file"`
-	Issues     []Issue    `json:"issues"`
-	Level      LevelScore `json:"level"`
-	Summary    Summary    `json:"summary"`
+	File    string     `json:"file"`
+	Issues  []Issue    `json:"issues"`
+	Level   LevelScore `json:"level"`
+	Summary Summary    `json:"summary"`
 }
 
 // Summary counts issues by severity.
@@ -44,32 +44,32 @@ type Summary struct {
 
 // Level criteria checklists
 var level1Criteria = []string{
-	"components_listed",      // 주요 컴포넌트 나열
+	"components_listed",       // 주요 컴포넌트 나열
 	"relationships_described", // 컴포넌트 간 관계 설명
 	"tech_stack_specified",    // 기술 스택 명시
 }
 
 var level2Criteria = []string{
-	"data_flow_defined",       // 데이터 흐름 명시 (입력→처리→출력)
-	"error_strategy_defined",  // 에러 처리 전략
-	"interfaces_described",    // 주요 인터페이스 설명
-	"tech_choices_rationale",  // 기술 선택 근거
+	"data_flow_defined",      // 데이터 흐름 명시 (입력→처리→출력)
+	"error_strategy_defined", // 에러 처리 전략
+	"interfaces_described",   // 주요 인터페이스 설명
+	"tech_choices_rationale", // 기술 선택 근거
 }
 
 var level3Criteria = []string{
-	"file_paths_specified",    // 모든 파일 경로 명시
-	"function_signatures",     // 함수 시그니처 (이름, 파라미터, 리턴)
-	"type_definitions",        // 데이터 타입/인터페이스 정의
-	"connection_points",       // 컴포넌트 연결점 구체적
-	"error_cases_enumerated",  // 에러 케이스 열거
-	"edge_cases_listed",       // Edge case 명시
-	"scaffolding_included",    // 코드 스캐폴딩 포함
-	"test_scenarios",          // 테스트 시나리오
+	"file_paths_specified",   // 모든 파일 경로 명시
+	"function_signatures",    // 함수 시그니처 (이름, 파라미터, 리턴)
+	"type_definitions",       // 데이터 타입/인터페이스 정의
+	"connection_points",      // 컴포넌트 연결점 구체적
+	"error_cases_enumerated", // 에러 케이스 열거
+	"edge_cases_listed",      // Edge case 명시
+	"scaffolding_included",   // 코드 스캐폴딩 포함
+	"test_scenarios",         // 테스트 시나리오
 }
 
 // Keyword indicators for each criterion
 var criteriaKeywords = map[string][]string{
-	"components_listed":      {"component", "module", "service", "layer", "package", "컴포넌트", "모듈", "서비스"},
+	"components_listed":       {"component", "module", "service", "layer", "package", "컴포넌트", "모듈", "서비스"},
 	"relationships_described": {"depends on", "calls", "connects", "integrates", "imports from", "의존", "호출", "연결"},
 	"tech_stack_specified":    {"typescript", "python", "go", "react", "node", "express", "django", "postgresql", "redis"},
 	"data_flow_defined":       {"input", "output", "request", "response", "flow", "pipeline", "→", "데이터 흐름", "입력", "출력"},
@@ -87,7 +87,15 @@ var criteriaKeywords = map[string][]string{
 }
 
 // VerifyDocument checks a document for internal consistency and assesses its level.
-func VerifyDocument(docPath string, projectRoot string) (*VerifyResult, error) {
+// checkCode selects whether references into the codebase are resolved.
+// It is separate from projectRoot because the two questions are separate:
+// a from-scratch spec has no code to check against, but it still lives in
+// a bts project whose settings apply. Folding them together — passing ""
+// as the root to mean "skip code checks" — turned --no-code into a
+// blanket "skip everything that needs the project", and the section-span
+// check went with it, on exactly the from-scratch documents where span
+// discipline matters most.
+func VerifyDocument(docPath string, projectRoot string, checkCode bool) (*VerifyResult, error) {
 	data, err := os.ReadFile(docPath)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", docPath, err)
@@ -104,7 +112,7 @@ func VerifyDocument(docPath string, projectRoot string) (*VerifyResult, error) {
 	checkInternalConsistency(content, result)
 
 	// 3. If project has code, optionally check file/symbol references
-	if projectRoot != "" {
+	if projectRoot != "" && checkCode {
 		checkCodeReferences(content, projectRoot, result)
 	}
 
@@ -124,6 +132,20 @@ func VerifyDocument(docPath string, projectRoot string) (*VerifyResult, error) {
 	if strings.EqualFold(base, "draft.md") {
 		appendIssues(result, WireframeAnchorsForDraft(docPath))
 		appendIssues(result, CheckInterfaceJustification(docPath))
+	}
+
+	// 5b. Section span (draft.md / final.md). Findings scale with
+	// section length at r=+0.95, so length is the one lever on the
+	// loop's cost that is knowable before the loop runs. Settings are
+	// read from the project the document belongs to; without a project
+	// root there is nothing to read, so the check stands down.
+	if strings.EqualFold(base, "draft.md") || strings.EqualFold(base, "final.md") {
+		if projectRoot != "" {
+			if st, serr := LoadSettings(projectRoot); serr == nil {
+				appendIssues(result, CheckSectionSpan(docPath,
+					st.Verify.MaxSectionLines, st.Verify.SectionSpanSeverity))
+			}
+		}
 	}
 
 	// 6. wireframe.md: responsibility line conjunction check (Phase 5.1).

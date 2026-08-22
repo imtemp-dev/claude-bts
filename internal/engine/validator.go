@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/imtemp-dev/claude-bts/internal/state"
@@ -45,17 +46,18 @@ func ValidateRecipeDir(recipeDir string) ([]ValidationError, error) {
 		errors = append(errors, errs...)
 	}
 
-	// 4. debate meta.json files
-	debatesDir := filepath.Join(recipeDir, "debates")
-	if entries, err := os.ReadDir(debatesDir); err == nil {
-		for _, entry := range entries {
-			if entry.IsDir() {
-				metaPath := filepath.Join(debatesDir, entry.Name(), "meta.json")
-				if errs := validateDebateMetaJSON(metaPath); len(errs) > 0 {
-					errors = append(errors, errs...)
-				}
-			}
-		}
+	// 4. debate state files
+	//
+	// This used to look for `meta.json` under the recipe. Nothing has
+	// ever written that name: `bts debate log` writes `debate.json`, and
+	// it writes it under .bts/specs/debates/, not under the recipe. So
+	// the adjudicate_every_debate gate was checking a filename that does
+	// not exist, at a path the writer does not use, and passed every
+	// project by finding nothing. Both locations are walked now, because
+	// real projects have both — the CLI writes the project-level tree
+	// and /bts-debate writes its round markdown beside the recipe.
+	if errs := validateDebates(recipeDir); len(errs) > 0 {
+		errors = append(errors, errs...)
 	}
 
 	// 5. tasks.json (optional — only exists after /implement)
@@ -679,8 +681,8 @@ func validateChangelogJSONL(path string) []ValidationError {
 				"implement": true, "test": true, "sync": true, "status": true,
 				"adjudicate": true, "review": true, "architect": true,
 				"resolve-uncertainties": true,
-				"midrun-review": true,
-				"comment-apply": true,
+				"midrun-review":         true,
+				"comment-apply":         true,
 			}
 			if !validActions[action] {
 				errs = append(errs, ValidationError{File: "changelog.jsonl", Field: fmt.Sprintf("line %d.action", lineNum), Message: fmt.Sprintf("invalid action '%s'", action)})
@@ -722,7 +724,7 @@ func validateDebateMetaJSON(path string) []ValidationError {
 		return []ValidationError{{File: path, Field: "(parse)", Message: "invalid JSON: " + err.Error()}}
 	}
 
-	fileName := filepath.Base(filepath.Dir(path)) + "/meta.json"
+	fileName := filepath.Base(filepath.Dir(path)) + "/" + filepath.Base(path)
 	var errs []ValidationError
 
 	for _, field := range []string{"id", "topic"} {
@@ -751,6 +753,112 @@ func validateDebateMetaJSON(path string) []ValidationError {
 	}
 
 	return errs
+}
+
+// debateDirs returns every directory that may hold debate state for a
+// recipe: the project-level tree `bts debate` writes, and the
+// recipe-level tree the manifest references and /bts-debate writes into.
+func debateDirs(recipeDir string) []string {
+	dirs := []string{filepath.Join(recipeDir, "debates")}
+	// recipeDir is .bts/specs/recipes/{id}; the project tree is its
+	// grandparent's "debates".
+	if specs := filepath.Dir(filepath.Dir(recipeDir)); filepath.Base(specs) == "specs" {
+		dirs = append(dirs, filepath.Join(specs, "debates"))
+	}
+	return dirs
+}
+
+// validateDebates validates each debate ONCE, across both trees.
+//
+// The two trees hold different halves of the same debate: `bts debate
+// log` writes machine state to .bts/specs/debates/{id}/debate.json,
+// while /bts-debate writes its round markdown beside the recipe. Neither
+// half is wrong, so the unit of validation is the debate ID, not the
+// directory — checking directories independently reports the normal
+// arrangement (rounds here, state there) as a missing state file.
+//
+// Scope comes from the RECIPE tree. The project tree is shared, so
+// taking IDs from it made every recipe answer for every debate in the
+// project.
+func validateDebates(recipeDir string) []ValidationError {
+	dirs := debateDirs(recipeDir)
+	if len(dirs) == 0 {
+		return nil
+	}
+	recipeTree, otherTrees := dirs[0], dirs[1:]
+
+	// Which debates are THIS recipe's: the ones under its own tree.
+	// Nothing links a project-tree debate back to a recipe — DebateState
+	// records no recipe id — so scanning that tree for IDs made every
+	// recipe answer for every debate in the project, and `bts validate
+	// r-002` reported a missing state file belonging to r-001.
+	ids := map[string][]string{}
+	entries, err := os.ReadDir(recipeTree)
+	if err != nil {
+		return nil
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			ids[entry.Name()] = []string{filepath.Join(recipeTree, entry.Name())}
+		}
+	}
+	// The project tree holds the other half of those same debates.
+	for _, dir := range otherTrees {
+		for id := range ids {
+			path := filepath.Join(dir, id)
+			if st, serr := os.Stat(path); serr == nil && st.IsDir() {
+				ids[id] = append(ids[id], path)
+			}
+		}
+	}
+
+	names := make([]string, 0, len(ids))
+	for id := range ids {
+		names = append(names, id)
+	}
+	sort.Strings(names)
+
+	var errs []ValidationError
+	for _, id := range names {
+		if statePath := findDebateState(ids[id]); statePath != "" {
+			errs = append(errs, validateDebateMetaJSON(statePath)...)
+			continue
+		}
+		if !anyDebateContent(ids[id]) {
+			continue // empty directory; nothing was recorded here at all
+		}
+		errs = append(errs, ValidationError{
+			File:    id,
+			Field:   "debate.json",
+			Message: "debate has rounds but no state file in any debate tree — `bts debate log` records the conclusion and whether it was decided",
+		})
+	}
+	return errs
+}
+
+// findDebateState returns the first state file found across a debate's
+// directories, accepting the name the CLI writes (debate.json) and the
+// legacy one this validator used to look for (meta.json).
+func findDebateState(dirs []string) string {
+	for _, dir := range dirs {
+		for _, name := range []string{"debate.json", "meta.json"} {
+			path := filepath.Join(dir, name)
+			if _, err := os.Stat(path); err == nil {
+				return path
+			}
+		}
+	}
+	return ""
+}
+
+// anyDebateContent reports whether any of a debate's directories holds a file.
+func anyDebateContent(dirs []string) bool {
+	for _, dir := range dirs {
+		if entries, err := os.ReadDir(dir); err == nil && len(entries) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func validateTasksJSON(path string) []ValidationError {

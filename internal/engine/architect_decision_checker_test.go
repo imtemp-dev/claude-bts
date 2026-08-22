@@ -127,7 +127,7 @@ Selected: second
 // Integration: VerifyDocument on wireframe.md should surface this.
 func TestVerifyDocument_ChecksArchitectDecision(t *testing.T) {
 	path := writeArchitectWireframe(t, "# empty wireframe")
-	result, err := VerifyDocument(path, "")
+	result, err := VerifyDocument(path, "", true)
 	if err != nil {
 		t.Fatalf("verify: %v", err)
 	}

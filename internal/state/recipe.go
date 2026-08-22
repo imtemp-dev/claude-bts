@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -244,7 +245,26 @@ type VerifyLogEntry struct {
 	Info            int    `json:"info,omitempty"`
 	Doc             string `json:"doc,omitempty"`       // basename of the verified document
 	FullPass        bool   `json:"full_pass,omitempty"` // whole-document round (vs. scoped delta)
-	Status          string `json:"status"`              // continue, converged, failed
+	// Dimensions names the semantic passes that produced this round's
+	// counts: "verify" (logical consistency), "audit" (completeness),
+	// "simulate" (scenario coverage). Empty means "written before this
+	// field existed" — see StrengthClass.
+	//
+	// Without it the log records HOW MUCH of the document was read
+	// (FullPass) but not WHICH INSTRUMENTS read it, and the convergence
+	// budget compared the two as if they were the same measurement. A
+	// verify-only round finds less than a verify+audit+simulate round on
+	// identical text — not because the text improved, but because one
+	// instrument was pointed at it instead of three. A measured recipe
+	// set its best triple at (0,0,2) on a verify-only round, ran its
+	// first audit fifteen rounds later and got 13 findings including 4
+	// majors on that same text, and then had every subsequent
+	// multi-dimension round judged "no progress" against a number one
+	// dimension had produced. The operator raised verify.max_iterations
+	// twice to work around a verdict that was an artefact of this
+	// missing field.
+	Dimensions []string `json:"dimensions,omitempty"`
+	Status     string   `json:"status"` // continue, converged, failed
 	// Budget is the verify.max_iterations value in effect when this round
 	// was judged. Without it the log is not self-describing: the
 	// convergence verdict is recomputed over the WHOLE history using
@@ -328,6 +348,71 @@ func (e *VerifyLogEntry) EffectiveResolvable() int {
 		return e.Minor
 	}
 	return e.MinorResolvable
+}
+
+// VerifyDimensions are the semantic passes a verify round may run. They
+// mirror the three fork-context checks in
+// bts-verification-protocol.md § Core Principle; the deterministic
+// `bts verify` pass is not one of them because it is not a sample — it
+// returns the same answer on the same bytes every time.
+var VerifyDimensions = []string{"verify", "audit", "simulate"}
+
+// NormalizeDimensions lowercases, de-duplicates and sorts a dimension
+// list into its canonical form, rejecting names outside
+// VerifyDimensions. A nil or empty input returns nil, which is the
+// "not recorded" form legacy entries carry.
+func NormalizeDimensions(dims []string) ([]string, error) {
+	seen := make(map[string]bool, len(dims))
+	var out []string
+	for _, d := range dims {
+		d = strings.ToLower(strings.TrimSpace(d))
+		if d == "" {
+			continue
+		}
+		if !slices.Contains(VerifyDimensions, d) {
+			return nil, fmt.Errorf("unknown dimension %q (want one of %s)",
+				d, strings.Join(VerifyDimensions, ", "))
+		}
+		if seen[d] {
+			continue
+		}
+		seen[d] = true
+		out = append(out, d)
+	}
+	slices.Sort(out)
+	return out, nil
+}
+
+// StrengthClass names the measurement a round performed: which
+// instruments ran, over how much of the document. Two rounds are
+// comparable — one can be said to have improved on the other — only
+// when their classes match.
+//
+// Legacy rounds that recorded no dimensions form their own class
+// ("?"), so an old log keeps behaving exactly as it did: every entry
+// in it is comparable with every other, bucketed only by scope.
+func (e *VerifyLogEntry) StrengthClass() string {
+	dims := "?"
+	if len(e.Dimensions) > 0 {
+		dims = strings.Join(e.Dimensions, "+")
+	}
+	scope := "delta"
+	if e.FullPass {
+		scope = "full"
+	}
+	return dims + "/" + scope
+}
+
+// HasAllDimensions reports whether this round ran every semantic pass.
+// The completion gate uses it: a clean triple from one instrument is
+// not evidence that three instruments would agree.
+func (e *VerifyLogEntry) HasAllDimensions() bool {
+	for _, want := range VerifyDimensions {
+		if !slices.Contains(e.Dimensions, want) {
+			return false
+		}
+	}
+	return true
 }
 
 // RecipeDir returns the directory for a recipe's state.

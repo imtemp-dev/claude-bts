@@ -38,11 +38,39 @@ import (
 
 // Finding statuses.
 const (
-	FindingOpen      = "open"      // reported by the latest round
-	FindingFixed     = "fixed"     // was open, absent from the latest round
-	FindingDeferred  = "deferred"  // minor [deferred] — runtime watch-item, not an IMPROVE target
-	FindingDismissed = "dismissed" // adjudicated as not-a-defect; must not be re-raised
+	FindingOpen = "open" // reported by the latest round
+	// FindingUnreported is an open finding that stopped being reported.
+	// It is NOT a closure: absence is what a fix looks like, but it is
+	// also what a verifier restating the same defect in different words
+	// looks like, and what a verifier told to skip deliberately-open
+	// items looks like.
+	//
+	// Identity is sha256(doc + normalised title), so a rephrased finding
+	// hashes to a new ID while its predecessor goes unmatched. When
+	// absence closed a finding outright, both of those produced the same
+	// record as a real fix: one measured round reported "68 new, 27
+	// fixed" where every one of the 27 was a restatement still present
+	// in the document under a new ID, and the operator had to write the
+	// correction into the changelog by hand. Across that recipe at least
+	// 40 of 458 closures were false, and the two the operator caught are
+	// only the ones anybody looked for.
+	//
+	// So absence demotes rather than closes. Promotion to fixed needs a
+	// second consecutive silent round, and never happens while the same
+	// anchor is still producing new findings — the signature of a
+	// restatement rather than a repair.
+	FindingUnreported = "unreported"
+	FindingFixed      = "fixed"     // absent, and confirmed absent
+	FindingDeferred   = "deferred"  // minor [deferred] — runtime watch-item, not an IMPROVE target
+	FindingDismissed  = "dismissed" // adjudicated as not-a-defect; must not be re-raised
 )
+
+// NotClosed reports whether a status still owes the loop something —
+// either a fix or an adjudication. Deferred and dismissed are settled;
+// unreported is not.
+func NotClosed(status string) bool {
+	return status == FindingOpen || status == FindingUnreported
+}
 
 // FindingEvent is one append-only observation about one finding.
 type FindingEvent struct {
@@ -265,20 +293,30 @@ func LoadFindings(root, recipeID, docBase string) ([]*FindingState, error) {
 
 // SyncResult reports what one round changed in the ledger.
 type SyncResult struct {
-	New      []string // first time seen
-	Carried  []string // open in the previous round and still open
-	Fixed    []string // open before, absent from this round
-	Reopened []string // fixed before, open again — the edit regressed
-	Stagnant []string // open for >= stagnantAfter consecutive rounds
+	New        []string // first time seen
+	Carried    []string // open in the previous round and still open
+	Unreported []string // open before, silent this round — NOT a closure
+	Fixed      []string // silent for a second round on a quiet anchor — closed
+	Restated   []string // silent, but their anchor is still producing findings
+	Reopened   []string // fixed before, open again — the edit regressed
+	Stagnant   []string // open for >= stagnantAfter consecutive rounds
 }
 
 // SyncFindings reconciles one verification round against the ledger.
 //
 // reported is the findings array from that round's <bts-findings> block.
-// Findings that were open and are absent from this round are recorded as
-// fixed. Dismissed findings stay dismissed unless the verifier raises
-// them again, which is recorded as a reopen so the loop can see that an
-// adjudicated point is being re-litigated.
+//
+// Absence does not close anything. A finding that was open and is not
+// reported this round is demoted to `unreported`; it becomes `fixed`
+// only after a second consecutive silent round, and only once its anchor
+// has stopped producing findings entirely. See FindingUnreported for why
+// — absence is equally the signature of a repair and of a verifier
+// restating the same defect in different words.
+//
+// Dismissed findings stay dismissed unless the verifier raises them
+// again, which is recorded as a reopen so the loop can see that an
+// adjudicated point is being re-litigated. A finding returning from
+// `unreported` is NOT a reopen: nothing ever claimed it was fixed.
 func SyncFindings(root, recipeID, docBase string, iteration int, reported []ReportedFinding, stagnantAfter int) (*SyncResult, error) {
 	docBase = filepath.Base(docBase)
 	events, err := ReadFindingEvents(root, recipeID)
@@ -289,6 +327,7 @@ func SyncFindings(root, recipeID, docBase string, iteration int, reported []Repo
 
 	res := &SyncResult{}
 	seen := make(map[string]bool, len(reported))
+	hotAnchor := make(map[string]bool)
 	var toAppend []FindingEvent
 
 	for _, rf := range reported {
@@ -309,6 +348,20 @@ func SyncFindings(root, recipeID, docBase string, iteration int, reported []Repo
 		}
 		toAppend = append(toAppend, ev)
 
+		// An anchor is "hot" while it is still producing live findings of
+		// any age. Restricting this to findings that are NEW this round
+		// made the hold last exactly one round: a restatement is new when
+		// the original goes silent, but by the next round it is merely
+		// carried, the anchor reads as quiet, and the original closes as
+		// `fixed` — the outcome this whole mechanism exists to prevent.
+		//
+		// Deferred items do not make an anchor hot. They are accepted
+		// watch-items carried into implement by design, so an anchor
+		// holding nothing else has gone quiet.
+		if rf.Anchor != "" && rf.Severity != "minor_deferred" {
+			hotAnchor[rf.Anchor] = true
+		}
+
 		switch st, ok := prior[id]; {
 		case !ok:
 			res.New = append(res.New, id)
@@ -322,28 +375,49 @@ func SyncFindings(root, recipeID, docBase string, iteration int, reported []Repo
 		}
 	}
 
-	// Anything open on this document but not reported this round is fixed.
+	// hotAnchor was filled as the reported findings were classified
+	// above. A finding that vanished from an anchor which is still
+	// producing findings is the shape a restatement makes, so it is not
+	// promoted out of unreported while that stays true. It closes when
+	// the anchor itself goes quiet, which is the honest signal that the
+	// section was actually repaired rather than reworded.
+
+	// Anything not reported this round is demoted, not closed. Deferred
+	// items persist by design (runtime watch-items carried into
+	// implement), and dismissed ones stay dismissed.
 	for id, st := range prior {
 		if st.Doc != docBase || seen[id] {
 			continue
 		}
-		// Only open findings can be closed by absence. Deferred items
-		// persist by design (runtime watch-items carried into implement),
-		// and dismissed ones stay dismissed.
-		if st.Status != FindingOpen {
-			continue
+		switch {
+		case st.Status == FindingOpen:
+			// First silent round: record the absence, claim nothing.
+			toAppend = append(toAppend, FindingEvent{
+				ID: id, Doc: docBase, Iteration: iteration,
+				Severity: st.Severity, Title: st.Title, Anchor: st.Anchor,
+				Status: FindingUnreported,
+			})
+			res.Unreported = append(res.Unreported, id)
+		case st.Status == FindingUnreported && !hotAnchor[st.Anchor]:
+			// Second consecutive silent round on a quiet anchor: closed.
+			toAppend = append(toAppend, FindingEvent{
+				ID: id, Doc: docBase, Iteration: iteration,
+				Severity: st.Severity, Title: st.Title, Anchor: st.Anchor,
+				Status: FindingFixed,
+			})
+			res.Fixed = append(res.Fixed, id)
+		case st.Status == FindingUnreported:
+			// Still silent, but its anchor is still generating findings.
+			// Hold it — this is the restatement signature.
+			res.Restated = append(res.Restated, id)
 		}
-		toAppend = append(toAppend, FindingEvent{
-			ID: id, Doc: docBase, Iteration: iteration,
-			Severity: st.Severity, Title: st.Title, Anchor: st.Anchor,
-			Status: FindingFixed,
-		})
-		res.Fixed = append(res.Fixed, id)
 	}
 
 	sort.Strings(res.New)
 	sort.Strings(res.Carried)
+	sort.Strings(res.Unreported)
 	sort.Strings(res.Fixed)
+	sort.Strings(res.Restated)
 	sort.Strings(res.Reopened)
 	sort.Strings(res.Stagnant)
 
@@ -375,11 +449,13 @@ func DismissFinding(root, recipeID, id, reason string) error {
 // into the next round's verifier prompt. Returns "" when there is
 // nothing to carry, so callers can omit the section entirely.
 func CarryForwardBlock(states []*FindingState) string {
-	var open, fixed, dismissed, deferred []*FindingState
+	var open, unreported, fixed, dismissed, deferred []*FindingState
 	for _, st := range states {
 		switch st.Status {
 		case FindingOpen:
 			open = append(open, st)
+		case FindingUnreported:
+			unreported = append(unreported, st)
 		case FindingFixed:
 			fixed = append(fixed, st)
 		case FindingDismissed:
@@ -420,6 +496,8 @@ func CarryForwardBlock(states []*FindingState) string {
 	}
 
 	section("STILL OPEN", "expect these unless the fix landed", open)
+	section("UNCONFIRMED", "last round went silent on these without closing them — "+
+		"say explicitly whether each is fixed, and reuse its exact recorded title if it is not", unreported)
 	section("FIXED", "report again only if the fix was reverted or is wrong", fixed)
 	section("DISMISSED", "adjudicated as not-a-defect; do NOT re-raise", dismissed)
 	section("DEFERRED", "runtime watch-items; not IMPROVE targets", deferred)

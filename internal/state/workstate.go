@@ -55,6 +55,7 @@ func WorkStatePath(root string) string {
 // SaveWorkState persists the work state snapshot.
 func SaveWorkState(root string, ws *WorkState) error {
 	ws.SavedAt = time.Now().UTC().Format(time.RFC3339)
+	capWorkState(ws)
 	return WriteJSON(WorkStatePath(root), ws)
 }
 
@@ -333,4 +334,120 @@ func loadSubStateForRecipe(root string, recipe *RecipeState) *SubStateInfo {
 		}
 	}
 	return nil
+}
+
+// Work-state size caps.
+//
+// work-state.json is re-read at every session start and after every
+// compaction, so its size is a recurring token cost paid on the way back
+// into a task. A measured project's file reached 37KB — roughly 10k
+// tokens — of which 17.8KB was `summary` and 17.6KB was five
+// `last_actions` entries, one of them 8,352 characters. Nothing capped
+// either: readLastChangelog copies a changelog `result` verbatim, and
+// the model writes multi-paragraph results there on purpose.
+//
+// That prose is not lost by capping it. changelog.jsonl still holds it
+// in full, and a resume hint that points at the record beats a resume
+// hint that inlines it — especially since most of the length is a
+// narrative about rounds that are already over.
+const (
+	maxActionChars  = 240
+	maxSummaryChars = 2000
+	maxCommandChars = 160
+)
+
+// clipMarker is long on purpose: a clipped entry has to tell the reader
+// where the full text lives.
+const clipMarker = "… (truncated; full text in changelog.jsonl)"
+
+// TruncateRunes shortens s to at most max RUNES including a trailing "…",
+// cutting only on a rune boundary. It never returns something longer than
+// what it was given.
+//
+// Both properties were absent from the helpers this replaces. They tested
+// the budget with len(s) — bytes — and then sliced []rune(s)[:max], so a
+// Korean string sailed past a 2000-"char" cap at 4,935 bytes; and they
+// appended the marker AFTER cutting to the full budget, so clipping a
+// 250-byte action to a 240 cap produced 285 bytes. One of them sliced raw
+// bytes at n-1 and returned invalid UTF-8 on any multi-byte input, and
+// panicked outright at n <= 0.
+func TruncateRunes(s string, max int) string { return truncateRunes(s, max, "…") }
+
+func truncateRunes(s string, max int, marker string) string {
+	if max <= 0 {
+		return ""
+	}
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	m := []rune(marker)
+	if len(m) >= max {
+		// The budget cannot hold the marker; fall back to the shortest
+		// one that still says "there is more than this".
+		m = []rune("…")
+	}
+	if len(m) >= max {
+		return string(r[:max])
+	}
+	return strings.TrimRight(string(r[:max-len(m)]), " \t\n") + string(m)
+}
+
+// clip truncates on a rune boundary and marks the cut, so a reader can
+// tell an abridged entry from a short one and knows to go to the source.
+// max is the total budget, marker included.
+func clip(s string, max int) string { return truncateRunes(s, max, clipMarker) }
+
+// capWorkState bounds every unbounded field before the snapshot is
+// written. Applied at save time so it also shrinks state written by an
+// older binary.
+func capWorkState(ws *WorkState) {
+	if ws == nil {
+		return
+	}
+	for i := range ws.LastActions {
+		ws.LastActions[i] = clip(ws.LastActions[i], maxActionChars)
+	}
+	ws.Summary = clip(ws.Summary, maxSummaryChars)
+	for i := range ws.RecentTools {
+		ws.RecentTools[i].Command = ClipCommand(ws.RecentTools[i].Command)
+		ws.RecentTools[i].File = clip(ws.RecentTools[i].File, maxCommandChars)
+	}
+}
+
+// ClipCommand trims a recorded command without leaving a fragment that
+// reads as a whole one.
+//
+// The hooks cut at 100 bytes mid-token, which produced traces like
+// `cd /Users/…/recipes/r-001 && ` — a command whose visible form is a
+// shell prefix with its actual verb cut off. Trimming back to the last
+// separator and marking the cut keeps the entry honest about being
+// partial.
+func ClipCommand(cmd string) string {
+	cmd = strings.TrimRight(cmd, " \t\n")
+	r := []rune(cmd)
+	if len(r) <= maxCommandChars {
+		return cmd
+	}
+	const marker = " …"
+	keep := maxCommandChars - len([]rune(marker))
+	cut := r[:keep]
+	// Back up to the last whitespace, but only when that keeps most of
+	// the budget — and measure that in RUNES. The byte index returned by
+	// strings.LastIndexAny was being compared against a rune budget, so
+	// on a Korean command the "keeps most of it" guard passed at a byte
+	// offset worth a quarter of the allowance and threw the rest away.
+	if i := lastIndexAnyRune(cut, " \t"); i > keep/2 {
+		cut = cut[:i]
+	}
+	return strings.TrimRight(strings.TrimRight(string(cut), " \t\n&|;"), " \t") + marker
+}
+
+func lastIndexAnyRune(r []rune, chars string) int {
+	for i := len(r) - 1; i >= 0; i-- {
+		if strings.ContainsRune(chars, r[i]) {
+			return i
+		}
+	}
+	return -1
 }

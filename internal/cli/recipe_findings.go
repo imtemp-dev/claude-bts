@@ -76,9 +76,13 @@ var recipeFindingsListCmd = &cobra.Command{
 			return fmt.Errorf("load findings: %w", err)
 		}
 		if onlyOpen {
+			// "Open" means "still owed", which includes unreported —
+			// a finding that merely stopped being mentioned was never
+			// confirmed fixed, and hiding it here is exactly how false
+			// closures became invisible progress.
 			var f []*state.FindingState
 			for _, st := range states {
-				if st.Status == state.FindingOpen {
+				if state.NotClosed(st.Status) {
 					f = append(f, st)
 				}
 			}
@@ -176,8 +180,10 @@ var recipeAssessPrecheckCmd = &cobra.Command{
 	Long: `Prints a <bts-decision> block when the next action is determined by state
 alone, letting the loop skip the /bts-assess round entirely:
 
-  FINALIZE                 last full-pass verify for the doc converged and the
-                           doc is unchanged since — nothing left to assess
+  FINALIZE                 the doc's verify history satisfies the completion
+                           contract (clean, full pass, every dimension,
+                           replicated on the recorded revision) and the doc is
+                           unchanged since — nothing left to assess
   HALT_CONVERGENCE_FAILED  the convergence budget is exhausted
   VERIFY                   the doc changed since its last verification
 
@@ -240,9 +246,16 @@ fall through to /bts-assess in that case.`,
 			return precheckUndecided(fmt.Sprintf(
 				"%s still has %s — the next action depends on the findings", docBase, verdict.Latest))
 		}
-		if !last.FullPass {
+		// The completion contract lives in ONE place. This precheck used
+		// to carry its own copy — clean plus a full pass — which stopped
+		// agreeing with the stop hook the moment the hook started asking
+		// for dimensions, a recorded revision and replication. The loop
+		// then had two oracles: the precheck said FINALIZE, the hook
+		// refused DONE, and the recipe bounced between them.
+		if ev := engine.EvaluateCompletionEvidence(scoped, settings.Verify.ConfirmPasses); !ev.Confirmed {
 			emitDecision("VERIFY", "verify", verdict.Latest.String(),
-				docBase+" is clean but the last round was a scoped delta pass; a full pass is required before finalization")
+				fmt.Sprintf("%s is clean but cannot be finalized on the evidence recorded: %s. %s",
+					docBase, ev.Reason, ev.Remedy))
 			return nil
 		}
 		if len(dirty) > 0 {
@@ -251,7 +264,7 @@ fall through to /bts-assess in that case.`,
 				docBase, strings.Join(dirty, ", ")))
 		}
 
-		reason := docBase + " converged on a full pass and is unchanged since"
+		reason := docBase + " converged on a replicated full pass across every dimension and is unchanged since"
 		if last.MinorDeferred > 0 {
 			reason += fmt.Sprintf("; %d [deferred] minor(s) carry into /bts-implement as watch-items", last.MinorDeferred)
 		}

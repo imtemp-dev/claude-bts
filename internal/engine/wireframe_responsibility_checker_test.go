@@ -78,7 +78,7 @@ func TestCheckWireframeResponsibilities_NoParensPassesThrough(t *testing.T) {
 // VerifyDocument wires the checker in for wireframe.md.
 func TestVerifyDocument_ChecksWireframeResponsibilities(t *testing.T) {
 	path := writeWireframe(t, "```mermaid\nflowchart TD\n    A[\"Card\\n(renders and owns data)\"]\n```")
-	result, err := VerifyDocument(path, "")
+	result, err := VerifyDocument(path, "", true)
 	if err != nil {
 		t.Fatalf("verify: %v", err)
 	}

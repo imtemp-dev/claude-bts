@@ -3,6 +3,7 @@ package hook
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/imtemp-dev/claude-bts/internal/state"
@@ -116,10 +117,11 @@ func TestPreToolUse_TaskCapturesSubagentType(t *testing.T) {
 func TestPreToolUse_BashCommandTruncation(t *testing.T) {
 	root := setupToolUseRoot(t)
 
-	longCmd := ""
-	for i := 0; i < 200; i++ {
-		longCmd += "x"
-	}
+	// A realistic long command rather than 200 x's: the point of the cap
+	// is that a partial entry must not read as a whole one, and a run of
+	// identical bytes cannot show that.
+	longCmd := "cd /Users/someone/Workspace/a-project/.bts/specs/recipes/r-001-support-gpt-solterra && " +
+		"bts recipe log r-001-support-gpt-solterra --from-verification verification.md --doc draft.md --scope full --dimension verify --dimension audit"
 	h := NewPreToolUseHandler()
 	input := &HookInput{
 		CWD:       root,
@@ -132,7 +134,14 @@ func TestPreToolUse_BashCommandTruncation(t *testing.T) {
 	if len(tail) != 1 {
 		t.Fatalf("expected 1 entry")
 	}
-	if len(tail[0].Command) > 100 {
-		t.Errorf("Command should be truncated to 100 chars, got %d", len(tail[0].Command))
+	got := tail[0].Command
+	if len(got) >= len(longCmd) {
+		t.Errorf("Command should be bounded, got %d chars", len(got))
+	}
+	if !strings.HasSuffix(got, "…") {
+		t.Errorf("a clipped command must be marked as partial, got %q", got)
+	}
+	if strings.HasSuffix(strings.TrimSpace(strings.TrimSuffix(got, "…")), "&&") {
+		t.Errorf("clipped command left a dangling shell separator: %q", got)
 	}
 }
