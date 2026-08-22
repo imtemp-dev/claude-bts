@@ -65,45 +65,69 @@ func TestNoProgressStreak_DeltaAndFullAreDifferentClasses(t *testing.T) {
 func TestNoProgressStreak_AlternatingClassesStillAccumulate(t *testing.T) {
 	a, b := []string{"verify"}, []string{"audit"}
 	entries := []state.VerifyLogEntry{
-		round(1, 0, 1, 1, a, true), // baseline for the document
-		round(2, 0, 1, 1, b, true), // new class: a baseline, not progress
+		round(1, 0, 1, 1, a, true), // baseline for its class — held, not counted
+		round(2, 0, 1, 1, b, true), // baseline for its class — held, not counted
 		round(3, 0, 5, 5, a, true), // worse than round 1's class best
 		round(4, 0, 5, 5, b, true), // worse than round 2's class best
 		round(5, 0, 5, 5, a, true),
 	}
-	if got := NoProgressStreak(entries); got != 4 {
-		t.Fatalf("streak = %d, want 4 — only round 1 is a baseline; every later round failed to improve", got)
+	if got := NoProgressStreak(entries); got != 3 {
+		t.Fatalf("streak = %d, want 3 — the two baselines hold, the three repeats count", got)
 	}
 }
 
-// The regression that made the per-class best worse than the defect it
-// replaced. Treating a class's first sighting as progress reset the
-// streak, and since the protocol asks the verifier to declare only the
-// dimensions it actually ran, a rotating class is the NORMAL case — so
-// the budget stopped firing in ordinary operation. Nine rounds, each
-// strictly worse than the last, must exhaust a budget of 3.
-func TestNoProgressStreak_RotatingInstrumentsDoNotBuyRounds(t *testing.T) {
+// Rotation must not be an escape hatch. A first sighting holds the
+// streak rather than resetting it, so once the instruments stop being
+// new every non-improving round counts and the budget still fires.
+//
+// The earlier form COUNTED a first sighting instead of holding it, which
+// broke the other way: with three dimensions, three honest
+// single-dimension rounds exhausted a default budget of 3 before any
+// measurement had repeated.
+func TestNoProgressStreak_RotatingInstrumentsDelayButDoNotPreventTheBudget(t *testing.T) {
 	classes := [][]string{
 		{"verify"}, {"audit"}, {"simulate"},
 		{"audit", "verify"}, {"simulate", "verify"}, {"audit", "simulate"},
-		allDims, {"verify"}, {"audit"},
+		allDims,
 	}
+	// One pass through every class, then a second pass. Every round is
+	// strictly worse than the last, so nothing here is progress under any
+	// reading.
 	var entries []state.VerifyLogEntry
-	for i, dims := range classes {
-		// Strictly worsening: nothing here is progress under any reading.
-		entries = append(entries, round(i+1, 0, i+1, i+1, dims, true))
+	n := 0
+	for pass := 0; pass < 2; pass++ {
+		for _, dims := range classes {
+			n++
+			entries = append(entries, round(n, 0, n, n, dims, true))
+		}
 	}
-	if got := NoProgressStreak(entries); got != 8 {
-		t.Fatalf("streak = %d, want 8 — rotating instruments must not reset the budget", got)
+	// The first pass is all baselines; the second pass is all repeats.
+	if got := NoProgressStreak(entries); got != len(classes) {
+		t.Fatalf("streak = %d, want %d — the second pass through the classes must all count", got, len(classes))
 	}
 	if v := EvaluateConvergence(entries, 3); !v.Exceeded {
-		t.Fatalf("budget of 3 must be exceeded after 9 worsening rounds, got %+v", v)
+		t.Fatalf("the budget must still fire once the instruments stop being new, got %+v", v)
 	}
 
-	// And the same worsening history inside one class gives the same
-	// answer: the class no longer changes what the budget counts.
+	// The honest case the previous form broke: three single-dimension
+	// rounds on a document that is IMPROVING must not exhaust a budget of
+	// 3 just by being three different measurements.
+	improving := []state.VerifyLogEntry{
+		round(1, 0, 10, 10, []string{"verify"}, true),
+		round(2, 0, 8, 8, []string{"audit"}, true),
+		round(3, 0, 6, 6, []string{"simulate"}, true),
+		round(4, 0, 4, 4, []string{"verify"}, true), // beats round 1's class
+	}
+	if got := NoProgressStreak(improving); got != 0 {
+		t.Fatalf("streak = %d, want 0 — round 4 improved on the only comparable round", got)
+	}
+	if v := EvaluateConvergence(improving, 3); v.Exceeded {
+		t.Fatalf("an improving loop must not be stopped for rotating instruments, got %+v", v)
+	}
+
+	// And a stalled loop inside ONE class is unaffected by the change.
 	var single []state.VerifyLogEntry
-	for i := range classes {
+	for i := 0; i < 9; i++ {
 		single = append(single, round(i+1, 0, i+1, i+1, allDims, true))
 	}
 	if got := NoProgressStreak(single); got != 8 {

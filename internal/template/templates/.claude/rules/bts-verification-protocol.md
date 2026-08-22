@@ -137,10 +137,14 @@ less than a full one, neither because the text improved.
 
 Changing class is therefore not progress and does not reset the
 convergence budget. A round that is the first of its class has nothing
-comparable behind it: it sets that class's baseline and still counts
-toward the streak. Only beating an earlier round of your **own** class
-resets it. Rotating instruments is a way to measure differently, never a
-way to buy more rounds.
+comparable behind it: it sets that class's baseline and leaves the
+streak exactly where it was — neither reset nor advanced. Only beating
+an earlier round of your **own** class resets it.
+
+Rotating instruments therefore delays the budget by at most the number
+of distinct classes and cannot prevent it: once the measurements stop
+being new, every round that fails to beat its own class counts. It is a
+way to measure differently, never a way to buy more rounds.
 
 Why this is a hard gate rather than advice, from measured runs:
 

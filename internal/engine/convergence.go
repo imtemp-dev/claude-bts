@@ -28,7 +28,7 @@ import (
 // triple produced by the same instruments; see NoProgressStreak and
 // state.VerifyLogEntry.StrengthClass for what went wrong without that.
 // The first round of a class has no such predecessor, so it sets that
-// class's baseline without resetting the streak.
+// class's baseline and leaves the streak where it was.
 //
 // The clean triple (0,0,0) is necessary for completion but no longer
 // sufficient — the gate also requires every dimension, a full pass, and
@@ -90,20 +90,22 @@ func (k ProgressKey) String() string {
 // reliably reports the smaller number, its best becomes a target no
 // honest round can ever beat. See state.VerifyLogEntry.StrengthClass.
 //
-// The streak itself is global, and a class appearing for the first time
-// does NOT reset it. That asymmetry is the whole point: per-class bests
-// stop the weak round from anchoring the strong one, but if a first
-// sighting also reset the counter, the budget would be escapable by
-// rotating instruments — and the protocol now tells the verifier to
-// declare only the dimensions it actually ran, which makes rotation the
-// normal case rather than an exotic one. A round with no same-class
-// predecessor is not evidence of improvement; it is the baseline for a
-// measurement nobody has taken before, so it is recorded as that class's
-// best and counted toward the streak.
+// The streak is global and a class's first sighting neither resets it
+// nor advances it. Both halves of that matter.
 //
-// The single exception is the first round in the document's history:
-// with no prior measurement of any kind it cannot have failed to improve
-// on anything, so it establishes the baseline at streak 0.
+// Not resetting is what keeps the budget honest: the protocol asks the
+// verifier to declare only the dimensions it actually ran, so rotating
+// instruments is ordinary, and a rule that reset on novelty would make
+// "measure differently" a way to buy unlimited rounds.
+//
+// Not advancing is what keeps it usable. A first sighting is not a
+// failure to improve — there was nothing to improve on. Counting it
+// would mean three honest single-dimension rounds exhaust a default
+// budget of 3 before any measurement has repeated, and the loop stops to
+// ask the user on a document that is getting better. Rotation therefore
+// DELAYS the budget by at most the number of distinct classes and cannot
+// prevent it: once the instruments stop being new, every round that
+// fails to beat its own class counts.
 //
 // Callers should pass entries already narrowed to a single document via
 // state.VerifyEntriesForDoc — a wireframe round must not reset the
@@ -116,14 +118,11 @@ func NoProgressStreak(entries []state.VerifyLogEntry) int {
 		k := ProgressKeyOf(&entries[i])
 		b, seen := best[class]
 		switch {
-		case !seen && len(best) == 0:
-			// Baseline for the whole document: nothing to fail against.
-			best[class] = k
 		case !seen:
-			// New instrument, no same-class predecessor. Record the
-			// baseline, but do not read it as progress.
+			// No same-class predecessor: this round has nothing it could
+			// have improved on. Record the baseline and HOLD the streak —
+			// neither reset nor advanced.
 			best[class] = k
-			streak++
 		case k.Better(b):
 			best[class] = k
 			streak = 0
