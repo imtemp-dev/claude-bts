@@ -26,12 +26,12 @@ const btsHookJSON = `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/p
 func TestCheckDuplicateHookRegistration(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, ".claude", "settings.local.json"), btsHookJSON)
-	if issues := checkDuplicateHookRegistration(root); len(issues) != 0 {
+	if issues := duplicateHookRegistration(root, ""); len(issues) != 0 {
 		t.Fatalf("one scope is the normal case, got %v", issues)
 	}
 
 	writeFile(t, filepath.Join(root, ".claude", "settings.json"), btsHookJSON)
-	issues := checkDuplicateHookRegistration(root)
+	issues := duplicateHookRegistration(root, "")
 	if len(issues) != 1 {
 		t.Fatalf("got %d issues, want 1: %+v", len(issues), issues)
 	}
@@ -49,7 +49,7 @@ func TestCheckDuplicateHookRegistration_IgnoresForeignHooks(t *testing.T) {
 	writeFile(t, filepath.Join(root, ".claude", "settings.local.json"), btsHookJSON)
 	writeFile(t, filepath.Join(root, ".claude", "settings.json"),
 		`{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/usr/local/bin/some-other-tool"}]}]}}`)
-	if issues := checkDuplicateHookRegistration(root); len(issues) != 0 {
+	if issues := duplicateHookRegistration(root, ""); len(issues) != 0 {
 		t.Fatalf("a foreign hook is not a duplicate bts registration, got %v", issues)
 	}
 }
@@ -103,5 +103,44 @@ simulate:
 `)
 	if issues := checkUnreadSettings(root); len(issues) != 0 {
 		t.Fatalf("want no issues, got %+v", issues)
+	}
+}
+
+// The user scope is a real scope and must be counted — but as an
+// argument, not by reading whatever machine the tests happen to run on.
+func TestDuplicateHookRegistration_CountsTheUserScope(t *testing.T) {
+	root := t.TempDir()
+	home := t.TempDir()
+	writeFile(t, filepath.Join(root, ".claude", "settings.local.json"), btsHookJSON)
+
+	if issues := duplicateHookRegistration(root, home); len(issues) != 0 {
+		t.Fatalf("a home with no bts hooks adds no scope, got %v", issues)
+	}
+
+	writeFile(t, filepath.Join(home, ".claude", "settings.json"), btsHookJSON)
+	issues := duplicateHookRegistration(root, home)
+	if len(issues) != 1 {
+		t.Fatalf("got %d issues, want 1: %+v", len(issues), issues)
+	}
+	if !strings.Contains(issues[0].message, "user ~/.claude/settings.json") {
+		t.Errorf("the report must name the user scope, got %q", issues[0].message)
+	}
+}
+
+// One settings file registering several bts handlers for one event is
+// one scope, not two. Counting each handler separately made the check
+// report a duplicate against a single file.
+func TestDuplicateHookRegistration_ManyHandlersInOneFileIsOneScope(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, ".claude", "settings.json"), `{
+  "hooks": {
+    "PostToolUse": [
+      {"hooks": [{"command": ".claude/hooks/bts-handle-post-tool-use.sh"}]},
+      {"hooks": [{"command": ".claude/hooks/bts-handle-metrics.sh"}]}
+    ]
+  }
+}`)
+	if issues := duplicateHookRegistration(root, ""); len(issues) != 0 {
+		t.Errorf("two handlers in one file are one registration scope, got %v", issues)
 	}
 }

@@ -871,12 +871,11 @@ func stampContentHashes(root, recipeID, docPath string, entry *state.VerifyLogEn
 	}
 }
 
-func truncate(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	return s[:max-3] + "..."
-}
+// truncate is state.TruncateRunes under the name its callers already
+// use. The byte-slicing version it replaces cut mid-rune on any
+// multi-byte input — recipe topics and decision questions in this
+// project are routinely Korean — and panicked outright for max < 3.
+func truncate(s string, max int) string { return state.TruncateRunes(s, max) }
 
 // ===== Sprint 9 P21 — `bts recipe reconcile` =========================
 

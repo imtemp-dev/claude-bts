@@ -25,12 +25,20 @@ import (
 //
 // Read errors report false with ok=false so a caller can distinguish
 // "no activity" from "could not tell" and record neither.
-// Two logs are consulted, not one. Subagent events written before the
-// hook attached a RecipeID landed in the global log with no recipe on
-// them, so a project upgrading mid-recipe would otherwise keep reporting
-// "none" for its whole history. Global events that DO name a different
-// recipe are skipped — they are another recipe's witness, not this
-// one's.
+// Two logs are consulted, not one, but they answer different questions.
+// The recipe's own log is the primary source: its location IS the
+// attribution, so an event there counts whatever the RecipeID field
+// says. The global read is a fallback for one case only — metrics.Append
+// writes the per-recipe copy best-effort and ignores its error, so an
+// event can be stamped with this recipe and exist only globally. That
+// read therefore REQUIRES the explicit field.
+//
+// It deliberately does not rescue events written before the hook stamped
+// a RecipeID at all. Those name no recipe, and counting them would make
+// agent_evidence a claim that the machine was busy rather than that this
+// round forked. A project on the old hook records "none" instead of a
+// guess, and `bts doctor` stays quiet, because absence is only
+// informative next to rounds that did record evidence.
 func SubagentActivitySince(root, recipeID string, since time.Time) (active bool, ok bool) {
 	scoped, err := ReadRecipeEvents(root, recipeID)
 	if err != nil && !os.IsNotExist(err) {

@@ -24,6 +24,20 @@ import (
 // project file, so the second registration is invisible to the thing
 // that would otherwise notice.
 func checkDuplicateHookRegistration(root string) []doctorIssue {
+	home, herr := os.UserHomeDir()
+	if herr != nil {
+		home = ""
+	}
+	return duplicateHookRegistration(root, home)
+}
+
+// duplicateHookRegistration takes the user scope's location as an
+// argument so it can be tested. Reading os.UserHomeDir() directly made
+// the result depend on the developer's own machine: on anyone with bts
+// installed at user scope — the normal state for someone working on this
+// repo — a one-scope fixture reports a duplicate, and the test asserting
+// otherwise fails for reasons that have nothing to do with the code.
+func duplicateHookRegistration(root, home string) []doctorIssue {
 	scopes := []struct {
 		label string
 		path  string
@@ -31,7 +45,7 @@ func checkDuplicateHookRegistration(root string) []doctorIssue {
 		{"project .claude/settings.local.json", filepath.Join(root, ".claude", "settings.local.json")},
 		{"project .claude/settings.json", filepath.Join(root, ".claude", "settings.json")},
 	}
-	if home, err := os.UserHomeDir(); err == nil {
+	if home != "" {
 		scopes = append(scopes,
 			struct {
 				label string

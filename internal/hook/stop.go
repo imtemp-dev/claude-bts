@@ -761,6 +761,7 @@ func readLastVerifyEntry(path string) (*state.VerifyLogEntry, error) {
 // A stale override — one granted on a different revision — does NOT
 // apply. The operator weighed a specific text; an edit since then is
 // exactly when that judgement has to be made again.
+
 // gateBlock renders a hard-gate block, first honouring any recorded
 // override for that gate. It returns (nil, false) when an override
 // applies, so the caller falls through to the next gate.
