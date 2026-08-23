@@ -8,19 +8,19 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 	"gopkg.in/yaml.v3"
 )
 
-// checkDuplicateHookRegistration reports bts hooks registered more than
+// checkDuplicateHookRegistration reports jig hooks registered more than
 // once for the same event.
 //
-// Claude Code merges hook configuration across scopes, so a bts hook
+// Claude Code merges hook configuration across scopes, so a jig hook
 // present in both the project settings and the user's own settings runs
 // twice per event. Everything downstream doubles silently: a measured
 // project's metrics.jsonl held 11,394 lines of which only 5,991 were
-// distinct, and every tool-use figure `bts stats` and `bts doctor`
-// reported was inflated about twofold. `bts init` only ever inspects the
+// distinct, and every tool-use figure `jig stats` and `jig doctor`
+// reported was inflated about twofold. `jig init` only ever inspects the
 // project file, so the second registration is invisible to the thing
 // that would otherwise notice.
 func checkDuplicateHookRegistration(root string) []doctorIssue {
@@ -33,7 +33,7 @@ func checkDuplicateHookRegistration(root string) []doctorIssue {
 
 // duplicateHookRegistration takes the user scope's location as an
 // argument so it can be tested. Reading os.UserHomeDir() directly made
-// the result depend on the developer's own machine: on anyone with bts
+// the result depend on the developer's own machine: on anyone with jig
 // installed at user scope — the normal state for someone working on this
 // repo — a one-scope fixture reports a duplicate, and the test asserting
 // otherwise fails for reasons that have nothing to do with the code.
@@ -53,10 +53,10 @@ func duplicateHookRegistration(root, home string) []doctorIssue {
 			}{"user ~/.claude/settings.json", filepath.Join(home, ".claude", "settings.json")})
 	}
 
-	// event -> the scopes that register a bts hook for it
+	// event -> the scopes that register a jig hook for it
 	seen := map[string][]string{}
 	for _, sc := range scopes {
-		for _, event := range btsHookEvents(sc.path) {
+		for _, event := range jigHookEvents(sc.path) {
 			seen[event] = append(seen[event], sc.label)
 		}
 	}
@@ -75,17 +75,17 @@ func duplicateHookRegistration(root, home string) []doctorIssue {
 		level:   "warning",
 		section: "config",
 		message: fmt.Sprintf(
-			"bts hooks are registered in more than one settings scope, so they fire twice per event: %s",
+			"jig hooks are registered in more than one settings scope, so they fire twice per event: %s",
 			strings.Join(doubled, ", ")),
 		fix: "keep one registration. Everything derived from hook events — metrics counts, tool traces, " +
-			"`bts stats` — is doubled while both are active",
+			"`jig stats` — is doubled while both are active",
 	}}
 }
 
-// btsHookEvents returns the hook events a settings file registers a bts
+// jigHookEvents returns the hook events a settings file registers a jig
 // handler for. Unreadable or unparseable files contribute nothing: this
 // is a diagnostic, not a gate.
-func btsHookEvents(path string) []string {
+func jigHookEvents(path string) []string {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil
@@ -102,11 +102,11 @@ func btsHookEvents(path string) []string {
 	}
 	// One event per settings file, however many handlers it registers.
 	// Counting each matching hook separately made a single file that
-	// registers two bts handlers for one event look like two scopes, and
+	// registers two jig handlers for one event look like two scopes, and
 	// the check reported a duplicate registration against itself.
 	//
-	// The name test mirrors template.isBtsHookCommand: the deployed
-	// scripts have gone by bts_handle_ and forge-handle- as well, and a
+	// The name test mirrors template.isJigHookCommand: the deployed
+	// scripts have gone by jig_handle_ and forge-handle- as well, and a
 	// check that only knows the current spelling silently stops seeing
 	// the older installs that are most likely to be doubled.
 	seen := map[string]bool{}
@@ -114,7 +114,7 @@ func btsHookEvents(path string) []string {
 	for event, groups := range cfg.Hooks {
 		for _, g := range groups {
 			for _, h := range g.Hooks {
-				if !isBtsHookCommand(h.Command) || seen[event] {
+				if !isJigHookCommand(h.Command) || seen[event] {
 					continue
 				}
 				seen[event] = true
@@ -125,8 +125,8 @@ func btsHookEvents(path string) []string {
 	return out
 }
 
-func isBtsHookCommand(cmd string) bool {
-	for _, marker := range []string{"bts-handle-", "bts_handle_", "forge-handle-", "forge_handle_"} {
+func isJigHookCommand(cmd string) bool {
+	for _, marker := range []string{"jig-handle-", "jig_handle_", "forge-handle-", "forge_handle_"} {
 		if strings.Contains(cmd, marker) {
 			return true
 		}
@@ -145,8 +145,8 @@ func isBtsHookCommand(cmd string) bool {
 // a threshold of 80. A setting that looks authoritative and does nothing
 // is worse than an absent one, because it is consulted and believed.
 //
-// Five of those keys were shipped by bts's own template, so a stock
-// `bts init` produced a project this check immediately complained about
+// Five of those keys were shipped by jig's own template, so a stock
+// `jig init` produced a project this check immediately complained about
 // and `--strict` exited 1 on. They were deleted from the template rather
 // than whitelisted here: whitelisting a dead knob keeps the knob.
 var settingsKeysRead = map[string]bool{
@@ -179,7 +179,7 @@ var settingsKeysRead = map[string]bool{
 
 // checkUnreadSettings reports settings.yaml keys nothing consults.
 func checkUnreadSettings(root string) []doctorIssue {
-	path := filepath.Join(root, ".bts", "config", "settings.yaml")
+	path := filepath.Join(root, ".jig", "config", "settings.yaml")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil

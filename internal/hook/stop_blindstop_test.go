@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 )
 
 // recordVerification marks the recipe's CURRENT verification.md as the
 // one the verify-log already accounts for, by stamping its content hash
-// onto every recorded round — what `bts recipe log --from-verification`
+// onto every recorded round — what `jig recipe log --from-verification`
 // does for real. This is the state the unrecorded-verification gate
 // reads, and it is deliberately not an mtime: mtime says when this
 // checkout materialised the file, not which verification it holds.
@@ -161,7 +161,7 @@ func TestBlindStop_DirtyVerifiedDoc_Blocks(t *testing.T) {
 }
 
 // The v0.13.0 regression, in the shape that produced it: a recipe carried
-// into a fresh `git worktree`. Everything tracked comes across, .bts/local
+// into a fresh `git worktree`. Everything tracked comes across, .jig/local
 // does not exist, and `git checkout` stamps every file it materialises
 // with the checkout time — so verification.md is always "newer" than the
 // round that recorded it. The old mtime comparison blocked every such
@@ -209,7 +209,7 @@ func TestBlindStop_HashlessLegacyRound_DoesNotBlock(t *testing.T) {
 }
 
 // Implement-side phases run their own gates and stop mid-task by design;
-// /bts-sync legitimately rewrites final.md there.
+// /jig-sync legitimately rewrites final.md there.
 func TestBlindStop_ImplementPhase_Allows(t *testing.T) {
 	root, recipeID := setupStopRoot(t)
 	recipe, err := state.LoadRecipeState(root, recipeID)
@@ -233,10 +233,10 @@ func TestBlindStop_ImplementPhase_Allows(t *testing.T) {
 	}
 }
 
-// No bts project / no active recipe → the hook is inert.
+// No jig project / no active recipe → the hook is inert.
 func TestBlindStop_NoActiveRecipe_Allows(t *testing.T) {
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, ".bts", "local"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".jig", "local"), 0755); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", t.TempDir())
@@ -247,7 +247,7 @@ func TestBlindStop_NoActiveRecipe_Allows(t *testing.T) {
 }
 
 // The block budget bounds the loop: the same complaint three times, then
-// bts stands down rather than letting Claude's opaque 8-block override
+// jig stands down rather than letting Claude's opaque 8-block override
 // decide.
 func TestStopBlockBudget_StandsDownAfterThreeIdenticalBlocks(t *testing.T) {
 	root, _ := setupStopRoot(t)
@@ -339,7 +339,7 @@ func TestStopBlockBudget_AppliesToDonePath(t *testing.T) {
 	h := NewStopHandler()
 	var last *HookOutput
 	for i := 0; i < state.DefaultStopBlockBudget; i++ {
-		out, err := h.Handle(&HookInput{CWD: root, SessionID: "s-1", StopHookContent: "<bts>DONE</bts>"})
+		out, err := h.Handle(&HookInput{CWD: root, SessionID: "s-1", StopHookContent: "<jig>DONE</jig>"})
 		if err != nil {
 			t.Fatalf("handle: %v", err)
 		}

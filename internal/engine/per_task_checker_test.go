@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 )
 
 // setupPerTask creates a project root + recipe dir with optional
@@ -15,7 +15,7 @@ import (
 func setupPerTask(t *testing.T, wireframe, domain, sourceFile, sourceBody string) (projectRoot, recipeDir string) {
 	t.Helper()
 	projectRoot = t.TempDir()
-	recipeDir = filepath.Join(projectRoot, ".bts", "specs", "recipes", "r-001")
+	recipeDir = filepath.Join(projectRoot, ".jig", "specs", "recipes", "r-001")
 	if err := os.MkdirAll(recipeDir, 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}

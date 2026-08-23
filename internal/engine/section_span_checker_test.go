@@ -92,7 +92,7 @@ func TestMeasureSectionSpans_TrailingNewlineIsNotALine(t *testing.T) {
 // turned the check off rather than changing how loudly it spoke.
 func TestSettings_RejectsAnUnknownSectionSpanSeverity(t *testing.T) {
 	root := t.TempDir()
-	dir := filepath.Join(root, ".bts", "config")
+	dir := filepath.Join(root, ".jig", "config")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		t.Fatal(err)
 	}

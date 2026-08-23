@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +24,7 @@ func runSyncCheck(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
 	root, err := state.FindRoot(cwd)
 	if err != nil {
-		return fmt.Errorf("not a bts project: %w", err)
+		return fmt.Errorf("not a jig project: %w", err)
 	}
 
 	// Find recipe ID
@@ -34,7 +34,7 @@ func runSyncCheck(cmd *cobra.Command, args []string) error {
 	} else {
 		recipe, err := state.GetActiveRecipe(root)
 		if err != nil || recipe == nil {
-			return fmt.Errorf("no active recipe. Specify recipe ID: bts sync-check <id>")
+			return fmt.Errorf("no active recipe. Specify recipe ID: jig sync-check <id>")
 		}
 		recipeID = recipe.ID
 	}

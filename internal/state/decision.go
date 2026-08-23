@@ -14,7 +14,7 @@ import (
 // Decision holds — the durable record of a question only the user can answer.
 //
 // The findings ledger already gives verification findings identity across
-// rounds, and `bts recipe log` records that the convergence budget was
+// rounds, and `jig recipe log` records that the convergence budget was
 // exhausted. What neither records is the handoff that follows: the loop
 // stops, the skill says "ask the user for guidance", and the question and
 // the answer live only in the conversation. A compaction, a new session,

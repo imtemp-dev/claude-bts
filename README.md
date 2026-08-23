@@ -1,9 +1,9 @@
-# claude-bts
+# claude-jig
 
-**B**ulletproof **T**echnical **S**pecification — catches spec errors before they become debugging sessions.
+**Build the jig before you cut** — catches spec errors before they become debugging sessions.
 
-[![CI](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-bts)](https://github.com/imtemp-dev/claude-bts/releases)
+[![CI](https://github.com/imtemp-dev/claude-jig/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-jig/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-jig)](https://github.com/imtemp-dev/claude-jig/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8.svg)](https://go.dev)
 
@@ -13,7 +13,7 @@
 
 You already do the right things — reminding AI of the architecture, asking for reviews, checking edge cases. But doing it manually means some sessions you're thorough and some you're not. Mistakes in the plan slip through to code, where they cost builds and debugging instead of a text edit. And once AI is deep in implementation, it loses sight of what the whole system should look like.
 
-bts automates what you're already doing:
+jig automates what you're already doing:
 
 - **Isolated verification** — a separate AI instance reviews the spec without sharing the blind spots of the session that wrote it
 - **State tracking** — issues found during verification persist across sessions and compactions, so nothing gets lost
@@ -26,40 +26,59 @@ The core idea: **fix errors in documents, not in code.** A spec edit is free. A 
 
 ```bash
 # Homebrew (macOS / Linux)
-brew tap imtemp-dev/tap && brew install bts
+brew tap imtemp-dev/tap && brew install jig
 
 # Or one-line install
-curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-bts/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-jig/main/install.sh | bash
 
 # Or build from source
-git clone https://github.com/imtemp-dev/claude-bts.git && cd claude-bts && make install
+git clone https://github.com/imtemp-dev/claude-jig.git && cd claude-jig && make install
 ```
 
 ```bash
 # Update
-brew upgrade bts              # or: bts update (templates only)
+brew upgrade jig              # or: jig update (templates only)
 
 # Uninstall
-brew uninstall bts            # binary only — .bts/ and .claude/ stay in your project
+brew uninstall jig            # binary only — .jig/ and .claude/ stay in your project
 ```
+
+## Upgrading from bts
+
+jig was previously called bts. Upgrading the binary is the whole migration —
+the first `jig` command in a project adopts what is already there:
+
+```bash
+brew uninstall bts && brew install jig   # or re-run the install script
+cd your-project && jig update
+```
+
+- `.bts/` is renamed to `.jig/`, and `.gitignore` is repointed at it
+- `bts-*` skills, agents, rules and hooks are removed and replaced by `jig-*`
+- hook paths in `.claude/settings.local.json` are rewritten
+- recipe types are renamed: `blueprint` → `spec`, `analyze` → `map`
+- documents already written keep working — `<bts-findings>` blocks,
+  `<bts>DONE</bts>` markers and `[!BTS-BLOCK]` comments are all still read
+
+Recipes in flight do not need to be finished or restarted first.
 
 ## Quick Start
 
 ```bash
-cd your-project && bts init . && claude
+cd your-project && jig init . && claude
 ```
 
 Then inside Claude Code:
 
 ```bash
-/bts-recipe-blueprint add OAuth2 authentication    # spec → implement → test → simulate → review → sync → complete
-/bts-recipe-fix login bcrypt hash comparison fails  # diagnose → fix-spec → implement → test → complete
-/bts-recipe-debug session drops after 5 minutes     # 6-perspective → fix-spec → implement → test → complete
+/jig-spec add OAuth2 authentication    # spec → implement → test → simulate → review → sync → complete
+/jig-fix login bcrypt hash comparison fails  # diagnose → fix-spec → implement → test → complete
+/jig-debug session drops after 5 minutes     # 6-perspective → fix-spec → implement → test → complete
 ```
 
 ## How It Works
 
-Blueprint lifecycle — the full spec-to-code cycle:
+Spec lifecycle — the full spec-to-code cycle:
 
 ### 1. Establish the destination
 
@@ -68,7 +87,7 @@ flowchart LR
     INT["Discover Intent"] --> VIS["Vision & Roadmap"] --> SC["Scope"] --> WF["Wireframe"]
 ```
 
-Before writing anything, bts establishes *what the finished system looks like*. Intent discovery clarifies purpose. Wireframe designs structure with mermaid diagrams. This is the map every later step refers back to.
+Before writing anything, jig establishes *what the finished system looks like*. Intent discovery clarifies purpose. Wireframe designs structure with mermaid diagrams. This is the map every later step refers back to.
 
 ### 2. Iterate the spec until bulletproof
 
@@ -100,7 +119,7 @@ Code is generated from a spec that has survived multiple rounds of independent v
 
 Core quality gates (verify, audit, simulate, review) use your **session model** in a **fork context** — a separate AI instance that doesn't share the conversation history. Pattern-based checks (cross-check, sync-check, security review) use Sonnet.
 
-Override any agent model in `.bts/config/settings.yaml`:
+Override any agent model in `.jig/config/settings.yaml`:
 
 ```yaml
 agents:
@@ -113,27 +132,30 @@ agents:
 
 | Recipe | Lifecycle | Output |
 |--------|-----------|--------|
-| `/bts-recipe-blueprint` | discover → scope → wireframe → adaptive loop → implement → test → review → sync | Level 3 spec → code → tests |
-| `/bts-recipe-fix` | diagnose → fix-spec → implement → test | Fix spec → code → tests |
-| `/bts-recipe-debug` | 6-perspective analysis → cross-reference → fix-spec → implement → test | Root cause → fix |
-| `/bts-recipe-design` | research → draft ←→ verify → finalize | Level 2 design doc |
-| `/bts-recipe-analyze` | research → draft ←→ verify → finalize | Level 1 analysis doc |
+| `/jig-spec` | discover → scope → wireframe → adaptive loop → implement → test → review → sync | Level 3 spec → code → tests |
+| `/jig-fix` | diagnose → fix-spec → implement → test | Fix spec → code → tests |
+| `/jig-debug` | 6-perspective analysis → cross-reference → fix-spec → implement → test | Root cause → fix |
+| `/jig-design` | research → draft ←→ verify → finalize | Level 2 design doc |
+| `/jig-map` | research → draft ←→ verify → finalize | Level 1 analysis doc |
 
 ## CLI
 
 ```
-bts init [dir]              Initialize project
-bts doctor [recipe-id]      Health check
-bts recipe list|status|create|cancel   Manage recipes
-bts recipe log <id>         Record action / phase
-bts recipe decision hold|list|resolve|drop   Questions only you can answer
-bts stats [recipe-id]       Metrics and cost (--json, --csv)
-bts graph [recipe-id]       Document relationship graph
-bts verify <file>           Check document consistency
-bts validate [recipe-id]    JSON schema check
-bts sync-check [recipe-id]  Verify document sync
-bts update                  Update templates
-bts version                 Show versions
+jig                         Active recipe status
+jig init [dir]              Initialize project
+jig doctor [recipe-id]      Health check
+jig ls                      List recipes                      (= jig recipe list)
+jig new --topic <topic>     Create a recipe                   (= jig recipe create)
+jig log <id>                Record action / phase             (= jig recipe log)
+jig ask [recipe-id]         Hold a question only you can answer  (= jig recipe decision hold)
+jig ans <id> <key>          Answer a held question            (= jig recipe decision resolve)
+jig stats [recipe-id]       Metrics and cost (--json, --csv)
+jig graph [recipe-id]       Document relationship graph
+jig verify <file>           Check document consistency
+jig validate [recipe-id]    JSON schema check
+jig sync-check [recipe-id]  Verify document sync
+jig update                  Update templates
+jig version                 Show versions
 ```
 
 ## Architecture
@@ -145,7 +167,7 @@ bts version                 Show versions
 **File structure:**
 
 ```
-.bts/
+.jig/
 ├── specs/     # git tracked — recipes, vision, roadmap
 └── local/     # gitignored — metrics, work-state
 ```
@@ -159,11 +181,11 @@ bts version                 Show versions
 ## Contributing
 
 ```bash
-git clone https://github.com/imtemp-dev/claude-bts.git && cd claude-bts
+git clone https://github.com/imtemp-dev/claude-jig.git && cd claude-jig
 make install && go test -race ./...
 ```
 
-[Open an issue](https://github.com/imtemp-dev/claude-bts/issues) for bugs or feature requests.
+[Open an issue](https://github.com/imtemp-dev/claude-jig/issues) for bugs or feature requests.
 
 ## License
 

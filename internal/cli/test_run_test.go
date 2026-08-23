@@ -8,22 +8,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 )
 
 func newTestRunFixture(t *testing.T) (root, recipeID string) {
 	t.Helper()
 	root = t.TempDir()
 	recipeID = "r-777-test-run"
-	dir := filepath.Join(root, ".bts", "specs", "recipes", recipeID)
+	dir := filepath.Join(root, ".jig", "specs", "recipes", recipeID)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, ".bts", "local"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".jig", "local"), 0755); err != nil {
 		t.Fatal(err)
 	}
 	if err := state.SaveRecipeState(root, &state.RecipeState{
-		ID: recipeID, Type: "blueprint", Phase: "test",
+		ID: recipeID, Type: "spec", Phase: "test",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -36,12 +36,12 @@ func TestExecuteTestRun_PassFromExitZero(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	if tr.Status != "pass" || tr.ExitCode != 0 || tr.RecordedBy != "bts" || tr.Iterations != 1 {
+	if tr.Status != "pass" || tr.ExitCode != 0 || tr.RecordedBy != "jig" || tr.Iterations != 1 {
 		t.Fatalf("unexpected result: %+v", tr)
 	}
 	// Persisted file must round-trip identically.
 	loaded, err := state.LoadTestResults(root, id)
-	if err != nil || loaded.Status != "pass" || loaded.RecordedBy != "bts" {
+	if err != nil || loaded.Status != "pass" || loaded.RecordedBy != "jig" {
 		t.Fatalf("persisted results wrong: %+v err=%v", loaded, err)
 	}
 }

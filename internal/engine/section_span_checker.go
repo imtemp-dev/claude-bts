@@ -25,18 +25,18 @@ import (
 // hold a design whose seams touch 29 files, so correcting a statement in
 // one place falsified a statement in another."
 //
-// This check is deterministic and cheap, so it runs on every `bts verify`
+// This check is deterministic and cheap, so it runs on every `jig verify`
 // and the pressure to split arrives while splitting is still easy —
 // rather than at round 30, when the operator's only remaining options
 // were an override or a rewrite.
 //
-// Default severity is info: `bts verify` reports it every run without
+// Default severity is info: `jig verify` reports it every run without
 // affecting the exit code. It is a report to the operator and to the
 // verifying agent, NOT a ledger entry — findings.jsonl and
-// verify-log.jsonl are fed by the <bts-findings> array in
+// verify-log.jsonl are fed by the <jig-findings> array in
 // verification.md, so a span report reaches them only if the round
 // writes it there. Raising verify.section_span_severity to "major" makes
-// `bts verify` exit non-zero on an oversize section.
+// `jig verify` exit non-zero on an oversize section.
 
 var sectionSpanH2Re = regexp.MustCompile(`(?m)^##\s+(\S.*?)\s*$`)
 

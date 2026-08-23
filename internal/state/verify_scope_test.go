@@ -40,7 +40,7 @@ func TestVerifyEntriesForDocScopesOnceDocsAreRecorded(t *testing.T) {
 
 func TestVerifyEntriesForDocAcceptsFullPaths(t *testing.T) {
 	entries := []VerifyLogEntry{{Iteration: 1, Doc: "draft.md"}}
-	got := VerifyEntriesForDoc(entries, ".bts/specs/recipes/r-001/draft.md")
+	got := VerifyEntriesForDoc(entries, ".jig/specs/recipes/r-001/draft.md")
 	if len(got) != 1 {
 		t.Errorf("full path should match on basename, got %d entries", len(got))
 	}
@@ -158,7 +158,7 @@ func TestEvidencePrune(t *testing.T) {
 	}
 }
 
-// The blueprint loop runs /bts-verify and /bts-audit concurrently and
+// The spec loop runs /jig-verify and /jig-audit concurrently and
 // both gather evidence. A read-modify-write cache silently drops one of
 // two simultaneous puts; appends cannot.
 func TestEvidenceConcurrentPutsDoNotLoseEntries(t *testing.T) {

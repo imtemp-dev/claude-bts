@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/imtemp-dev/claude-bts/internal/engine"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/engine"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -37,7 +37,7 @@ func runVerify(cmd *cobra.Command, args []string) error {
 	}
 
 	// Settings belong to the PROJECT, not to wherever the command was
-	// typed. Reading them from the cwd meant `bts verify` run from a
+	// typed. Reading them from the cwd meant `jig verify` run from a
 	// subdirectory silently fell back to built-in defaults, so
 	// verify.max_section_lines only applied when the operator happened
 	// to be standing in the project root.

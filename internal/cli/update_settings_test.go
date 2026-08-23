@@ -7,7 +7,7 @@ import (
 
 // settings.yaml is user-owned and preserved across updates, so removing
 // a key from the template only affects fresh installs. Every existing
-// project kept its copy — and `bts doctor` reports unread keys, so
+// project kept its copy — and `jig doctor` reports unread keys, so
 // upgrading turned a healthy project's `--strict` run red with a remedy
 // that said "delete them" and no way to do it but by hand.
 func TestStripYAMLKeys_RemovesDeadKeysAndKeepsEverythingElse(t *testing.T) {

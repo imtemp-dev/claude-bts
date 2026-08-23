@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Line diff for /bts-verify focus hints — changes since the last
+// Line diff for /jig-verify focus hints — changes since the last
 // verified snapshot. Precision matters less than boundedness here:
 // the output lands in an LLM prompt, so it must stay compact and must
 // never silently truncate without saying so.

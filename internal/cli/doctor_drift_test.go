@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 )
 
 func writeProjectFile(t *testing.T, root, rel, content string) {
@@ -22,7 +22,7 @@ func writeProjectFile(t *testing.T, root, rel, content string) {
 
 func TestCheckConfigDrift_ActiveReviewerSecurity(t *testing.T) {
 	root := t.TempDir()
-	writeProjectFile(t, root, ".bts/config/settings.yaml", `
+	writeProjectFile(t, root, ".jig/config/settings.yaml", `
 agents:
   # verifier: sonnet
   reviewer_security: sonnet
@@ -39,7 +39,7 @@ agents:
 
 func TestCheckConfigDrift_CommentedOverrideIsClean(t *testing.T) {
 	root := t.TempDir()
-	writeProjectFile(t, root, ".bts/config/settings.yaml", `
+	writeProjectFile(t, root, ".jig/config/settings.yaml", `
 agents:
   # reviewer_security: sonnet
 `)
@@ -77,7 +77,7 @@ func TestCheckConfigDrift_MissingFilesClean(t *testing.T) {
 func TestCheckTestResultsProvenance(t *testing.T) {
 	root := t.TempDir()
 	id := "r-100-prov"
-	dir := filepath.Join(root, ".bts", "specs", "recipes", id)
+	dir := filepath.Join(root, ".jig", "specs", "recipes", id)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestCheckTestResultsProvenance(t *testing.T) {
 	}
 
 	// Hand-recorded → warning.
-	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/test-results.json",
+	writeProjectFile(t, root, ".jig/specs/recipes/"+id+"/test-results.json",
 		`{"recipe_id":"`+id+`","status":"pass","total":5,"passed":5}`)
 	issues := checkTestResultsProvenance(root, id)
 	if len(issues) != 1 || !strings.Contains(issues[0].message, "hand-recorded") {
@@ -96,22 +96,22 @@ func TestCheckTestResultsProvenance(t *testing.T) {
 	}
 
 	// Machine-recorded → clean.
-	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/test-results.json",
-		`{"recipe_id":"`+id+`","status":"pass","recorded_by":"bts","exit_code":0}`)
+	writeProjectFile(t, root, ".jig/specs/recipes/"+id+"/test-results.json",
+		`{"recipe_id":"`+id+`","status":"pass","recorded_by":"jig","exit_code":0}`)
 	if issues := checkTestResultsProvenance(root, id); len(issues) != 0 {
-		t.Fatalf("bts-recorded must be clean: %v", issues)
+		t.Fatalf("jig-recorded must be clean: %v", issues)
 	}
 }
 
 func TestCheckDirtyVerifiedDocsDoctor(t *testing.T) {
 	root := t.TempDir()
 	id := "r-101-dirty"
-	dir := filepath.Join(root, ".bts", "specs", "recipes", id)
+	dir := filepath.Join(root, ".jig", "specs", "recipes", id)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		t.Fatal(err)
 	}
 	doc := filepath.Join(dir, "draft.md")
-	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/draft.md", "verified")
+	writeProjectFile(t, root, ".jig/specs/recipes/"+id+"/draft.md", "verified")
 	if err := state.SaveVerifySnapshot(root, id, doc); err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestCheckDirtyVerifiedDocsDoctor(t *testing.T) {
 	}
 
 	// Warn after modification.
-	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/draft.md", "edited after verify")
+	writeProjectFile(t, root, ".jig/specs/recipes/"+id+"/draft.md", "edited after verify")
 	issues := checkDirtyVerifiedDocs(root, id)
 	if len(issues) != 1 || !strings.Contains(issues[0].message, "draft.md") {
 		t.Fatalf("expected dirty warning naming draft.md, got %v", issues)
@@ -136,7 +136,7 @@ func TestCheckDirtyVerifiedDocsDoctor(t *testing.T) {
 func TestCheckUnenforceableRule3(t *testing.T) {
 	root := t.TempDir()
 	id := "r-102-legacy"
-	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/draft.md", "whatever is here now")
+	writeProjectFile(t, root, ".jig/specs/recipes/"+id+"/draft.md", "whatever is here now")
 
 	// Legacy round: full pass, no hash, and no local snapshot survived.
 	if err := state.AppendVerifyLog(root, id, &state.VerifyLogEntry{
@@ -172,9 +172,9 @@ func TestCheckUnenforceableRule3(t *testing.T) {
 func TestCheckUnenforceableRule3_SnapshotCounts(t *testing.T) {
 	root := t.TempDir()
 	id := "r-103-snap"
-	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/draft.md", "verified")
+	writeProjectFile(t, root, ".jig/specs/recipes/"+id+"/draft.md", "verified")
 	if err := state.SaveVerifySnapshot(root, id,
-		filepath.Join(root, ".bts", "specs", "recipes", id, "draft.md")); err != nil {
+		filepath.Join(root, ".jig", "specs", "recipes", id, "draft.md")); err != nil {
 		t.Fatal(err)
 	}
 	if err := state.AppendVerifyLog(root, id, &state.VerifyLogEntry{
@@ -192,7 +192,7 @@ func unrecordedFixture(t *testing.T, entries []state.VerifyLogEntry) (string, st
 	t.Helper()
 	root := t.TempDir()
 	id := "r-200-hashgap"
-	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/draft.md", "body")
+	writeProjectFile(t, root, ".jig/specs/recipes/"+id+"/draft.md", "body")
 	for i := range entries {
 		if err := state.AppendVerifyLog(root, id, &entries[i]); err != nil {
 			t.Fatal(err)

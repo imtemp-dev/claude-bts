@@ -8,30 +8,30 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 )
 
-// newRecipeFixture builds a minimal project tree — `.bts/specs/recipes/
+// newRecipeFixture builds a minimal project tree — `.jig/specs/recipes/
 // {id}/` with recipe.json + verify-log.jsonl — ready for reconcile
 // tests. Returns the project root so callers can pass it to
 // reconcileRecipe directly.
 func newRecipeFixture(t *testing.T, recipeID, phase string, level float64, iter int, entries []state.VerifyLogEntry) string {
 	t.Helper()
 	root := t.TempDir()
-	dir := filepath.Join(root, ".bts", "specs", "recipes", recipeID)
+	dir := filepath.Join(root, ".jig", "specs", "recipes", recipeID)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, ".bts", "local"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".jig", "local"), 0755); err != nil {
 		t.Fatalf("mkdir local: %v", err)
 	}
-	_ = os.MkdirAll(filepath.Join(root, ".bts", "config"), 0755)
-	_ = os.WriteFile(filepath.Join(root, ".bts", "config", ".template-version"), []byte("test"), 0644)
+	_ = os.MkdirAll(filepath.Join(root, ".jig", "config"), 0755)
+	_ = os.WriteFile(filepath.Join(root, ".jig", "config", ".template-version"), []byte("test"), 0644)
 	t.Setenv("HOME", t.TempDir())
 
 	recipe := &state.RecipeState{
 		ID:        recipeID,
-		Type:      "blueprint",
+		Type:      "spec",
 		Phase:     phase,
 		Level:     level,
 		Iteration: iter,
@@ -131,11 +131,11 @@ func TestReconcile_NotConverged_Refuses(t *testing.T) {
 // Missing verify-log → refuse with ErrNoVerifyLog.
 func TestReconcile_NoVerifyLog_Refuses(t *testing.T) {
 	root := t.TempDir()
-	dir := filepath.Join(root, ".bts", "specs", "recipes", "r-004")
+	dir := filepath.Join(root, ".jig", "specs", "recipes", "r-004")
 	_ = os.MkdirAll(dir, 0755)
-	_ = os.MkdirAll(filepath.Join(root, ".bts", "local"), 0755)
+	_ = os.MkdirAll(filepath.Join(root, ".jig", "local"), 0755)
 	t.Setenv("HOME", t.TempDir())
-	recipe := &state.RecipeState{ID: "r-004", Type: "blueprint", Phase: "simulate"}
+	recipe := &state.RecipeState{ID: "r-004", Type: "spec", Phase: "simulate"}
 	if err := state.SaveRecipeState(root, recipe); err != nil {
 		t.Fatalf("save: %v", err)
 	}
@@ -203,7 +203,7 @@ func TestReconcile_IterationMonotonic(t *testing.T) {
 	}
 }
 
-// --force enables reconciling a phase outside the blueprint whitelist
+// --force enables reconciling a phase outside the spec whitelist
 // (hypothetical future phases we haven't added yet).
 func TestReconcile_ForceOverridesWhitelist(t *testing.T) {
 	root := newRecipeFixture(t, "r-008", "custom-phase", 0, 1, []state.VerifyLogEntry{
@@ -225,7 +225,7 @@ func TestReconcile_ForceOverridesWhitelist(t *testing.T) {
 	}
 }
 
-// The root cause of a measured recipe's missing doc_hash: `bts recipe
+// The root cause of a measured recipe's missing doc_hash: `jig recipe
 // log --doc draft.md` is run from the PROJECT ROOT, where draft.md does
 // not exist — it lives in the recipe directory. FileContentHash returned
 // ok=false with a nil error, stampContentHashes recorded nothing, and it
@@ -250,7 +250,7 @@ func TestStampContentHashes_ResolvesADocRelativeToTheRecipe(t *testing.T) {
 	}
 
 	// A project-relative path still works, and names the same content.
-	rel := filepath.Join(".bts", "specs", "recipes", recipeID, "draft.md")
+	rel := filepath.Join(".jig", "specs", "recipes", recipeID, "draft.md")
 	var viaRel state.VerifyLogEntry
 	stampContentHashes(root, recipeID, rel, &viaRel)
 	if viaRel.DocHash != entry.DocHash {

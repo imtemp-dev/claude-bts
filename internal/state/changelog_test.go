@@ -91,7 +91,7 @@ func TestAppendChangelog(t *testing.T) {
 
 func TestChangelogPath(t *testing.T) {
 	got := ChangelogPath("/project", "r-1000")
-	want := filepath.Join("/project", ".bts", "specs", "recipes", "r-1000", "changelog.jsonl")
+	want := filepath.Join("/project", ".jig", "specs", "recipes", "r-1000", "changelog.jsonl")
 	if got != want {
 		t.Errorf("got %s, want %s", got, want)
 	}

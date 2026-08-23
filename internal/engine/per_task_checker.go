@@ -7,13 +7,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 )
 
 // CheckTaskStructure runs the Phase 10 "MINI-CHECK" on a single task:
 // deterministic, ~1-second checks that run right after the task's
 // build passes. Findings are recorded on tasks.json and surface later
-// in the mid-run review (Phase 11) and the final bts-review.
+// in the mid-run review (Phase 11) and the final jig-review.
 //
 // The checks covered (all advisory — none block the task itself; the
 // caller decides whether a critical finding should flip the task back

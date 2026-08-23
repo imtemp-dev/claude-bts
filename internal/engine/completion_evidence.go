@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 )
 
 // Completion evidence — what it takes for a clean round to mean the
@@ -81,7 +81,7 @@ func qualifyFailures(e *state.VerifyLogEntry, doc string) []GateFailure {
 		out = append(out, GateFailure{
 			Gate:   "verification_not_passed",
 			Reason: fmt.Sprintf("round %d is not clean (%s)", e.Iteration, ProgressKeyOf(e)),
-			Remedy: "Resolve the open findings (`bts recipe findings list --open`), then re-verify.",
+			Remedy: "Resolve the open findings (`jig recipe findings list --open`), then re-verify.",
 		})
 	}
 	if !e.FullPass {
@@ -116,10 +116,10 @@ func qualifyFailures(e *state.VerifyLogEntry, doc string) []GateFailure {
 		out = append(out, GateFailure{
 			Gate: "revision_recorded_before_final",
 			Reason: fmt.Sprintf(
-				"round %d recorded no doc_hash, so bts cannot tell which revision it verified",
+				"round %d recorded no doc_hash, so jig cannot tell which revision it verified",
 				e.Iteration),
-			Remedy: "Re-run `bts recipe log` with a --doc path that resolves, so the revision is recorded. " +
-				"`bts recipe log` warns on stderr when it could not read the document.",
+			Remedy: "Re-run `jig recipe log` with a --doc path that resolves, so the revision is recorded. " +
+				"`jig recipe log` warns on stderr when it could not read the document.",
 		})
 	}
 	return out
@@ -131,7 +131,7 @@ func fullPassRemedy(doc string) string {
 	}
 	return fmt.Sprintf(
 		"Run one more round covering %s over the whole document: "+
-			"`bts recipe log {id} --from-verification <verification.md> --doc %s --scope full --dimension %s`.",
+			"`jig recipe log {id} --from-verification <verification.md> --doc %s --scope full --dimension %s`.",
 		strings.Join(state.VerifyDimensions, "+"), doc,
 		strings.Join(state.VerifyDimensions, " --dimension "))
 }
@@ -153,7 +153,7 @@ func (ev *CompletionEvidence) apply(failures []GateFailure) {
 //
 // The independence clause is what makes the count a replication rather
 // than a repetition. Without it the gate counted rows, and two rows are
-// produced by re-running one `bts recipe log` invocation — the
+// produced by re-running one `jig recipe log` invocation — the
 // verification.md on disk never changed, no second reading of the
 // document ever happened, and the gate that exists because "one clean
 // round is a sample" was satisfied by recording that same sample twice.
@@ -169,7 +169,7 @@ func EvaluateCompletionEvidence(entries []state.VerifyLogEntry, need int) Comple
 		ev.apply([]GateFailure{{
 			Gate:   "verification_not_passed",
 			Reason: "no verification history for this document",
-			Remedy: "Run /bts-verify and record it with `bts recipe log ... --doc <doc> --scope full`.",
+			Remedy: "Run /jig-verify and record it with `jig recipe log ... --doc <doc> --scope full`.",
 		}})
 		return ev
 	}
@@ -200,7 +200,7 @@ func EvaluateCompletionEvidence(entries []state.VerifyLogEntry, need int) Comple
 			// restores the single-round rule exactly.
 			if e.VerificationHash == "" {
 				stop = fmt.Sprintf(
-					"round %d recorded no verification_hash, so bts cannot tell it apart from the round before it",
+					"round %d recorded no verification_hash, so jig cannot tell it apart from the round before it",
 					e.Iteration)
 			} else {
 				stop = fmt.Sprintf(

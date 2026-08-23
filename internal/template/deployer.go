@@ -12,44 +12,44 @@ import (
 // state rather than a template.
 //
 // `//go:embed all:templates` deliberately includes dot-directories, so
-// anything that appears under templates/.bts/local/ on a developer's
+// anything that appears under templates/.jig/local/ on a developer's
 // machine is compiled into the binary and then written into every user's
 // project. That directory fills itself: state.FindRoot walks upward for a
-// `.bts/`, and templates/.bts/ is one, so any bts command or hook run with
+// `.jig/`, and templates/.jig/ is one, so any jig command or hook run with
 // a working directory inside the template tree records its metrics there.
 //
 // DeployForce overwrites, so shipping one of those files would replace a
 // user's own metrics.jsonl or tool-trace.jsonl with a stranger's.
 //
-// The test is an allowlist, not a list of known-bad directories. .bts/
+// The test is an allowlist, not a list of known-bad directories. .jig/
 // holds a short, fixed set of template names; every other name under it
 // — local/, specs/, and anything a later version adds — is
 // per-project state that fills itself by the same FindRoot mechanism.
-// An earlier form named .bts/local/ alone, which left .bts/specs/ (a
+// An earlier form named .jig/local/ alone, which left .jig/specs/ (a
 // developer's own recipes, drafts and verify logs, and NOT gitignored)
 // one stray command away from being embedded into a release binary and
 // force-written over a user's live spec state.
-// templatePathsUnderBTS is every top-level name under .bts/ that the
+// templatePathsUnderJIG is every top-level name under .jig/ that the
 // template legitimately ships. TestEmbeddedTemplatesCarryOnlyTemplates
 // fails if the embedded tree ever holds a name that is not listed here,
 // so adding a new template file is a deliberate edit in two places
 // rather than a silent widening.
-var templatePathsUnderBTS = map[string]bool{
+var templatePathsUnderJIG = map[string]bool{
 	"config":         true,
 	"status_line.sh": true,
 }
 
 func isRuntimeState(path string) bool {
-	rest, ok := strings.CutPrefix(path, ".bts/")
+	rest, ok := strings.CutPrefix(path, ".jig/")
 	if !ok {
-		return false // ".bts" itself must be walked into
+		return false // ".jig" itself must be walked into
 	}
 	top, _, _ := strings.Cut(rest, "/")
-	return !templatePathsUnderBTS[top]
+	return !templatePathsUnderJIG[top]
 }
 
 // DeployForce overwrites existing files except those in skipFiles.
-// skipFiles paths are relative to projectRoot (e.g., ".bts/config/settings.yaml").
+// skipFiles paths are relative to projectRoot (e.g., ".jig/config/settings.yaml").
 func DeployForce(projectRoot string, skipFiles []string) ([]string, error) {
 	skip := make(map[string]bool)
 	for _, f := range skipFiles {

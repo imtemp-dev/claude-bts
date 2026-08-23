@@ -7,28 +7,28 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 )
 
 func setupStopRoot(t *testing.T) (root, recipeID string) {
 	t.Helper()
 	root = t.TempDir()
 	recipeID = "r-001-test"
-	recipeDir := filepath.Join(root, ".bts", "specs", "recipes", recipeID)
+	recipeDir := filepath.Join(root, ".jig", "specs", "recipes", recipeID)
 	if err := os.MkdirAll(recipeDir, 0755); err != nil {
 		t.Fatalf("mkdir recipe: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, ".bts", "local"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".jig", "local"), 0755); err != nil {
 		t.Fatalf("mkdir local: %v", err)
 	}
-	configDir := filepath.Join(root, ".bts", "config")
+	configDir := filepath.Join(root, ".jig", "config")
 	_ = os.MkdirAll(configDir, 0755)
 	_ = os.WriteFile(filepath.Join(configDir, ".template-version"), []byte("test"), 0644)
 	t.Setenv("HOME", t.TempDir())
 
 	recipe := &state.RecipeState{
 		ID:    recipeID,
-		Type:  "blueprint",
+		Type:  "spec",
 		Phase: "verify",
 	}
 	if err := state.SaveRecipeState(root, recipe); err != nil {
@@ -39,7 +39,7 @@ func setupStopRoot(t *testing.T) (root, recipeID string) {
 	if err := os.WriteFile(verifyPath, []byte("stub"), 0644); err != nil {
 		t.Fatalf("write verification.md: %v", err)
 	}
-	// Default changelog satisfying the Sprint 10 blueprint gates:
+	// Default changelog satisfying the Sprint 10 spec gates:
 	// simulate ran at least once and sync-check passed after the last
 	// draft modification. Tests exercising those gates overwrite this
 	// via resetChangelog.
@@ -98,7 +98,7 @@ func TestStopSpecDone_BlocksOnResolvableMinor(t *testing.T) {
 	})
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -134,7 +134,7 @@ Why-deferred: observable only in the iOS simulator.
 	}
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -145,7 +145,7 @@ Why-deferred: observable only in the iOS simulator.
 
 // Sprint 10 gate 2b: deferred minors WITHOUT a Known Uncertainties
 // section must block — otherwise the watch-list never reaches
-// /bts-implement.
+// /jig-implement.
 func TestStopSpecDone_BlocksWhenDeferredMinorsUndeclared(t *testing.T) {
 	root, recipeID := setupStopRoot(t)
 	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
@@ -157,7 +157,7 @@ func TestStopSpecDone_BlocksWhenDeferredMinorsUndeclared(t *testing.T) {
 	}
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestStopSpecDone_BlocksWhenDeferredMinorsUndeclared(t *testing.T) {
 	}
 }
 
-// Sprint 10 gate 2c: blueprint recipes with no simulate action in the
+// Sprint 10 gate 2c: spec recipes with no simulate action in the
 // changelog must block (rule 5 is now machine-enforced).
 func TestStopSpecDone_BlocksWithoutSimulate(t *testing.T) {
 	root, recipeID := setupStopRoot(t)
@@ -182,7 +182,7 @@ func TestStopSpecDone_BlocksWithoutSimulate(t *testing.T) {
 	)
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -208,7 +208,7 @@ func TestStopSpecDone_BlocksWhenSyncCheckStale(t *testing.T) {
 	)
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestStopSpecDone_BlocksWhenSyncCheckStale(t *testing.T) {
 	}
 }
 
-// Non-blueprint spec recipes (design/analyze) are exempt from the
+// Non-spec doc recipes (design/map) are exempt from the
 // simulate / sync-check changelog gates — their skills do not run
 // those steps.
 func TestStopSpecDone_NonBlueprintSkipsChangelogGates(t *testing.T) {
@@ -240,7 +240,7 @@ func TestStopSpecDone_NonBlueprintSkipsChangelogGates(t *testing.T) {
 	resetChangelog(t, root, recipeID)
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestStopSpecDone_NonBlueprintSkipsChangelogGates(t *testing.T) {
 }
 
 // Sprint 9 P21: handleSpecDone must set level=3.0 AND iteration=last
-// verify entry's iteration on a successful <bts>DONE</bts>. Prevents
+// verify entry's iteration on a successful <jig>DONE</jig>. Prevents
 // the r-018 pattern where recipe.json drifts to {level:0, iteration:0}
 // even after converged verify-log.
 func TestStopSpecDone_UpdatesLevelIteration(t *testing.T) {
@@ -261,7 +261,7 @@ func TestStopSpecDone_UpdatesLevelIteration(t *testing.T) {
 	})
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -284,48 +284,48 @@ func TestStopSpecDone_UpdatesLevelIteration(t *testing.T) {
 	}
 }
 
-// TestStopSpecDone_BlockedByOpenBTSBlock — even when the verify-log is
-// fully converged, an unresolved [!BTS-BLOCK] callout in any recipe doc
+// TestStopSpecDone_BlockedByOpenJIGBlock — even when the verify-log is
+// fully converged, an unresolved [!JIG-BLOCK] callout in any recipe doc
 // must block finalize. Reviewer-flagged spec issues take priority over
 // the auto-verifier's all-clear.
-func TestStopSpecDone_BlockedByOpenBTSBlock(t *testing.T) {
+func TestStopSpecDone_BlockedByOpenJIGBlock(t *testing.T) {
 	root, recipeID := setupStopRoot(t)
 	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
 		{Iteration: 1, Critical: 0, Major: 0, Status: "converged"},
 	})
-	// Plant an unresolved BTS-BLOCK callout in draft.md.
+	// Plant an unresolved JIG-BLOCK callout in draft.md.
 	draftPath := filepath.Join(state.RecipeDir(root, recipeID), "draft.md")
-	if err := os.WriteFile(draftPath, []byte("# Draft\n\n> [!BTS-BLOCK]\n> session storage decision still pending\n"), 0644); err != nil {
+	if err := os.WriteFile(draftPath, []byte("# Draft\n\n> [!JIG-BLOCK]\n> session storage decision still pending\n"), 0644); err != nil {
 		t.Fatalf("write draft.md: %v", err)
 	}
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
 	if out.Decision != "block" {
 		t.Fatalf("expected block, got decision=%q reason=%q", out.Decision, out.Reason)
 	}
-	if !strings.Contains(out.Reason, "BTS-BLOCK") {
-		t.Errorf("reason should cite BTS-BLOCK, got %q", out.Reason)
+	if !strings.Contains(out.Reason, "JIG-BLOCK") {
+		t.Errorf("reason should cite JIG-BLOCK, got %q", out.Reason)
 	}
 }
 
-// TestStopSpecDone_NonBlockingCommentsDoNotBlock — plain BTS-COMMENT and
-// BTS-Q callouts are non-blocking; finalize must proceed despite them.
+// TestStopSpecDone_NonBlockingCommentsDoNotBlock — plain JIG-COMMENT and
+// JIG-Q callouts are non-blocking; finalize must proceed despite them.
 func TestStopSpecDone_NonBlockingCommentsDoNotBlock(t *testing.T) {
 	root, recipeID := setupStopRoot(t)
 	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
 		{Iteration: 1, Critical: 0, Major: 0, Status: "converged"},
 	})
 	draftPath := filepath.Join(state.RecipeDir(root, recipeID), "draft.md")
-	if err := os.WriteFile(draftPath, []byte("# Draft\n\n> [!BTS-COMMENT]\n> nice to have\n\n> [!BTS-Q]\n> any TTL?\n"), 0644); err != nil {
+	if err := os.WriteFile(draftPath, []byte("# Draft\n\n> [!JIG-COMMENT]\n> nice to have\n\n> [!JIG-Q]\n> any TTL?\n"), 0644); err != nil {
 		t.Fatalf("write draft.md: %v", err)
 	}
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -345,7 +345,7 @@ func TestStopSpecDone_LegacyMinorFieldBlocks(t *testing.T) {
 	})
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -361,19 +361,19 @@ func setupImplementRoot(t *testing.T) (root, recipeID string) {
 	t.Helper()
 	root = t.TempDir()
 	recipeID = "r-001-impl"
-	recipeDir := filepath.Join(root, ".bts", "specs", "recipes", recipeID)
+	recipeDir := filepath.Join(root, ".jig", "specs", "recipes", recipeID)
 	if err := os.MkdirAll(recipeDir, 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, ".bts", "local"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".jig", "local"), 0755); err != nil {
 		t.Fatalf("mkdir local: %v", err)
 	}
-	configDir := filepath.Join(root, ".bts", "config")
+	configDir := filepath.Join(root, ".jig", "config")
 	_ = os.MkdirAll(configDir, 0755)
 	_ = os.WriteFile(filepath.Join(configDir, ".template-version"), []byte("test"), 0644)
 	t.Setenv("HOME", t.TempDir())
 
-	recipe := &state.RecipeState{ID: recipeID, Type: "blueprint", Phase: "implement"}
+	recipe := &state.RecipeState{ID: recipeID, Type: "spec", Phase: "implement"}
 	if err := state.SaveRecipeState(root, recipe); err != nil {
 		t.Fatalf("save recipe: %v", err)
 	}
@@ -411,7 +411,7 @@ Why-deferred: needs a physical device to verify.
 	_ = os.WriteFile(filepath.Join(state.RecipeDir(root, recipeID), "final.md"), []byte(final), 0644)
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>IMPLEMENT DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>IMPLEMENT DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -434,7 +434,7 @@ Resolved: verified via integration test T-042.
 	_ = os.WriteFile(filepath.Join(state.RecipeDir(root, recipeID), "final.md"), []byte(final), 0644)
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>IMPLEMENT DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>IMPLEMENT DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -449,7 +449,7 @@ func TestStopImplementDone_NoUncertaintySectionPasses(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(state.RecipeDir(root, recipeID), "final.md"), []byte("# Spec\n\nNo uncertainties here.\n"), 0644)
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>IMPLEMENT DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>IMPLEMENT DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -486,7 +486,7 @@ func TestStopSpecDone_BlocksDirtyDoc(t *testing.T) {
 	writeSnapshotAndDoc(t, root, recipeID, "draft.md", "verified content\n", "edited AFTER verify\n")
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -507,7 +507,7 @@ func TestStopSpecDone_AllowsCleanSnapshot(t *testing.T) {
 	writeSnapshotAndDoc(t, root, recipeID, "draft.md", "verified content\n", "verified content\n")
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -525,7 +525,7 @@ func TestStopSpecDone_LegacyNoSnapshotsAllows(t *testing.T) {
 	})
 	// No snapshots at all — gate must pass through.
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -550,7 +550,7 @@ func TestStopFixDone_BlocksDirtyFixSpec(t *testing.T) {
 	}
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>FIX DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>FIX DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}

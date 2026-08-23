@@ -18,7 +18,7 @@ func TestSaveWorkStateCapsUnboundedFields(t *testing.T) {
 		LastActions: []string{"improve draft.md (" + long + ")", "verify"},
 		Summary:     long,
 		RecentTools: []ToolTraceEntry{
-			{ToolName: "Bash", Command: "cd /Users/someone/Workspace/project/.bts/specs/recipes/r-001-a-fairly-long-recipe-identifier && bts recipe log r-001 --action improve --output draft.md"},
+			{ToolName: "Bash", Command: "cd /Users/someone/Workspace/project/.jig/specs/recipes/r-001-a-fairly-long-recipe-identifier && jig recipe log r-001 --action improve --output draft.md"},
 		},
 	}
 	if err := SaveWorkState(root, ws); err != nil {
@@ -45,8 +45,8 @@ func TestSaveWorkStateCapsUnboundedFields(t *testing.T) {
 // The hooks cut commands at 100 bytes mid-token, producing traces whose
 // visible form is a shell prefix with the actual verb cut off.
 func TestClipCommandDoesNotLeaveABareShellPrefix(t *testing.T) {
-	got := ClipCommand("cd /Users/someone/Workspace/a-project-with-a-rather-long-name/.bts/specs/recipes/r-001-support-gpt-solterra && " +
-		"bts recipe log r-001-support-gpt-solterra --from-verification verification.md --doc draft.md --scope full --dimension verify")
+	got := ClipCommand("cd /Users/someone/Workspace/a-project-with-a-rather-long-name/.jig/specs/recipes/r-001-support-gpt-solterra && " +
+		"jig recipe log r-001-support-gpt-solterra --from-verification verification.md --doc draft.md --scope full --dimension verify")
 	if strings.HasSuffix(strings.TrimSpace(got), "&&") {
 		t.Errorf("clipped command ends on a dangling separator: %q", got)
 	}
@@ -57,13 +57,13 @@ func TestClipCommandDoesNotLeaveABareShellPrefix(t *testing.T) {
 		t.Errorf("clipped command is %d chars, want near %d", len(got), maxCommandChars)
 	}
 
-	short := "bts recipe status"
+	short := "jig recipe status"
 	if got := ClipCommand(short); got != short {
 		t.Errorf("a short command must pass through untouched, got %q", got)
 	}
 }
 
-// Multi-byte titles must not be split mid-rune: bts specs are frequently
+// Multi-byte titles must not be split mid-rune: jig specs are frequently
 // Korean.
 func TestClipIsRuneSafe(t *testing.T) {
 	s := strings.Repeat("검증 라운드가 수렴하지 않았다. ", 100)
@@ -136,7 +136,7 @@ func TestTruncateRunesIsSafeAtEveryBound(t *testing.T) {
 // RUNE budget, so on a Korean command the "keeps most of it" guard
 // passed at an offset worth a fraction of the allowance.
 func TestClipCommandKeepsMostOfTheBudgetOnMultibyteInput(t *testing.T) {
-	cmd := "bts recipe log r-001 --reason " + strings.Repeat("검증 라운드가 수렴하지 않았다 ", 40)
+	cmd := "jig recipe log r-001 --reason " + strings.Repeat("검증 라운드가 수렴하지 않았다 ", 40)
 	got := ClipCommand(cmd)
 	if !utf8.ValidString(got) {
 		t.Fatalf("ClipCommand produced invalid UTF-8: %q", got)

@@ -6,17 +6,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 )
 
 func writeOutcomeRecipe(t *testing.T, root, id string, opts func(dir string)) {
 	t.Helper()
-	dir := filepath.Join(root, ".bts", "specs", "recipes", id)
+	dir := filepath.Join(root, ".jig", "specs", "recipes", id)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		t.Fatal(err)
 	}
 	if err := state.SaveRecipeState(root, &state.RecipeState{
-		ID: id, Type: "blueprint", Phase: "complete",
+		ID: id, Type: "spec", Phase: "complete",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func writeOutcomeRecipe(t *testing.T, root, id string, opts func(dir string)) {
 
 func TestGatherOutcomes_FullRecipe(t *testing.T) {
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, ".bts", "local"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".jig", "local"), 0755); err != nil {
 		t.Fatal(err)
 	}
 	writeOutcomeRecipe(t, root, "r-001-full", func(dir string) {
@@ -54,7 +54,7 @@ not json — must be skipped
 		if err := os.WriteFile(filepath.Join(dir, "tasks.json"), []byte(tasks), 0644); err != nil {
 			t.Fatal(err)
 		}
-		tr := `{"recipe_id":"r-001-full","status":"pass","iterations":4,"recorded_by":"bts","exit_code":0}`
+		tr := `{"recipe_id":"r-001-full","status":"pass","iterations":4,"recorded_by":"jig","exit_code":0}`
 		if err := os.WriteFile(filepath.Join(dir, "test-results.json"), []byte(tr), 0644); err != nil {
 			t.Fatal(err)
 		}
@@ -81,7 +81,7 @@ not json — must be skipped
 	if o.Tasks != 3 || o.ImplRetries != 7 || o.BlockedTasks != 1 || !o.HasImplement {
 		t.Errorf("implement side wrong: %+v", o)
 	}
-	if o.TestIterations != 4 || o.TestStatus != "pass" || o.TestRecordedBy != "bts" {
+	if o.TestIterations != 4 || o.TestStatus != "pass" || o.TestRecordedBy != "jig" {
 		t.Errorf("test side wrong: %+v", o)
 	}
 	if o.Deviations != 3 {
@@ -91,7 +91,7 @@ not json — must be skipped
 
 func TestGatherOutcomes_PartialAndEmptyRecipesDegrade(t *testing.T) {
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, ".bts", "local"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".jig", "local"), 0755); err != nil {
 		t.Fatal(err)
 	}
 	// Recipe with only a verify log — no changelog/tasks/tests/deviation.
@@ -120,19 +120,19 @@ func TestGatherOutcomes_PartialAndEmptyRecipesDegrade(t *testing.T) {
 
 func TestRenderOutcomes_SmallSampleCaveatAndHandRecorded(t *testing.T) {
 	outs := []RecipeOutcome{
-		{ID: "r-1", Type: "blueprint", Phase: "complete", VerifyIterations: 2,
+		{ID: "r-1", Type: "spec", Phase: "complete", VerifyIterations: 2,
 			HasImplement: true, Tasks: 3, ImplRetries: 1,
 			TestIterations: 1, TestStatus: "pass", TestRecordedBy: ""},
-		{ID: "r-2", Type: "blueprint", Phase: "complete", VerifyIterations: 4,
+		{ID: "r-2", Type: "spec", Phase: "complete", VerifyIterations: 4,
 			SimulateRuns: 1, HasImplement: true, Tasks: 5, ImplRetries: 9,
-			TestIterations: 3, TestStatus: "pass", TestRecordedBy: "bts"},
+			TestIterations: 3, TestStatus: "pass", TestRecordedBy: "jig"},
 	}
 	out := renderOutcomes(outs)
 	if !strings.Contains(out, "directional signal only") {
 		t.Errorf("small sample must carry the honesty caveat:\n%s", out)
 	}
 	if !strings.Contains(out, "hand-recorded") {
-		t.Errorf("non-bts test results must be labeled:\n%s", out)
+		t.Errorf("non-jig test results must be labeled:\n%s", out)
 	}
 	if !strings.Contains(out, "verify ≤2 iterations: n=1") || !strings.Contains(out, "verify ≥3 iterations: n=1") {
 		t.Errorf("grouped means missing:\n%s", out)

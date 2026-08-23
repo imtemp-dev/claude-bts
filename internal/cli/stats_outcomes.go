@@ -9,10 +9,10 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 )
 
-// `bts stats --outcomes` correlates verification quality with
+// `jig stats --outcomes` correlates verification quality with
 // implementation outcomes across recipes. This is the feedback loop the
 // pipeline otherwise lacks: "critical=0 predicts smooth implementation"
 // is a design hypothesis — this report measures it against what
@@ -143,7 +143,7 @@ func renderOutcomes(outs []RecipeOutcome) string {
 	fmt.Fprintln(w, "ID\tType\tPhase\tVerifyIter\tFirst C/M\tSimRuns\tTasks\tRetries\tBlocked\tTestIter\tTest\tDeviations\tOverrides")
 	for _, o := range outs {
 		test := o.TestStatus
-		if test != "" && o.TestRecordedBy != "bts" {
+		if test != "" && o.TestRecordedBy != "jig" {
 			test += " (hand-recorded)"
 		}
 		over := "-"
@@ -169,7 +169,7 @@ func renderOutcomes(outs []RecipeOutcome) string {
 	}
 	if overridden > 0 {
 		fmt.Fprintf(&b, "\n%d recipe(s) finalized past a hard gate under a recorded override — "+
-			"their outcomes are not evidence the gates held. `bts recipe override list <id>` for the reasons.\n",
+			"their outcomes are not evidence the gates held. `jig recipe override list <id>` for the reasons.\n",
 			overridden)
 	}
 

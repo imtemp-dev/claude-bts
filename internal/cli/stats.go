@@ -9,9 +9,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/imtemp-dev/claude-bts/internal/engine"
-	"github.com/imtemp-dev/claude-bts/internal/metrics"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/engine"
+	"github.com/imtemp-dev/claude-jig/internal/metrics"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -36,7 +36,7 @@ func runStats(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
 	root, err := state.FindRoot(cwd)
 	if err != nil {
-		return fmt.Errorf("not a bts project: %w", err)
+		return fmt.Errorf("not a jig project: %w", err)
 	}
 
 	if ok, _ := cmd.Flags().GetBool("indicators"); ok {
@@ -427,7 +427,7 @@ func sortTools(tools []metrics.ToolStat) {
 }
 
 // runIndicators emits the Phase 17 monitoring snapshot — the 14
-// numbers (plus derived counts) bts-monitor.ts consumes via JSON.
+// numbers (plus derived counts) jig-monitor.ts consumes via JSON.
 func runIndicators(cmd *cobra.Command, root string, args []string) error {
 	recipeID, _ := cmd.Flags().GetString("recipe")
 	if recipeID == "" && len(args) > 0 {

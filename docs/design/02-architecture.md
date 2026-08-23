@@ -1,9 +1,9 @@
-# bts — 아키텍처
+# jig — 아키텍처
 
 ## 시스템 구성
 
 ```
-Go 싱글 바이너리 (bts)
+Go 싱글 바이너리 (jig)
   ├── CLI 명령어 (init, verify, recipe, debate, doctor, ...)
   ├── Hook 핸들러 (Claude Code lifecycle 이벤트 처리)
   ├── 검증 엔진 (Fact Checker[P1], Flow Checker[P2], Convergence Loop)
@@ -12,14 +12,14 @@ Go 싱글 바이너리 (bts)
   └── Privacy 엔진 (민감 정보 감지/제거)
 
 Claude Code 설정 파일 (마크다운, init으로 배포)
-  ├── .claude/skills/bts/     스킬 (검증, 조사, 토론 등)
-  ├── .claude/agents/bts/     에이전트 (verifier, auditor 등)
-  ├── .claude/commands/bts/   슬래시 커맨드 (/verify, /recipe 등)
-  ├── .claude/rules/bts/      규칙 (검증 프로토콜, 레시피 프로토콜)
-  └── .claude/hooks/bts/      Hook 셸 스크립트 → bts 바이너리 호출
+  ├── .claude/skills/jig/     스킬 (검증, 조사, 토론 등)
+  ├── .claude/agents/jig/     에이전트 (verifier, auditor 등)
+  ├── .claude/commands/jig/   슬래시 커맨드 (/verify, /recipe 등)
+  ├── .claude/rules/jig/      규칙 (검증 프로토콜, 레시피 프로토콜)
+  └── .claude/hooks/jig/      Hook 셸 스크립트 → jig 바이너리 호출
 
 프로젝트 상태
-  └── .bts/
+  └── .jig/
       ├── config/                   설정 (settings.yaml, quality.yaml)
       ├── state/                    레시피/토론/세션 상태
       ├── lessons/                  학습된 패턴 (Phase 2)
@@ -43,7 +43,7 @@ Claude Code 설정 파일 (마크다운, init으로 배포)
 
 ```
 오케스트레이터 = Claude (Recipe SKILL.md의 프로토콜을 따름)
-진단 도구     = Go 바이너리 (bts verify — 결정론적 팩트체크)
+진단 도구     = Go 바이너리 (jig verify — 결정론적 팩트체크)
 검증 위원     = 서브에이전트 (verifier, auditor — 컨텍스트 격리된 판단)
 관문          = Stop Hook (종료 전 마지막 검증)
 기록          = 상태 파일 (세션 경계 초월)
@@ -54,30 +54,30 @@ Claude가 능동적으로 레시피를 진행한다. 바이너리와 서브에�
 ### 실행 흐름
 
 ```
-사용자: /recipe blueprint "OAuth2 인증"
+사용자: /recipe spec "OAuth2 인증"
   │
-  Claude: recipe-blueprint SKILL.md 로딩 → 프로토콜 읽음
+  Claude: recipe-spec SKILL.md 로딩 → 프로토콜 읽음
   │
   ├─ Step 1: Research
   │   └─ /research 스킬 호출 (내부적으로 Agent(Explore) spawn)
-  │   └─ .bts/state/{id}/01-research.md 저장
+  │   └─ .jig/state/{id}/01-research.md 저장
   │
   ├─ Step 2: Draft
   │   └─ 메인 Claude가 Level 3 문서 초안 작성
-  │   └─ .bts/state/{id}/02-draft.md 저장
+  │   └─ .jig/state/{id}/02-draft.md 저장
   │
   ├─ Step 3: Verify Loop (Claude가 SKILL.md 프로토콜에 따라 루프)
   │   │
   │   │  Iteration 1:
   │   │  ├─ /cross-check 스킬 호출
-  │   │  │   → 내부: Bash `bts verify draft.md` (결정론적)
+  │   │  │   → 내부: Bash `jig verify draft.md` (결정론적)
   │   │  │   → 내부: Agent(cross-checker) spawn (의미 확인)
   │   │  │   → 결과: mismatches[] 반환
   │   │  ├─ /verify 스킬 호출
   │   │  │   → 내부: Agent(verifier) spawn → errors[] 반환
   │   │  ├─ /audit 스킬 호출
   │   │  │   → 내부: Agent(auditor) spawn → missing[] 반환
-  │   │  ├─ 결과 집계 → Bash: `bts recipe log {id} --iteration 1 ...`
+  │   │  ├─ 결과 집계 → Bash: `jig recipe log {id} --iteration 1 ...`
   │   │  ├─ critical 1, major 2 → 문서 수정 → 다음 이터레이션
   │   │
   │   │  Iteration 2:
@@ -92,8 +92,8 @@ Claude가 능동적으로 레시피를 진행한다. 바이너리와 서브에�
   │   └─ iteration 카운터 리셋 → Step 3 재실행 (verify-log는 유지)
   │
   └─ Step 5: Finalize
-      └─ 최종 문서 → .bts/state/{id}/final.md
-      └─ <bts>DONE</bts> 출력
+      └─ 최종 문서 → .jig/state/{id}/final.md
+      └─ <jig>DONE</jig> 출력
 ```
 
 ### 스킬 호출 vs 직접 호출
@@ -105,7 +105,7 @@ Claude가 능동적으로 레시피를 진행한다. 바이너리와 서브에�
 
 ```
 레시피 SKILL.md → /cross-check 스킬 호출
-                    → 스킬 내부: Bash(`bts verify`) + Agent(cross-checker)
+                    → 스킬 내부: Bash(`jig verify`) + Agent(cross-checker)
                → /verify 스킬 호출
                     → 스킬 내부: Agent(verifier)
                → /audit 스킬 호출
@@ -126,7 +126,7 @@ Claude가 능동적으로 레시피를 진행한다. 바이너리와 서브에�
 Stop Hook 로직 (Go 바이너리):
   1. stdin에서 세션 정보 읽기
   2. 활성 레시피가 있는가? → 없으면 exit 0 (통과)
-  3. <bts>DONE</bts> 마커가 있는가? → 없으면 exit 0 (통과)
+  3. <jig>DONE</jig> 마커가 있는가? → 없으면 exit 0 (통과)
   4. verify-log.jsonl 마지막 이터레이션 확인
      → critical > 0 OR major > 0 → exit 2 (차단 + 피드백 주입)
      → critical = 0 AND major = 0 → exit 0 (허용)
@@ -147,15 +147,15 @@ Stop Hook 로직 (Go 바이너리):
 세션이 끊겨도 상태 파일로 재개 가능:
 
 ```
-세션 A: /recipe blueprint → Step 3 Iteration 2에서 세션 종료
+세션 A: /recipe spec → Step 3 Iteration 2에서 세션 종료
   → pre-compact hook이 상태 저장
-  → .bts/state/{id}/recipe.json: { phase: "verify", iteration: 2 }
+  → .jig/state/{id}/recipe.json: { phase: "verify", iteration: 2 }
 
 세션 B: 새 세션 시작
   → session-start hook이 상태 감지
   → Claude에게 주입: "진행 중인 레시피가 있습니다: OAuth2 인증 (Step 3, Iteration 2)"
   → 사용자 또는 Claude가 /recipe resume 호출
-  → recipe-blueprint SKILL.md 재로딩 + 상태 파일 읽기
+  → recipe-spec SKILL.md 재로딩 + 상태 파일 읽기
   → SKILL.md에 resume 프로토콜 포함:
     "recipe.json의 phase/iteration을 확인하고 해당 Step부터 시작하라"
   → Step 3 Iteration 2부터 재개
@@ -167,8 +167,8 @@ Stop Hook 로직 (Go 바이너리):
 
 ```
 Claude Code lifecycle 이벤트
-  → .claude/hooks/bts/handle-{event}.sh
-    → bts hook {event} < stdin(JSON) > stdout(JSON)
+  → .claude/hooks/jig/handle-{event}.sh
+    → jig hook {event} < stdin(JSON) > stdout(JSON)
 ```
 
 | Hook | 시점 | 동작 |
@@ -222,12 +222,12 @@ DetectCircular(entry)      // 순환 의존성 감지
 모든 상태는 JSON/JSONL 파일. 세션이 끊겨도 재개 가능.
 
 ```
-.bts/state/
+.jig/state/
   ├── recipes/{id}/
   │   ├── recipe.json        { id, type, phase, started, updated }
   │   ├── 01-research.md     Phase 1 산출물
   │   ├── 02-design.md       Phase 2 산출물
-  │   ├── 03-blueprint.md    Phase 3 산출물 (Level 3)
+  │   ├── 03-spec.md    Phase 3 산출물 (Level 3)
   │   └── verify-log.jsonl   검증 라운드 이력
   │
   ├── debates/{id}/
@@ -246,26 +246,26 @@ Atomic write: temp file → os.Rename (크래시 안전)
 검증 과정에서 민감 정보가 상태 파일에 남지 않도록:
 - `<private>` 태그 스트리핑 (문서에서 제거 후 검증)
 - 시크릿 패턴 감지 (API key, password, token 등 → 마스킹)
-- 검증 로그(.bts/state/)에서 민감 정보 제외
+- 검증 로그(.jig/state/)에서 민감 정보 제외
 
 ## CLI 명령어
 
 | 명령어 | 역할 |
 |--------|------|
-| `bts init` | 프로젝트 초기화 + 파일 배포 |
-| `bts hook <event>` | Hook 핸들러 |
-| `bts verify <file>` | 결정론적 팩트 체크 |
-| `bts recipe status` | 레시피 상태 |
-| `bts recipe resume` | 레시피 재개 |
-| `bts recipe list` | 레시피 이력 |
-| `bts recipe log <id>` | 검증 이터레이션 결과 기록 (스킬이 Bash로 호출) |
-| `bts recipe cancel` | 진행 중 레시피 취소 |
-| `bts debate list` | 토론 목록 |
-| `bts debate resume <id>` | 토론 재개 |
-| `bts debate export <id>` | 토론 내보내기 |
-| `bts doctor` | 시스템 진단 |
-| `bts config set/get` | 설정 관리 |
-| `bts update` | 자동 업데이트 (Phase 2) |
+| `jig init` | 프로젝트 초기화 + 파일 배포 |
+| `jig hook <event>` | Hook 핸들러 |
+| `jig verify <file>` | 결정론적 팩트 체크 |
+| `jig recipe status` | 레시피 상태 |
+| `jig recipe resume` | 레시피 재개 |
+| `jig recipe list` | 레시피 이력 |
+| `jig recipe log <id>` | 검증 이터레이션 결과 기록 (스킬이 Bash로 호출) |
+| `jig recipe cancel` | 진행 중 레시피 취소 |
+| `jig debate list` | 토론 목록 |
+| `jig debate resume <id>` | 토론 재개 |
+| `jig debate export <id>` | 토론 내보내기 |
+| `jig doctor` | 시스템 진단 |
+| `jig config set/get` | 설정 관리 |
+| `jig update` | 자동 업데이트 (Phase 2) |
 
 ## 기술 스택
 
@@ -282,8 +282,8 @@ Atomic write: temp file → os.Rename (크래시 안전)
 ## 소스 구조
 
 ```
-bts/
-├── cmd/bts/main.go
+jig/
+├── cmd/jig/main.go
 ├── internal/
 │   ├── cli/          init, hook, verify, recipe, debate, config, doctor
 │   ├── hook/         Hook 이벤트 핸들러 + 레지스트리

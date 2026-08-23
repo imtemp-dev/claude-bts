@@ -7,7 +7,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -47,15 +47,15 @@ otherwise live only in the conversation — a compaction or a new session loses
 both, and the recipe cannot tell "waiting on a person" apart from "still
 working".
 
-  bts recipe decision hold <id> --key token-storage \
+  jig recipe decision hold <id> --key token-storage \
       --question "Refresh tokens in the keychain or an httpOnly cookie?" \
       --option keychain --option cookie --doc draft.md
 
 While a decision is open the recipe is blocked: the completion gate refuses to
-finalize, session start surfaces it, and bts doctor reports it. Recording the
+finalize, session start surfaces it, and jig doctor reports it. Recording the
 answer clears the block and keeps it in the spec's tracked provenance:
 
-  bts recipe decision resolve <id> token-storage --answer "httpOnly cookie"`,
+  jig recipe decision resolve <id> token-storage --answer "httpOnly cookie"`,
 }
 
 var recipeDecisionHoldCmd = &cobra.Command{
@@ -83,7 +83,7 @@ var recipeDecisionHoldCmd = &cobra.Command{
 			fmt.Printf("Decision %q already open — unchanged.\n", key)
 			return nil
 		}
-		fmt.Printf("Decision %q held. %s is blocked until it is resolved:\n  bts recipe decision resolve %s %s --answer \"...\"\n",
+		fmt.Printf("Decision %q held. %s is blocked until it is resolved:\n  jig recipe decision resolve %s %s --answer \"...\"\n",
 			key, recipeID, recipeID, key)
 		return nil
 	},
@@ -182,12 +182,12 @@ var recipeDecisionDropCmd = &cobra.Command{
 	},
 }
 
-// projectRoot resolves the bts project from the working directory.
+// projectRoot resolves the jig project from the working directory.
 func projectRoot() (string, error) {
 	cwd, _ := os.Getwd()
 	root, err := state.FindRoot(cwd)
 	if err != nil {
-		return "", fmt.Errorf("not a bts project: %w", err)
+		return "", fmt.Errorf("not a jig project: %w", err)
 	}
 	return root, nil
 }

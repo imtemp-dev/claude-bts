@@ -12,9 +12,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// `bts docs check` — structural drift detection across maintained prose.
+// `jig docs check` — structural drift detection across maintained prose.
 //
-// bts ships four README translations plus llms.txt, and every one of them
+// jig ships four README translations plus llms.txt, and every one of them
 // names commands and skills. Nothing checked that those names still exist,
 // so a renamed command silently left four documents wrong. The Go tests
 // cover behavior; nothing covered the documentation surface.
@@ -26,8 +26,8 @@ import (
 //
 // The source of truth for what is shipped is internal/template/templates/,
 // NOT the repo's own deployed .claude/. That directory is an artifact of
-// `bts init` on this project, is untracked, and legitimately lags the
-// templates until `bts update` runs — `bts doctor` already reports that.
+// `jig init` on this project, is untracked, and legitimately lags the
+// templates until `jig update` runs — `jig doctor` already reports that.
 
 func init() {
 	rootCmd.AddCommand(docsCmd)
@@ -44,12 +44,12 @@ var docsCheckCmd = &cobra.Command{
 	Short: "Verify documentation names, links, and counted claims still hold",
 	Long: `Structural checks over maintained prose surfaces:
 
-  - every "/bts-<skill>" named in the docs is a shipped skill
-  - every "bts <command>" named in the docs is a real CLI command
+  - every "/jig-<skill>" named in the docs is a shipped skill
+  - every "jig <command>" named in the docs is a real CLI command
   - every relative markdown link resolves to a file that exists
   - counted claims ("N skills, N hooks, N rules") match what ships
 
-Run from the bts source repository. Exits non-zero when anything fails, so
+Run from the jig source repository. Exits non-zero when anything fails, so
 it can gate CI.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -74,7 +74,7 @@ it can gate CI.`,
 		var problems []string
 		problems = append(problems, checkAudienceCoverage(surfaces, audiences)...)
 		// Name and count checks describe what ships TODAY, so they apply
-		// only to user-facing reference. A roadmap naming a command bts
+		// only to user-facing reference. A roadmap naming a command jig
 		// does not have yet is the roadmap working.
 		current := surfacesWithAudience(surfaces, audiences, audienceUserReference)
 		problems = append(problems, checkSkillNames(repo, current, inv)...)
@@ -83,7 +83,7 @@ it can gate CI.`,
 		// A broken link is a broken link on every surface.
 		problems = append(problems, checkRelativeLinks(repo, surfaces)...)
 
-		fmt.Printf("bts docs check — %d surface(s), %d skills, %d hooks, %d rules, %d agents\n",
+		fmt.Printf("jig docs check — %d surface(s), %d skills, %d hooks, %d rules, %d agents\n",
 			len(surfaces), len(inv.skills), inv.hooks, inv.rules, inv.agents)
 		if len(problems) == 0 {
 			fmt.Println("✓ No documentation drift found")
@@ -105,7 +105,7 @@ type inventory struct {
 }
 
 // findSourceRepo walks up looking for the template tree that defines what
-// bts ships. The check is a maintainer tool; outside the source repo there
+// jig ships. The check is a maintainer tool; outside the source repo there
 // is nothing to compare documentation against.
 func findSourceRepo() (string, error) {
 	dir, err := os.Getwd()
@@ -122,7 +122,7 @@ func findSourceRepo() (string, error) {
 		}
 		dir = parent
 	}
-	return "", fmt.Errorf("bts docs check runs in the bts source repository (internal/template/templates/.claude not found)")
+	return "", fmt.Errorf("jig docs check runs in the jig source repository (internal/template/templates/.claude not found)")
 }
 
 func templateRoot(repo string) string {
@@ -164,7 +164,7 @@ func countFiles(dir, ext string) int {
 	return n
 }
 
-// maintainedSurfaces lists the prose that describes bts to its users and
+// maintainedSurfaces lists the prose that describes jig to its users and
 // maintainers. Deliberately excludes .claude/ (a deployed artifact),
 // internal/template/ (the shipped payload, checked as inventory rather
 // than as prose), and docs/research/ (working notes, not maintained).
@@ -261,11 +261,11 @@ func surfacesWithAudience(surfaces []string, audiences map[string]string, want s
 }
 
 var (
-	// A slash-command reference, never a path segment: `scripts/bts-monitor.ts`
-	// must not read as a reference to a skill named bts-monitor. RE2 has no
+	// A slash-command reference, never a path segment: `scripts/jig-monitor.ts`
+	// must not read as a reference to a skill named jig-monitor. RE2 has no
 	// lookbehind, so the allowed preceding character is captured and skipped.
-	skillRefRe = regexp.MustCompile("(?m)(^|[\\s`(\\[|])/(bts-[a-z0-9-]+)")
-	cmdRefRe   = regexp.MustCompile("`bts ([a-z][a-z-]*)")
+	skillRefRe = regexp.MustCompile("(?m)(^|[\\s`(\\[|])/(jig-[a-z0-9-]+)")
+	cmdRefRe   = regexp.MustCompile("`jig ([a-z][a-z-]*)")
 	linkRe     = regexp.MustCompile(`\[[^\]]*\]\(([^)]+)\)`)
 )
 
@@ -301,7 +301,7 @@ var countedClaims = []struct {
 }
 
 // checkSkillNames catches a renamed or removed skill still named in prose.
-// `/bts-recipe` is the slash COMMAND (commands/bts-recipe.md), not a skill
+// `/jig-recipe` is the slash COMMAND (commands/jig-recipe.md), not a skill
 // directory, so it is accepted as a known alias.
 func checkSkillNames(repo string, surfaces []string, inv *inventory) []string {
 	shipped := map[string]bool{}
@@ -337,8 +337,8 @@ func checkSkillNames(repo string, surfaces []string, inv *inventory) []string {
 }
 
 // checkCommandNames catches documentation for a CLI command that no longer
-// exists. Only backtick-quoted `bts <word>` is considered, so ordinary
-// prose ("bts then verifies…") is not mistaken for a command.
+// exists. Only backtick-quoted `jig <word>` is considered, so ordinary
+// prose ("jig then verifies…") is not mistaken for a command.
 func checkCommandNames(repo string, surfaces []string) []string {
 	known := map[string]bool{}
 	for _, c := range rootCmd.Commands() {
@@ -361,7 +361,7 @@ func checkCommandNames(repo string, surfaces []string) []string {
 			}
 			seen[name] = true
 			problems = append(problems, fmt.Sprintf(
-				"%s documents `bts %s`, which is not a registered command", surface, name))
+				"%s documents `jig %s`, which is not a registered command", surface, name))
 		}
 	}
 	return problems

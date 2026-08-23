@@ -9,7 +9,7 @@ import (
 )
 
 // SimDeviation represents a DEVIATION tagged in a simulations/*.md
-// file. Phase 12 promotes these into structured tokens so /bts-sync
+// file. Phase 12 promotes these into structured tokens so /jig-sync
 // can ingest them directly instead of re-discovering the same
 // differences in its file-by-file pass.
 type SimDeviation struct {

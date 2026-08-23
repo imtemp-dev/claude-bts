@@ -8,7 +8,7 @@ import (
 
 // Interface declarations and their concrete implementations live in the
 // draft spec text in predictable shapes. We cover the three common
-// languages BTS recipes target (Go, TypeScript, Python). Swift/Kotlin
+// languages jig recipes target (Go, TypeScript, Python). Swift/Kotlin
 // recipes would add their own patterns later — not in scope today.
 
 var (

@@ -7,20 +7,20 @@ import (
 )
 
 const (
-	gitignoreComment = "# bts local data (not committed)"
-	gitignorePattern = ".bts/local/"
+	gitignoreComment = "# jig local data (not committed)"
+	gitignorePattern = ".jig/local/"
 )
 
-// EnsureGitignore guarantees the project's .gitignore ignores bts local runtime
-// data (.bts/local/) WITHOUT clobbering the user's existing rules.
+// EnsureGitignore guarantees the project's .gitignore ignores jig local runtime
+// data (.jig/local/) WITHOUT clobbering the user's existing rules.
 //
 // This is the safe replacement for shipping .gitignore as an overwritable
-// template: bts must never own the user's .gitignore. Behavior:
-//   - If .gitignore already ignores .bts/local/, it is left byte-for-byte
+// template: jig must never own the user's .gitignore. Behavior:
+//   - If .gitignore already ignores .jig/local/, it is left byte-for-byte
 //     untouched (idempotent — never grows the file on repeated runs).
-//   - Otherwise the bts block is appended, preserving every existing byte
+//   - Otherwise the jig block is appended, preserving every existing byte
 //     (comments, blank lines, negation patterns, CRLF endings — all intact).
-//   - If .gitignore does not exist, it is created with just the bts block.
+//   - If .gitignore does not exist, it is created with just the jig block.
 func EnsureGitignore(root string) error {
 	path := filepath.Join(root, ".gitignore")
 
@@ -50,7 +50,7 @@ func EnsureGitignore(root string) error {
 	return os.WriteFile(path, []byte(b.String()), 0644)
 }
 
-// gitignoreIgnoresLocal reports whether an exact ".bts/local/" rule is already
+// gitignoreIgnoresLocal reports whether an exact ".jig/local/" rule is already
 // present on its own line. It splits on "\n" (not bufio.Scanner) so a
 // pathologically long line can never truncate the check, and trims trailing
 // "\r" so CRLF files are matched correctly.

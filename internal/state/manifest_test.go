@@ -15,7 +15,7 @@ func setupManifestRoot(t *testing.T, recipeID string) string {
 
 func TestLoadManifest_NotFound(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, ".bts", "specs", "recipes", "r-1000"), 0755)
+	os.MkdirAll(filepath.Join(root, ".jig", "specs", "recipes", "r-1000"), 0755)
 
 	m, err := LoadManifest(root, "r-1000")
 	if err != nil {

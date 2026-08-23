@@ -1,9 +1,9 @@
-# claude-bts
+# claude-jig
 
-**B**ulletproof **T**echnical **S**pecification — 스펙 오류가 디버깅 세션이 되기 전에 잡아냅니다.
+**자르기 전에 지그부터** — 스펙 오류가 디버깅 세션이 되기 전에 잡아냅니다.
 
-[![CI](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-bts)](https://github.com/imtemp-dev/claude-bts/releases)
+[![CI](https://github.com/imtemp-dev/claude-jig/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-jig/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-jig)](https://github.com/imtemp-dev/claude-jig/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8.svg)](https://go.dev)
 
@@ -17,23 +17,42 @@ Claude Code를 진지하게 사용한다면, 아마 나만의 프로세스를 �
 
 - **일관성이 없습니다.** 어떤 세션에서는 리뷰를 요청하고, 어떤 세션에서는 잊어버립니다. 품질이 그날의 꼼꼼함에 좌우됩니다.
 - **에러는 일찍 잡을수록 쌉니다.** 계획의 실수가 바로 코드로 넘어가면 여러 파일에 퍼지고, 잡으려면 빌드와 디버깅이 필요합니다. 계획 단계에서 잡으면 텍스트 수정이면 끝입니다. 하지만 검증 단계가 없으면, 계획 수준의 오류는 코드 문제가 되기 전에 잡힐 기회가 없습니다.
-- **구현이 목적지를 삼킵니다.** AI는 계획을 세울 수 있지만, 코드에 깊이 들어가면 — 타입 에러 수정, 테스트 실패 추적 — 완성된 시스템이 전체적으로 어떤 모습이어야 하는지를 놓칩니다. bts가 의도 파악, 범위 설정, 와이어프레임으로 시작하는 이유입니다: 세부사항이 컨텍스트를 잡아먹기 전에 큰 그림을 확립합니다.
+- **구현이 목적지를 삼킵니다.** AI는 계획을 세울 수 있지만, 코드에 깊이 들어가면 — 타입 에러 수정, 테스트 실패 추적 — 완성된 시스템이 전체적으로 어떤 모습이어야 하는지를 놓칩니다. jig가 의도 파악, 범위 설정, 와이어프레임으로 시작하는 이유입니다: 세부사항이 컨텍스트를 잡아먹기 전에 큰 그림을 확립합니다.
 
 패턴은 항상 같습니다: 대화로 품질 관리를 하고 있지만, 매 세션마다 처음부터 반복하며, 지난번에 잡았던 것이 이번에도 잡힌다는 보장이 없습니다.
 
-## bts가 하는 일
+## jig가 하는 일
 
-bts는 Claude Code의 라이프사이클 훅에 연결되는 CLI 도구입니다. 이미 하고 있는 프로세스를 구조화하되 — 자동으로, 추적 가능하게, 별도 AI 컨텍스트에서 검증합니다.
+jig는 Claude Code의 라이프사이클 훅에 연결되는 CLI 도구입니다. 이미 하고 있는 프로세스를 구조화하되 — 자동으로, 추적 가능하게, 별도 AI 컨텍스트에서 검증합니다.
 
-**구조화된 큰 그림 우선.** 코드 전에, bts는 의도 탐색, 범위 정의, 와이어프레임 설계를 거칩니다. 이후 모든 단계 — 초안 작성, 검증, 구현 — 가 돌아볼 수 있는 목적지를 줌으로써, AI가 전체를 희생하고 당장의 문제에 최적화하는 것을 방지합니다.
+**구조화된 큰 그림 우선.** 코드 전에, jig는 의도 탐색, 범위 정의, 와이어프레임 설계를 거칩니다. 이후 모든 단계 — 초안 작성, 검증, 구현 — 가 돌아볼 수 있는 목적지를 줌으로써, AI가 전체를 희생하고 당장의 문제에 최적화하는 것을 방지합니다.
 
-**독립된 검증.** 같은 세션에서 AI가 자기 출력을 리뷰하면 같은 맹점을 공유합니다. bts는 별도 에이전트 컨텍스트에서 검증을 실행합니다 — 문서를 만든 대화 히스토리를 공유하지 않는 다른 AI 인스턴스입니다.
+**독립된 검증.** 같은 세션에서 AI가 자기 출력을 리뷰하면 같은 맹점을 공유합니다. jig는 별도 에이전트 컨텍스트에서 검증을 실행합니다 — 문서를 만든 대화 히스토리를 공유하지 않는 다른 AI 인스턴스입니다.
 
-**세션 간 상태 추적.** bts는 검증에서 발견된 모든 이슈를 기록하고, 해결 여부를 추적하며, 세션과 컨텍스트 압축을 넘어 유지합니다. 세션이 재개되면 어디까지 진행했고 뭐가 미해결인지 정확히 알고 있습니다.
+**세션 간 상태 추적.** jig는 검증에서 발견된 모든 이슈를 기록하고, 해결 여부를 추적하며, 세션과 컨텍스트 압축을 넘어 유지합니다. 세션이 재개되면 어디까지 진행했고 뭐가 미해결인지 정확히 알고 있습니다.
 
 **완료 게이트.** 검증을 통과하지 않으면 스펙을 확정할 수 없습니다. 테스트 통과, 리뷰 완료, 스펙-코드 차이 문서화 전까지 구현을 완료할 수 없습니다. 이 게이트는 자동으로 적용됩니다 — 당신이 확인을 잊어도 상관없습니다.
 
 기본 아이디어는 단순합니다: **에러를 코드가 아닌 문서에서 잡는다.** 스펙 수정은 텍스트 편집이고, 코드 수정은 빌드-테스트-디버그 사이클입니다. 구현 전에 걸러내는 에러가 많을수록, 구현 후 재작업이 줄어듭니다.
+
+## bts에서 업그레이드
+
+jig는 이전에 bts였습니다. 바이너리만 올리면 마이그레이션은 끝납니다 —
+프로젝트에서 처음 실행되는 `jig` 명령이 기존 상태를 그대로 인수합니다:
+
+```bash
+brew uninstall bts && brew install jig   # 또는 설치 스크립트 재실행
+cd your-project && jig update
+```
+
+- `.bts/` → `.jig/` 로 이름이 바뀌고 `.gitignore` 도 함께 갱신됩니다
+- `bts-*` 스킬·에이전트·룰·훅은 제거되고 `jig-*` 로 교체됩니다
+- `.claude/settings.local.json` 의 훅 경로가 재작성됩니다
+- 레시피 타입이 바뀝니다: `blueprint` → `spec`, `analyze` → `map`
+- 이미 작성된 문서는 그대로 동작합니다 — `<bts-findings>` 블록,
+  `<bts>DONE</bts>` 마커, `[!BTS-BLOCK]` 코멘트 모두 계속 인식됩니다
+
+진행 중인 레시피를 먼저 끝내거나 다시 시작할 필요는 없습니다.
 
 ## 빠른 시작
 
@@ -42,17 +61,17 @@ bts는 Claude Code의 라이프사이클 훅에 연결되는 CLI 도구입니다
 ```bash
 # Homebrew (macOS / Linux)
 brew tap imtemp-dev/tap
-brew install bts
+brew install jig
 
 # 또는 원라인 설치
-curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-bts/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-jig/main/install.sh | bash
 
 # 또는 소스에서 빌드 (Go 1.22+)
-git clone https://github.com/imtemp-dev/claude-bts.git && cd claude-bts && make install
+git clone https://github.com/imtemp-dev/claude-jig.git && cd claude-jig && make install
 
 # 프로젝트에서 초기화
 cd your-project
-bts init .
+jig init .
 
 # Claude Code 시작
 claude
@@ -62,22 +81,22 @@ Claude Code 내에서:
 
 ```bash
 # 완벽한 스펙 생성 → 구현 → 테스트 → 완료
-/bts-recipe-blueprint OAuth2 인증 추가
+/jig-spec OAuth2 인증 추가
 
 # 알려진 버그 수정
-/bts-recipe-fix 로그인 bcrypt 해시 비교 실패
+/jig-fix 로그인 bcrypt 해시 비교 실패
 
 # 원인 모르는 이슈 디버그
-/bts-recipe-debug 5분 후 세션 끊김
+/jig-debug 5분 후 세션 끊김
 ```
 
 ## 작동 방식
 
-bts는 작업을 **스펙**과 **구현** 두 단계로 나눕니다. 각 레시피 타입은 고유한 스펙 단계를 갖지만, 모두 같은 구현 루프를 공유합니다.
+jig는 작업을 **스펙**과 **구현** 두 단계로 나눕니다. 각 레시피 타입은 고유한 스펙 단계를 갖지만, 모두 같은 구현 루프를 공유합니다.
 
-스펙 단계에서 bts는 문서를 반복합니다 — 의도를 탐색하고, 코드베이스를 조사하고, 상세 설계를 작성하고, 별도 AI 컨텍스트에서 여러 라운드의 검증을 거칩니다. 여기서 잡힌 에러는 텍스트 수정 비용입니다.
+스펙 단계에서 jig는 문서를 반복합니다 — 의도를 탐색하고, 코드베이스를 조사하고, 상세 설계를 작성하고, 별도 AI 컨텍스트에서 여러 라운드의 검증을 거칩니다. 여기서 잡힌 에러는 텍스트 수정 비용입니다.
 
-구현 단계에서 bts는 확정된 스펙에서 코드를 생성하고, 테스트를 실행(실패 시 재시도)하고, 코드 경로를 시뮬레이션하고, 품질을 리뷰하고, 차이를 스펙에 동기화합니다. 각 단계에는 요구사항이 충족될 때까지 완료를 차단하는 자동 게이트가 있습니다.
+구현 단계에서 jig는 확정된 스펙에서 코드를 생성하고, 테스트를 실행(실패 시 재시도)하고, 코드 경로를 시뮬레이션하고, 품질을 리뷰하고, 차이를 스펙에 동기화합니다. 각 단계에는 요구사항이 충족될 때까지 완료를 차단하는 자동 게이트가 있습니다.
 
 각 레시피 타입의 상세 flow는 [레시피 라이프사이클](#레시피-라이프사이클)을 참조하세요.
 
@@ -85,13 +104,13 @@ bts는 작업을 **스펙**과 **구현** 두 단계로 나눕니다. 각 레시
 
 | 레시피 | 용도 | 출력 |
 |--------|------|------|
-| `/bts-recipe-blueprint` | 전체 구현 스펙 | Level 3 스펙 → 코드 → 테스트 |
-| `/bts-recipe-design` | 기능 설계 | Level 2 설계 문서 |
-| `/bts-recipe-analyze` | 기존 시스템 이해 | Level 1 분석 문서 |
-| `/bts-recipe-fix` | 알려진 버그 수정 | 수정 스펙 → 코드 → 테스트 |
-| `/bts-recipe-debug` | 원인 모르는 버그 조사 | 6관점 분석 → 스펙 → 코드 |
+| `/jig-spec` | 전체 구현 스펙 | Level 3 스펙 → 코드 → 테스트 |
+| `/jig-design` | 기능 설계 | Level 2 설계 문서 |
+| `/jig-map` | 기존 시스템 이해 | Level 1 분석 문서 |
+| `/jig-fix` | 알려진 버그 수정 | 수정 스펙 → 코드 → 테스트 |
+| `/jig-debug` | 원인 모르는 버그 조사 | 6관점 분석 → 스펙 → 코드 |
 
-다중 기능 프로젝트의 경우, bts는 작업을 **비전 + 로드맵**으로 분해합니다. 각 레시피는 로드맵 항목에 매핑되며 완료가 자동으로 추적됩니다.
+다중 기능 프로젝트의 경우, jig는 작업을 **비전 + 로드맵**으로 분해합니다. 각 레시피는 로드맵 항목에 매핑되며 완료가 자동으로 추적됩니다.
 
 ## 기능
 
@@ -99,7 +118,7 @@ bts는 작업을 **스펙**과 **구현** 두 단계로 나눕니다. 각 레시
 
 | 카테고리 | 스킬 |
 |----------|------|
-| **레시피** | blueprint, design, analyze, fix, debug |
+| **레시피** | spec, design, map, fix, debug |
 | **탐색** | discover, wireframe |
 | **검증** | verify, cross-check, audit, assess, sync-check |
 | **분석** | research, simulate, debate, adjudicate |
@@ -120,7 +139,7 @@ bts는 작업을 **스펙**과 **구현** 두 단계로 나눕니다. 각 레시
 ### 메트릭스 & 비용 추정
 
 ```
-bts stats
+jig stats
 ```
 
 ```
@@ -142,7 +161,7 @@ Estimated Cost
 ### 상태 표시줄
 
 ```
-bts v0.1.0 │ JWT auth │ implement 3/5 │ ctx 60%
+jig v0.1.0 │ JWT auth │ implement 3/5 │ ctx 60%
 ```
 
 Claude Code 상태 표시줄에서 레시피 진행 상황, 단계, 컨텍스트 사용량을 실시간으로 확인할 수 있습니다.
@@ -150,8 +169,8 @@ Claude Code 상태 표시줄에서 레시피 진행 상황, 단계, 컨텍스트
 ### 문서 시각화
 
 ```bash
-bts graph              # 프로젝트 전체 문서 관계도
-bts graph <recipe-id>  # 레시피별 문서 그래프
+jig graph              # 프로젝트 전체 문서 관계도
+jig graph <recipe-id>  # 레시피별 문서 그래프
 ```
 
 문서 의존성, 토론 결론, 검증 체인을 보여주는 mermaid 다이어그램을 생성합니다.
@@ -162,7 +181,7 @@ bts graph <recipe-id>  # 레시피별 문서 그래프
 
 ### 스펙 단계 (레시피별)
 
-**Blueprint** — 새 기능을 위한 전체 스펙:
+**Spec** — 새 기능을 위한 전체 스펙:
 
 ```mermaid
 flowchart LR
@@ -186,7 +205,7 @@ flowchart LR
     BP["6개 블루프린트"] --> CROSS["교차 분석"] --> SPEC["수정 스펙"] --> F["확정"]
 ```
 
-**Design** / **Analyze** — 스펙만, 구현 없음:
+**Design** / **Map** — 스펙만, 구현 없음:
 
 ```mermaid
 flowchart LR
@@ -197,7 +216,7 @@ flowchart LR
 
 ### 구현 단계 (공통)
 
-코드를 생성하는 모든 레시피는 `/bts-implement`를 통해 같은 구현 루프로 진입합니다:
+코드를 생성하는 모든 레시피는 `/jig-implement`를 통해 같은 구현 루프로 진입합니다:
 
 ```mermaid
 flowchart LR
@@ -214,11 +233,11 @@ flowchart LR
 
 ## 모델 & 설정
 
-bts는 두 계층의 AI 모델을 사용합니다:
+jig는 두 계층의 AI 모델을 사용합니다:
 
 **메인 세션 모델** — Claude Code에서 실행 중인 모델(Opus, Sonnet 등)이 모든 주요 작업을 처리합니다: 스펙 작성, 코드 구현, 토론 진행, 라이프사이클 오케스트레이션.
 
-**전문가 에이전트** — 검증, 감사, 시뮬레이션, 리뷰는 **별도 에이전트 컨텍스트**(fork)에서 실행되어 메인 세션과 맹점을 공유하지 않습니다. 기본 Sonnet이며 `.bts/config/settings.yaml`에서 설정 가능:
+**전문가 에이전트** — 검증, 감사, 시뮬레이션, 리뷰는 **별도 에이전트 컨텍스트**(fork)에서 실행되어 메인 세션과 맹점을 공유하지 않습니다. 기본 Sonnet이며 `.jig/config/settings.yaml`에서 설정 가능:
 
 ```yaml
 agents:
@@ -236,8 +255,8 @@ agents:
 
 | 단계 | 스킬 | Context | 모델 |
 |------|------|---------|------|
-| 탐색, 범위, 조사 | discover, blueprint, research | main | 세션 모델 |
-| 와이어프레임, 초안, 개선 | wireframe, blueprint | main | 세션 모델 |
+| 탐색, 범위, 조사 | discover, spec, research | main | 세션 모델 |
+| 와이어프레임, 초안, 개선 | wireframe, spec | main | 세션 모델 |
 | 토론, 판정 | debate, adjudicate | main | 세션 모델 |
 | **검증** | verify | **fork** | 세션 모델 (핵심 gate) |
 | **감사** | audit | **fork** | 세션 모델 (빠진 것 찾기) |
@@ -263,20 +282,22 @@ fork 컨텍스트가 핵심입니다 — 같은 세션에서 자기 출력을 �
 ## CLI
 
 ```
-bts init [dir]              프로젝트 초기화 (스킬, 훅, 규칙 배포)
-bts doctor [recipe-id]      건강 체크 (시스템, 레시피, 문서)
-bts validate [recipe-id]    JSON 스키마 준수 확인
-bts verify <file>           문서 일관성 검사, 레벨 평가
-bts recipe status           활성 레시피 표시
-bts recipe list             전체 레시피 목록
-bts recipe create           새 레시피 생성
-bts recipe log <id>         액션 / 단계 / 이터레이션 기록
-bts recipe cancel           활성 레시피 취소
-bts stats [recipe-id]       메트릭스 및 비용 추정 (--json, --csv)
-bts graph [recipe-id]       문서 관계 시각화 (--all)
-bts sync-check <id>         레시피 내 문서 동기화 확인
-bts update                  바이너리 버전에 맞게 템플릿 업데이트
-bts version                 바이너리 및 템플릿 버전 표시
+jig                         활성 레시피 상태 (인자 없이)
+jig init [dir]              프로젝트 초기화 (스킬, 훅, 규칙 배포)
+jig doctor [recipe-id]      건강 체크 (시스템, 레시피, 문서)
+jig validate [recipe-id]    JSON 스키마 준수 확인
+jig verify <file>           문서 일관성 검사, 레벨 평가
+jig ls                      전체 레시피 목록            (= jig recipe list)
+jig new --topic <주제>      새 레시피 생성              (= jig recipe create)
+jig log <id>                액션 / 단계 / 이터레이션 기록  (= jig recipe log)
+jig ask [recipe-id]         나만 답할 수 있는 질문 보류   (= jig recipe decision hold)
+jig ans <id> <key>          보류된 질문에 답변          (= jig recipe decision resolve)
+jig recipe cancel           활성 레시피 취소
+jig stats [recipe-id]       메트릭스 및 비용 추정 (--json, --csv)
+jig graph [recipe-id]       문서 관계 시각화 (--all)
+jig sync-check <id>         레시피 내 문서 동기화 확인
+jig update                  바이너리 버전에 맞게 템플릿 업데이트
+jig version                 바이너리 및 템플릿 버전 표시
 ```
 
 ## 요구 사항
@@ -285,16 +306,16 @@ bts version                 바이너리 및 템플릿 버전 표시
 - **Claude Code** ([설치](https://docs.anthropic.com/en/docs/claude-code))
 - **OS**: macOS, Linux (Windows는 WSL 사용)
 
-설치 후 `bts doctor`를 실행하여 환경을 확인하세요.
+설치 후 `jig doctor`를 실행하여 환경을 확인하세요.
 
 ## 기여
 
-기여를 환영합니다. 버그 보고나 기능 요청은 [이슈](https://github.com/imtemp-dev/claude-bts/issues)를 열어주세요.
+기여를 환영합니다. 버그 보고나 기능 요청은 [이슈](https://github.com/imtemp-dev/claude-jig/issues)를 열어주세요.
 
 ```bash
 # 개발 환경 설정
-git clone https://github.com/imtemp-dev/claude-bts.git
-cd claude-bts
+git clone https://github.com/imtemp-dev/claude-jig.git
+cd claude-jig
 make install          # 빌드 후 ~/.local/bin에 설치
 go test -race ./...   # 테스트 실행
 ```

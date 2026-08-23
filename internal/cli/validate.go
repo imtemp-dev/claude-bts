@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/imtemp-dev/claude-bts/internal/engine"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/engine"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +26,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
 	root, err := state.FindRoot(cwd)
 	if err != nil {
-		return fmt.Errorf("not a bts project: %w", err)
+		return fmt.Errorf("not a jig project: %w", err)
 	}
 
 	var recipeDir string
@@ -40,7 +40,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 			recipesDir := filepath.Join(state.SpecsPath(root), "recipes")
 			entries, err := os.ReadDir(recipesDir)
 			if err != nil || len(entries) == 0 {
-				return fmt.Errorf("no recipes found. Specify recipe ID: bts validate <id>")
+				return fmt.Errorf("no recipes found. Specify recipe ID: jig validate <id>")
 			}
 			// Use first directory found
 			for _, entry := range entries {

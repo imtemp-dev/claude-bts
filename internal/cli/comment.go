@@ -11,8 +11,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/imtemp-dev/claude-bts/internal/comment"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/comment"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -30,7 +30,7 @@ func init() {
 		"Also surface free-form added lines (git diff HEAD) outside callouts")
 
 	commentApplyCmd.Flags().Bool("finalize", false,
-		"Internal — invoked by /bts-comment-apply after edits land. "+
+		"Internal — invoked by /jig-comment-apply after edits land. "+
 			"Recounts, updates manifest, appends changelog, removes pending file.")
 	commentApplyCmd.Flags().Bool("dry-run", false,
 		"Print the pending-comments handoff that would be written, then exit")
@@ -40,20 +40,20 @@ func init() {
 
 var commentCmd = &cobra.Command{
 	Use:     "comment",
-	Short:   "Inspect and apply BTS review comments embedded in recipe docs",
+	Short:   "Inspect and apply jig review comments embedded in recipe docs",
 	GroupID: "tools",
-	Long: `Surface inline BTS review comments (GitHub Flavored Markdown alerts of
-the form '> [!BTS-COMMENT]', '> [!BTS-BLOCK]', '> [!BTS-Q]') and hand
-them to /bts-comment-apply for incorporation.
+	Long: `Surface inline jig review comments (GitHub Flavored Markdown alerts of
+the form '> [!JIG-COMMENT]', '> [!JIG-BLOCK]', '> [!JIG-Q]') and hand
+them to /jig-comment-apply for incorporation.
 
-Add a comment from VS Code by typing 'btsc<Tab>' (suggestion),
-'btscb<Tab>' (blocking) or 'btscq<Tab>' (question) inside any .md
-file. The .vscode/markdown.code-snippets file is deployed by 'bts init'.`,
+Add a comment from VS Code by typing 'jigc<Tab>' (suggestion),
+'jigcb<Tab>' (blocking) or 'jigcq<Tab>' (question) inside any .md
+file. The .vscode/markdown.code-snippets file is deployed by 'jig init'.`,
 }
 
 var commentPreviewCmd = &cobra.Command{
 	Use:   "preview [recipe-id]",
-	Short: "Show all detected BTS comments for a recipe (read-only, grouped by doc)",
+	Short: "Show all detected jig comments for a recipe (read-only, grouped by doc)",
 	Args:  cobra.MaximumNArgs(1),
 	RunE:  runCommentPreview,
 }
@@ -67,7 +67,7 @@ var commentListCmd = &cobra.Command{
 
 var commentApplyCmd = &cobra.Command{
 	Use:   "apply [recipe-id]",
-	Short: "Hand off comments to /bts-comment-apply for incorporation",
+	Short: "Hand off comments to /jig-comment-apply for incorporation",
 	Args:  cobra.MaximumNArgs(1),
 	RunE:  runCommentApply,
 }
@@ -78,7 +78,7 @@ func resolveRecipe(args []string) (recipeID, recipeDir, root string, err error) 
 	cwd, _ := os.Getwd()
 	root, err = state.FindRoot(cwd)
 	if err != nil {
-		return "", "", "", fmt.Errorf("not a bts project: %w", err)
+		return "", "", "", fmt.Errorf("not a jig project: %w", err)
 	}
 	if len(args) == 1 {
 		recipeID = args[0]
@@ -99,7 +99,7 @@ func resolveRecipe(args []string) (recipeID, recipeDir, root string, err error) 
 	return recipeID, recipeDir, root, nil
 }
 
-// gatherComments parses all BTS callouts plus optionally free-form diff hunks.
+// gatherComments parses all jig callouts plus optionally free-form diff hunks.
 // Filtered by --doc when provided.
 func gatherComments(recipeDir string, includeFreeForm bool, docFilter string) ([]comment.Comment, error) {
 	cs, err := comment.ParseRecipe(recipeDir)
@@ -144,7 +144,7 @@ func runCommentPreview(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// listEntry shapes the JSON output of `bts comment list --json`. Adds the
+// listEntry shapes the JSON output of `jig comment list --json`. Adds the
 // classification fields on top of Comment so consumers can sort/filter
 // without re-running heuristics.
 type listEntry struct {
@@ -187,8 +187,8 @@ func runCommentList(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// pendingHandoff is the JSON written to .bts/local/recipes/<id>/pending-comments.json.
-// /bts-comment-apply reads this and runs Pass A/B/C.
+// pendingHandoff is the JSON written to .jig/local/recipes/<id>/pending-comments.json.
+// /jig-comment-apply reads this and runs Pass A/B/C.
 type pendingHandoff struct {
 	RecipeID    string         `json:"recipe_id"`
 	GeneratedAt string         `json:"generated_at"`
@@ -231,7 +231,7 @@ func runCommentApply(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if len(cs) == 0 {
-		fmt.Println("No BTS comments to apply.")
+		fmt.Println("No jig comments to apply.")
 		return nil
 	}
 
@@ -280,11 +280,11 @@ func runCommentApply(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Wrote handoff: %s\n", pendingPath)
 	fmt.Printf("  %d comments  (%d blocking)\n", summary.TotalOpen, summary.TotalBlocking)
 	fmt.Println()
-	fmt.Printf("Next: run /bts-comment-apply %s in Claude Code\n", recipeID)
+	fmt.Printf("Next: run /jig-comment-apply %s in Claude Code\n", recipeID)
 	return nil
 }
 
-// runCommentApplyFinalize is invoked by /bts-comment-apply after Claude
+// runCommentApplyFinalize is invoked by /jig-comment-apply after Claude
 // has edited the docs and removed resolved markers. It re-parses (callouts
 // should now be mostly gone), updates manifest counts, appends a
 // changelog entry, and deletes the pending file.
@@ -310,7 +310,7 @@ func runCommentApplyFinalize(root, recipeID, recipeDir string, dryRun bool) erro
 	if !pendingFound {
 		fmt.Fprintf(os.Stderr,
 			"warning: no pending-comments.json at %s — `applied` count in changelog will be 0 (no baseline to compare against). "+
-				"Run `bts comment apply %s` first if you want accurate diff counts.\n",
+				"Run `jig comment apply %s` first if you want accurate diff counts.\n",
 			pendingPath, recipeID)
 	}
 	applied := prevTotal - summary.TotalOpen

@@ -56,10 +56,10 @@ func kindBadge(k Kind, useColor bool) string {
 // Output goes to `w` (typically os.Stdout). `useColor` toggles ANSI codes.
 func RenderPreview(w io.Writer, comments []Comment, useColor bool) {
 	if len(comments) == 0 {
-		fmt.Fprintln(w, "No BTS comments found in this recipe.")
+		fmt.Fprintln(w, "No jig comments found in this recipe.")
 		fmt.Fprintln(w)
-		fmt.Fprintln(w, "Add one in any .md by typing `btsc<Tab>` in VS Code,")
-		fmt.Fprintln(w, "or run `bts comment preview --include-freeform` to see free-form additions.")
+		fmt.Fprintln(w, "Add one in any .md by typing `jigc<Tab>` in VS Code,")
+		fmt.Fprintln(w, "or run `jig comment preview --include-freeform` to see free-form additions.")
 		return
 	}
 
@@ -78,10 +78,10 @@ func RenderPreview(w io.Writer, comments []Comment, useColor bool) {
 
 	// Header
 	if useColor {
-		fmt.Fprintf(w, "%sBTS comments — %d total, %s%d blocking%s\n",
+		fmt.Fprintf(w, "%sJIG comments — %d total, %s%d blocking%s\n",
 			ansiBold, summary.TotalOpen, ansiRed, summary.TotalBlocking, ansiReset)
 	} else {
-		fmt.Fprintf(w, "BTS comments — %d total, %d blocking\n", summary.TotalOpen, summary.TotalBlocking)
+		fmt.Fprintf(w, "jig comments — %d total, %d blocking\n", summary.TotalOpen, summary.TotalBlocking)
 	}
 	fmt.Fprintln(w)
 
@@ -121,14 +121,14 @@ func RenderPreview(w io.Writer, comments []Comment, useColor bool) {
 
 	// Footer hint
 	if summary.TotalBlocking > 0 {
-		hint := fmt.Sprintf("⚠  %d BTS-BLOCK comment(s) will block recipe finalize until resolved.",
+		hint := fmt.Sprintf("⚠  %d JIG-BLOCK comment(s) will block recipe finalize until resolved.",
 			summary.TotalBlocking)
 		if useColor {
 			hint = ansiYellow + hint + ansiReset
 		}
 		fmt.Fprintln(w, hint)
 	}
-	fmt.Fprintln(w, "Run `bts comment apply <recipe-id>` to incorporate.")
+	fmt.Fprintln(w, "Run `jig comment apply <recipe-id>` to incorporate.")
 }
 
 // singleLine collapses whitespace and rune-truncates to maxRunes for table display.

@@ -1,29 +1,29 @@
 {
-  "BTS comment (suggestion)": {
+  "jig comment (suggestion)": {
     "scope": "markdown",
-    "prefix": "btsc",
+    "prefix": "jigc",
     "body": [
-      "> [!BTS-COMMENT]",
+      "> [!JIG-COMMENT]",
       "> $0"
     ],
-    "description": "Inline review comment for BTS docs (general suggestion)"
+    "description": "Inline review comment for jig docs (general suggestion)"
   },
-  "BTS comment (blocking)": {
+  "jig comment (blocking)": {
     "scope": "markdown",
-    "prefix": "btscb",
+    "prefix": "jigcb",
     "body": [
-      "> [!BTS-BLOCK]",
+      "> [!JIG-BLOCK]",
       "> $0"
     ],
     "description": "Blocking review comment — must resolve before recipe finalize"
   },
-  "BTS comment (question)": {
+  "jig comment (question)": {
     "scope": "markdown",
-    "prefix": "btscq",
+    "prefix": "jigcq",
     "body": [
-      "> [!BTS-Q]",
+      "> [!JIG-Q]",
       "> $0"
     ],
-    "description": "Question for /bts-comment-apply to surface (becomes Q&A entry)"
+    "description": "Question for /jig-comment-apply to surface (becomes Q&A entry)"
   }
 }

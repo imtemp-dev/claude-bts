@@ -3,11 +3,11 @@ package engine
 import (
 	"fmt"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 )
 
 // Convergence budget — the machine-enforced half of
-// `bts-verification-protocol.md § Convergence`.
+// `jig-verification-protocol.md § Convergence`.
 //
 // The protocol has always said "N consecutive IMPROVE→VERIFY cycles with
 // no progress → [CONVERGENCE FAILED], ask human", and settings.yaml has
@@ -174,7 +174,7 @@ func (v ConvergenceVerdict) Message(docBase string) string {
 		msg += fmt.Sprintf("  stagnant findings (unresolved across the streak): %v\n", v.Stagnant)
 	}
 	msg += "  Further IMPROVE→VERIFY cycles are not converging. Stop the loop and ask the user for guidance\n" +
-		"  (per bts-verification-protocol.md § Convergence)."
+		"  (per jig-verification-protocol.md § Convergence)."
 	return msg
 }
 

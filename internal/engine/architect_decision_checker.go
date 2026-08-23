@@ -31,7 +31,7 @@ var architectOwnershipEntryRe = regexp.MustCompile(`^\s*-\s*([A-Za-z][\w-]*)\s*:
 var architectURLRe = regexp.MustCompile(`https?://\S+`)
 
 // CheckArchitectDecisionHeader enforces the wireframe.md architect-decision
-// contract (Phase 5.3). Per bts-architect SKILL.md Step 4, wireframe.md
+// contract (Phase 5.3). Per jig-architect SKILL.md Step 4, wireframe.md
 // must carry a `<!-- architect-decision -->` block with a `Selected:`
 // line naming the chosen decomposition.
 //
@@ -53,7 +53,7 @@ func CheckArchitectDecisionHeader(wireframePath string) []Issue {
 			Category: "architect_decision",
 			Claim:    "missing_architect_decision_block",
 			Severity: "major",
-			Detail:   "wireframe.md has no <!-- architect-decision --> block. Run /bts-architect to propose and select a decomposition, then commit the block per bts-architect SKILL.md Step 4. Skip-architect recipes (tiny scope) still need a minimal block declaring Selected: single-path.",
+			Detail:   "wireframe.md has no <!-- architect-decision --> block. Run /jig-architect to propose and select a decomposition, then commit the block per jig-architect SKILL.md Step 4. Skip-architect recipes (tiny scope) still need a minimal block declaring Selected: single-path.",
 		}}
 	}
 	if len(matches) > 1 {
@@ -103,7 +103,7 @@ func checkArchitectBasis(body string) []Issue {
 				Category: "architect_decision",
 				Claim:    "architect_decision_official_unsourced",
 				Severity: "major",
-				Detail:   "Basis declares an official pattern but cites no URL. Official bases require a `Source:` URL on the vendor's own domain (bts-evidence-policy.md) — unsourced official claims are invalid.",
+				Detail:   "Basis declares an official pattern but cites no URL. Official bases require a `Source:` URL on the vendor's own domain (jig-evidence-policy.md) — unsourced official claims are invalid.",
 			}}
 		}
 	case strings.HasPrefix(lower, "custom"):

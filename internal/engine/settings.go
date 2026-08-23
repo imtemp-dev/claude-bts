@@ -8,7 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Settings is a partial mapping of .bts/config/settings.yaml — only the
+// Settings is a partial mapping of .jig/config/settings.yaml — only the
 // fields the Go engine reads. Fields not declared here are ignored when
 // the YAML is parsed, so adding skill-only keys in settings.yaml does
 // not require a code change.
@@ -20,7 +20,7 @@ type Settings struct {
 
 // ImplementSettings controls the implementation loop's retry limits and
 // mid-run review cadence. These were previously hard-coded in three
-// places (settings.yaml prose, bts-implement SKILL.md, protocol table);
+// places (settings.yaml prose, jig-implement SKILL.md, protocol table);
 // this struct is now the single source.
 type ImplementSettings struct {
 	MaxBuildRetries   int                 `yaml:"max_build_retries"`
@@ -59,13 +59,13 @@ type VerifySettings struct {
 	// MaxIterations is the convergence budget: consecutive verify rounds
 	// allowed to make no progress on (critical, major, minor_resolvable)
 	// before the loop must stop and ask the user. Enforced in
-	// engine/convergence.go and `bts recipe log`.
+	// engine/convergence.go and `jig recipe log`.
 	MaxIterations int `yaml:"max_iterations"`
 	// EvidenceTTLDays is how long a cached framework-claim lookup stays
 	// usable. 0 disables expiry for successful lookups; "unavailable"
 	// results always expire after an hour regardless.
 	EvidenceTTLDays int `yaml:"evidence_ttl_days"`
-	// MaxSectionLines is the H2 section length at which `bts verify`
+	// MaxSectionLines is the H2 section length at which `jig verify`
 	// starts reporting span. 0 disables. See section_span_checker.go.
 	MaxSectionLines int `yaml:"max_section_lines"`
 	// SectionSpanSeverity classifies those reports. "info" (default)
@@ -118,12 +118,12 @@ func DefaultSettings() *Settings {
 	}
 }
 
-// LoadSettings reads .bts/config/settings.yaml under the given project
+// LoadSettings reads .jig/config/settings.yaml under the given project
 // root. Missing file → DefaultSettings (no error). Malformed YAML →
 // error. Present file overrides fields individually; any field left
 // zero in the YAML keeps the default.
 func LoadSettings(root string) (*Settings, error) {
-	path := filepath.Join(root, ".bts", "config", "settings.yaml")
+	path := filepath.Join(root, ".jig", "config", "settings.yaml")
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return DefaultSettings(), nil
@@ -176,7 +176,7 @@ func LoadSettings(root string) (*Settings, error) {
 	default:
 		if s.Verify.SectionSpanSeverity != "" {
 			fmt.Fprintf(os.Stderr,
-				"[bts] warning: verify.section_span_severity=%q is not one of %s/%s/%s/%s — using %s\n",
+				"[jig] warning: verify.section_span_severity=%q is not one of %s/%s/%s/%s — using %s\n",
 				s.Verify.SectionSpanSeverity, SeverityCritical, SeverityMajor,
 				SeverityMinor, SeverityInfo, def.Verify.SectionSpanSeverity)
 		}

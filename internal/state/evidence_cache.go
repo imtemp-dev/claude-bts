@@ -17,19 +17,19 @@ import (
 // Evidence cache — memoises framework/platform claim research across
 // verification rounds.
 //
-// `bts-evidence-policy.md` requires every CRITICAL/MAJOR claim about
+// `jig-evidence-policy.md` requires every CRITICAL/MAJOR claim about
 // framework internals to be checked against official sources, in order:
 // Context7 MCP → WebFetch on official domains → site-filtered WebSearch.
 // Each round budgets up to 5 such lookups. Nothing cached them, so a
 // long-running loop re-researched the SAME claim on every round — and
 // network round trips are the slowest part of a verification iteration.
 //
-// The cache lives under .bts/local/ (never committed, like verify
+// The cache lives under .jig/local/ (never committed, like verify
 // snapshots and tool traces) because it is a machine-local performance
 // artifact, not project truth.
 
 // Evidence verdicts, mirroring the reclassification table in
-// bts-evidence-policy.md.
+// jig-evidence-policy.md.
 const (
 	EvidenceContradicts = "contradicts" // official source contradicts the claim → critical
 	EvidenceConfirms    = "confirms"    // official source confirms → finding removed
@@ -54,7 +54,7 @@ type EvidenceEntry struct {
 // The cache is an append-only JSONL log folded on read (last write per
 // key wins), not a rewritten JSON object.
 //
-// The blueprint loop runs /bts-verify and /bts-audit concurrently, and
+// The spec loop runs /jig-verify and /jig-audit concurrently, and
 // both gather evidence. A read-modify-write of a single JSON document
 // loses one of two concurrent puts: each process reads the same map,
 // adds its own key, and the second rename overwrites the first. Appends

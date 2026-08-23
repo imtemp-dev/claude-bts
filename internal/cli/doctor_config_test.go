@@ -17,20 +17,20 @@ func writeFile(t *testing.T, path, body string) {
 	}
 }
 
-const btsHookJSON = `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/p/.claude/hooks/bts-handle-stop.sh"}]}],
-"PostToolUse":[{"hooks":[{"type":"command","command":"/p/.claude/hooks/bts-handle-post-tool-use.sh"}]}]}}`
+const jigHookJSON = `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/p/.claude/hooks/jig-handle-stop.sh"}]}],
+"PostToolUse":[{"hooks":[{"type":"command","command":"/p/.claude/hooks/jig-handle-post-tool-use.sh"}]}]}}`
 
-// Claude Code merges hook configuration across scopes, so a bts hook in
+// Claude Code merges hook configuration across scopes, so a jig hook in
 // two scopes runs twice per event. A measured project's metrics.jsonl
 // held 11,394 lines of which 5,991 were distinct.
 func TestCheckDuplicateHookRegistration(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, ".claude", "settings.local.json"), btsHookJSON)
+	writeFile(t, filepath.Join(root, ".claude", "settings.local.json"), jigHookJSON)
 	if issues := duplicateHookRegistration(root, ""); len(issues) != 0 {
 		t.Fatalf("one scope is the normal case, got %v", issues)
 	}
 
-	writeFile(t, filepath.Join(root, ".claude", "settings.json"), btsHookJSON)
+	writeFile(t, filepath.Join(root, ".claude", "settings.json"), jigHookJSON)
 	issues := duplicateHookRegistration(root, "")
 	if len(issues) != 1 {
 		t.Fatalf("got %d issues, want 1: %+v", len(issues), issues)
@@ -42,15 +42,15 @@ func TestCheckDuplicateHookRegistration(t *testing.T) {
 	}
 }
 
-// A hook that is not bts's own must not count — other tools register
+// A hook that is not jig's own must not count — other tools register
 // hooks in the same file.
 func TestCheckDuplicateHookRegistration_IgnoresForeignHooks(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, ".claude", "settings.local.json"), btsHookJSON)
+	writeFile(t, filepath.Join(root, ".claude", "settings.local.json"), jigHookJSON)
 	writeFile(t, filepath.Join(root, ".claude", "settings.json"),
 		`{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/usr/local/bin/some-other-tool"}]}]}}`)
 	if issues := duplicateHookRegistration(root, ""); len(issues) != 0 {
-		t.Fatalf("a foreign hook is not a duplicate bts registration, got %v", issues)
+		t.Fatalf("a foreign hook is not a duplicate jig registration, got %v", issues)
 	}
 }
 
@@ -60,7 +60,7 @@ func TestCheckDuplicateHookRegistration_IgnoresForeignHooks(t *testing.T) {
 // its sessions ran to 95%.
 func TestCheckUnreadSettings(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, ".bts", "config", "settings.yaml"), `
+	writeFile(t, filepath.Join(root, ".jig", "config", "settings.yaml"), `
 verify:
   max_iterations: 3
   confirm_passes: 2
@@ -95,7 +95,7 @@ agents:
 
 func TestCheckUnreadSettings_CleanFileIsQuiet(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, ".bts", "config", "settings.yaml"), `
+	writeFile(t, filepath.Join(root, ".jig", "config", "settings.yaml"), `
 verify:
   max_iterations: 3
 simulate:
@@ -111,13 +111,13 @@ simulate:
 func TestDuplicateHookRegistration_CountsTheUserScope(t *testing.T) {
 	root := t.TempDir()
 	home := t.TempDir()
-	writeFile(t, filepath.Join(root, ".claude", "settings.local.json"), btsHookJSON)
+	writeFile(t, filepath.Join(root, ".claude", "settings.local.json"), jigHookJSON)
 
 	if issues := duplicateHookRegistration(root, home); len(issues) != 0 {
-		t.Fatalf("a home with no bts hooks adds no scope, got %v", issues)
+		t.Fatalf("a home with no jig hooks adds no scope, got %v", issues)
 	}
 
-	writeFile(t, filepath.Join(home, ".claude", "settings.json"), btsHookJSON)
+	writeFile(t, filepath.Join(home, ".claude", "settings.json"), jigHookJSON)
 	issues := duplicateHookRegistration(root, home)
 	if len(issues) != 1 {
 		t.Fatalf("got %d issues, want 1: %+v", len(issues), issues)
@@ -127,7 +127,7 @@ func TestDuplicateHookRegistration_CountsTheUserScope(t *testing.T) {
 	}
 }
 
-// One settings file registering several bts handlers for one event is
+// One settings file registering several jig handlers for one event is
 // one scope, not two. Counting each handler separately made the check
 // report a duplicate against a single file.
 func TestDuplicateHookRegistration_ManyHandlersInOneFileIsOneScope(t *testing.T) {
@@ -135,8 +135,8 @@ func TestDuplicateHookRegistration_ManyHandlersInOneFileIsOneScope(t *testing.T)
 	writeFile(t, filepath.Join(root, ".claude", "settings.json"), `{
   "hooks": {
     "PostToolUse": [
-      {"hooks": [{"command": ".claude/hooks/bts-handle-post-tool-use.sh"}]},
-      {"hooks": [{"command": ".claude/hooks/bts-handle-metrics.sh"}]}
+      {"hooks": [{"command": ".claude/hooks/jig-handle-post-tool-use.sh"}]},
+      {"hooks": [{"command": ".claude/hooks/jig-handle-metrics.sh"}]}
     ]
   }
 }`)

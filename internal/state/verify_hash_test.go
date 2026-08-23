@@ -7,8 +7,8 @@ import (
 )
 
 // worktreeRecipe builds a recipe directory holding ONLY tracked state —
-// no .bts/local at all. This is exactly what `git worktree add` produces:
-// .bts/specs/ comes across with the branch, .bts/local/ is gitignored and
+// no .jig/local at all. This is exactly what `git worktree add` produces:
+// .jig/specs/ comes across with the branch, .jig/local/ is gitignored and
 // simply does not exist.
 func worktreeRecipe(t *testing.T, docContent string) (root, recipeID string) {
 	t.Helper()
@@ -32,7 +32,7 @@ func logRound(t *testing.T, root, recipeID string, e VerifyLogEntry) {
 }
 
 // The regression this fix exists for: rule 3 was enforced by comparing
-// against .bts/local/verify-snapshots/, which is gitignored. In a
+// against .jig/local/verify-snapshots/, which is gitignored. In a
 // worktree that directory is absent, so DirtyVerifiedDocs returned nil
 // and the gate was silently switched off — a doc edited after its
 // verification passed every gate.

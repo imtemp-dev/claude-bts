@@ -1,5 +1,5 @@
-BINARY_NAME := bts
-MODULE := github.com/imtemp-dev/claude-bts
+BINARY_NAME := jig
+MODULE := github.com/imtemp-dev/claude-jig
 VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -8,7 +8,7 @@ LDFLAGS := -ldflags "-s -w -X $(MODULE)/pkg/version.Version=$(VERSION) -X $(MODU
 .PHONY: build install test lint clean release-local
 
 build: ## Build the binary
-	go build $(LDFLAGS) -o bin/$(BINARY_NAME) ./cmd/bts
+	go build $(LDFLAGS) -o bin/$(BINARY_NAME) ./cmd/jig
 
 install: build ## Install to ~/.local/bin
 	@mkdir -p $(HOME)/.local/bin

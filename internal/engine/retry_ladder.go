@@ -20,7 +20,7 @@ const (
 )
 
 // Patterns that most commonly mark a purely-syntactic error across the
-// languages BTS recipes target. Intentionally conservative — any miss
+// languages jig recipes target. Intentionally conservative — any miss
 // falls back to semantic, which is the safer default (harder
 // escalation kicks in sooner).
 var (
@@ -71,7 +71,7 @@ func ClassifyBuildError(lastError string, _ string) ErrorClass {
 }
 
 // RetryAction is the symbolic next step the loop should take. The
-// bts-implement skill translates each to a concrete procedure.
+// jig-implement skill translates each to a concrete procedure.
 type RetryAction string
 
 const (
@@ -127,7 +127,7 @@ func DefaultLadder() LadderConfig {
 // caller passes the task's current tier and retry_count, plus the
 // classified error, and receives the action to take.
 //
-// Rules (keep in sync with bts-implement SKILL.md §Step 3 retry block):
+// Rules (keep in sync with jig-implement SKILL.md §Step 3 retry block):
 //   - Tier 1 (syntactic): retry in-place while errors stay syntactic
 //     and retry_count < syntactic_max. First non-syntactic error or
 //     exceeding the cap bumps us to tier 2.
@@ -143,7 +143,7 @@ func DefaultLadder() LadderConfig {
 // attemptsInTier counts attempts within the CURRENT tier only. Callers
 // persist it as Task.AttemptsInTier and MUST reset it to 0 whenever
 // NextTier differs from the task's current tier (see Task and
-// bts-implement SKILL.md §Step 3). Task.RetryCount stays the TOTAL
+// jig-implement SKILL.md §Step 3). Task.RetryCount stays the TOTAL
 // attempt budget used by the hard cap and is never reset.
 func NextRetryDecision(currentTier, attemptsInTier int, errClass ErrorClass, cfg LadderConfig) RetryDecision {
 	if cfg.SyntacticMax <= 0 {
@@ -230,7 +230,7 @@ func advanceFrom(next int, cfg LadderConfig) RetryDecision {
 			return RetryDecision{
 				NextTier:  5,
 				Action:    ActionArchitectEscal,
-				Rationale: "domain check did not resolve — re-enter /bts-architect to re-decompose",
+				Rationale: "domain check did not resolve — re-enter /jig-architect to re-decompose",
 			}
 		default:
 			return RetryDecision{

@@ -1,42 +1,42 @@
-# claude-bts
+# claude-jig
 
-> Verify before you code — bts catches spec errors before they become debugging sessions.
+> Verify before you code — jig catches spec errors before they become debugging sessions.
 
-bts is a CLI tool for Claude Code that structures the spec → verify → implement cycle. It plugs into Claude Code's lifecycle hooks to provide isolated verification, state tracking across sessions, and completion gates.
+jig is a CLI tool for Claude Code that structures the spec → verify → implement cycle. It plugs into Claude Code's lifecycle hooks to provide isolated verification, state tracking across sessions, and completion gates.
 
 ## Install
 
 ```bash
 # Homebrew
-brew tap imtemp-dev/tap && brew install bts
+brew tap imtemp-dev/tap && brew install jig
 
 # Or one-line install
-curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-bts/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-jig/main/install.sh | bash
 
 # Or from source (Go 1.22+)
-git clone https://github.com/imtemp-dev/claude-bts.git && cd claude-bts && make install
+git clone https://github.com/imtemp-dev/claude-jig.git && cd claude-jig && make install
 ```
 
 ## Initialize
 
 ```bash
 cd your-project
-bts init .
+jig init .
 claude   # start Claude Code
 ```
 
-This deploys skills, hooks, and rules to `.claude/` and creates `.bts/` for state management.
+This deploys skills, hooks, and rules to `.claude/` and creates `.jig/` for state management.
 
 ## Recipes
 
 Recipes are structured workflows. Start one inside Claude Code:
 
 ```
-/bts-recipe-blueprint add OAuth2 authentication
-/bts-recipe-fix login bcrypt hash comparison fails
-/bts-recipe-debug session drops after 5 minutes
-/bts-recipe-design auth system architecture
-/bts-recipe-analyze existing codebase
+/jig-spec add OAuth2 authentication
+/jig-fix login bcrypt hash comparison fails
+/jig-debug session drops after 5 minutes
+/jig-design auth system architecture
+/jig-map existing codebase
 ```
 
 | Type | Purpose | Lifecycle |
@@ -58,7 +58,7 @@ Implementation phases (shared across blueprint, fix, debug):
 ## File Structure
 
 ```
-.bts/
+.jig/
 ├── config/              # git tracked — settings, template version
 │   ├── settings.yaml
 │   └── .template-version
@@ -95,21 +95,21 @@ Implementation phases (shared across blueprint, fix, debug):
 ## CLI Reference
 
 ```
-bts init [dir]              Initialize project (--force to reinitialize)
-bts doctor [recipe-id]      System and recipe health check (--strict)
-bts validate [recipe-id]    JSON schema compliance check
-bts verify <file>           Document consistency and level assessment (--no-code)
-bts recipe status           Show active recipe
-bts recipe list             List all recipes
-bts recipe create           Create recipe (--type blueprint|fix|debug|design|analyze --topic "...")
-bts recipe log <id>         Record action/phase/iteration (--phase, --action, --output, --force)
-bts recipe cancel           Cancel active recipe
-bts stats [recipe-id]       Metrics and cost estimation (--json, --csv)
-bts graph [recipe-id]       Document relationship graph (--all)
-bts sync-check [recipe-id]  Verify documents are in sync
-bts debate list|log|resume|export   Manage debates
-bts update                  Update templates to match binary version
-bts version                 Show versions
+jig                         Active recipe status
+jig init [dir]              Initialize project
+jig doctor [recipe-id]      Health check
+jig ls                      List recipes                      (= jig recipe list)
+jig new --topic <topic>     Create a recipe                   (= jig recipe create)
+jig log <id>                Record action / phase             (= jig recipe log)
+jig ask [recipe-id]         Hold a question only you can answer  (= jig recipe decision hold)
+jig ans <id> <key>          Answer a held question            (= jig recipe decision resolve)
+jig stats [recipe-id]       Metrics and cost (--json, --csv)
+jig graph [recipe-id]       Document relationship graph
+jig verify <file>           Check document consistency
+jig validate [recipe-id]    JSON schema check
+jig sync-check [recipe-id]  Verify document sync
+jig update                  Update templates
+jig version                 Show versions
 ```
 
 ## Skills (21)
@@ -118,27 +118,27 @@ Inside Claude Code, invoke skills with `/skill-name`:
 
 | Skill | Purpose |
 |-------|---------|
-| /bts-recipe-blueprint | Full spec-to-code lifecycle |
-| /bts-recipe-design | Design spec (Level 2) |
-| /bts-recipe-analyze | Analysis spec (Level 1) |
-| /bts-recipe-fix | Bug fix with diagnosis |
-| /bts-recipe-debug | Multi-perspective debugging |
-| /bts-discover | Intent discovery conversation |
-| /bts-wireframe | Structure design with mermaid diagrams |
-| /bts-research | Codebase and external research |
-| /bts-verify | Logical verification (fork context) |
-| /bts-cross-check | Internal consistency check (fork context) |
-| /bts-audit | Completeness audit (fork context) |
-| /bts-assess | Level assessment and next-action decision |
-| /bts-sync-check | Document synchronization check (fork context) |
-| /bts-debate | Structured 3-expert debate |
-| /bts-adjudicate | Evaluate debate conclusions |
-| /bts-simulate | Scenario walkthrough — document or code (fork context) |
-| /bts-implement | Code generation from finalized spec |
-| /bts-test | Test generation and execution |
-| /bts-review | Multi-perspective code review (fork context, 3 parallel agents) |
-| /bts-sync | Sync spec with implementation |
-| /bts-status | Project status aggregation |
+| /jig-spec | Full spec-to-code lifecycle |
+| /jig-design | Design spec (Level 2) |
+| /jig-map | Analysis spec (Level 1) |
+| /jig-fix | Bug fix with diagnosis |
+| /jig-debug | Multi-perspective debugging |
+| /jig-discover | Intent discovery conversation |
+| /jig-wireframe | Structure design with mermaid diagrams |
+| /jig-research | Codebase and external research |
+| /jig-verify | Logical verification (fork context) |
+| /jig-cross-check | Internal consistency check (fork context) |
+| /jig-audit | Completeness audit (fork context) |
+| /jig-assess | Level assessment and next-action decision |
+| /jig-sync-check | Document synchronization check (fork context) |
+| /jig-debate | Structured 3-expert debate |
+| /jig-adjudicate | Evaluate debate conclusions |
+| /jig-simulate | Scenario walkthrough — document or code (fork context) |
+| /jig-implement | Code generation from finalized spec |
+| /jig-test | Test generation and execution |
+| /jig-review | Multi-perspective code review (fork context, 3 parallel agents) |
+| /jig-sync | Sync spec with implementation |
+| /jig-status | Project status aggregation |
 
 ## Models
 
@@ -162,25 +162,25 @@ Core gates use session model for maximum quality. Pattern-based checks use sonne
 | diagnosis_validator | session model | agents.diagnosis_validator |
 | diagnosis_rebuttal | session model | agents.diagnosis_rebuttal |
 
-Override in `.bts/config/settings.yaml`. Options: sonnet, opus, haiku.
+Override in `.jig/config/settings.yaml`. Options: sonnet, opus, haiku.
 
 ## Completion Gates
 
-Specs complete when: verification.md exists, verify-log last entry shows critical=0 major=0. Output `<bts>DONE</bts>`. This sets phase to `finalize`.
+Specs complete when: verification.md exists, verify-log last entry shows critical=0 major=0. Output `<jig>DONE</jig>`. This sets phase to `finalize`.
 
-Implementation completes when: all tasks done, tests pass, review.md exists, deviation.md exists. Output `<bts>IMPLEMENT DONE</bts>`.
+Implementation completes when: all tasks done, tests pass, review.md exists, deviation.md exists. Output `<jig>IMPLEMENT DONE</jig>`.
 
-Fix completes when: fix-spec.md exists, tests pass. Output `<bts>FIX DONE</bts>`.
+Fix completes when: fix-spec.md exists, tests pass. Output `<jig>FIX DONE</jig>`.
 
 ## Key Rules
 
-1. Every document modification triggers /bts-verify immediately after.
+1. Every document modification triggers /jig-verify immediately after.
 2. Verification runs in separate agent context (never self-review).
 3. Edit draft.md in place (Edit tool), don't rewrite.
-4. Log every action: `bts recipe log {id} --action [type] --output [path]`.
-5. Run /bts-simulate at least once before Level 3.
-6. Run /bts-adjudicate after every debate.
-7. Run /bts-sync-check before finalizing.
+4. Log every action: `jig recipe log {id} --action [type] --output [path]`.
+5. Run /jig-simulate at least once before Level 3.
+6. Run /jig-adjudicate after every debate.
+7. Run /jig-sync-check before finalizing.
 8. Deviations are reports, not gates — they don't block completion.
 
 ## Document Levels
@@ -190,4 +190,4 @@ Fix completes when: fix-spec.md exists, tests pass. Output `<bts>FIX DONE</bts>`
 - Level 3 (Implementation-ready): every file path, function signature, type, edge case, test scenario specified
 
 ---
-bts version: 0.2.0
+jig version: 0.2.0

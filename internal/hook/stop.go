@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/imtemp-dev/claude-bts/internal/comment"
-	"github.com/imtemp-dev/claude-bts/internal/engine"
-	"github.com/imtemp-dev/claude-bts/internal/metrics"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/comment"
+	"github.com/imtemp-dev/claude-jig/internal/engine"
+	"github.com/imtemp-dev/claude-jig/internal/metrics"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 )
 
 type stopHandler struct{}
@@ -49,9 +49,9 @@ func (h *stopHandler) Handle(input *HookInput) (*HookOutput, error) {
 	if exhausted {
 		state.ClearStopBudget(root)
 		fmt.Fprintf(os.Stderr,
-			"[bts] The completion gate blocked %d times on the same issue and is standing down.\n"+
+			"[jig] The completion gate blocked %d times on the same issue and is standing down.\n"+
 				"      Unresolved: %s\n"+
-				"      Nothing was marked complete. Resolve it with the user, or run `bts doctor` for the full state.\n",
+				"      Nothing was marked complete. Resolve it with the user, or run `jig doctor` for the full state.\n",
 			count, out.Reason)
 		return &HookOutput{}, nil
 	}
@@ -66,25 +66,25 @@ func (h *stopHandler) decide(root string, input *HookInput) (*HookOutput, error)
 		// Check for finalized recipe (ready for implementation)
 		finalized, _ := state.GetFinalizedRecipe(root)
 		if finalized != nil {
-			fmt.Fprintf(os.Stderr, "[bts] Spec finalized. Run /bts-implement %s to start implementation.\n", finalized.ID)
+			fmt.Fprintf(os.Stderr, "[jig] Spec finalized. Run /jig-implement %s to start implementation.\n", finalized.ID)
 		}
 		return &HookOutput{}, nil
 	}
 
 	// Check for fix completion marker
-	if strings.Contains(input.StopHookContent, "<bts>FIX DONE</bts>") ||
+	if hasMarker(input.StopHookContent, "FIX DONE") ||
 		strings.Contains(input.StopHookContent, "FIX DONE") {
 		return h.handleFixDone(root, recipe)
 	}
 
 	// Check for implementation completion marker
-	if strings.Contains(input.StopHookContent, "<bts>IMPLEMENT DONE</bts>") ||
+	if hasMarker(input.StopHookContent, "IMPLEMENT DONE") ||
 		strings.Contains(input.StopHookContent, "IMPLEMENT DONE") {
 		return h.handleImplementDone(root, recipe)
 	}
 
 	// Check for spec completion marker (tagged only — "DONE" alone is too common)
-	if strings.Contains(input.StopHookContent, "<bts>DONE</bts>") {
+	if hasMarker(input.StopHookContent, "DONE") {
 		return h.handleSpecDone(root, recipe)
 	}
 
@@ -102,7 +102,7 @@ func (h *stopHandler) decide(root string, input *HookInput) (*HookOutput, error)
 // — that is the normal, expected mid-loop state, and blocking on it would
 // make it impossible to stop for the day. It blocks only where ending the
 // turn leaves the recipe's own records inconsistent, so that the next
-// session (or `bts doctor`) would read a state that is not true:
+// session (or `jig doctor`) would read a state that is not true:
 //
 //	A. a verification ran but was never logged — the findings ledger,
 //	   convergence budget, and completion gate all read verify-log.jsonl,
@@ -112,16 +112,25 @@ func (h *stopHandler) decide(root string, input *HookInput) (*HookOutput, error)
 //	   ending quietly means the next session resumes as if it had not.
 //
 // Scope is the spec loop. Implement-side phases run their own gates and
-// stop mid-task constantly by design; /bts-sync legitimately rewrites
+// stop mid-task constantly by design; /jig-sync legitimately rewrites
 // final.md there, so condition B would fire on normal work.
 //
 // Every check fails open: a tooling error is not a veto (same policy as
 // the DONE-path gates).
+// hasMarker reports whether content carries the completion marker in either
+// the current <jig>…</jig> spelling or the legacy <bts>…</bts> one. A recipe
+// started before the jig rebrand can still emit the old tag, and failing to
+// recognise it would silently skip the completion gate instead of enforcing it.
+func hasMarker(content, marker string) bool {
+	return strings.Contains(content, "<jig>"+marker+"</jig>") ||
+		strings.Contains(content, "<bts>"+marker+"</bts>")
+}
+
 func (h *stopHandler) handleBlindStop(root string, recipe *state.RecipeState) (*HookOutput, error) {
 	hint := nextStepHint(root, recipe)
 	allow := func() (*HookOutput, error) {
 		if hint != "" {
-			fmt.Fprintf(os.Stderr, "[bts] %s\n", hint)
+			fmt.Fprintf(os.Stderr, "[jig] %s\n", hint)
 		}
 		return &HookOutput{}, nil
 	}
@@ -138,7 +147,7 @@ func (h *stopHandler) handleBlindStop(root string, recipe *state.RecipeState) (*
 	// impossible to hand the question over. Surface it and allow.
 	if open, derr := state.OpenDecisions(root, recipe.ID); derr == nil && len(open) > 0 {
 		fmt.Fprintf(os.Stderr,
-			"[bts] %s is blocked on %d decision(s) awaiting you: %s\n",
+			"[jig] %s is blocked on %d decision(s) awaiting you: %s\n",
 			recipe.ID, len(open), decisionSummary(open))
 		return &HookOutput{}, nil
 	}
@@ -153,8 +162,8 @@ func (h *stopHandler) handleBlindStop(root string, recipe *state.RecipeState) (*
 		}
 		return blockOutput(fmt.Sprintf(
 			"The verify loop for %s gave up: %s was exhausted with %d critical, %d major, %d minor [resolvable] still open. "+
-				"Do not end the turn silently. Tell the user the loop stopped converging (`bts recipe findings list --open %s`), "+
-				"and record the question you need answered with `bts recipe decision hold %s --key <key> --question \"...\"` "+
+				"Do not end the turn silently. Tell the user the loop stopped converging (`jig recipe findings list --open %s`), "+
+				"and record the question you need answered with `jig recipe decision hold %s --key <key> --question \"...\"` "+
 				"so it survives this session.",
 			lastVerifyLabel(last), budget, last.Critical, last.Major, last.EffectiveResolvable(), recipe.ID, recipe.ID,
 		)), nil
@@ -163,10 +172,10 @@ func (h *stopHandler) handleBlindStop(root string, recipe *state.RecipeState) (*
 	// A. Verification produced but never recorded.
 	if unlogged, doc := unloggedVerification(root, recipe.ID); unlogged {
 		return blockOutput(fmt.Sprintf(
-			".bts/specs/recipes/%s/verification.md holds a verification the log does not account for. The findings "+
+			".jig/specs/recipes/%s/verification.md holds a verification the log does not account for. The findings "+
 				"ledger, convergence budget, and completion gate all read verify-log.jsonl, so this verification did "+
-				"not happen as far as bts is concerned. Record it with `bts recipe log %s --from-verification "+
-				".bts/specs/recipes/%s/verification.md --doc %s --scope <full|delta>` before ending the turn.",
+				"not happen as far as jig is concerned. Record it with `jig recipe log %s --from-verification "+
+				".jig/specs/recipes/%s/verification.md --doc %s --scope <full|delta>` before ending the turn.",
 			recipe.ID, recipe.ID, recipe.ID, doc,
 		)), nil
 	}
@@ -174,10 +183,10 @@ func (h *stopHandler) handleBlindStop(root string, recipe *state.RecipeState) (*
 	// B. Verified document edited after its verification.
 	if dirty, derr := state.DirtyVerifiedDocs(root, recipe.ID); derr != nil {
 		fmt.Fprintf(os.Stderr,
-			"[bts] warning: dirty-doc check failed: %v (proceeding without check)\n", derr)
+			"[jig] warning: dirty-doc check failed: %v (proceeding without check)\n", derr)
 	} else if len(dirty) > 0 {
 		return blockOutput(fmt.Sprintf(
-			"%s changed after its last verification. Rule 3: every modification requires /bts-verify. "+
+			"%s changed after its last verification. Rule 3: every modification requires /jig-verify. "+
 				"Either re-verify and record it, or tell the user the doc is left unverified — do not end the turn as if it were still verified.",
 			strings.Join(dirty, ", "),
 		)), nil
@@ -252,8 +261,8 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 	if open, derr := state.OpenDecisions(root, recipe.ID); derr == nil && len(open) > 0 {
 		return blockOutput(fmt.Sprintf(
 			"%d decision(s) still waiting on the user: %s. Finalizing now would bake in an answer nobody gave. "+
-				"Get the answer and record it with `bts recipe decision resolve %s <key> --answer \"...\"`, "+
-				"or retire the question with `bts recipe decision drop`.",
+				"Get the answer and record it with `jig recipe decision resolve %s <key> --answer \"...\"`, "+
+				"or retire the question with `jig recipe decision drop`.",
 			len(open), decisionSummary(open), recipe.ID,
 		)), nil
 	}
@@ -261,7 +270,7 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 	// 1. Check verification.md exists (proves /verify was actually run)
 	verifyDocPath := filepath.Join(recipeDir, "verification.md")
 	if _, err := os.Stat(verifyDocPath); os.IsNotExist(err) {
-		return blockOutput("No verification.md found. Run /bts-verify on draft.md before completing."), nil
+		return blockOutput("No verification.md found. Run /jig-verify on draft.md before completing."), nil
 	}
 
 	// 2. Check verify-log has passing entry.
@@ -301,7 +310,7 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 			lastEntry.Doc, lastEntry.DocHash, fmt.Sprintf(
 				"Last verification round is marked failed (convergence budget exhausted under %s). "+
 					"The loop stopped making progress — resolve with the user rather than re-emitting DONE. "+
-					"See `bts recipe findings list --open` for the findings that would not clear.",
+					"See `jig recipe findings list --open` for the findings that would not clear.",
 				budget,
 			)); blocked {
 			return out, nil
@@ -323,7 +332,7 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		}
 		history, herr := state.ReadVerifyLog(root, recipe.ID)
 		if herr != nil {
-			fmt.Fprintf(os.Stderr, "[bts] warning: read verify-log: %v\n", herr)
+			fmt.Fprintf(os.Stderr, "[jig] warning: read verify-log: %v\n", herr)
 		}
 		scoped := state.VerifyEntriesForDoc(history, lastEntry.Doc)
 		if ev := engine.EvaluateCompletionEvidence(scoped, confirmPasses); !ev.Confirmed {
@@ -347,7 +356,7 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 	// 2a-bis. The findings ledger has to agree that nothing is still
 	// owed. `absence_is_not_closure` was in the gate registry as a hard
 	// gate but blocked nothing: the completion path reads verify-log
-	// TOTALS, and a round's totals come from the same <bts-findings>
+	// TOTALS, and a round's totals come from the same <jig-findings>
 	// block the verifier writes. So a verifier that simply stopped
 	// reporting eight majors produced a clean round, the ledger demoted
 	// all eight to `unreported`, two such rounds confirmed each other,
@@ -379,8 +388,8 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 				}
 				body += "\n\nA finding that stopped being reported is `unreported`, not fixed: absence is equally the " +
 					"signature of a repair and of a verifier rewording the same defect. Resolve them and re-verify, or " +
-					"dismiss the ones that are not defects with `bts recipe findings dismiss`. " +
-					"See `bts recipe findings list " + recipe.ID + " --doc " + lastEntry.Doc + " --open`."
+					"dismiss the ones that are not defects with `jig recipe findings dismiss`. " +
+					"See `jig recipe findings list " + recipe.ID + " --doc " + lastEntry.Doc + " --open`."
 				if out, blocked := gateBlock(root, recipe.ID, "absence_is_not_closure",
 					lastEntry.Doc, lastEntry.DocHash, body); blocked {
 					return out, nil
@@ -396,19 +405,19 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 	// verify-log it holds in a worktree too. No recorded revision →
 	// nothing enforceable (legacy recipes) — gates 1-2 still apply.
 	// Fail-open on read errors: a tooling failure is not a verification
-	// veto (same policy as the BTS-BLOCK count below).
+	// veto (same policy as the JIG-BLOCK count below).
 	if dirty, derr := state.DirtyVerifiedDocs(root, recipe.ID); derr != nil {
 		fmt.Fprintf(os.Stderr,
-			"[bts] warning: dirty-doc check failed: %v (proceeding without check)\n", derr)
+			"[jig] warning: dirty-doc check failed: %v (proceeding without check)\n", derr)
 	} else if len(dirty) > 0 {
 		return blockOutput(fmt.Sprintf(
-			"%s modified after last verification. Rule 3: every modification requires /bts-verify. Re-verify the modified doc(s), record with `bts recipe log %s --from-verification .bts/specs/recipes/%s/verification.md --doc <doc-path>`, then re-emit DONE.",
+			"%s modified after last verification. Rule 3: every modification requires /jig-verify. Re-verify the modified doc(s), record with `jig recipe log %s --from-verification .jig/specs/recipes/%s/verification.md --doc <doc-path>`, then re-emit DONE.",
 			strings.Join(dirty, ", "), recipe.ID, recipe.ID,
 		)), nil
 	}
 
 	// 2c. Deferred minors must be declared as Known Uncertainties entries
-	// (### U-NNN) so /bts-implement inherits the watch-list (blueprint
+	// (### U-NNN) so /jig-implement inherits the watch-list (spec
 	// rule 3b). Without this, deferred findings silently vanish between
 	// spec and implementation.
 	if lastEntry.MinorDeferred > 0 {
@@ -419,7 +428,7 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		if all, _, uerr := engine.CheckKnownUncertainties(specPath); uerr == nil && len(all) == 0 {
 			if out, blocked := gateBlock(root, recipe.ID, "deferred_minors_declared",
 				lastEntry.Doc, lastEntry.DocHash, fmt.Sprintf(
-					"%d minor [deferred] finding(s) recorded but %s has no '## Known Uncertainties' entries (### U-NNN form). Per blueprint rule 3b, append each deferred minor with its Why-deferred: line, re-run /bts-verify (the append is a modification — rule 3), then re-emit DONE.",
+					"%d minor [deferred] finding(s) recorded but %s has no '## Known Uncertainties' entries (### U-NNN form). Per spec rule 3b, append each deferred minor with its Why-deferred: line, re-run /jig-verify (the append is a modification — rule 3), then re-emit DONE.",
 					lastEntry.MinorDeferred, filepath.Base(specPath),
 				)); blocked {
 				return out, nil
@@ -432,7 +441,7 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 	// tagged {gate: hard} — before Sprint 10 neither was actually
 	// machine-enforced (sync-check never touched verify-log; simulate
 	// only produced a warn on the implement-side phase transition).
-	if recipe.Type == "blueprint" {
+	if recipe.Type == "spec" {
 		entries, cerr := state.ReadChangelog(root, recipe.ID)
 		if cerr != nil {
 			return blockOutput(fmt.Sprintf(
@@ -458,21 +467,21 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		if !simulated {
 			if out, blocked := gateBlock(root, recipe.ID, "simulate_at_least_once",
 				lastEntry.Doc, lastEntry.DocHash,
-				"No simulate action in changelog. Rule 5: run /bts-simulate (5+ scenarios) at least once before declaring Level 3, then /bts-sync-check, then re-emit DONE."); blocked {
+				"No simulate action in changelog. Rule 5: run /jig-simulate (5+ scenarios) at least once before declaring Level 3, then /jig-sync-check, then re-emit DONE."); blocked {
 				return out, nil
 			}
 		}
 		if lastSyncCheckPass == -1 || lastSyncCheckPass < lastModify {
 			return blockOutput(
-				"sync-check has not passed since the last draft modification. Rule 8: run /bts-sync-check (it logs a pass entry via `bts sync-check`), then re-emit DONE."), nil
+				"sync-check has not passed since the last draft modification. Rule 8: run /jig-sync-check (it logs a pass entry via `jig sync-check`), then re-emit DONE."), nil
 		}
 	}
 
-	// 3. Block on unresolved [!BTS-BLOCK] callouts. These represent
+	// 3. Block on unresolved [!JIG-BLOCK] callouts. These represent
 	// reviewer-flagged spec issues that must be addressed (or downgraded
 	// to a non-blocking comment) before the spec can finalize. The check
 	// re-parses the source markdown — manifest counts may be stale if
-	// callouts were edited without running `bts comment apply --finalize`.
+	// callouts were edited without running `jig comment apply --finalize`.
 	//
 	// On parse error (recipe dir missing, file unreadable), surface the
 	// failure to stderr but DO NOT block — a parse failure is a tooling
@@ -481,11 +490,11 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 	blocking, err := comment.CountBlockingComments(recipeDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr,
-			"[bts] warning: could not count BTS-BLOCK comments in %s: %v (proceeding without check)\n",
+			"[jig] warning: could not count JIG-BLOCK comments in %s: %v (proceeding without check)\n",
 			recipeDir, err)
 	} else if blocking > 0 {
 		return blockOutput(fmt.Sprintf(
-			"%d BTS-BLOCK comment(s) unresolved. Run `bts comment list %s` to see them, then `/bts-comment-apply %s` to incorporate.",
+			"%d JIG-BLOCK comment(s) unresolved. Run `jig comment list %s` to see them, then `/jig-comment-apply %s` to incorporate.",
 			blocking, recipe.ID, recipe.ID,
 		)), nil
 	}
@@ -513,15 +522,15 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		PreviousPhase: prevPhase,
 	})
 
-	fmt.Fprintf(os.Stderr, "[bts] Spec verified ✓ Next: /bts-implement %s\n", recipe.ID)
+	fmt.Fprintf(os.Stderr, "[jig] Spec verified ✓ Next: /jig-implement %s\n", recipe.ID)
 	return &HookOutput{}, nil
 }
 
 // handleImplementDone validates implementation completion via tasks.json + test-results.json.
 func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState) (*HookOutput, error) {
-	implCmd := fmt.Sprintf("/bts-implement %s", recipe.ID)
+	implCmd := fmt.Sprintf("/jig-implement %s", recipe.ID)
 	if recipe.Type == "fix" {
-		implCmd = fmt.Sprintf("/bts-recipe-fix %s", recipe.ID)
+		implCmd = fmt.Sprintf("/jig-fix %s", recipe.ID)
 	}
 
 	// 1. Check tasks.json
@@ -602,7 +611,7 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 	// must carry an ID, at least one Driver from the vocabulary, and a
 	// valid Severity. Critical-level findings (missing ID / missing
 	// driver) block completion; lower severities surface via
-	// `bts validate`.
+	// `jig validate`.
 	for _, issue := range engine.CheckDeviationSchema(deviationPath) {
 		if issue.Severity == "critical" {
 			return blockOutput(fmt.Sprintf(
@@ -617,7 +626,7 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 	// scope_symbol_missing check that the static validator cannot do
 	// (it needs filesystem access to the target file). critical
 	// findings block; lower severities are already caught by
-	// `bts validate`.
+	// `jig validate`.
 	tasksPath := filepath.Join(state.RecipeDir(root, recipe.ID), "tasks.json")
 	for _, issue := range engine.CheckModifyScope(finalPath, tasksPath, root) {
 		if issue.Severity == "critical" {
@@ -660,10 +669,10 @@ func (h *stopHandler) handleFixDone(root string, recipe *state.RecipeState) (*Ho
 	// a verified revision was recorded; legacy fix recipes pass through.)
 	if dirty, derr := state.DirtyVerifiedDocs(root, recipe.ID); derr != nil {
 		fmt.Fprintf(os.Stderr,
-			"[bts] warning: dirty-doc check failed: %v (proceeding without check)\n", derr)
+			"[jig] warning: dirty-doc check failed: %v (proceeding without check)\n", derr)
 	} else if len(dirty) > 0 {
 		return blockOutput(fmt.Sprintf(
-			"%s modified after last verification. Rule 3: re-verify the modified doc(s), record with `bts recipe log %s --from-verification ... --doc <doc-path>`, then re-emit FIX DONE.",
+			"%s modified after last verification. Rule 3: re-verify the modified doc(s), record with `jig recipe log %s --from-verification ... --doc <doc-path>`, then re-emit FIX DONE.",
 			strings.Join(dirty, ", "), recipe.ID,
 		)), nil
 	}
@@ -706,9 +715,9 @@ func roadmapHint(root string, prefix string) *HookOutput {
 	if total > 0 {
 		hint := fmt.Sprintf("Roadmap: %d/%d done.", done, total)
 		if nextItem != "" {
-			hint += fmt.Sprintf(" Next: %s — run /bts-recipe-blueprint to start.", nextItem)
+			hint += fmt.Sprintf(" Next: %s — run /jig-spec to start.", nextItem)
 		}
-		fmt.Fprintf(os.Stderr, "[bts] %s %s\n", prefix, hint)
+		fmt.Fprintf(os.Stderr, "[jig] %s %s\n", prefix, hint)
 	}
 	return &HookOutput{}
 }
@@ -772,7 +781,7 @@ func readLastVerifyEntry(path string) (*state.VerifyLogEntry, error) {
 // fire on rounds with no findings at all.
 func gateBlock(root, recipeID, gate, doc, docHash, body string) (*HookOutput, bool) {
 	if ok, note := overrideAllows(root, recipeID, gate, doc, docHash); ok {
-		fmt.Fprintf(os.Stderr, "[bts] %s\n", note)
+		fmt.Fprintf(os.Stderr, "[jig] %s\n", note)
 		return nil, false
 	}
 	if footer := overrideFooter(recipeID, gate, doc); footer != "" {
@@ -795,7 +804,7 @@ func overrideFooter(recipeID, gate, doc string) string {
 	}
 	return fmt.Sprintf(
 		"If proceeding is the right call, record it rather than working around it:\n"+
-			"  bts recipe override grant %s --gate %s%s \\\n"+
+			"  jig recipe override grant %s --gate %s%s \\\n"+
 			"      %s --reason \"<why this is acceptable>\"\n"+
 			"The recipe then reports as overridden in status, doctor and stats — which an "+
 			"undocumented bypass does not.",
@@ -846,7 +855,7 @@ func overrideAllows(root, recipeID, gate, docBase, docHash string) (bool, string
 			on = "revision " + shortRev(docHash)
 		}
 		fmt.Fprintf(os.Stderr,
-			"[bts] the %s override was granted on revision %s of %s but this round is on %s, so it no longer applies — "+
+			"[jig] the %s override was granted on revision %s of %s but this round is on %s, so it no longer applies — "+
 				"re-grant it against the current text if the judgement still holds\n",
 			gate, shortRev(st.Granted), docBase, on)
 	}

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/imtemp-dev/claude-bts/internal/engine"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/engine"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -57,9 +57,9 @@ var retryNextCmd = &cobra.Command{
 task.last_error, and emits a RetryDecision indicating the next step:
   retry_inplace       — in-place fix (tier 1)
   strategy_switch     — try a different approach (tier 2)
-  spec_escalate       — re-read final.md block + /bts-verify (tier 3)
+  spec_escalate       — re-read final.md block + /jig-verify (tier 3)
   domain_escalate     — re-verify domain.md invariants (tier 4)
-  architect_escalate  — re-enter /bts-architect (tier 5)
+  architect_escalate  — re-enter /jig-architect (tier 5)
   block               — ladder exhausted; mark task blocked
 
 Honors settings.implement.retry_ladder for per-project tuning.`,
@@ -70,7 +70,7 @@ func runRetryNext(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
 	root, err := state.FindRoot(cwd)
 	if err != nil {
-		return fmt.Errorf("not a bts project: %w", err)
+		return fmt.Errorf("not a jig project: %w", err)
 	}
 	recipeID, _ := cmd.Flags().GetString("recipe")
 	if recipeID == "" {

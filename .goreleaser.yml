@@ -5,8 +5,8 @@ before:
     - go mod tidy
 
 builds:
-  - main: ./cmd/bts/
-    binary: bts
+  - main: ./cmd/jig/
+    binary: jig
     env:
       - CGO_ENABLED=0
     goos:
@@ -17,9 +17,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/imtemp-dev/claude-bts/pkg/version.Version={{.Version}}
-      - -X github.com/imtemp-dev/claude-bts/pkg/version.Commit={{.Commit}}
-      - -X github.com/imtemp-dev/claude-bts/pkg/version.Date={{.Date}}
+      - -X github.com/imtemp-dev/claude-jig/pkg/version.Version={{.Version}}
+      - -X github.com/imtemp-dev/claude-jig/pkg/version.Commit={{.Commit}}
+      - -X github.com/imtemp-dev/claude-jig/pkg/version.Date={{.Date}}
 
 archives:
   - formats:
@@ -36,19 +36,23 @@ changelog:
   sort: asc
 
 brews:
-  - repository:
+    # Explicit: without it the formula takes the project name (claude-jig), so
+    # `brew install jig` — what the binary is called and what every doc says —
+    # would fail.
+  - name: jig
+    repository:
       owner: imtemp-dev
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    homepage: https://github.com/imtemp-dev/claude-bts
+    homepage: https://github.com/imtemp-dev/claude-jig
     description: "Verify before you code — catches spec errors before they become debugging sessions"
     license: MIT
     install: |
-      bin.install "bts"
+      bin.install "jig"
     test: |
-      system "#{bin}/bts", "--version"
+      system "#{bin}/jig", "--version"
 
 release:
   github:
     owner: imtemp-dev
-    name: claude-bts
+    name: claude-jig

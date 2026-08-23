@@ -11,7 +11,7 @@ import (
 func debateFixture(t *testing.T) (root, recipeDir string) {
 	t.Helper()
 	root = t.TempDir()
-	recipeDir = filepath.Join(root, ".bts", "specs", "recipes", "r-001-test")
+	recipeDir = filepath.Join(root, ".jig", "specs", "recipes", "r-001-test")
 	if err := os.MkdirAll(recipeDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -33,8 +33,8 @@ func writeDebate(t *testing.T, dir string, files map[string]string) {
 const goodDebateJSON = `{"id":"001-x","topic":"t","rounds":3,"decided":true,"conclusion":"c",
 "started_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}`
 
-// The normal arrangement: `bts debate log` writes machine state to the
-// project tree, /bts-debate writes round markdown beside the recipe.
+// The normal arrangement: `jig debate log` writes machine state to the
+// project tree, /jig-debate writes round markdown beside the recipe.
 // Validating the directories independently reports that as a missing
 // state file, which is a false positive on every real project.
 func TestValidateDebates_StateInProjectTreeRoundsInRecipeTree(t *testing.T) {
@@ -42,7 +42,7 @@ func TestValidateDebates_StateInProjectTreeRoundsInRecipeTree(t *testing.T) {
 	writeDebate(t, filepath.Join(recipeDir, "debates", "001-x"), map[string]string{
 		"round-1.md": "positions", "round-2.md": "rebuttals",
 	})
-	writeDebate(t, filepath.Join(root, ".bts", "specs", "debates", "001-x"), map[string]string{
+	writeDebate(t, filepath.Join(root, ".jig", "specs", "debates", "001-x"), map[string]string{
 		"debate.json": goodDebateJSON, "round-1.md": "positions",
 	})
 	if errs := validateDebates(recipeDir); len(errs) != 0 {

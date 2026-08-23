@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/imtemp-dev/claude-bts/internal/engine"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/engine"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -32,7 +32,7 @@ var checkCmd = &cobra.Command{
 var checkTaskCmd = &cobra.Command{
 	Use:   "task",
 	Short: "Run per-task MINI-CHECK (Phase 10): import drift, symbol presence, owner delta",
-	Long: `bts check task --recipe {id} --task {task-id}
+	Long: `jig check task --recipe {id} --task {task-id}
 
 Runs the deterministic per-task checks defined in Phase 10:
   - import_drift:    file imports modules not listed as neighbors in
@@ -43,7 +43,7 @@ Runs the deterministic per-task checks defined in Phase 10:
 
 Findings are advisory — they do not block the task. Pass --write to
 persist them onto tasks.json for downstream review (mid-run review in
-Phase 11, final bts-review at completion).`,
+Phase 11, final jig-review at completion).`,
 	RunE: runCheckTask,
 }
 
@@ -51,7 +51,7 @@ func runCheckTask(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
 	root, err := state.FindRoot(cwd)
 	if err != nil {
-		return fmt.Errorf("not a bts project: %w", err)
+		return fmt.Errorf("not a jig project: %w", err)
 	}
 
 	recipeID, _ := cmd.Flags().GetString("recipe")
@@ -127,7 +127,7 @@ var checkTestCoverageCmd = &cobra.Command{
 	Use:   "test-coverage",
 	Short: "Phase 13 gate: every simulate scenario must be linked to a test",
 	Long: `Parses simulations/*.md for scenario headers, extracts
-bts:scenario tags from test files listed in test-results.json, and
+jig:scenario tags from test files listed in test-results.json, and
 reports:
   - scenario_unlinked   — scenario has no test pointing at it
                           (critical for cross-boundary/illegal-cell,
@@ -144,7 +144,7 @@ func runCheckTestCoverage(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
 	root, err := state.FindRoot(cwd)
 	if err != nil {
-		return fmt.Errorf("not a bts project: %w", err)
+		return fmt.Errorf("not a jig project: %w", err)
 	}
 	recipeID, _ := cmd.Flags().GetString("recipe")
 	if recipeID == "" {

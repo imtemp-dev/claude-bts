@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/imtemp-dev/claude-bts/internal/engine"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-jig/internal/engine"
+	"github.com/imtemp-dev/claude-jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -66,7 +66,7 @@ func init() {
 
 var migrateCmd = &cobra.Command{
 	Use:     "migrate",
-	Short:   "Migrate BTS artifacts to current schema",
+	Short:   "Migrate jig artifacts to current schema",
 	GroupID: "tools",
 }
 
@@ -74,7 +74,7 @@ var migrateVerifyLogCmd = &cobra.Command{
 	Use:   "verify-log",
 	Short: "Rewrite verify-log.jsonl entries to carry split-minor fields",
 	Long: `Legacy verify-log entries have a single "minor" field. Phase 2 of the
-BTS schema split minors into [resolvable] (blocks completion) and
+jig schema split minors into [resolvable] (blocks completion) and
 [deferred] (runtime watch-items). This command re-emits each entry with
 minor_resolvable = minor (conservative), minor_deferred = 0.
 
@@ -92,7 +92,7 @@ func runMigrateVerifyLog(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 		target = root
 	}
@@ -425,13 +425,13 @@ func upgradeChangelogLine(line string) (string, bool) {
 
 var migrateVerificationCmd = &cobra.Command{
 	Use:   "verification",
-	Short: "Inject <bts-findings> block into legacy verification.md files",
+	Short: "Inject <jig-findings> block into legacy verification.md files",
 	Long: `Reads each recipe's latest verify-log entry, synthesizes a
-<bts-findings> JSON block from the counts, and prepends it to
+<jig-findings> JSON block from the counts, and prepends it to
 verification.md if missing. Existing blocks are left untouched.
 
-This is a one-time migration. New /bts-verify runs emit the block
-natively (per bts-verify/SKILL.md Phase 2.2).`,
+This is a one-time migration. New /jig-verify runs emit the block
+natively (per jig-verify/SKILL.md Phase 2.2).`,
 	RunE: runMigrateVerification,
 }
 
@@ -468,7 +468,7 @@ func runMigrateVerification(cmd *cobra.Command, args []string) error {
 			if dryRun {
 				marker = "would inject"
 			}
-			fmt.Printf("  %s: %s <bts-findings> block\n", e.Name(), marker)
+			fmt.Printf("  %s: %s <jig-findings> block\n", e.Name(), marker)
 		} else {
 			skipped++
 		}
@@ -486,7 +486,7 @@ func injectFindingsBlock(recipeDir, vmdPath string, dryRun bool) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if strings.Contains(string(data), "<bts-findings>") {
+	if strings.Contains(string(data), "<jig-findings>") {
 		return false, nil // already present
 	}
 
@@ -503,7 +503,7 @@ func injectFindingsBlock(recipeDir, vmdPath string, dryRun bool) (bool, error) {
 		resolvable = last.Minor
 	}
 
-	block := fmt.Sprintf(`<bts-findings>
+	block := fmt.Sprintf(`<jig-findings>
 {
   "critical": %d,
   "major": %d,
@@ -512,7 +512,7 @@ func injectFindingsBlock(recipeDir, vmdPath string, dryRun bool) (bool, error) {
   "info": %d,
   "source": "migrated-from-verify-log"
 }
-</bts-findings>
+</jig-findings>
 
 `, last.Critical, last.Major, resolvable, deferred, last.Info)
 
@@ -626,7 +626,7 @@ func runMigrateSimulations(cmd *cobra.Command, args []string) error {
 
 // existingTagRe detects whether a scenario line already carries one of
 // the three canonical tag shapes — used to avoid double-tagging on
-// idempotent re-runs of `bts migrate simulations`.
+// idempotent re-runs of `jig migrate simulations`.
 var existingTagRe = regexp.MustCompile(`(?i)\[(cross-boundary|single-axis|illegal-cell)(?::[^\]]*)?\]`)
 
 // tagLegacyScenarios walks a simulation file and injects
@@ -1130,7 +1130,7 @@ This command rewrites each recipe's deviation.md so that:
   - Every row receives a unique monotonic ID (D-NNN) preserving
     document order.
   - The Driver column is added with a default value of "code-diff"
-    (the conservative choice for rows produced by /bts-sync's own
+    (the conservative choice for rows produced by /jig-sync's own
     diff pass).
   - The Severity column is added with a default of "major".
 
@@ -1588,7 +1588,7 @@ var migrateTestScenariosCmd = &cobra.Command{
 	Use:   "test-scenarios",
 	Short: "Seed test-results.json scenario_coverage from simulations (Phase 13)",
 	Long: `Phase 13 requires every simulation scenario to be linked by a
-bts:scenario test tag. Legacy recipes have scenarios but no tagged
+jig:scenario test tag. Legacy recipes have scenarios but no tagged
 tests. This migration populates test-results.json's scenario_coverage
 map with an entry for every simulation scenario id:
 
@@ -1755,8 +1755,8 @@ var migrateAllCmd = &cobra.Command{
 
 var migrateSettingsCmd = &cobra.Command{
 	Use:   "settings",
-	Short: "Append missing default keys to .bts/config/settings.yaml",
-	Long: `Each BTS release may add new settings keys. Existing projects that
+	Short: "Append missing default keys to .jig/config/settings.yaml",
+	Long: `Each jig release may add new settings keys. Existing projects that
 init'd under an older release end up with a settings.yaml that lacks
 those keys — so LoadSettings quietly returns the default, and any
 derived logic (e.g. the midrun_review_every denominator in
@@ -1795,7 +1795,7 @@ func runMigrateSettings(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(target, ".bts", "config", "settings.yaml")
+	path := filepath.Join(target, ".jig", "config", "settings.yaml")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -1949,7 +1949,7 @@ func migrateFlags(cmd *cobra.Command) (string, bool, error) {
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return "", false, fmt.Errorf("not a bts project: %w", err)
+			return "", false, fmt.Errorf("not a jig project: %w", err)
 		}
 		target = root
 	}

@@ -251,9 +251,9 @@ func readLastChangelog(path string, n int) []string {
 	return entries
 }
 
-// LoadAssessNextAction reads .bts/specs/recipes/<id>/assess.json and returns
+// LoadAssessNextAction reads .jig/specs/recipes/<id>/assess.json and returns
 // the recommended next_action string. Returns "" if missing or malformed.
-// The file is expected to be written by the bts-assess skill when it runs.
+// The file is expected to be written by the jig-assess skill when it runs.
 // Exported so callers (SessionStart) can fetch a fresh value instead of
 // the possibly-stale one cached in work-state.
 func LoadAssessNextAction(root, recipeID string) string {

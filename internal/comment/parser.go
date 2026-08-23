@@ -1,19 +1,19 @@
-// Package comment parses BTS review callouts embedded in markdown docs.
+// Package comment parses jig review callouts embedded in markdown docs.
 //
-// A callout is a GitHub-flavored alert blockquote with a BTS marker:
+// A callout is a GitHub-flavored alert blockquote with a jig marker:
 //
-//	> [!BTS-COMMENT]
+//	> [!JIG-COMMENT]
 //	> A general suggestion.
 //
-//	> [!BTS-BLOCK]
+//	> [!JIG-BLOCK]
 //	> Must resolve before recipe can finalize.
 //
-//	> [!BTS-Q]
+//	> [!JIG-Q]
 //	> A question that needs an answer.
 //
 // Callouts may span multiple lines (every continuation line starts with `>`).
 // They sit inline in the doc; the surrounding section heading and the
-// adjacent prose lines act as anchors so /bts-comment-apply can place
+// adjacent prose lines act as anchors so /jig-comment-apply can place
 // changes accurately even after the doc is edited.
 package comment
 
@@ -35,12 +35,12 @@ import (
 type Kind string
 
 const (
-	KindComment  Kind = "comment"  // [!BTS-COMMENT] — general suggestion
-	KindBlock    Kind = "block"    // [!BTS-BLOCK]   — finalize-blocking
-	KindQuestion Kind = "question" // [!BTS-Q]       — needs answer
+	KindComment  Kind = "comment"  // [!JIG-COMMENT] — general suggestion
+	KindBlock    Kind = "block"    // [!JIG-BLOCK]   — finalize-blocking
+	KindQuestion Kind = "question" // [!JIG-Q]       — needs answer
 	KindFreeForm Kind = "freeform" // diff fallback (no marker)
 
-	// KindCascade is a synthetic kind emitted by /bts-comment-apply Pass A
+	// KindCascade is a synthetic kind emitted by /jig-comment-apply Pass A
 	// (meta-analysis) for changes that must land in a doc OTHER than the
 	// one carrying the originating callout. The Go-side parser never emits
 	// this — only the skill does, when constructing resolved-comments.json.
@@ -63,7 +63,11 @@ type Comment struct {
 const anchorMaxLen = 80
 
 var (
-	calloutOpenRE = regexp.MustCompile(`^>\s*\[!BTS-(COMMENT|BLOCK|Q)\]\s*$`)
+	// The legacy BTS- spelling is still accepted: a reviewer's comments live
+	// in the recipe's own docs, and a rebrand must not make comments already
+	// written there invisible — an unresolved [!BTS-BLOCK] has to keep
+	// blocking finalize exactly as it did before.
+	calloutOpenRE = regexp.MustCompile(`^>\s*\[!(?:JIG|BTS)-(COMMENT|BLOCK|Q)\]\s*$`)
 	headingRE     = regexp.MustCompile(`^(#{1,6})\s+(.+?)\s*#*\s*$`)
 	// Fence detection: leading 0–3 spaces (per CommonMark) then ``` or ~~~.
 	// Matched against the raw line, not a trimmed copy, so deeply indented
@@ -112,7 +116,7 @@ func snippet(s string) string {
 // whitespace-only edits to the body but discriminates between callouts
 // that share identical body text in different locations within the same
 // file. Including line is the right tradeoff: line shifts within a single
-// /bts-comment-apply invocation are impossible (Pass B runs after parsing
+// /jig-comment-apply invocation are impossible (Pass B runs after parsing
 // completes), and cross-invocation identity is not load-bearing — applied
 // callouts are removed, not re-tracked.
 func stableID(file, body string, line int) string {
@@ -122,7 +126,7 @@ func stableID(file, body string, line int) string {
 	return "c-" + hex.EncodeToString(h[:])[:8]
 }
 
-// ParseFile extracts all BTS callouts from one markdown file.
+// ParseFile extracts all jig callouts from one markdown file.
 // Comment.File is set to the basename of `path` — callers that need
 // repository-relative paths should override after.
 func ParseFile(path string) ([]Comment, error) {
@@ -133,7 +137,7 @@ func ParseFile(path string) ([]Comment, error) {
 	return parseLines(strings.Split(string(data), "\n"), filepath.Base(path)), nil
 }
 
-// ParseRecipe extracts all BTS callouts from every *.md file in recipeDir
+// ParseRecipe extracts all jig callouts from every *.md file in recipeDir
 // (non-recursive — recipes are flat). Comment.File is set to the filename
 // relative to recipeDir.
 func ParseRecipe(recipeDir string) ([]Comment, error) {
@@ -167,7 +171,7 @@ type heading struct {
 // indentedCodeBlock returns true when line is a CommonMark indented code
 // line (4+ leading spaces, no tab normalization). Used to skip callout/
 // heading detection inside literal code examples — without this, a doc
-// that documents the BTS callout syntax inside a 4-space code block
+// that documents the jig callout syntax inside a 4-space code block
 // would self-trigger.
 func indentedCodeBlock(line string) bool {
 	return len(line) >= 4 && line[:4] == "    "
@@ -283,7 +287,7 @@ func parseLines(lines []string, relFile string) []Comment {
 }
 
 // ExtractFreeFormFromDiff scans `git diff HEAD` over recipeDir for added
-// lines that are NOT part of a `> [!BTS-...]` callout block, and returns
+// lines that are NOT part of a `> [!jig-...]` callout block, and returns
 // them as pseudo-Comments with Kind=KindFreeForm.
 //
 // Behavior:
@@ -292,7 +296,7 @@ func parseLines(lines []string, relFile string) []Comment {
 //   - Lines inside a callout block are skipped (the callout parser owns those).
 //   - Consecutive added lines are grouped into one freeform comment.
 //
-// This is intentionally simple — see /bts-comment-apply for how freeform
+// This is intentionally simple — see /jig-comment-apply for how freeform
 // comments are surfaced to the user (gated behind --include-freeform).
 func ExtractFreeFormFromDiff(recipeDir string) ([]Comment, error) {
 	cmd := exec.Command("git", "diff", "HEAD", "--unified=0", "--", recipeDir)

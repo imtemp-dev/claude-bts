@@ -35,7 +35,7 @@ func writeConsistencyPair(t *testing.T, verificationBody string, logEntries []ma
 
 func findingsBody(counts map[string]interface{}) string {
 	data, _ := json.Marshal(counts)
-	return "# Report\n\n<bts-findings>\n" + string(data) + "\n</bts-findings>\n"
+	return "# Report\n\n<jig-findings>\n" + string(data) + "\n</jig-findings>\n"
 }
 
 // Counts match → no errors.
@@ -163,7 +163,7 @@ func TestValidateVerificationLogConsistency_MissingLog_Vacuous(t *testing.T) {
 	}
 }
 
-// Missing <bts-findings> block → we skip the cross-check (the other
+// Missing <jig-findings> block → we skip the cross-check (the other
 // validator already emits the missing-block error).
 func TestValidateVerificationLogConsistency_MissingBlock_Skipped(t *testing.T) {
 	dir := t.TempDir()

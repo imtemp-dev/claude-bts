@@ -1,20 +1,20 @@
-# bts — 로드맵
+# jig — 로드맵
 
 ## Phase 1: 핵심 (4-6주)
 
-**목표**: `/recipe blueprint`가 동작하여 Level 3 문서를 생성할 수 있는 최소 셋.
+**목표**: `/recipe spec`가 동작하여 Level 3 문서를 생성할 수 있는 최소 셋.
 
 ### Go 바이너리
 
 | 컴포넌트 | 내용 |
 |---------|------|
-| `bts init` | TUI 마법사. .claude/ + .bts/ 배포 |
-| `bts hook <event>` | session-start, pre-compact, stop, session-end |
-| `bts verify <file>` | Fact Checker (파일/함수/타입 존재, 라인 수) |
-| `bts recipe status/resume/list` | 레시피 상태 관리 |
-| `bts debate list/resume/export` | 토론 관리 |
-| `bts doctor` | 시스템 진단 |
-| `bts config set/get` | 설정 관리 |
+| `jig init` | TUI 마법사. .claude/ + .jig/ 배포 |
+| `jig hook <event>` | session-start, pre-compact, stop, session-end |
+| `jig verify <file>` | Fact Checker (파일/함수/타입 존재, 라인 수) |
+| `jig recipe status/resume/list` | 레시피 상태 관리 |
+| `jig debate list/resume/export` | 토론 관리 |
+| `jig doctor` | 시스템 진단 |
+| `jig config set/get` | 설정 관리 |
 
 ### 검증 엔진
 
@@ -31,7 +31,7 @@
 |------|-------------|
 | 스킬 | /verify, /cross-check, /audit, /debate, /research (5개) |
 | 에이전트 | verifier, auditor, cross-checker (3개) |
-| 레시피 | /recipe analyze, /recipe design, /recipe blueprint (3개) |
+| 레시피 | /recipe map, /recipe design, /recipe spec (3개) |
 
 ### Hook
 
@@ -44,7 +44,7 @@
 
 ### 상태 관리
 
-- .bts/state/ (recipes, debates, session)
+- .jig/state/ (recipes, debates, session)
 - Atomic write (temp + rename)
 - Resume 지원
 
@@ -96,10 +96,10 @@
 
 | 기능 | 내용 |
 |------|------|
-| 자동 업데이트 | `bts update` |
+| 자동 업데이트 | `jig update` |
 | 매니페스트 추적 | 배포 파일 버전 관리 |
 | Content-hash 캐싱 | 동일 검증 중복 방지 |
-| 검증 보고서 | `bts report` |
+| 검증 보고서 | `jig report` |
 
 ---
 
@@ -125,8 +125,8 @@
 
 | 연동 | 내용 |
 |------|------|
-| moai | bts 문서 → moai SPEC 변환 |
-| GitHub Actions | CI에서 bts verify 실행 |
+| moai | jig 문서 → moai SPEC 변환 |
+| GitHub Actions | CI에서 jig verify 실행 |
 | git pre-push | 검증 안 된 문서 push 차단 |
 
 ### 고급 검증
@@ -145,7 +145,7 @@ Phase 1 (4-6주):
   init + 5 스킬 + 3 레시피 + 3 에이전트
   Fact Checker + Convergence Loop
   상태 관리 + 4 Hook
-  → "/recipe blueprint" 동작
+  → "/recipe spec" 동작
 
 Phase 2 (4-6주):
   + 3 스킬 + 4 레시피
@@ -163,9 +163,9 @@ Phase 3 (4-6주):
 | 기준 | Phase 1 | 전체 완성 |
 |------|---------|----------|
 | 설치 | `curl \| bash` 30초 | 동일 |
-| 초기화 | `bts init` 1분 | 동일 |
-| 첫 레시피 | `/recipe blueprint` → Level 3 문서 생성 | 9개 레시피 모두 동작 |
+| 초기화 | `jig init` 1분 | 동일 |
+| 첫 레시피 | `/recipe spec` → Level 3 문서 생성 | 9개 레시피 모두 동작 |
 | 문서 품질 | 사실 오류 0 (critical/major), 논리 오류 0 | + 흐름 오류 0, 완결성 점수 달성 |
-| 문서→코드 (참고지표) | Level 3 문서로 Opus가 높은 완성도의 코드 생성 가능 | 동일 (bts 통제 밖, Opus 성능 의존) |
+| 문서→코드 (참고지표) | Level 3 문서로 Opus가 높은 완성도의 코드 생성 가능 | 동일 (jig 통제 밖, Opus 성능 의존) |
 | 토론 | 3라운드 토론 + 저장 + resume | + 교착 감지 + 사람 개입 |
 | 바이너리 | ≤15MB | ≤20MB |

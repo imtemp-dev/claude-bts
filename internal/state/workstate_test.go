@@ -11,8 +11,8 @@ import (
 func setupWorkStateRoot(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, ".bts", "specs", "recipes"), 0755)
-	os.MkdirAll(filepath.Join(root, ".bts", "local"), 0755)
+	os.MkdirAll(filepath.Join(root, ".jig", "specs", "recipes"), 0755)
+	os.MkdirAll(filepath.Join(root, ".jig", "local"), 0755)
 	return root
 }
 
@@ -24,7 +24,7 @@ func TestSaveAndLoadWorkState(t *testing.T) {
 		Phase:       "draft",
 		Topic:       "OAuth2",
 		LastActions: []string{"research done", "draft started"},
-		Summary:     "Recipe r-1000 (blueprint) — phase: draft.",
+		Summary:     "Recipe r-1000 (spec) — phase: draft.",
 	}
 
 	if err := SaveWorkState(root, ws); err != nil {
@@ -202,7 +202,7 @@ func TestBuildWorkState(t *testing.T) {
 
 func TestWorkStatePath(t *testing.T) {
 	got := WorkStatePath("/project")
-	want := filepath.Join("/project", ".bts", "local", "work-state.json")
+	want := filepath.Join("/project", ".jig", "local", "work-state.json")
 	if got != want {
 		t.Errorf("got %s, want %s", got, want)
 	}
@@ -379,7 +379,7 @@ func TestBuildWorkState_Iteration(t *testing.T) {
 	root := setupWorkStateRoot(t)
 	recipeID := "r-5400"
 	r := &RecipeState{
-		ID: recipeID, Type: "blueprint", Topic: "x", Phase: "verify", Iteration: 3,
+		ID: recipeID, Type: "spec", Topic: "x", Phase: "verify", Iteration: 3,
 		StartedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 	if err := SaveRecipeState(root, r); err != nil {
