@@ -104,6 +104,22 @@ func LastFullPassHashes(entries []VerifyLogEntry) map[string]string {
 	return hashes
 }
 
+// LastFullPassPaths folds a verify-log into the last recorded
+// root-relative path per document, considering only full passes. Only
+// documents that recorded one appear; the caller falls back to the
+// recipe directory for the rest.
+func LastFullPassPaths(entries []VerifyLogEntry) map[string]string {
+	paths := map[string]string{}
+	for i := range entries {
+		e := entries[i]
+		if e.Doc == "" || e.DocPath == "" || !e.FullPass {
+			continue
+		}
+		paths[e.Doc] = e.DocPath
+	}
+	return paths
+}
+
 // DirtyVerifiedDocs returns basenames of documents whose current content
 // differs from the revision that was last verified — i.e. documents
 // modified AFTER their last verification (rule 3 violations).
@@ -127,10 +143,19 @@ func DirtyVerifiedDocs(root, recipeID string) ([]string, error) {
 		return nil, err
 	}
 	verified := LastFullPassHashes(entries)
+	paths := LastFullPassPaths(entries)
 
 	var dirty []string
 	for doc, want := range verified {
-		got, ok, herr := FileContentHash(filepath.Join(recipeDir, doc))
+		// Where the round said it read the document, if it said. A
+		// basename joined to the recipe directory is the fallback, and
+		// was the only rule — which silently exempted every verified
+		// document living anywhere else from rule 3.
+		at := filepath.Join(recipeDir, doc)
+		if p := paths[doc]; p != "" {
+			at = filepath.Join(root, p)
+		}
+		got, ok, herr := FileContentHash(at)
 		if herr != nil || !ok {
 			continue
 		}

@@ -17,8 +17,8 @@ func init() {
 }
 
 var simDeviationsCmd = &cobra.Command{
-	Use:     "sim-deviations",
-	Short:   "List DEVIATION entries parsed from simulations/*.md (Phase 12)",
+	Use:   "sim-deviations",
+	Short: "List DEVIATION entries parsed from simulations/*.md (Phase 12)",
 	Long: `Walks the recipe's simulations/ directory and emits every DEVIATION
 entry the simulate step produced. Used by /bts-sync Step 2.5 to
 ingest simulate findings into deviation.md without rediscovering

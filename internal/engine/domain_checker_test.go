@@ -132,7 +132,7 @@ func TestVerifyDocument_InvokesDomainCheckers(t *testing.T) {
 | INV-001 | X         | Arrangement |
 | INV-002 | X         | Card        |
 `)
-	result, err := VerifyDocument(path, "")
+	result, err := VerifyDocument(path, "", true)
 	if err != nil {
 		t.Fatalf("verify: %v", err)
 	}

@@ -113,13 +113,30 @@ ASSESS determines what to do next based on the document's current state.
    block from verification.md so counts can never drift):
    ```bash
    bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md \
-     --doc {verified-doc-path} --scope {full|delta}
+     --doc {verified-doc-path} --scope {full|delta} --dimension {verify|audit|simulate ...}
    ```
    `--doc` is REQUIRED: it scopes convergence and the findings ledger to
-   that document and snapshots the revision. `--scope` records whether
+   that document and snapshots the revision — and the path must RESOLVE
+   (a bare basename against the recipe directory, anything with a
+   separator against the project root). A path that resolves nowhere
+   records no revision, which silently disarms both rule-3 gates and the
+   completion replication check; `bts recipe log` warns on stderr when
+   that happens. `--scope` records whether
    the round covered the whole document or only the changed sections
    plus their reference closure (`bts-verification-protocol.md §
    Verification Scope`). Iteration auto-increments per document.
+
+   `--dimension` is REQUIRED and names which semantic passes produced
+   these counts — one flag per pass actually run this round
+   (`--dimension verify --dimension audit`). Pass only what ran: a round
+   claiming a dimension it did not run makes the budget compare
+   incomparable numbers, which is the specific defect this flag exists
+   to prevent. Rounds are only judged against rounds of the same
+   dimensions and scope, and completion needs all three
+   (`bts-verification-protocol.md § Measurement Strength`). Omitting the
+   flag is not the safe option: a dimensionless round is comparable with
+   nothing, does not reset the convergence budget, and cannot count
+   toward completion at all.
    Fallback (only if the findings block is missing): pass explicit SPLIT
    counts — `--iteration N --critical X --major Y --minor-resolvable R
    --minor-deferred D`. NEVER use the legacy `--minor` flag: it maps

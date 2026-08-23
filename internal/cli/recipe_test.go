@@ -224,3 +224,44 @@ func TestReconcile_ForceOverridesWhitelist(t *testing.T) {
 		t.Errorf("plan wrong: %+v", plan)
 	}
 }
+
+// The root cause of a measured recipe's missing doc_hash: `bts recipe
+// log --doc draft.md` is run from the PROJECT ROOT, where draft.md does
+// not exist — it lives in the recipe directory. FileContentHash returned
+// ok=false with a nil error, stampContentHashes recorded nothing, and it
+// said nothing, so both rule-3 gates and the completion replication
+// check stood down for the rest of the run.
+func TestStampContentHashes_ResolvesADocRelativeToTheRecipe(t *testing.T) {
+	root := t.TempDir()
+	recipeID := "r-001-test"
+	dir := state.RecipeDir(root, recipeID)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "draft.md"), []byte("# draft\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// The bare basename, exactly as the skills pass it.
+	var entry state.VerifyLogEntry
+	stampContentHashes(root, recipeID, "draft.md", &entry)
+	if entry.DocHash == "" {
+		t.Fatal("a bare --doc basename must resolve against the recipe directory")
+	}
+
+	// A project-relative path still works, and names the same content.
+	rel := filepath.Join(".bts", "specs", "recipes", recipeID, "draft.md")
+	var viaRel state.VerifyLogEntry
+	stampContentHashes(root, recipeID, rel, &viaRel)
+	if viaRel.DocHash != entry.DocHash {
+		t.Errorf("the same file reached two ways gave %q and %q", entry.DocHash, viaRel.DocHash)
+	}
+
+	// A path that resolves nowhere records nothing — and must not do so
+	// in silence, which is the part that made this invisible.
+	var missing state.VerifyLogEntry
+	stampContentHashes(root, recipeID, "nonexistent.md", &missing)
+	if missing.DocHash != "" {
+		t.Errorf("a missing document must not produce a hash, got %q", missing.DocHash)
+	}
+}

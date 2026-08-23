@@ -3,6 +3,8 @@ paths:
   - ".bts/**"
 authoritative_for:
   - severity_classification
+  - measurement_strength
+  - completion_evidence
   - convergence_threshold
   - minor_subclassification
   - verification_scope
@@ -70,6 +72,17 @@ Consequences the loop must honour:
 - **Reopens are signal.** A finding that goes fixed → open again means
   the last IMPROVE regressed something. Treat it as a defect in the fix,
   not as a new finding.
+- **Absence is not closure.** A finding that stops being reported goes
+  to `unreported`, not `fixed`. It closes only after a second silent
+  round, and never while its anchor is still producing new findings.
+  Absence is what a repair looks like, but it is also what a verifier
+  rewording the same defect looks like, and what a verifier told to skip
+  deliberately-open items looks like. One measured round recorded "68
+  new, 27 fixed" where all 27 were restatements still present in the
+  document under new IDs; at least 40 of that recipe's 458 closures were
+  false. `bts recipe log` reports unreported and held-back counts
+  separately — read them, and say explicitly for each whether the fix
+  landed rather than letting silence decide.
 
 ## Verification Scope {gate: hard}
 
@@ -92,16 +105,102 @@ anchor, interface, or invariant).
   does not shrink the next round's focus diff, and does not clear a
   rule-3 dirty flag on the document as a whole.
 
-Rationale: a document is not re-randomised by an edit to one section.
-Re-deriving all of it every round is what let untouched sections
-generate new findings faster than edits resolved them.
+Rationale: re-deriving the whole document every round is what let
+untouched sections generate new findings faster than edits resolved
+them, so a delta pass is the right default for iteration.
+
+What a delta pass does NOT do is make a round repeatable. The original
+rationale here claimed a document "is not re-randomised by an edit to one
+section"; measurement showed the re-randomisation comes from re-reading,
+not from editing — rounds following no edit at all still averaged 8.9
+new findings. That is why a delta pass is cheap iteration and never
+completion evidence (§ Completion Evidence).
+
+## Measurement Strength {gate: hard}
+
+A verify round is a **sample**, not a measurement of the document.
+Every rule below follows from that.
+
+Each round declares what produced its counts:
+
+- `--scope full|delta` — how much of the document was read.
+- `--dimension verify|audit|simulate` — which instruments read it, one
+  flag per pass actually run. Declare only what ran; declaring nothing
+  is not a claim that everything ran, and a round with no dimensions
+  cannot count toward completion.
+
+Together these are the round's **measurement class**. Two rounds are
+comparable — one can be said to have improved on the other — only when
+their classes match. A verify-only round finds less than a
+verify+audit+simulate round on identical text, and a delta pass finds
+less than a full one, neither because the text improved.
+
+Changing class is therefore not progress and does not reset the
+convergence budget. A round that is the first of its class has nothing
+comparable behind it: it sets that class's baseline and leaves the
+streak exactly where it was — neither reset nor advanced. Only beating
+an earlier round of your **own** class resets it.
+
+Rotating instruments therefore delays the budget by at most the number
+of distinct classes and cannot prevent it: once the measurements stop
+being new, every round that fails to beat its own class counts. It is a
+way to measure differently, never a way to buy more rounds.
+
+Why this is a hard gate rather than advice, from measured runs:
+
+- Four times in one recipe, two consecutive rounds verified a
+  byte-identical document — same recorded `doc_hash`, no edit between —
+  and disagreed. `(0,1,3)` became `(1,10,10)`. `(0,0,0)` became
+  `(2,9,13)`.
+- Rounds that followed no edit at all still averaged **8.9** findings
+  never seen before, including criticals.
+- Findings tracked how hard the round looked (r=+0.69 against subagents
+  spawned) far more than what changed in the document (r=+0.16 against
+  edits). Ten-agent rounds averaged 40 new findings; one-agent rounds
+  averaged 6.5.
+
+A gate reading "this round found nothing" therefore rewards the weakest
+available measurement. Declaring the class is what stops the loop from
+comparing a number one instrument produced against a number three
+produced — the artefact that made one recipe's budget fire for fourteen
+consecutive rounds against a target no honest round could reach, until
+the operator raised `verify.max_iterations` twice to escape it.
+
+## Completion Evidence {gate: hard}
+
+`<bts>DONE</bts>` needs a clean triple that is **reproducible**, not one
+clean triple:
+
+1. **Clean** — critical=0, major=0, minor_resolvable=0.
+2. **Whole** — `--scope full`. A delta pass never re-read the untouched
+   sections against the edits.
+3. **Every instrument** — all of `verify`, `audit`, `simulate`, declared
+   on the round. A clean result from one is not evidence the others
+   agree, and recording no dimensions at all is not a declaration that
+   every pass ran.
+4. **Revision recorded** — a `doc_hash`. A round that cannot say which
+   revision it read cannot be replicated against, and the gate says so
+   rather than falling open. `--doc` must resolve from where the command
+   runs, or nothing is recorded.
+5. **Reproduced independently** — `verify.confirm_passes` (default 2)
+   consecutive rounds meeting 1-4 on the **same recorded revision**, each
+   citing its **own** verification.md content. Editing the document
+   resets the count, which is the point. Re-recording one round does not
+   raise it: two rows are not two readings, and a gate that counts rows
+   is satisfied by re-typing a command.
+
+Enforced in `internal/engine/completion_evidence.go` +
+`internal/hook/stop.go`, and `bts recipe assess-precheck` reads the same
+function so the loop has one oracle rather than two. Set
+`verify.confirm_passes: 1` to restore the old single-round rule.
 
 ## Convergence {gate: hard}
 
 - critical + major must reach 0 for Level 3.
 - **Convergence budget**: `verify.max_iterations` consecutive rounds
   (default: 3) that fail to improve on the best `(critical, major,
-  minor_resolvable)` triple reached so far → the round is logged with
+  minor_resolvable)` triple reached so far **by an earlier round of the
+  same measurement class** → the round is logged with
   `status: failed`, `bts recipe log` exits non-zero with
   `[CONVERGENCE FAILED]`, and the loop MUST stop and ask the user.
   Progress is measured lexicographically: fewer criticals beats fewer
@@ -122,6 +221,50 @@ generate new findings faster than edits resolved them.
 This is enforced in code (`internal/engine/convergence.go`), not by
 self-counting. Recipes measured before it existed ran up to 15 verify
 rounds against a cap of 3.
+
+## Gate Overrides {gate: hard}
+
+A hard gate the operator disagrees with does not stop them — it stops the
+recorded path and leaves the unrecorded one open. A measured recipe
+finalized with seven majors open and its last verify round marked
+`failed`: the completion gate refused `<bts>DONE</bts>`, final.md was
+written from draft.md anyway seventeen hours later, and the two real
+decisions behind that lived only as prose. Every status surface went on
+reporting an ordinary finalized recipe.
+
+So the bypass is a command, not a workaround:
+
+```bash
+bts recipe override grant {id} --gate replicated_clean_pass --doc draft.md \
+    --finding F-1a2b3c4d --finding F-5e6f7a8b \
+    --reason "<why proceeding is the right call>"
+```
+
+- It names **one** gate. `bts recipe override list --gates` shows which
+  gates accept one; the rest protect the integrity of the record rather
+  than the quality of the work, and are not overridable.
+- It **enumerates** the findings it excuses. An override without a named
+  set is refused — that is a blanket pass, which is the thing this
+  replaces. Gates that are not about findings (a missing full pass, an
+  unreplicated round) take `--no-findings` instead; the block message
+  tells you which one applies.
+- It **names the document** and is **pinned** to the revision it was
+  granted on. `--doc` is required for every document-scoped gate, and
+  the file must be readable — an override that is not pinned matches
+  every revision forever, which is the blanket pass under another name.
+  Edit the document and the override goes stale, because the judgement
+  was about that text. A round that recorded no `doc_hash` is stale
+  too: without knowing which text is in front of it, an override is not
+  evidence about anything.
+- It is **visible**: `bts recipe status`, `bts doctor` and `bts stats`
+  report the recipe as overridden until it is revoked, and `bts stats`
+  excludes it from any claim that the gates held.
+
+Revoke with `bts recipe override revoke {id} --gate <gate> --reason "..."`.
+
+An override is a legitimate operator decision. Working around a gate
+without one is not — it produces a recipe whose records say something
+that is not true.
 
 ## Handing a question to the user {gate: hard}
 

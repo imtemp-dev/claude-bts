@@ -38,9 +38,12 @@ func (h *postToolUseHandler) Handle(input *HookInput) (*HookOutput, error) {
 	if fp, ok := input.ToolInput["file_path"].(string); ok {
 		event.ToolFile = fp
 	} else if cmd, ok := input.ToolInput["command"].(string); ok {
-		if len(cmd) > 100 {
-			cmd = cmd[:100]
-		}
+		// Trim back to a separator rather than cutting mid-token: a
+		// 100-byte slice of a shell line reliably produces entries like
+		// `cd /Users/…/recipes/r-001 && ` — a command whose visible form
+		// is a prefix with its verb removed. state.ClipCommand marks the
+		// cut so a partial entry cannot be read as a whole one.
+		cmd = state.ClipCommand(cmd)
 		event.ToolFile = cmd
 	}
 

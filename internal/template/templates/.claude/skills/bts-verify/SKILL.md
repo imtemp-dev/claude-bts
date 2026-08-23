@@ -259,7 +259,7 @@ cannot save files or run the CLI itself:
    the verified document via `--doc` and this round's scope:
    ```bash
    bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md \
-     --doc {verified-doc-path} --scope {full|delta}
+     --doc {verified-doc-path} --scope {full|delta} --dimension {verify|audit|simulate ...}
    ```
    The CLI parses the block itself, so the two sources cannot drift.
    Explicit `--critical/--major/--minor-resolvable/--minor-deferred`
@@ -270,6 +270,29 @@ cannot save files or run the CLI itself:
    document, feeds the findings ledger, and snapshots the revision.
    Without it the round is recorded as unscoped, no findings are
    tracked, and stagnation detection is unavailable.
+
+   **The `--doc` path must resolve.** A bare `draft.md` is resolved
+   against the recipe directory and a path containing a separator
+   against the project root; anything else hashes nothing, and a round
+   with no `doc_hash` cannot be replicated against and cannot complete.
+   `bts recipe log` warns on stderr when it could not read the file —
+   that warning is a failed round, not a note.
+
+   `--dimension` is not optional either. Name every semantic pass whose
+   findings are in this block and no others — `--dimension verify` alone
+   when only this skill ran, plus `--dimension audit` and/or
+   `--dimension simulate` when their findings were merged into the same
+   verification.md. The budget compares a round only against rounds of
+   the same dimensions and scope, so an inflated claim here reintroduces
+   exactly the apples-to-oranges verdict the flag removes.
+
+   Declaring nothing is NOT a shortcut. A round with no dimensions is
+   comparable with nothing and counts toward completion not at all —
+   the honest `--dimension verify` and the silent round fail the same
+   gate, so there is no version of this where omitting the flag helps.
+   The rounds that finish a document must run all three, because that
+   is what `<bts>DONE</bts>` asks for; see
+   `bts-verification-protocol.md § Completion Evidence`.
 
    **This command can fail on purpose.** A non-zero exit with
    `[CONVERGENCE FAILED]` means the convergence budget is exhausted:

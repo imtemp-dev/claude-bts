@@ -165,6 +165,13 @@ Optional fields:
 - `full_pass` (bool): true when the round verified the whole document,
   false/absent for a `--scope delta` round. Only a full pass may satisfy
   completion (`full_pass_before_final`).
+- `dimensions` (string[]): which semantic passes produced these counts —
+  any of `verify`, `audit`, `simulate`, canonicalised (lowercased,
+  de-duplicated, sorted). Absent on rounds written before `--dimension`
+  existed. Together with `full_pass` this is the round's **measurement
+  class**: the convergence budget compares a round only against rounds of
+  the same class, and completion requires all three
+  (`bts-verification-protocol.md § Measurement Strength`).
 - `budget` (number): the `verify.max_iterations` in effect when the round
   was judged. The convergence verdict is recomputed over the whole
   history from CURRENT settings, so without this the log cannot say which
@@ -187,9 +194,20 @@ convergence and the findings ledger to that document, records the
 verified revision's hash, and snapshots it for
 `bts recipe verify-focus <doc>`. Pass `--scope full|delta` to record the
 round's coverage.
-Used by the stop hook to gate `<bts>DONE</bts>`: the spec document's own
-last entry must have critical=0, major=0, minor_resolvable=0, be a full
-pass, and not be `status: failed`.
+Pass `--dimension` once per semantic pass actually run
+(`--dimension verify --dimension audit`); declaring one that did not run
+makes the budget compare incomparable numbers.
+
+Used by the stop hook and by `bts recipe assess-precheck` — the same
+function, so the loop has one oracle — to gate `<bts>DONE</bts>`: the
+spec document's own recent entries must show `verify.confirm_passes`
+(default 2) consecutive rounds that are each clean (critical=0, major=0,
+minor_resolvable=0), a full pass, running every dimension, carrying a
+`doc_hash`, agreeing on the same `doc_hash`, and each carrying a
+DIFFERENT `verification_hash` — and the last must not be
+`status: failed`. One clean round is a sample, not a measurement, and
+two rows citing one verification.md are one sample recorded twice
+(`bts-verification-protocol.md § Completion Evidence`).
 
 ## findings.jsonl
 
@@ -208,16 +226,36 @@ Fields:
 - `id` (string): `F-` + 8 hex chars of sha256(doc + normalised title).
   Assigned by `bts`, never by hand.
 - `doc`, `iteration`, `severity`, `title`, `anchor`: as reported
-- `status` (string): `open`, `fixed`, `deferred`, `dismissed`
+- `status` (string): `open`, `unreported`, `fixed`, `deferred`,
+  `dismissed`. **`unreported` is not a closure** — a finding the latest
+  round stopped mentioning. It becomes `fixed` only after a second
+  consecutive silent round, and never while its anchor is still
+  producing findings of any age — a restatement that is merely carried
+  from an earlier round keeps the anchor live just as a brand-new one
+  does. Deferred watch-items do not, since they are accepted carry-
+  forwards rather than evidence the section is still defective. Absence
+  is what a repair looks like, and also what a verifier rewording the
+  same defect looks like
+  (`bts-verification-protocol.md § Finding Identity`).
 - `reason` (string, optional): why it was dismissed
 
 Current state is the fold of the events (last event per ID wins, with
 open-round and reopen counters accumulated). Inspect with
 `bts recipe findings list {id}`; never hand-edit the file.
 
-## debate meta.json
+## debate.json
 
-Located at `.bts/specs/recipes/{id}/debates/{debate-id}/meta.json`:
+Located at `.bts/specs/debates/{debate-id}/debate.json` — the project
+tree, which is where `bts debate log` writes it and where `bts debate
+list` reads it. `/bts-debate` writes its round markdown under
+`.bts/specs/recipes/{id}/debates/{debate-id}/` instead, so a debate
+normally has a half in each tree. `bts validate` treats the debate ID as
+the unit and looks in both, taking its list of IDs from the recipe's own
+tree so one recipe is not held to another's debates. `meta.json` is
+accepted as a legacy name for this file; nothing writes it any more.
+
+Two copies of the same debate that DISAGREE are the failure this
+arrangement can produce — `bts doctor` reports it under `documents`.
 
 ```json
 {

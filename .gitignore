@@ -29,6 +29,19 @@ Thumbs.db
 # bts state (per-project, not committed)
 .bts/local/
 
+# Runtime state that collects INSIDE the template tree. state.FindRoot
+# walks upward for a `.bts/`, and internal/template/templates/.bts is one,
+# so any bts command or hook run with a working directory in there records
+# its state under the templates. `//go:embed all:templates` would then bake
+# one developer's metrics, tool traces and specs into the release binary,
+# and `bts update` force-writes them over the user's own. The pattern above
+# does not reach here: a pattern with a separator in the middle is anchored
+# to the repository root. Allowlisted to config/, mirroring
+# template.isRuntimeState.
+internal/template/templates/.bts/*
+!internal/template/templates/.bts/config/
+!internal/template/templates/.bts/status_line.sh
+
 # Prototype data
 data/test-turns.json
 data/eval-*.json

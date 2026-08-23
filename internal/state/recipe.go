@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -14,12 +15,12 @@ import (
 // RecipeState tracks the current state of a recipe execution.
 type RecipeState struct {
 	ID           string  `json:"id"`
-	Type         string  `json:"type"`          // analyze, design, blueprint
-	Topic        string  `json:"topic"`         // user's description
-	Phase        string  `json:"phase"`         // scoping, research, draft, assess, improve, verify, debate, simulate, audit, finalize, cancelled, implement, test, sync, status, complete
-	Iteration    int     `json:"iteration"`     // current verify iteration
+	Type         string  `json:"type"`                    // analyze, design, blueprint
+	Topic        string  `json:"topic"`                   // user's description
+	Phase        string  `json:"phase"`                   // scoping, research, draft, assess, improve, verify, debate, simulate, audit, finalize, cancelled, implement, test, sync, status, complete
+	Iteration    int     `json:"iteration"`               // current verify iteration
 	DraftVersion int     `json:"draft_version,omitempty"` // deprecated: single draft.md, no versioning
-	Level        float64 `json:"level"`         // assessed document level (0.0 ~ 3.0)
+	Level        float64 `json:"level"`                   // assessed document level (0.0 ~ 3.0)
 	StartedAt    string  `json:"started_at"`
 	UpdatedAt    string  `json:"updated_at"`
 	RefRecipe    string  `json:"ref_recipe,omitempty"` // referenced recipe ID (for fix recipes)
@@ -49,19 +50,19 @@ type TaskState struct {
 type Task struct {
 	ID                string             `json:"id"`
 	File              string             `json:"file"`
-	Action            string             `json:"action"`      // create, modify, delete
-	Status            string             `json:"status"`      // pending, in_progress, done, blocked, skipped
+	Action            string             `json:"action"` // create, modify, delete
+	Status            string             `json:"status"` // pending, in_progress, done, blocked, skipped
 	Description       string             `json:"description"`
-	Anchor            string             `json:"anchor,omitempty"` // "path action" — matches <!-- task-anchor: path action -->
-	ModifyScope       []string           `json:"modify_scope,omitempty"` // required when Action=="modify"
-	PreImageSha       string             `json:"pre_image_sha,omitempty"` // sha256 of file before IMPLEMENT
-	PostImageSha      string             `json:"post_image_sha,omitempty"` // sha256 after VERIFY build pass
+	Anchor            string             `json:"anchor,omitempty"`             // "path action" — matches <!-- task-anchor: path action -->
+	ModifyScope       []string           `json:"modify_scope,omitempty"`       // required when Action=="modify"
+	PreImageSha       string             `json:"pre_image_sha,omitempty"`      // sha256 of file before IMPLEMENT
+	PostImageSha      string             `json:"post_image_sha,omitempty"`     // sha256 after VERIFY build pass
 	StructureFindings []StructureFinding `json:"structure_findings,omitempty"` // per-task mini-check results (Phase 10)
 	DependsOn         []string           `json:"depends_on,omitempty"`
-	RetryCount        int                `json:"retry_count,omitempty"` // persisted TOTAL build retry count (hard-cap budget)
+	RetryCount        int                `json:"retry_count,omitempty"`      // persisted TOTAL build retry count (hard-cap budget)
 	AttemptsInTier    int                `json:"attempts_in_tier,omitempty"` // Phase 15: attempts within the CURRENT tier — reset to 0 on every tier transition
-	LastError         string             `json:"last_error,omitempty"`  // last build error for stagnation detection
-	RetryTier         int                `json:"retry_tier,omitempty"`  // Phase 15 retry-ladder tier: 1..5
+	LastError         string             `json:"last_error,omitempty"`       // last build error for stagnation detection
+	RetryTier         int                `json:"retry_tier,omitempty"`       // Phase 15 retry-ladder tier: 1..5
 	EscalationNotes   []string           `json:"escalation_notes,omitempty"` // one entry per tier transition
 }
 
@@ -238,13 +239,32 @@ type VerifyLogEntry struct {
 	Iteration       int    `json:"iteration"`
 	Critical        int    `json:"critical"`
 	Major           int    `json:"major"`
-	Minor           int    `json:"minor,omitempty"`             // legacy pre-split count
+	Minor           int    `json:"minor,omitempty"` // legacy pre-split count
 	MinorResolvable int    `json:"minor_resolvable,omitempty"`
 	MinorDeferred   int    `json:"minor_deferred,omitempty"`
 	Info            int    `json:"info,omitempty"`
 	Doc             string `json:"doc,omitempty"`       // basename of the verified document
 	FullPass        bool   `json:"full_pass,omitempty"` // whole-document round (vs. scoped delta)
-	Status          string `json:"status"`              // continue, converged, failed
+	// Dimensions names the semantic passes that produced this round's
+	// counts: "verify" (logical consistency), "audit" (completeness),
+	// "simulate" (scenario coverage). Empty means "written before this
+	// field existed" — see StrengthClass.
+	//
+	// Without it the log records HOW MUCH of the document was read
+	// (FullPass) but not WHICH INSTRUMENTS read it, and the convergence
+	// budget compared the two as if they were the same measurement. A
+	// verify-only round finds less than a verify+audit+simulate round on
+	// identical text — not because the text improved, but because one
+	// instrument was pointed at it instead of three. A measured recipe
+	// set its best triple at (0,0,2) on a verify-only round, ran its
+	// first audit fifteen rounds later and got 13 findings including 4
+	// majors on that same text, and then had every subsequent
+	// multi-dimension round judged "no progress" against a number one
+	// dimension had produced. The operator raised verify.max_iterations
+	// twice to work around a verdict that was an artefact of this
+	// missing field.
+	Dimensions []string `json:"dimensions,omitempty"`
+	Status     string   `json:"status"` // continue, converged, failed
 	// Budget is the verify.max_iterations value in effect when this round
 	// was judged. Without it the log is not self-describing: the
 	// convergence verdict is recomputed over the WHOLE history using
@@ -290,7 +310,16 @@ type VerifyLogEntry struct {
 	// gates actually ask — is the file on disk the one that was verified.
 	// Empty means "written before these fields existed"; both gates fall
 	// back rather than manufacture a verdict from a missing hash.
-	DocHash          string `json:"doc_hash,omitempty"`
+	DocHash string `json:"doc_hash,omitempty"`
+	// DocPath is the verified document's path relative to the project
+	// root. Doc carries only the basename, and the rule-3 dirty check
+	// looked the basename up under the RECIPE directory — so a --doc that
+	// legitimately resolved elsewhere (`docs/api-spec.md` from the
+	// project root) got a doc_hash recorded and then never re-checked:
+	// FileContentHash returned ok=false on the wrong path and the check
+	// skipped it. Empty means "written before this field existed" or "the
+	// document lives in the recipe directory", which is the fallback.
+	DocPath          string `json:"doc_path,omitempty"`
 	VerificationHash string `json:"verification_hash,omitempty"`
 	Timestamp        string `json:"timestamp"`
 }
@@ -328,6 +357,71 @@ func (e *VerifyLogEntry) EffectiveResolvable() int {
 		return e.Minor
 	}
 	return e.MinorResolvable
+}
+
+// VerifyDimensions are the semantic passes a verify round may run. They
+// mirror the three fork-context checks in
+// bts-verification-protocol.md § Core Principle; the deterministic
+// `bts verify` pass is not one of them because it is not a sample — it
+// returns the same answer on the same bytes every time.
+var VerifyDimensions = []string{"verify", "audit", "simulate"}
+
+// NormalizeDimensions lowercases, de-duplicates and sorts a dimension
+// list into its canonical form, rejecting names outside
+// VerifyDimensions. A nil or empty input returns nil, which is the
+// "not recorded" form legacy entries carry.
+func NormalizeDimensions(dims []string) ([]string, error) {
+	seen := make(map[string]bool, len(dims))
+	var out []string
+	for _, d := range dims {
+		d = strings.ToLower(strings.TrimSpace(d))
+		if d == "" {
+			continue
+		}
+		if !slices.Contains(VerifyDimensions, d) {
+			return nil, fmt.Errorf("unknown dimension %q (want one of %s)",
+				d, strings.Join(VerifyDimensions, ", "))
+		}
+		if seen[d] {
+			continue
+		}
+		seen[d] = true
+		out = append(out, d)
+	}
+	slices.Sort(out)
+	return out, nil
+}
+
+// StrengthClass names the measurement a round performed: which
+// instruments ran, over how much of the document. Two rounds are
+// comparable — one can be said to have improved on the other — only
+// when their classes match.
+//
+// Legacy rounds that recorded no dimensions form their own class
+// ("?"), so an old log keeps behaving exactly as it did: every entry
+// in it is comparable with every other, bucketed only by scope.
+func (e *VerifyLogEntry) StrengthClass() string {
+	dims := "?"
+	if len(e.Dimensions) > 0 {
+		dims = strings.Join(e.Dimensions, "+")
+	}
+	scope := "delta"
+	if e.FullPass {
+		scope = "full"
+	}
+	return dims + "/" + scope
+}
+
+// HasAllDimensions reports whether this round ran every semantic pass.
+// The completion gate uses it: a clean triple from one instrument is
+// not evidence that three instruments would agree.
+func (e *VerifyLogEntry) HasAllDimensions() bool {
+	for _, want := range VerifyDimensions {
+		if !slices.Contains(e.Dimensions, want) {
+			return false
+		}
+	}
+	return true
 }
 
 // RecipeDir returns the directory for a recipe's state.

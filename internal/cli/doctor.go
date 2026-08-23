@@ -137,6 +137,10 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		issues = append(issues, checkTestResultsProvenance(root, recipe.ID)...)
 		issues = append(issues, checkDirtyVerifiedDocs(root, recipe.ID)...)
 		issues = append(issues, checkUnenforceableRule3(root, recipe.ID)...)
+		issues = append(issues, checkUnrecordedRevisions(root, recipe.ID)...)
+		issues = append(issues, checkActiveOverrides(root, recipe.ID)...)
+		issues = append(issues, checkLedgerAgreesWithVerifyLog(root, recipe.ID)...)
+		issues = append(issues, checkDebateTreeDivergence(root, recipe.ID)...)
 		issues = append(issues, checkOpenDecisions(root, recipe.ID)...)
 		issues = append(issues, checkGateEvidence(root, recipe.ID)...)
 
@@ -202,6 +206,10 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	// Config drift checks — user-owned files (settings.yaml, .mcp.json)
 	// are preserved by `bts update`, so they silently miss new defaults.
 	driftIssues := checkConfigDrift(root)
+	driftIssues = append(driftIssues, checkDuplicateHookRegistration(root)...)
+	driftIssues = append(driftIssues, checkUnreadSettings(root)...)
+	driftIssues = append(driftIssues, checkEvidenceProviderNeverSucceeded(root)...)
+	driftIssues = append(driftIssues, checkOrphanedProjectDebates(root)...)
 	if len(driftIssues) == 0 {
 		fmt.Println("   ✓ config drift: none")
 	}
@@ -369,21 +377,34 @@ func checkGateEvidence(root, recipeID string) []doctorIssue {
 	if err != nil || len(entries) == 0 {
 		return nil
 	}
-	var observed int
-	var bare []string
-	for _, e := range entries {
-		switch e.AgentEvidence {
-		case state.AgentEvidenceObserved:
-			observed++
-		case state.AgentEvidenceNone:
-			label := e.Doc
-			if label == "" {
-				label = "(unscoped)"
-			}
-			bare = append(bare, fmt.Sprintf("#%d %s", e.Iteration, label))
+	// Only rounds recorded AFTER the first observation are judged. Every
+	// round before it predates the signal working in this project, and
+	// the honest reading of "none" there is "nothing was watching", not
+	// "nobody forked". Without the cut, the round that first records
+	// evidence retroactively turns a recipe's whole history into
+	// warnings and `--strict` fails a healthy project.
+	first := -1
+	for i, e := range entries {
+		if e.AgentEvidence == state.AgentEvidenceObserved {
+			first = i
+			break
 		}
 	}
-	if observed == 0 || len(bare) == 0 {
+	if first < 0 {
+		return nil
+	}
+	var bare []string
+	for _, e := range entries[first+1:] {
+		if e.AgentEvidence != state.AgentEvidenceNone {
+			continue
+		}
+		label := e.Doc
+		if label == "" {
+			label = "(unscoped)"
+		}
+		bare = append(bare, fmt.Sprintf("#%d %s", e.Iteration, label))
+	}
+	if len(bare) == 0 {
 		return nil
 	}
 	return []doctorIssue{{"warning", "evidence",

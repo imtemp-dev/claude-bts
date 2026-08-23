@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/imtemp-dev/claude-bts/internal/engine"
+	"github.com/imtemp-dev/claude-bts/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -26,22 +27,26 @@ func runVerify(cmd *cobra.Command, args []string) error {
 	docPath := args[0]
 	noCode, _ := cmd.Flags().GetBool("no-code")
 
-	projectRoot, err := os.Getwd()
+	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("get cwd: %w", err)
 	}
 
 	if !filepath.IsAbs(docPath) {
-		docPath = filepath.Join(projectRoot, docPath)
+		docPath = filepath.Join(cwd, docPath)
 	}
 
-	// If --no-code, skip code reference checks
-	root := projectRoot
-	if noCode {
-		root = ""
+	// Settings belong to the PROJECT, not to wherever the command was
+	// typed. Reading them from the cwd meant `bts verify` run from a
+	// subdirectory silently fell back to built-in defaults, so
+	// verify.max_section_lines only applied when the operator happened
+	// to be standing in the project root.
+	projectRoot := cwd
+	if r, rerr := state.FindRoot(cwd); rerr == nil {
+		projectRoot = r
 	}
 
-	result, err := engine.VerifyDocument(docPath, root)
+	result, err := engine.VerifyDocument(docPath, projectRoot, !noCode)
 	if err != nil {
 		return fmt.Errorf("verify: %w", err)
 	}

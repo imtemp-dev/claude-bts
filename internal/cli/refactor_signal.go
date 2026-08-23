@@ -16,8 +16,8 @@ func init() {
 }
 
 var refactorSignalCmd = &cobra.Command{
-	Use:     "refactor-signal [recipe-id]",
-	Short:   "Surface patch-of-patches patterns in a recipe's history",
+	Use:   "refactor-signal [recipe-id]",
+	Short: "Surface patch-of-patches patterns in a recipe's history",
 	Long: `Analyzes changelog and tasks.json for patterns that typically signal
 the current decomposition is wrong:
 

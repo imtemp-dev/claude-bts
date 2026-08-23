@@ -192,3 +192,53 @@ func TestRecipeIDFromDocPath(t *testing.T) {
 		}
 	}
 }
+
+// A --doc that legitimately resolves outside the recipe directory got a
+// doc_hash recorded and was then never re-checked: the dirty check
+// looked the BASENAME up under the recipe directory, FileContentHash
+// returned ok=false on a path that does not exist, and the loop skipped
+// it. Rule 3 silently exempted every such document.
+func TestDirtyVerifiedDocs_FollowsTheRecordedDocPath(t *testing.T) {
+	root := t.TempDir()
+	recipeID := "r-001-test"
+	if err := os.MkdirAll(RecipeDir(root, recipeID), 0755); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(root, "docs")
+	if err := os.MkdirAll(outside, 0755); err != nil {
+		t.Fatal(err)
+	}
+	docPath := filepath.Join(outside, "api-spec.md")
+	if err := os.WriteFile(docPath, []byte("# api spec\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	hash, ok, err := FileContentHash(docPath)
+	if err != nil || !ok {
+		t.Fatalf("hash: %v ok=%v", err, ok)
+	}
+	if err := AppendVerifyLog(root, recipeID, &VerifyLogEntry{
+		Iteration: 1, Doc: "api-spec.md", DocPath: "docs/api-spec.md",
+		DocHash: hash, FullPass: true, Status: "converged",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	dirty, err := DirtyVerifiedDocs(root, recipeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dirty) != 0 {
+		t.Errorf("unchanged document reported dirty: %v", dirty)
+	}
+
+	if err := os.WriteFile(docPath, []byte("# api spec, revised\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	dirty, err = DirtyVerifiedDocs(root, recipeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dirty) != 1 || dirty[0] != "api-spec.md" {
+		t.Errorf("dirty = %v, want [api-spec.md] — rule 3 must reach documents outside the recipe directory", dirty)
+	}
+}

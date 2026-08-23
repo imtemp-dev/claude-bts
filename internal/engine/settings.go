@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -22,10 +23,10 @@ type Settings struct {
 // places (settings.yaml prose, bts-implement SKILL.md, protocol table);
 // this struct is now the single source.
 type ImplementSettings struct {
-	MaxBuildRetries    int                 `yaml:"max_build_retries"`
-	MaxTestIterations  int                 `yaml:"max_test_iterations"`
-	MidrunReviewEvery  int                 `yaml:"midrun_review_every"`
-	RetryLadder        RetryLadderSettings `yaml:"retry_ladder"`
+	MaxBuildRetries   int                 `yaml:"max_build_retries"`
+	MaxTestIterations int                 `yaml:"max_test_iterations"`
+	MidrunReviewEvery int                 `yaml:"midrun_review_every"`
+	RetryLadder       RetryLadderSettings `yaml:"retry_ladder"`
 }
 
 // RetryLadderSettings mirrors engine.LadderConfig with yaml tags.
@@ -47,8 +48,8 @@ func (r RetryLadderSettings) LadderConfig() LadderConfig {
 
 // SimulateSettings captures the simulation checker thresholds.
 type SimulateSettings struct {
-	MinScenarios        int     `yaml:"min_scenarios"`
-	CrossBoundaryRatio  float64 `yaml:"cross_boundary_ratio"`
+	MinScenarios       int     `yaml:"min_scenarios"`
+	CrossBoundaryRatio float64 `yaml:"cross_boundary_ratio"`
 }
 
 // VerifySettings captures verify loop controls read by Go code. Fields
@@ -64,6 +65,23 @@ type VerifySettings struct {
 	// usable. 0 disables expiry for successful lookups; "unavailable"
 	// results always expire after an hour regardless.
 	EvidenceTTLDays int `yaml:"evidence_ttl_days"`
+	// MaxSectionLines is the H2 section length at which `bts verify`
+	// starts reporting span. 0 disables. See section_span_checker.go.
+	MaxSectionLines int `yaml:"max_section_lines"`
+	// SectionSpanSeverity classifies those reports. "info" (default)
+	// records without blocking; "major" makes an oversize section a
+	// completion blocker.
+	SectionSpanSeverity string `yaml:"section_span_severity"`
+	// ConfirmPasses is how many consecutive clean full passes over an
+	// unchanged revision the completion gate requires. 1 restores the
+	// pre-v0.14 single-round rule.
+	//
+	// A verify round is a sample, not a measurement: measured rounds on
+	// byte-identical documents have disagreed by two criticals and nine
+	// majors, and rounds following no edit at all still averaged 8.9
+	// previously-unseen findings. Replication is what turns a clean
+	// number into evidence — see engine/completion_evidence.go.
+	ConfirmPasses int `yaml:"confirm_passes"`
 }
 
 // DefaultSettings returns the built-in defaults matching the comments
@@ -91,8 +109,11 @@ func DefaultSettings() *Settings {
 			CrossBoundaryRatio: DefaultCrossBoundaryRatio,
 		},
 		Verify: VerifySettings{
-			MaxIterations:   3,
-			EvidenceTTLDays: 30,
+			MaxIterations:       3,
+			EvidenceTTLDays:     30,
+			ConfirmPasses:       2,
+			MaxSectionLines:     300,
+			SectionSpanSeverity: SeverityInfo,
 		},
 	}
 }
@@ -137,6 +158,29 @@ func LoadSettings(root string) (*Settings, error) {
 	}
 	if s.Verify.MaxIterations <= 0 {
 		s.Verify.MaxIterations = def.Verify.MaxIterations
+	}
+	if s.Verify.ConfirmPasses <= 0 {
+		s.Verify.ConfirmPasses = def.Verify.ConfirmPasses
+	}
+	// 0 is meaningful (disable the check), so only a negative value
+	// falls back to the default.
+	if s.Verify.MaxSectionLines < 0 {
+		s.Verify.MaxSectionLines = def.Verify.MaxSectionLines
+	}
+	// An unrecognised severity was passed through verbatim and ended up
+	// in the Issue as a classification nothing downstream knows how to
+	// count, so a typo silently turned the check off rather than
+	// changing how loudly it spoke.
+	switch s.Verify.SectionSpanSeverity {
+	case SeverityCritical, SeverityMajor, SeverityMinor, SeverityInfo:
+	default:
+		if s.Verify.SectionSpanSeverity != "" {
+			fmt.Fprintf(os.Stderr,
+				"[bts] warning: verify.section_span_severity=%q is not one of %s/%s/%s/%s — using %s\n",
+				s.Verify.SectionSpanSeverity, SeverityCritical, SeverityMajor,
+				SeverityMinor, SeverityInfo, def.Verify.SectionSpanSeverity)
+		}
+		s.Verify.SectionSpanSeverity = def.Verify.SectionSpanSeverity
 	}
 	// 0 is meaningful here (never expire), so only a negative value
 	// falls back to the default.

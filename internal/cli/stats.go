@@ -426,7 +426,6 @@ func sortTools(tools []metrics.ToolStat) {
 	}
 }
 
-
 // runIndicators emits the Phase 17 monitoring snapshot — the 14
 // numbers (plus derived counts) bts-monitor.ts consumes via JSON.
 func runIndicators(cmd *cobra.Command, root string, args []string) error {

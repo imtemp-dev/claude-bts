@@ -73,7 +73,7 @@ cycle. See `bts-verification-protocol.md § Convergence`.
 Log each iteration:
 ```bash
 bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md \
-  --doc {verified-doc-path} --scope {full|delta}
+  --doc {verified-doc-path} --scope {full|delta} --dimension {verify|audit|simulate ...}
 ```
 Iteration auto-increments. Fallback (no findings block): `--iteration N --critical X --major Y --minor-resolvable R --minor-deferred D`. Never use legacy `--minor` (it maps all minors to blocking [resolvable]).
 

@@ -25,6 +25,30 @@ verify:
   # it was judged under (`budget` field). Changing it re-judges the convergence
   # verdict for a document's whole history, so `bts recipe log` prints a notice
   # when it changes mid-document.
+  #
+  # What a round CAN adjust is how much evidence completion needs, because a
+  # verify round is a sample rather than a measurement. Measured on one recipe:
+  # two consecutive rounds over a byte-identical document disagreed by two
+  # criticals and nine majors; rounds following no edit at all still averaged
+  # 8.9 previously-unseen findings; and findings tracked how hard the round
+  # looked (r=+0.69 vs subagents spawned) far more than what changed in the
+  # document (r=+0.16 vs edits).
+  confirm_passes: 2              # Consecutive clean FULL passes, running every dimension, over
+                                 # the SAME recorded revision, before <bts>DONE</bts> is allowed.
+                                 # Editing the document resets the count — that is the point.
+                                 # 1 restores the old single-round rule.
+
+  max_section_lines: 300         # `bts verify` reports draft/final H2 sections longer than this.
+                                 # Section length and finding count correlate at r=+0.95 (~12.7
+                                 # findings per 100 lines), so length is the one lever on the
+                                 # loop's total cost that is knowable before the loop starts.
+                                 # 0 disables.
+  section_span_severity: info    # How `bts verify` classifies those reports. "critical" or "major"
+                                 # make `bts verify` exit non-zero; "minor_resolvable" and "info"
+                                 # do not. It is a report to the operator and to the verifying
+                                 # agent — it does NOT enter findings.jsonl or verify-log.jsonl
+                                 # (those come from the <bts-findings> block in verification.md),
+                                 # so no value here blocks <bts>DONE</bts> on its own.
 
 # Debate
 debate:
@@ -53,20 +77,11 @@ implement:
 # Fix recipe
 fix:
   debate_rounds: 1               # Known bugs need quick resolution, not extended deliberation
-  simulate_scenarios: 3          # Focused fix — fewer but targeted scenarios
 
 # Debug recipe
 debug:
   debate_rounds: 1               # Quick analysis, not full debate
   perspective_count: 6           # 6 lenses for root cause: data, deps, design, runtime, history, impact
-
-# Resume
-resume:
-  changelog_tail: 5              # Last 5 entries: enough context without reading full history
-
-# Context
-context:
-  clear_threshold: 80            # Leave 20% headroom for the response
 
 # Vision & Roadmap
 vision:
@@ -104,8 +119,3 @@ agents:
 # discover/research/debate/adjudicate/review = high (structure carries the
 # quality; conversational or multi-round stages), status = low.
 # Unset skills (assess, implement, test, …) inherit the session effort.
-
-# Privacy
-privacy:
-  strip_private_tags: true
-  detect_secrets: true
