@@ -42,6 +42,11 @@ what is already there — see "Upgrading from bts" in the README.
 
 - Homebrew formula is now pinned to `jig`, so `brew install jig` matches the
   binary name and the docs.
+- The repository and Go module drop the `claude-` prefix
+  (`github.com/imtemp-dev/jig`). jig only drives Claude Code today, but the
+  name no longer forecloses other hosts. The goreleaser project name is
+  pinned rather than inferred from the repo, so the archive names install.sh
+  downloads cannot drift with it.
 
 ### Migration
 

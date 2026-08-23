@@ -1,9 +1,9 @@
-# claude-jig
+# jig
 
 **先做工装，再下刀** — 在规范错误变成调试会话之前将其捕获。
 
-[![CI](https://github.com/imtemp-dev/claude-jig/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-jig/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-jig)](https://github.com/imtemp-dev/claude-jig/releases)
+[![CI](https://github.com/imtemp-dev/jig/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/jig/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/imtemp-dev/jig)](https://github.com/imtemp-dev/jig/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8.svg)](https://go.dev)
 
@@ -64,10 +64,10 @@ brew tap imtemp-dev/tap
 brew install jig
 
 # 或一行安装
-curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-jig/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/imtemp-dev/jig/main/install.sh | bash
 
 # 或从源码构建 (Go 1.22+)
-git clone https://github.com/imtemp-dev/claude-jig.git && cd claude-jig && make install
+git clone https://github.com/imtemp-dev/jig.git && cd jig && make install
 
 # 在项目中初始化
 cd your-project
@@ -310,12 +310,12 @@ jig version                 显示二进制和模板版本
 
 ## 贡献
 
-欢迎贡献。请通过 [issue](https://github.com/imtemp-dev/claude-jig/issues) 提交漏洞报告或功能请求。
+欢迎贡献。请通过 [issue](https://github.com/imtemp-dev/jig/issues) 提交漏洞报告或功能请求。
 
 ```bash
 # 开发环境设置
-git clone https://github.com/imtemp-dev/claude-jig.git
-cd claude-jig
+git clone https://github.com/imtemp-dev/jig.git
+cd jig
 make install          # 构建并安装到 ~/.local/bin
 go test -race ./...   # 运行测试
 ```

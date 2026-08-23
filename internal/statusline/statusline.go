@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/imtemp-dev/claude-jig/internal/metrics"
-	"github.com/imtemp-dev/claude-jig/internal/state"
-	"github.com/imtemp-dev/claude-jig/pkg/version"
+	"github.com/imtemp-dev/jig/internal/metrics"
+	"github.com/imtemp-dev/jig/internal/state"
+	"github.com/imtemp-dev/jig/pkg/version"
 )
 
 // StdinData is the JSON Claude Code sends to the statusline hook.

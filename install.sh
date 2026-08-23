@@ -1,5 +1,5 @@
 #!/bin/bash
-# claude-jig installer — downloads the latest release binary for your platform
+# jig installer — downloads the latest release binary for your platform
 set -e
 
 RED='\033[0;31m'
@@ -38,7 +38,7 @@ detect_platform() {
 }
 
 get_latest_version() {
-    local url="https://api.github.com/repos/imtemp-dev/claude-jig/releases/latest"
+    local url="https://api.github.com/repos/imtemp-dev/jig/releases/latest"
 
     if command -v curl &> /dev/null; then
         VERSION=$(curl -s "$url" | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
@@ -52,7 +52,7 @@ get_latest_version() {
     if [ -z "$VERSION" ]; then
         print_error "Failed to fetch latest version from GitHub"
         echo "  Try: $0 --version 0.1.0"
-        echo "  Or:  go install github.com/imtemp-dev/claude-jig/cmd/jig@latest"
+        echo "  Or:  go install github.com/imtemp-dev/jig/cmd/jig@latest"
         exit 1
     fi
 
@@ -60,8 +60,8 @@ get_latest_version() {
 }
 
 download_and_install() {
-    local archive="claude-jig_${VERSION}_${OS}_${ARCH}.tar.gz"
-    local base_url="https://github.com/imtemp-dev/claude-jig/releases/download/v${VERSION}"
+    local archive="jig_${VERSION}_${OS}_${ARCH}.tar.gz"
+    local base_url="https://github.com/imtemp-dev/jig/releases/download/v${VERSION}"
     local tmp=$(mktemp -d)
     trap "rm -rf '$tmp'" EXIT
 
@@ -140,7 +140,7 @@ verify_installation() {
 
 main() {
     echo ""
-    echo "  claude-jig installer"
+    echo "  jig installer"
     echo "  ──────────────────────"
     echo ""
 
@@ -160,7 +160,7 @@ main() {
                 echo "  -h, --help           Show this help"
                 echo ""
                 echo "Examples:"
-                echo "  curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-jig/main/install.sh | bash"
+                echo "  curl -fsSL https://raw.githubusercontent.com/imtemp-dev/jig/main/install.sh | bash"
                 echo "  $0 --version 0.1.0"
                 echo "  $0 --install-dir /usr/local/bin"
                 exit 0 ;;
@@ -181,7 +181,7 @@ main() {
 
     echo ""
     print_success "Done!"
-    print_info "https://github.com/imtemp-dev/claude-jig"
+    print_info "https://github.com/imtemp-dev/jig"
     echo ""
 }
 

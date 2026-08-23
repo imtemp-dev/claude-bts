@@ -1,5 +1,11 @@
 version: 2
 
+# Pinned rather than inferred from the repo name: archives are named
+# {{ .ProjectName }}_..., and install.sh downloads jig_<version>_<os>_<arch>.
+# Letting this drift with the repo name breaks the installer at release time,
+# where nothing is watching.
+project_name: jig
+
 before:
   hooks:
     - go mod tidy
@@ -17,9 +23,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/imtemp-dev/claude-jig/pkg/version.Version={{.Version}}
-      - -X github.com/imtemp-dev/claude-jig/pkg/version.Commit={{.Commit}}
-      - -X github.com/imtemp-dev/claude-jig/pkg/version.Date={{.Date}}
+      - -X github.com/imtemp-dev/jig/pkg/version.Version={{.Version}}
+      - -X github.com/imtemp-dev/jig/pkg/version.Commit={{.Commit}}
+      - -X github.com/imtemp-dev/jig/pkg/version.Date={{.Date}}
 
 archives:
   - formats:
@@ -36,7 +42,7 @@ changelog:
   sort: asc
 
 brews:
-    # Explicit: without it the formula takes the project name (claude-jig), so
+    # Explicit: without it the formula takes the project name (jig), so
     # `brew install jig` — what the binary is called and what every doc says —
     # would fail.
   - name: jig
@@ -44,7 +50,7 @@ brews:
       owner: imtemp-dev
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    homepage: https://github.com/imtemp-dev/claude-jig
+    homepage: https://github.com/imtemp-dev/jig
     description: "Verify before you code — catches spec errors before they become debugging sessions"
     license: MIT
     install: |
@@ -55,4 +61,4 @@ brews:
 release:
   github:
     owner: imtemp-dev
-    name: claude-jig
+    name: jig

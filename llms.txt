@@ -1,4 +1,4 @@
-# claude-jig
+# jig
 
 > Verify before you code — jig catches spec errors before they become debugging sessions.
 
@@ -11,10 +11,10 @@ jig is a CLI tool for Claude Code that structures the spec → verify → implem
 brew tap imtemp-dev/tap && brew install jig
 
 # Or one-line install
-curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-jig/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/imtemp-dev/jig/main/install.sh | bash
 
 # Or from source (Go 1.22+)
-git clone https://github.com/imtemp-dev/claude-jig.git && cd claude-jig && make install
+git clone https://github.com/imtemp-dev/jig.git && cd jig && make install
 ```
 
 ## Initialize

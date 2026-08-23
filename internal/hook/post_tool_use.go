@@ -1,8 +1,8 @@
 package hook
 
 import (
-	"github.com/imtemp-dev/claude-jig/internal/metrics"
-	"github.com/imtemp-dev/claude-jig/internal/state"
+	"github.com/imtemp-dev/jig/internal/metrics"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 type postToolUseHandler struct{}

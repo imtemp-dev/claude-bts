@@ -9,9 +9,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/imtemp-dev/claude-jig/internal/engine"
-	"github.com/imtemp-dev/claude-jig/internal/metrics"
-	"github.com/imtemp-dev/claude-jig/internal/state"
+	"github.com/imtemp-dev/jig/internal/engine"
+	"github.com/imtemp-dev/jig/internal/metrics"
+	"github.com/imtemp-dev/jig/internal/state"
 	"github.com/spf13/cobra"
 )
 

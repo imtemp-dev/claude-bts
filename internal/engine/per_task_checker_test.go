@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/imtemp-dev/claude-jig/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 // setupPerTask creates a project root + recipe dir with optional

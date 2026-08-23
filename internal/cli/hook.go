@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/imtemp-dev/claude-jig/internal/hook"
+	"github.com/imtemp-dev/jig/internal/hook"
 	"github.com/spf13/cobra"
 )
 

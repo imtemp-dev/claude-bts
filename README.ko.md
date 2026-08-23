@@ -1,9 +1,9 @@
-# claude-jig
+# jig
 
 **자르기 전에 지그부터** — 스펙 오류가 디버깅 세션이 되기 전에 잡아냅니다.
 
-[![CI](https://github.com/imtemp-dev/claude-jig/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-jig/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-jig)](https://github.com/imtemp-dev/claude-jig/releases)
+[![CI](https://github.com/imtemp-dev/jig/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/jig/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/imtemp-dev/jig)](https://github.com/imtemp-dev/jig/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8.svg)](https://go.dev)
 
@@ -64,10 +64,10 @@ brew tap imtemp-dev/tap
 brew install jig
 
 # 또는 원라인 설치
-curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-jig/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/imtemp-dev/jig/main/install.sh | bash
 
 # 또는 소스에서 빌드 (Go 1.22+)
-git clone https://github.com/imtemp-dev/claude-jig.git && cd claude-jig && make install
+git clone https://github.com/imtemp-dev/jig.git && cd jig && make install
 
 # 프로젝트에서 초기화
 cd your-project
@@ -310,12 +310,12 @@ jig version                 바이너리 및 템플릿 버전 표시
 
 ## 기여
 
-기여를 환영합니다. 버그 보고나 기능 요청은 [이슈](https://github.com/imtemp-dev/claude-jig/issues)를 열어주세요.
+기여를 환영합니다. 버그 보고나 기능 요청은 [이슈](https://github.com/imtemp-dev/jig/issues)를 열어주세요.
 
 ```bash
 # 개발 환경 설정
-git clone https://github.com/imtemp-dev/claude-jig.git
-cd claude-jig
+git clone https://github.com/imtemp-dev/jig.git
+cd jig
 make install          # 빌드 후 ~/.local/bin에 설치
 go test -race ./...   # 테스트 실행
 ```

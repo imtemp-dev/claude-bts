@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 
-	"github.com/imtemp-dev/claude-jig/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 // Convergence budget — the machine-enforced half of

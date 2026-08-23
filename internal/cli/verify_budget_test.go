@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/imtemp-dev/claude-jig/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 // runRecipeLog executes `jig recipe log` against root with the given args,

@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/imtemp-dev/claude-jig/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 // CheckTaskStructure runs the Phase 10 "MINI-CHECK" on a single task:

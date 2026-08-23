@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/imtemp-dev/claude-jig/internal/state"
-	"github.com/imtemp-dev/claude-jig/internal/template"
-	"github.com/imtemp-dev/claude-jig/pkg/version"
+	"github.com/imtemp-dev/jig/internal/state"
+	"github.com/imtemp-dev/jig/internal/template"
+	"github.com/imtemp-dev/jig/pkg/version"
 	"github.com/spf13/cobra"
 )
 

@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/imtemp-dev/claude-jig/internal/template"
-	"github.com/imtemp-dev/claude-jig/pkg/version"
+	"github.com/imtemp-dev/jig/internal/template"
+	"github.com/imtemp-dev/jig/pkg/version"
 	"github.com/spf13/cobra"
 )
 

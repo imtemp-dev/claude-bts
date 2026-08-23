@@ -1,9 +1,9 @@
-# claude-jig
+# jig
 
 **切る前に治具を** — 仕様のエラーがデバッグセッションになる前に捕捉します。
 
-[![CI](https://github.com/imtemp-dev/claude-jig/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-jig/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-jig)](https://github.com/imtemp-dev/claude-jig/releases)
+[![CI](https://github.com/imtemp-dev/jig/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/jig/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/imtemp-dev/jig)](https://github.com/imtemp-dev/jig/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8.svg)](https://go.dev)
 
@@ -64,10 +64,10 @@ brew tap imtemp-dev/tap
 brew install jig
 
 # またはワンラインインストール
-curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-jig/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/imtemp-dev/jig/main/install.sh | bash
 
 # またはソースからビルド (Go 1.22+)
-git clone https://github.com/imtemp-dev/claude-jig.git && cd claude-jig && make install
+git clone https://github.com/imtemp-dev/jig.git && cd jig && make install
 
 # プロジェクトで初期化
 cd your-project
@@ -310,12 +310,12 @@ jig version                 バイナリおよびテンプレートバージョ�
 
 ## コントリビューション
 
-コントリビューション歓迎です。バグ報告や機能リクエストは[issue](https://github.com/imtemp-dev/claude-jig/issues)を作成してください。
+コントリビューション歓迎です。バグ報告や機能リクエストは[issue](https://github.com/imtemp-dev/jig/issues)を作成してください。
 
 ```bash
 # 開発環境セットアップ
-git clone https://github.com/imtemp-dev/claude-jig.git
-cd claude-jig
+git clone https://github.com/imtemp-dev/jig.git
+cd jig
 make install          # ビルドして ~/.local/bin にインストール
 go test -race ./...   # テスト実行
 ```

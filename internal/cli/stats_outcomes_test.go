@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/imtemp-dev/claude-jig/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 func writeOutcomeRecipe(t *testing.T, root, id string, opts func(dir string)) {

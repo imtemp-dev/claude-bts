@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/imtemp-dev/claude-jig/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 func newTestRunFixture(t *testing.T) (root, recipeID string) {

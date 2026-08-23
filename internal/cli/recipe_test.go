@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/imtemp-dev/claude-jig/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 // newRecipeFixture builds a minimal project tree — `.jig/specs/recipes/

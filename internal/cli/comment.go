@@ -11,8 +11,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/imtemp-dev/claude-jig/internal/comment"
-	"github.com/imtemp-dev/claude-jig/internal/state"
+	"github.com/imtemp-dev/jig/internal/comment"
+	"github.com/imtemp-dev/jig/internal/state"
 	"github.com/spf13/cobra"
 )
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/imtemp-dev/claude-jig/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 // Completion evidence — what it takes for a clean round to mean the

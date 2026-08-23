@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/imtemp-dev/claude-jig/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 func entry(c, m, mr int) state.VerifyLogEntry {

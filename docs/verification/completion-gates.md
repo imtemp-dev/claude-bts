@@ -52,7 +52,7 @@ $ go test ./internal/state/ -run 'BudgetDrift|BudgetRoundTrips' -v
     --- PASS: TestBudgetDrift/most_recent_recorded_budget_wins (0.00s)
     --- PASS: TestBudgetDrift/skips_legacy_tail_to_reach_the_last_recorded_budget (0.00s)
     --- PASS: TestBudgetDrift/disabled_budget_never_drifts (0.00s)
-ok  	github.com/imtemp-dev/claude-jig/internal/state	0.178s
+ok  	github.com/imtemp-dev/jig/internal/state	0.178s
 ```
 
 ## G2 — A turn cannot end with the recipe's own records inconsistent
@@ -79,7 +79,7 @@ $ go test ./internal/hook/ -run 'BlindStop|StopBlockBudget' -v
 --- PASS: TestStopBlockBudget_AllowClearsCounter (0.00s)
 --- PASS: TestStopBlockBudget_AppliesToDonePath (0.00s)
 --- PASS: TestBlindStop_OpenDecisionAllowsTurnEnd (0.00s)
-ok  	github.com/imtemp-dev/claude-jig/internal/hook	0.413s
+ok  	github.com/imtemp-dev/jig/internal/hook	0.413s
 ```
 
 Loop bound: the same block reason may fire at most
@@ -176,14 +176,14 @@ labelled evidence deliberately.
 
 ```
 $ go test -race ./...
-?   	github.com/imtemp-dev/claude-jig/cmd/jig	[no test files]
-ok  	github.com/imtemp-dev/claude-jig/internal/cli	3.069s
-ok  	github.com/imtemp-dev/claude-jig/internal/comment	(cached)
-ok  	github.com/imtemp-dev/claude-jig/internal/engine	1.493s
-ok  	github.com/imtemp-dev/claude-jig/internal/hook	3.455s
-ok  	github.com/imtemp-dev/claude-jig/internal/metrics	2.868s
-ok  	github.com/imtemp-dev/claude-jig/internal/state	2.599s
-?   	github.com/imtemp-dev/claude-jig/internal/statusline	[no test files]
-ok  	github.com/imtemp-dev/claude-jig/internal/template	(cached)
-?   	github.com/imtemp-dev/claude-jig/pkg/version	[no test files]
+?   	github.com/imtemp-dev/jig/cmd/jig	[no test files]
+ok  	github.com/imtemp-dev/jig/internal/cli	3.069s
+ok  	github.com/imtemp-dev/jig/internal/comment	(cached)
+ok  	github.com/imtemp-dev/jig/internal/engine	1.493s
+ok  	github.com/imtemp-dev/jig/internal/hook	3.455s
+ok  	github.com/imtemp-dev/jig/internal/metrics	2.868s
+ok  	github.com/imtemp-dev/jig/internal/state	2.599s
+?   	github.com/imtemp-dev/jig/internal/statusline	[no test files]
+ok  	github.com/imtemp-dev/jig/internal/template	(cached)
+?   	github.com/imtemp-dev/jig/pkg/version	[no test files]
 ```

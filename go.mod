@@ -1,4 +1,4 @@
-module github.com/imtemp-dev/claude-jig
+module github.com/imtemp-dev/jig
 
 go 1.26.1
 
