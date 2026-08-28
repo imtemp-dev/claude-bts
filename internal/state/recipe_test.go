@@ -464,3 +464,23 @@ func saveTestRecipe(t *testing.T, root, id, phase string) {
 		t.Fatalf("save recipe %s failed: %v", id, err)
 	}
 }
+
+// A log that already holds a bad iteration must not propagate it. The
+// measured case: round 17 was recorded as 0 by a logging path that
+// skipped numbering, and "last + 1" then made round 18 into round 1.
+func TestNextIterationRecoversFromACorruptEntry(t *testing.T) {
+	var entries []VerifyLogEntry
+	for i := 1; i <= 16; i++ {
+		entries = append(entries, VerifyLogEntry{Iteration: i})
+	}
+	entries = append(entries, VerifyLogEntry{Iteration: 0})
+	if got := NextIteration(entries); got != 17 {
+		t.Errorf("NextIteration = %d, want 17 — the 0 must not become the baseline", got)
+	}
+	if got := NextIteration(nil); got != 1 {
+		t.Errorf("NextIteration(empty) = %d, want 1", got)
+	}
+	if got := NextIteration([]VerifyLogEntry{{Iteration: 4}}); got != 5 {
+		t.Errorf("NextIteration = %d, want 5", got)
+	}
+}

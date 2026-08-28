@@ -276,25 +276,22 @@ var recipeLogCmd = &cobra.Command{
 			// This used to sit inside the --from-verification branch, so a
 			// caller passing explicit counts and no --iteration recorded
 			// round 0. One measured recipe's seventeenth round is logged
-			// as iteration 0 for exactly that reason, which makes the
-			// document's own history read as though it had restarted.
+			// as iteration 0 for exactly that reason.
+			//
+			// It is the MAXIMUM over the document's history and not the
+			// last entry's number, because "last + 1" cannot recover from
+			// a log that already holds a bad value: on that same recipe the
+			// eighteenth round numbered itself 1, following the 0 rather
+			// than the 16 rounds before it.
 			if iteration == 0 {
-				var last *state.VerifyLogEntry
-				if docBase != "" {
-					if e, derr := state.LastVerifyEntryForDoc(root, recipeID, docBase); derr == nil {
-						last = e
+				var scoped []state.VerifyLogEntry
+				if history, herr := state.ReadVerifyLog(root, recipeID); herr == nil {
+					scoped = history
+					if docBase != "" {
+						scoped = state.VerifyEntriesForDoc(history, docBase)
 					}
 				}
-				if last == nil {
-					if e, lerr := state.LastVerifyEntry(root, recipeID); lerr == nil {
-						last = e
-					}
-				}
-				if last != nil {
-					iteration = last.Iteration + 1
-				} else {
-					iteration = 1
-				}
+				iteration = state.NextIteration(scoped)
 			}
 
 			// Legacy fallback: caller passed --minor but not the split flags.

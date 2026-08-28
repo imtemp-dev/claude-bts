@@ -48,9 +48,15 @@ var (
 			`|(?-i:[a-z]Tests?\b)`)
 
 	// A heading that names something crossing a boundary.
+	//
+	// The word boundaries wrap only the ASCII alternatives. RE2's `\b` is
+	// defined against ASCII `\w`, so a Korean word never has one adjacent
+	// to it and `\b계약\b` cannot match at all — a Korean-language spec
+	// could not satisfy this criterion at any length. English keeps its
+	// boundaries so "api" does not match inside "rapid".
 	boundaryHeadingRe = regexp.MustCompile(
-		`(?im)^#{1,6}[^\n]*\b(?:contract|wire|schema|payload|dto|endpoint|` +
-			`migration|api|interface|계약|스키마|와이어|마이그레이션|경계)\b`)
+		`(?im)^#{1,6}[^\n]*(?:\b(?:contract|wire|schema|payload|dto|endpoint|` +
+			`migration|api|interface)\b|계약|스키마|와이어|마이그레이션|경계|인터페이스)`)
 
 	// Table rows and fenced lines both count as a declared shape: the
 	// question is whether the shape is pinned somewhere, not how.

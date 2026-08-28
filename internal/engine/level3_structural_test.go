@@ -186,3 +186,41 @@ func TestUnknownCriterionIsNotMet(t *testing.T) {
 		t.Error("a criterion with no predicate must not report itself met")
 	}
 }
+
+// bts runs on non-English projects, and every criterion here was written
+// with Korean alternatives in its patterns. RE2's `\b` is defined against
+// ASCII `\w`, so a Korean word never has a word boundary adjacent to it
+// and `\b계약\b` cannot match at all — a bug no English fixture can show.
+// This document is the shape a Korean skeleton actually takes.
+func TestKoreanDocumentReachesLevel3(t *testing.T) {
+	doc := "# Blueprint: 커뮤니티 번들 커버 이미지\n\n" +
+		"## 1. 무엇을 출하하는가\n" +
+		"책 캡처를 공유하면 실제 표지가 보인다. 스캔 사진은 P2다.\n\n" +
+		"## 2. 불변식과 소유자\n" +
+		"| ID | 진술 | 소유 파일 |\n|---|---|---|\n" +
+		"| INV-001 | 저장된 표지 주소는 허용 호스트의 https URL이다 | `backend/db/0026_cover.sql` |\n" +
+		"| INV-002 | 표지 없음은 하나의 표현만 갖는다 | `ios/App/CommunityModels.swift` |\n\n" +
+		"## 3. 경계 계약\n" +
+		"| 층 | 이름 | 모양 |\n|---|---|---|\n" +
+		"| 컬럼 | `cover_url` | 빈 문자열 아니면 https |\n" +
+		"| 와이어 | `coverUrl` | 옵셔널 문자열 |\n" +
+		"| 파생 | `coverImageURL` | 옵셔널 URL |\n\n" +
+		"## 4. 단위와 의존 순서\n" +
+		"`wireframe.md` §4가 정본이다. 여기서 복제하지 않는다.\n\n" +
+		"## 5. 되돌릴 수 없는 순서\n" +
+		"1. S-1 마이그레이션을 먼저 적용한다.\n" +
+		"2. S-2 백엔드를 배선한다. 앱은 그 뒤에 나간다.\n" +
+		"순서를 어기면 모든 발행이 400으로 거부된다. 롤백은 컬럼 제거다.\n\n" +
+		"## 6. 반증자\n" +
+		"| 불변식 | 반증자 |\n|---|---|\n" +
+		"| INV-001 | `backend/test/guards.spec.ts` — 허용목록 밖 호스트가 죽는다 |\n" +
+		"| INV-002 | `ios/App-Tests/CoverTests.swift` — 부재의 두 표현이 같아진다 |\n\n" +
+		"## Known Uncertainties\n\n" +
+		"### U-001: 콜레이션이 범위를 고정하는지\n" +
+		"Opens-with: `show lc_ctype` 후 비ASCII 문자로 프로브.\n"
+
+	got := assessLevel(doc)
+	if got.Level < 3.0 {
+		t.Errorf("Korean skeleton level = %.3f, want 3.0; unmet: %v", got.Level, got.Missing)
+	}
+}

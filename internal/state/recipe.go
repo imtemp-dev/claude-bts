@@ -350,6 +350,28 @@ func BudgetDrift(entries []VerifyLogEntry, current int) (int, bool) {
 	return 0, false
 }
 
+// NextIteration returns the round number to record next for a document's
+// history.
+//
+// It is the MAXIMUM plus one, not the last entry's number plus one,
+// because "last + 1" cannot recover from a log that already holds a bad
+// value. A measured recipe recorded its seventeenth round as iteration 0
+// (the numbering used to be skipped on one of the two logging paths),
+// and the next round then numbered itself 1 — following the 0 rather
+// than the sixteen rounds before it, so the document's history read as
+// though it had restarted twice.
+//
+// An empty history starts at 1.
+func NextIteration(entries []VerifyLogEntry) int {
+	max := 0
+	for i := range entries {
+		if entries[i].Iteration > max {
+			max = entries[i].Iteration
+		}
+	}
+	return max + 1
+}
+
 // EffectiveResolvable returns the resolvable-minor count to use for gating,
 // falling back to legacy Minor when the split fields are absent.
 func (e *VerifyLogEntry) EffectiveResolvable() int {
