@@ -109,8 +109,8 @@ var HardGates = []HardGate{
 	{
 		ID:          "task_anchor_coverage",
 		Rule:        "bts-implement/SKILL.md §Step 1 + bts-schema.md tasks.json",
-		Enforcement: "internal/engine/task_anchor_checker.go:CheckTaskAnchors",
-		Summary:     "tasks.json and final.md must share a 1:1 `<!-- task-anchor: path action -->` ↔ Task.anchor mapping",
+		Enforcement: "internal/engine/task_anchor_checker.go:CheckTaskAnchors + internal/engine/wireframe_file_table.go:ParseWireframeFileTable",
+		Summary:     "Every Task.anchor must match a wireframe.md File Structure row (or a legacy `<!-- task-anchor: path action -->` in final.md) and every declaration must have a task — 1:1 against the union of the two sources",
 	},
 	{
 		ID:          "modify_scope_declared",

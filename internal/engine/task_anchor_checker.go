@@ -31,8 +31,28 @@ type TaskAnchorKey struct {
 
 func (k TaskAnchorKey) String() string { return k.Path + " " + k.Action }
 
-// CheckTaskAnchors enforces the Phase 9 tasks.json ↔ final.md
-// derivation contract. The check produces four issue categories:
+// CheckTaskAnchors enforces the tasks.json ↔ spec derivation contract.
+//
+// An anchor may come from either of two places, and the union is what
+// counts:
+//
+//   - `<!-- task-anchor: {path} {action} -->` comments in final.md
+//   - rows of wireframe.md's File Structure table, whose `File` and
+//     `Action` columns already ARE the (path, action) pair
+//
+// The wireframe was always meant to be the source —
+// bts-wireframe/SKILL.md § Step 4 says of that table, "This becomes the
+// basis for task decomposition in /bts-implement" — but only final.md
+// was ever read. So the blueprint had to carry a per-file section for
+// every unit the implementation would touch, and that requirement is
+// what turned blueprints into transcriptions: one measured recipe
+// re-expanded 31 wireframe rows (47 lines) into 1,322 lines of per-file
+// prose, which then drew over two hundred verify findings.
+//
+// Accepting both is also the migration: recipes anchored in final.md
+// keep working untouched.
+//
+// The check produces four issue categories:
 //
 //   - missing_anchor — tasks.json declares a Task whose Anchor (or
 //     implicit File+Action if Anchor is empty) has no corresponding
@@ -46,9 +66,10 @@ func (k TaskAnchorKey) String() string { return k.Path + " " + k.Action }
 //
 // Missing either file returns nil (the caller — validator — relies on
 // separate missing-file diagnostics). This keeps the checker composable.
-func CheckTaskAnchors(finalPath, tasksPath string) []Issue {
-	finalData, err := os.ReadFile(finalPath)
-	if err != nil {
+func CheckTaskAnchors(finalPath, wireframePath, tasksPath string) []Issue {
+	finalData, ferr := os.ReadFile(finalPath)
+	wireframeData, werr := os.ReadFile(wireframePath)
+	if ferr != nil && werr != nil {
 		return nil
 	}
 	tasks, err := loadTasksForAnchor(tasksPath)
@@ -57,6 +78,10 @@ func CheckTaskAnchors(finalPath, tasksPath string) []Issue {
 	}
 
 	finalAnchors, dupes := parseFinalAnchors(string(finalData))
+	// A repeated File Structure row is visible to whoever wrote the
+	// table; a repeated HTML comment is not, which is why duplicates are
+	// reported for one source and silently folded for the other.
+	wireframeAnchors := ParseWireframeFileTable(string(wireframeData))
 
 	var issues []Issue
 	for _, key := range dupes {
@@ -88,8 +113,11 @@ func CheckTaskAnchors(finalPath, tasksPath string) []Issue {
 		}
 	}
 
-	finalSet := make(map[TaskAnchorKey]bool, len(finalAnchors))
-	for _, a := range finalAnchors {
+	declared := make([]TaskAnchorKey, 0, len(finalAnchors)+len(wireframeAnchors))
+	declared = append(declared, finalAnchors...)
+	declared = append(declared, wireframeAnchors...)
+	finalSet := make(map[TaskAnchorKey]bool, len(declared))
+	for _, a := range declared {
 		finalSet[a] = true
 	}
 
@@ -106,7 +134,9 @@ func CheckTaskAnchors(finalPath, tasksPath string) []Issue {
 			Category: "task_anchor",
 			Claim:    "missing_anchor: " + key.String(),
 			Severity: "critical",
-			Detail:   "tasks.json declares a Task for '" + key.String() + "' but final.md has no `<!-- task-anchor: " + key.String() + " -->`. Add the anchor to final.md or remove the task.",
+			Detail: "tasks.json declares a Task for '" + key.String() + "' but neither wireframe.md's File Structure table nor final.md declares it. " +
+				"Add the row to wireframe.md § File Structure (preferred — it is the decomposition), " +
+				"or `<!-- task-anchor: " + key.String() + " -->` to final.md, or remove the task.",
 		})
 	}
 
@@ -116,10 +146,13 @@ func CheckTaskAnchors(finalPath, tasksPath string) []Issue {
 		taskSet[k] = true
 	}
 	var orphan []TaskAnchorKey
-	for _, a := range finalAnchors {
-		if !taskSet[a] {
-			orphan = append(orphan, a)
+	seenOrphan := map[TaskAnchorKey]bool{}
+	for _, a := range declared {
+		if taskSet[a] || seenOrphan[a] {
+			continue
 		}
+		seenOrphan[a] = true
+		orphan = append(orphan, a)
 	}
 	sort.Slice(orphan, func(i, j int) bool { return orphan[i].String() < orphan[j].String() })
 	for _, key := range orphan {
@@ -127,7 +160,8 @@ func CheckTaskAnchors(finalPath, tasksPath string) []Issue {
 			Category: "task_anchor",
 			Claim:    "orphan_anchor: " + key.String(),
 			Severity: "critical",
-			Detail:   "final.md declares `<!-- task-anchor: " + key.String() + " -->` but tasks.json has no matching Task. Add the task or remove the anchor.",
+			Detail: "the spec declares '" + key.String() + "' (a wireframe File Structure row, or a `<!-- task-anchor: -->` in final.md) " +
+				"but tasks.json has no matching Task. Add the task or remove the declaration.",
 		})
 	}
 	return issues

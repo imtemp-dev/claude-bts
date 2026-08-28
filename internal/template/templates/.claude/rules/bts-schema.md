@@ -331,9 +331,11 @@ Task object required fields:
 - `action` (string): "create" or "modify"
 - `status` (string): "pending", "in_progress", "done", "blocked", "skipped"
 - `description` (string): what this task does
-- `anchor` (string): "path action" (Phase 9) — must match a
-  `<!-- task-anchor: path action -->` comment in final.md verbatim;
-  `bts verify` enforces the 1:1 mapping
+- `anchor` (string): "path action" — must match a **wireframe.md File
+  Structure row** (its `File` and `Action` cells) verbatim, or, for
+  recipes anchored before the table became the source, a
+  `<!-- task-anchor: path action -->` comment in final.md. `bts verify`
+  enforces the 1:1 mapping against the union of the two.
 - `modify_scope` (array of strings): REQUIRED when action=="modify" —
   authorized symbol list; the anchor carries the same list after `scope=`
 

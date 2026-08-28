@@ -140,9 +140,17 @@ Both exist but differ (different signature, different behavior).
    - If `final.pre-sync.md` does NOT exist → copy `final.md` → `final.pre-sync.md`
 2. **Update final.md** to reflect actual implementation:
    - Fix incorrect file paths
-   - Update function signatures to match code
-   - Add missing types/functions that were created during implementation
+   - Correct an invariant's owner when the code keeps it somewhere else
+   - Correct a boundary contract when the shipped shape differs
+   - Correct a falsifier when the test covering an invariant is named
+     differently, or turned out not to exist
    - Mark removed items as deprecated or remove them
+
+   Do NOT import function signatures, internal types or error plumbing
+   into the spec. They are absent by design (`bts-level-criteria.md §
+   Level 3`), the code is their record, and copying them back re-creates
+   the transcription the spec exists to avoid — a second place for the
+   same claim to go stale.
 3. **Do not change the spec's intent or requirements** — only update implementation
    details to match reality.
 

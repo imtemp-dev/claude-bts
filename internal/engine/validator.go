@@ -949,8 +949,9 @@ func validateTasksJSON(path string) []ValidationError {
 	// also has final.md. Missing final.md is silently skipped so that
 	// loose test fixtures (e.g. standalone tasks.json) validate.
 	finalPath := filepath.Join(filepath.Dir(path), "final.md")
+	wireframePath := filepath.Join(filepath.Dir(path), "wireframe.md")
 	if _, err := os.Stat(finalPath); err == nil {
-		for _, issue := range CheckTaskAnchors(finalPath, path) {
+		for _, issue := range CheckTaskAnchors(finalPath, wireframePath, path) {
 			errs = append(errs, ValidationError{
 				File:    "tasks.json → final.md",
 				Field:   issue.Category,

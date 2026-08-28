@@ -37,13 +37,20 @@ func ComputeRecipeStats(projectRoot, recipeDir string) (*RecipeStats, error) {
 	// Task anchors (P9).
 	finalPath := filepath.Join(recipeDir, "final.md")
 	tasksPath := filepath.Join(recipeDir, "tasks.json")
-	if anchors, _ := parseFinalAnchors(readFileOrEmpty(finalPath)); len(anchors) > 0 {
-		s.TaskAnchorTotal = len(anchors)
+	wireframePath := filepath.Join(recipeDir, "wireframe.md")
+	anchorSet := map[TaskAnchorKey]bool{}
+	finalAnchors, _ := parseFinalAnchors(readFileOrEmpty(finalPath))
+	for _, a := range finalAnchors {
+		anchorSet[a] = true
 	}
+	for _, a := range ParseWireframeFileTable(readFileOrEmpty(wireframePath)) {
+		anchorSet[a] = true
+	}
+	s.TaskAnchorTotal = len(anchorSet)
 	if tasks, err := loadTasksForAnchor(tasksPath); err == nil {
 		// Orphans are anchors with no task. CheckTaskAnchors emits them;
 		// we count the issues of that category.
-		for _, issue := range CheckTaskAnchors(finalPath, tasksPath) {
+		for _, issue := range CheckTaskAnchors(finalPath, wireframePath, tasksPath) {
 			if strings.HasPrefix(issue.Claim, "orphan_anchor") ||
 				strings.HasPrefix(issue.Claim, "missing_anchor") {
 				s.TaskAnchorOrphans++

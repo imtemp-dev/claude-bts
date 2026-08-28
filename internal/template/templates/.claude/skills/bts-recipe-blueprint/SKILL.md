@@ -689,6 +689,15 @@ Opens-with: `{the command that settles it}`
 Why-deferred: {the observation that would resolve it}
 ```
 
+**Execution paths.** `bts verify` requires every `<!-- path-id: X -->`
+in wireframe.md to be referenced by a `<!-- path: wireframe.md#X -->`
+somewhere in the blueprint, so that no enumerated path ships without
+anyone having said what it does. That is an anchor and a line — usually
+in section 2 next to the invariant the path has to preserve, or in
+section 6 next to its falsifier. It is **not** a walkthrough: one
+measured recipe answered it with a 198-line section that re-narrated the
+wireframe's own path enumeration, and the wireframe is where paths live.
+
 Section 6 is what used to be "Test scenarios", and the difference is the
 point: a scenario section states expected values, which is a claim about
 unwritten code that only an execution can settle — and four rounds

@@ -21,6 +21,14 @@ func writeFinalAndTasks(t *testing.T, finalBody, tasksBody string) (finalPath, t
 	return finalPath, tasksPath
 }
 
+// wireframePathFor names the sibling wireframe of a recipe fixture. Most
+// tests here anchor in final.md, so the file does not exist and the
+// wireframe source contributes nothing — which is the legacy-recipe case
+// the union has to keep working.
+func wireframePathFor(finalPath string) string {
+	return filepath.Join(filepath.Dir(finalPath), "wireframe.md")
+}
+
 // Happy path: anchors in final.md 1:1 match Task.Anchor in tasks.json.
 func TestCheckTaskAnchors_OneToOne(t *testing.T) {
 	finalMd := `## Components
@@ -39,7 +47,7 @@ func TestCheckTaskAnchors_OneToOne(t *testing.T) {
   ]
 }`
 	finalPath, tasksPath := writeFinalAndTasks(t, finalMd, tasksJson)
-	issues := CheckTaskAnchors(finalPath, tasksPath)
+	issues := CheckTaskAnchors(finalPath, wireframePathFor(finalPath), tasksPath)
 	if len(issues) != 0 {
 		t.Fatalf("expected 0 issues, got %d: %v", len(issues), issues)
 	}
@@ -56,7 +64,7 @@ func TestCheckTaskAnchors_MissingAnchor(t *testing.T) {
   ]
 }`
 	finalPath, tasksPath := writeFinalAndTasks(t, finalMd, tasksJson)
-	issues := CheckTaskAnchors(finalPath, tasksPath)
+	issues := CheckTaskAnchors(finalPath, wireframePathFor(finalPath), tasksPath)
 	if len(issues) != 1 {
 		t.Fatalf("expected 1 issue, got %d: %v", len(issues), issues)
 	}
@@ -79,7 +87,7 @@ func TestCheckTaskAnchors_OrphanAnchor(t *testing.T) {
   ]
 }`
 	finalPath, tasksPath := writeFinalAndTasks(t, finalMd, tasksJson)
-	issues := CheckTaskAnchors(finalPath, tasksPath)
+	issues := CheckTaskAnchors(finalPath, wireframePathFor(finalPath), tasksPath)
 	if len(issues) != 1 {
 		t.Fatalf("expected 1 issue, got %d", len(issues))
 	}
@@ -98,7 +106,7 @@ func TestCheckTaskAnchors_DuplicateAnchor(t *testing.T) {
   ]
 }`
 	finalPath, tasksPath := writeFinalAndTasks(t, finalMd, tasksJson)
-	issues := CheckTaskAnchors(finalPath, tasksPath)
+	issues := CheckTaskAnchors(finalPath, wireframePathFor(finalPath), tasksPath)
 	if len(issues) != 1 {
 		t.Fatalf("expected 1 duplicate, got %d", len(issues))
 	}
@@ -116,7 +124,7 @@ func TestCheckTaskAnchors_ActionMismatch(t *testing.T) {
   ]
 }`
 	finalPath, tasksPath := writeFinalAndTasks(t, finalMd, tasksJson)
-	issues := CheckTaskAnchors(finalPath, tasksPath)
+	issues := CheckTaskAnchors(finalPath, wireframePathFor(finalPath), tasksPath)
 
 	// Expect: action_mismatch (anchor claims create but task is modify) AND
 	// missing_anchor (anchor "src/a.ts create" doesn't exist in final.md).
@@ -146,7 +154,7 @@ func TestCheckTaskAnchors_LegacyAnchorEmpty(t *testing.T) {
   ]
 }`
 	finalPath, tasksPath := writeFinalAndTasks(t, finalMd, tasksJson)
-	issues := CheckTaskAnchors(finalPath, tasksPath)
+	issues := CheckTaskAnchors(finalPath, wireframePathFor(finalPath), tasksPath)
 	if len(issues) != 0 {
 		t.Fatalf("legacy empty-anchor task should match via File+Action, got %v", issues)
 	}
@@ -165,8 +173,88 @@ func TestCheckTaskAnchors_MalformedAnchorIgnored(t *testing.T) {
   ]
 }`
 	finalPath, tasksPath := writeFinalAndTasks(t, finalMd, tasksJson)
-	issues := CheckTaskAnchors(finalPath, tasksPath)
+	issues := CheckTaskAnchors(finalPath, wireframePathFor(finalPath), tasksPath)
 	if len(issues) != 0 {
 		t.Fatalf("malformed anchors should be ignored, got %v", issues)
+	}
+}
+
+func writeSiblingWireframe(t *testing.T, finalPath, body string) {
+	t.Helper()
+	if err := os.WriteFile(wireframePathFor(finalPath), []byte(body), 0644); err != nil {
+		t.Fatalf("write wireframe: %v", err)
+	}
+}
+
+// The wireframe's File Structure table is a task-anchor source, so a
+// blueprint no longer needs a per-file section for every unit the
+// implementation touches — the requirement that turned blueprints into
+// transcriptions.
+func TestCheckTaskAnchors_WireframeTableIsASource(t *testing.T) {
+	tasksJson := `{
+  "recipe_id": "r-1",
+  "tasks": [
+    {"id": "t-001", "file": "backend/db/0026_cover_url.sql", "action": "create", "status": "pending", "description": "x", "anchor": "backend/db/0026_cover_url.sql create"},
+    {"id": "t-002", "file": "ios/App/CoverView.swift", "action": "modify", "status": "pending", "description": "y", "anchor": "ios/App/CoverView.swift modify"}
+  ]
+}`
+	// final.md carries no anchors at all — the whole point.
+	finalPath, tasksPath := writeFinalAndTasks(t, "# Blueprint\n\nNo per-file sections here.\n", tasksJson)
+	writeSiblingWireframe(t, finalPath, `# Wireframe
+
+## Step 4: File Structure
+
+| # | File | Action | Depends On | Responsibility |
+|---|------|--------|------------|----------------|
+| 1 | `+"`backend/db/0026_cover_url.sql`"+` | create | — | declares the column shape |
+| 2 | `+"`ios/App/CoverView.swift`"+` | **modify** | 1 | draws the cover |
+| 3 | `+"`ios/project.yml`"+` | **unchanged** | — | globs the directory already |
+
+## Step 5: Execution Path Enumeration
+`)
+	if issues := CheckTaskAnchors(finalPath, wireframePathFor(finalPath), tasksPath); len(issues) != 0 {
+		t.Fatalf("expected 0 issues from wireframe-sourced anchors, got %d: %v", len(issues), issues)
+	}
+}
+
+// An `unchanged` row records that a file needs no edit. It is not a task,
+// so it must not read as an orphan anchor.
+func TestCheckTaskAnchors_NonTaskActionsAreNotAnchors(t *testing.T) {
+	tasksJson := `{"recipe_id": "r-1", "tasks": []}`
+	finalPath, tasksPath := writeFinalAndTasks(t, "# Blueprint\n", tasksJson)
+	writeSiblingWireframe(t, finalPath, "# Wireframe\n\n## File Structure\n\n"+
+		"| File | Action | Responsibility |\n|---|---|---|\n"+
+		"| `ios/project.yml` | **unchanged** | globs already |\n")
+	if issues := CheckTaskAnchors(finalPath, wireframePathFor(finalPath), tasksPath); len(issues) != 0 {
+		t.Fatalf("an unchanged row must not be an anchor, got %v", issues)
+	}
+}
+
+func TestParseWireframeFileTable(t *testing.T) {
+	// A leading `#` column shifts every positional read by one, which is
+	// why columns are located by header name.
+	body := "## 4. File Structure\n\n" +
+		"| # | File | Action | Depends On |\n|---|---|---|---|\n" +
+		"| 1 | `a/b_c.ts` | modify | — |\n" +
+		"| 2 | `d/e.sql` | create | 1 |\n\n" +
+		"## 5. Execution Paths\n\n" +
+		"| File | Action |\n|---|---|\n| `not/a/unit.go` | create |\n"
+	got := ParseWireframeFileTable(body)
+	if len(got) != 2 {
+		t.Fatalf("want 2 anchors, got %d: %v", len(got), got)
+	}
+	// Underscores are the path, not markdown italics.
+	if got[0].Path != "a/b_c.ts" || got[0].Action != "modify" {
+		t.Errorf("first anchor = %v, want a/b_c.ts modify", got[0])
+	}
+	// The scan stops at the next section, so a later table is not read
+	// as this one's continuation.
+	for _, k := range got {
+		if k.Path == "not/a/unit.go" {
+			t.Error("a table in a later section was read as File Structure")
+		}
+	}
+	if got := ParseWireframeFileTable("# Wireframe\n\nno such section\n"); got != nil {
+		t.Errorf("a wireframe without the section must declare nothing, got %v", got)
 	}
 }

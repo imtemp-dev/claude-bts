@@ -65,6 +65,10 @@ Use settings values if present, otherwise use defaults noted in each step.
      - otherwise → Step 7
 
 4. **Load design context**:
+   - Read `domain.md` for the invariants and their owners, and
+     `wireframe.md` for the decomposition, the flow and the recorded
+     architect decision. The blueprint references these rather than
+     restating them, so they are inputs here, not optional background.
    - Read scope.md for tech stack constraints and assumptions
    - Read project-map.md (at `.bts/specs/project-map.md`) for layer-specific
      build and test commands. When implementing files across multiple layers,
@@ -105,21 +109,29 @@ If tasks.json exists in the recipe directory:
 
 ## Step 1: Task Decomposition
 
-1. Read `.bts/specs/recipes/{id}/final.md`
-2. Extract file-level tasks: each file to create or modify becomes a task
-3. Determine dependency order (shared types first, then modules, then integration)
-4. **Anchor every decomposition** (Phase 9 contract): for each task you
-   intend to add, locate the spec block in final.md that describes that
-   file and insert an HTML comment immediately above the heading:
-   ```
-   <!-- task-anchor: {file} {action} -->
-   ### `{file}`
-   ```
-   If the anchor is already present, reuse it. If the spec block does
-   not exist yet, EDIT final.md to add the block and the anchor together.
-   Every Task MUST carry an `"anchor": "{file} {action}"` field matching
-   its comment verbatim. `bts verify` enforces a 1:1 mapping — a missing
-   anchor in final.md or tasks.json is a critical finding.
+1. Read `.bts/specs/recipes/{id}/wireframe.md` — its **File Structure**
+   table is the decomposition. Each row is `File | Action | Depends On |
+   Responsibility`, which is exactly what a task needs.
+2. Each row whose action is `create`, `modify` or `delete` becomes a
+   task. Rows marked otherwise (`unchanged`) record a deliberate
+   non-edit and are not tasks.
+3. Take dependency order from the `Depends On` column. It was decided
+   during /bts-architect against alternatives; do not re-derive it.
+4. **Anchor every decomposition.** A File Structure row IS the anchor —
+   its `File` and `Action` cells are the `{file} {action}` key. Every
+   Task MUST carry `"anchor": "{file} {action}"` matching a row
+   verbatim. `bts verify` enforces the mapping both ways: a task with no
+   row, or a row with no task, is a critical finding.
+
+   If a task genuinely has no row, the decomposition changed — add the
+   row to `wireframe.md` (and re-run `bts verify wireframe.md`), rather
+   than inventing a home for it in the spec.
+
+   **Legacy recipes** anchored with `<!-- task-anchor: {file} {action} -->`
+   comments in final.md keep working; the two sources are unioned. New
+   work uses the table, because requiring a per-file section in the
+   blueprint for every unit is what made blueprints transcriptions of
+   the code.
 
    **Modify tasks declare scope at decomposition time (Phase 14).**
    When `{action}` is `modify`, the anchor MUST carry the authorized
@@ -128,8 +140,9 @@ If tasks.json exists in the recipe directory:
    <!-- task-anchor: src/auth/session.ts modify scope=validateToken,refreshSession -->
    ```
    plus `"modify_scope": ["validateToken", "refreshSession"]` on the
-   task. Derive the list from the final.md spec block for that file
-   (the functions/types it says to change). A modify task without
+   task. Derive the list from the row's `Responsibility` cell and the
+   contract the blueprint states for that unit — the symbols that must
+   change for the invariant it owns to hold. A modify task without
    scope raises `modify_scope_required` (major) at `bts validate`;
    declared symbols absent from the target file raise
    `scope_symbol_missing` (critical) at IMPLEMENT DONE.
@@ -212,8 +225,17 @@ auto-skip it with status `"skipped"` and last_error `"dependency blocked: {id}"`
 - Set status to `in_progress` and save tasks.json immediately
 
 ### IMPLEMENT
-- Write the code exactly as specified in final.md
-- Follow function signatures, types, error handling from the spec
+- Hold the contract the spec states; decide the rest here.
+  `final.md` carries what code cannot cheaply falsify — invariants and
+  their owners, boundary contracts, irreversible order, falsifiers. Those
+  are binding. Function signatures, internal types and error plumbing are
+  NOT in the spec by design: a compiler settles them in seconds, and
+  specifying them in prose cost one measured recipe more verify rounds
+  than writing the code would have taken. Choose them here, following
+  the surrounding code.
+- If a choice you are about to make would violate an invariant, change
+  the choice — not the invariant. If the invariant itself is wrong, stop
+  and say so; that is a spec change, not an implementation detail.
 - **Modify scope (Phase 14)**: when `task.action == "modify"`, touch
   ONLY the symbols listed in `task.modify_scope` (the same list that
   the final.md anchor carries after `scope=`). Adding, removing, or

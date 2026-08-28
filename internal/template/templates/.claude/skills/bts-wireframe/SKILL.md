@@ -123,7 +123,27 @@ List ALL files to create or modify with dependencies:
 Rules:
 - Order by dependency (roots first)
 - Mark create vs modify
-- This becomes the basis for task decomposition in /bts-implement
+
+**This table IS the task decomposition.** `/bts-implement` reads it
+directly and every row becomes a task, so it is parsed, not just read:
+
+- Columns are located by **header name** — `File` and `Action` must be
+  spelled that way (a leading `#` or any extra column is fine, order is
+  not).
+- Actions `create`, `modify` and `delete` become tasks. Any other value
+  — `unchanged` is the useful one — records a deliberate non-edit and
+  becomes nothing. Use it when a reader would otherwise wonder why a
+  file is missing from the list.
+- A path may appear once per action. Write it as it will exist on disk;
+  backticks and bold are stripped, underscores are not.
+- `bts verify` enforces the mapping both ways: a task with no row, or a
+  row with no task, is a critical finding.
+
+Because this table carries the decomposition, the blueprint does not
+repeat it — it references this section. That is what keeps the blueprint
+a blueprint: the requirement that it hold a per-file section for every
+unit is what previously turned specs into transcriptions of the code
+(one measured recipe re-expanded 31 rows here into 1,322 lines there).
 
 ## Step 5: Execution Path Enumeration
 
