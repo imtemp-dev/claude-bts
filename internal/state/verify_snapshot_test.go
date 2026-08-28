@@ -8,7 +8,7 @@ import (
 
 func TestVerifySnapshot_SaveLoadRoundtrip(t *testing.T) {
 	root := t.TempDir()
-	recipeDir := filepath.Join(root, ".bts", "specs", "recipes", "r-001")
+	recipeDir := filepath.Join(root, ".jig", "specs", "recipes", "r-001")
 	if err := os.MkdirAll(recipeDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestDirtyVerifiedDocs_NoSnapshotDirIsClean(t *testing.T) {
 
 func TestDirtyVerifiedDocs_CleanMatchDirtyMismatch(t *testing.T) {
 	root := t.TempDir()
-	recipeDir := filepath.Join(root, ".bts", "specs", "recipes", "r-001")
+	recipeDir := filepath.Join(root, ".jig", "specs", "recipes", "r-001")
 	if err := os.MkdirAll(recipeDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestDirtyVerifiedDocs_CleanMatchDirtyMismatch(t *testing.T) {
 
 func TestDirtyVerifiedDocs_MultipleDocsSortedAndPartial(t *testing.T) {
 	root := t.TempDir()
-	recipeDir := filepath.Join(root, ".bts", "specs", "recipes", "r-001")
+	recipeDir := filepath.Join(root, ".jig", "specs", "recipes", "r-001")
 	if err := os.MkdirAll(recipeDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestDirtyVerifiedDocs_MultipleDocsSortedAndPartial(t *testing.T) {
 
 func TestDirtyVerifiedDocs_MissingCurrentDocSkipped(t *testing.T) {
 	root := t.TempDir()
-	recipeDir := filepath.Join(root, ".bts", "specs", "recipes", "r-001")
+	recipeDir := filepath.Join(root, ".jig", "specs", "recipes", "r-001")
 	if err := os.MkdirAll(recipeDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func TestDirtyVerifiedDocs_MissingCurrentDocSkipped(t *testing.T) {
 
 func TestDirtyVerifiedDocs_TmpLeftoverIgnored(t *testing.T) {
 	root := t.TempDir()
-	recipeDir := filepath.Join(root, ".bts", "specs", "recipes", "r-001")
+	recipeDir := filepath.Join(root, ".jig", "specs", "recipes", "r-001")
 	if err := os.MkdirAll(recipeDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -180,9 +180,9 @@ func TestRecipeIDFromDocPath(t *testing.T) {
 	cases := []struct {
 		path, want string
 	}{
-		{".bts/specs/recipes/r-019/draft.md", "r-019"},
-		{"/abs/proj/.bts/specs/recipes/r-2-auth/final.md", "r-2-auth"},
-		{".bts/specs/recipes/r-019", ""}, // recipe dir itself, no doc
+		{".jig/specs/recipes/r-019/draft.md", "r-019"},
+		{"/abs/proj/.jig/specs/recipes/r-2-auth/final.md", "r-2-auth"},
+		{".jig/specs/recipes/r-019", ""}, // recipe dir itself, no doc
 		{"docs/readme.md", ""},
 		{"recipes/x/notes/deep.md", "x"},
 	}

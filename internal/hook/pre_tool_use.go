@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 type preToolUseHandler struct{}
@@ -47,8 +47,8 @@ func (h *preToolUseHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return &HookOutput{}, nil
 	}
 
-	// Allow writes to .bts/ and .claude/ directories (recipe documents, configs)
-	if strings.Contains(filePath, ".bts/") || strings.Contains(filePath, ".claude/") {
+	// Allow writes to .jig/ and .claude/ directories (recipe documents, configs)
+	if strings.Contains(filePath, ".jig/") || strings.Contains(filePath, ".claude/") {
 		return &HookOutput{}, nil
 	}
 
@@ -57,7 +57,7 @@ func (h *preToolUseHandler) Handle(input *HookInput) (*HookOutput, error) {
 		HookSpecificOutput: &HookSpecificOutput{
 			HookEventName: "PreToolUse",
 			AdditionalContext: fmt.Sprintf(
-				"[bts] Writing source code during spec phase (%s). "+
+				"[jig] Writing source code during spec phase (%s). "+
 					"Blueprint creates specs, not code. "+
 					"Save code snippets in the spec document instead.",
 				recipe.Phase,

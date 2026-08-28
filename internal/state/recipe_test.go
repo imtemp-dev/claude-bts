@@ -11,7 +11,7 @@ import (
 func setupRecipeRoot(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, ".bts", "specs", "recipes"), 0755)
+	os.MkdirAll(filepath.Join(root, ".jig", "specs", "recipes"), 0755)
 	return root
 }
 
@@ -22,7 +22,7 @@ func TestSaveAndLoadRecipeState(t *testing.T) {
 
 	original := &RecipeState{
 		ID:        recipeID,
-		Type:      "blueprint",
+		Type:      "spec",
 		Topic:     "OAuth2 authentication",
 		Phase:     "draft",
 		Iteration: 2,
@@ -70,7 +70,7 @@ func TestLoadRecipeState_NotFound(t *testing.T) {
 func TestGetActiveRecipe(t *testing.T) {
 	t.Run("no recipes dir", func(t *testing.T) {
 		root := t.TempDir()
-		os.MkdirAll(filepath.Join(root, ".bts", "specs"), 0755)
+		os.MkdirAll(filepath.Join(root, ".jig", "specs"), 0755)
 
 		recipe, err := GetActiveRecipe(root)
 		if err != nil {
@@ -387,7 +387,7 @@ func TestBudgetDrift(t *testing.T) {
 
 func TestRecipeDir(t *testing.T) {
 	got := RecipeDir("/project", "r-1000")
-	want := filepath.Join("/project", ".bts", "specs", "recipes", "r-1000")
+	want := filepath.Join("/project", ".jig", "specs", "recipes", "r-1000")
 	if got != want {
 		t.Errorf("got %s, want %s", got, want)
 	}
@@ -455,7 +455,7 @@ func saveTestRecipe(t *testing.T, root, id, phase string) {
 	os.MkdirAll(dir, 0755)
 	r := &RecipeState{
 		ID:        id,
-		Type:      "blueprint",
+		Type:      "spec",
 		Topic:     "test topic",
 		Phase:     phase,
 		StartedAt: "2026-01-01T00:00:00Z",

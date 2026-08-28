@@ -90,7 +90,7 @@ var criteriaKeywords = map[string][]string{
 // checkCode selects whether references into the codebase are resolved.
 // It is separate from projectRoot because the two questions are separate:
 // a from-scratch spec has no code to check against, but it still lives in
-// a bts project whose settings apply. Folding them together — passing ""
+// a jig project whose settings apply. Folding them together — passing ""
 // as the root to mean "skip code checks" — turned --no-code into a
 // blanket "skip everything that needs the project", and the section-span
 // check went with it, on exactly the from-scratch documents where span

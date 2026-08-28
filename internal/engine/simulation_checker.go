@@ -23,7 +23,7 @@ var (
 )
 
 // SimulationStats counts scenario tags in a simulation file. Legacy
-// scenarios (marked by `bts migrate simulations`) do not count toward
+// scenarios (marked by `jig migrate simulations`) do not count toward
 // the ratio denominator — they represent coverage that was never
 // cross-axis classified in the first place.
 type SimulationStats struct {
@@ -69,7 +69,7 @@ func CheckSimulationScenarios(simPath string, ratio float64) []Issue {
 				Category: "simulation",
 				Claim:    "no_scenarios_detected: " + fileName,
 				Severity: "major",
-				Detail:   "Simulation contains a markdown table but no row matched the Scenario Index form `| S\\d+ | ... |`. Ensure the first cell is an id like 'S01' or 'sim-foo'. See bts-simulate SKILL.md Step 3.5 Form C.",
+				Detail:   "Simulation contains a markdown table but no row matched the Scenario Index form `| S\\d+ | ... |`. Ensure the first cell is an id like 'S01' or 'sim-foo'. See jig-simulate SKILL.md Step 3.5 Form C.",
 			}}
 		}
 		return nil
@@ -79,7 +79,7 @@ func CheckSimulationScenarios(simPath string, ratio float64) []Issue {
 			Category: "simulation",
 			Claim:    "untagged_scenarios: " + fileName,
 			Severity: "major",
-			Detail:   "Simulation contains scenarios without [cross-boundary: ...], [single-axis: ...], or [illegal-cell: ...] tags. Per bts-simulate SKILL.md Step 3, every scenario header must carry exactly one tag so cross-boundary ratio can be measured.",
+			Detail:   "Simulation contains scenarios without [cross-boundary: ...], [single-axis: ...], or [illegal-cell: ...] tags. Per jig-simulate SKILL.md Step 3, every scenario header must carry exactly one tag so cross-boundary ratio can be measured.",
 		})
 	}
 
@@ -97,7 +97,7 @@ func CheckSimulationScenarios(simPath string, ratio float64) []Issue {
 			Category: "simulation",
 			Claim:    "insufficient_cross_boundary_coverage: " + fileName,
 			Severity: "critical",
-			Detail:   "Cross-boundary + illegal-cell scenarios are " + pct(coverage) + " of non-legacy tagged scenarios; threshold is " + pct(ratio) + ". Add scenarios that touch state axes from 2+ modules simultaneously (per bts-simulate SKILL.md Step 3 / Phase 6.1).",
+			Detail:   "Cross-boundary + illegal-cell scenarios are " + pct(coverage) + " of non-legacy tagged scenarios; threshold is " + pct(ratio) + ". Add scenarios that touch state axes from 2+ modules simultaneously (per jig-simulate SKILL.md Step 3 / Phase 6.1).",
 		})
 	}
 	return issues

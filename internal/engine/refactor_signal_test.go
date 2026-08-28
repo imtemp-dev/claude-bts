@@ -103,7 +103,7 @@ func TestModulePrefix(t *testing.T) {
 		"pkg/auth/handler.go":     "pkg/auth",
 		"src/components/Card.tsx": "src/components",
 		"main.go":                 "main.go",
-		"./cmd/bts/main.go":       "cmd/bts",
+		"./cmd/jig/main.go":       "cmd/jig",
 		"":                        "",
 	}
 	for in, want := range cases {

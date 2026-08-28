@@ -14,7 +14,7 @@ import (
 // checker, the test-scenario mapper, and the migration tool agree on
 // what counts as a "scenario line".
 //
-// Three canonical forms (see bts-simulate SKILL.md §Step 3.5):
+// Three canonical forms (see jig-simulate SKILL.md §Step 3.5):
 //
 //   1. Prose heading      — "### Scenario sim-001.s1 [single-axis: A]"
 //   2. Short-id heading   — "### S01 — Happy path [single-axis: Auth]"
@@ -30,7 +30,7 @@ var (
 	// `## Scenario Summary`, `## Scenarios Overview` — those carry no
 	// tag and would produce false untagged_scenarios findings if
 	// counted. Each real scenario heading pairs "Scenario" with an id
-	// token per bts-simulate SKILL.md §Step 3.5 Form A.
+	// token per jig-simulate SKILL.md §Step 3.5 Form A.
 	simHeadingProseRe = regexp.MustCompile(
 		`(?mi)^#{1,6}\s+.*?\bscenario\s+(?:\d+|sim-[A-Za-z0-9_.\-]+|S\d+[A-Za-z0-9_.\-]*)\b[^\n]*$`,
 	)

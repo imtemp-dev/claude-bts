@@ -13,7 +13,7 @@ import (
 // that typically indicates the current decomposition is wrong and a
 // redesign will save more than continued patching. These are
 // diagnostic, not blocking — they surface as hints in the session-start
-// summary and in `bts refactor-signal`.
+// summary and in `jig refactor-signal`.
 type RefactorSignal struct {
 	Kind     string   `json:"kind"`     // "test_fix_cascade" | "cross_module_churn"
 	Evidence []string `json:"evidence"` // one short string per supporting observation
@@ -121,7 +121,7 @@ func detectTestFixCascade(entries []changelogEntry) *RefactorSignal {
 					"single test cycle triggered implement actions across " + strings.Join(mods, ", "),
 					"cascade starts at changelog entry after index " + iToS(i),
 				},
-				Suggest: "One test failure pulled changes across 3+ modules. Review whether invariant ownership (domain.md §2) is respected in the current decomposition; the bug's blast radius suggests coupled state. Consider /bts-architect to propose an alternative decomposition.",
+				Suggest: "One test failure pulled changes across 3+ modules. Review whether invariant ownership (domain.md §2) is respected in the current decomposition; the bug's blast radius suggests coupled state. Consider /jig-architect to propose an alternative decomposition.",
 			}
 		}
 	}
@@ -176,7 +176,7 @@ func detectCrossModuleChurn(entries []changelogEntry, tasksPath string) *Refacto
 		Evidence: []string{
 			"module(s) with 4+ implement actions: " + strings.Join(hotspots, ", "),
 		},
-		Suggest: "The hot module is being edited in place repeatedly. Before the next edit, confirm via domain.md that its responsibility (single-job rule, bts-wireframe §Step 1) is actually singular — repeated edits often mean two jobs in one node.",
+		Suggest: "The hot module is being edited in place repeatedly. Before the next edit, confirm via domain.md that its responsibility (single-job rule, jig-wireframe §Step 1) is actually singular — repeated edits often mean two jobs in one node.",
 	}
 }
 

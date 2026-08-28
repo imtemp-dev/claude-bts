@@ -4,14 +4,14 @@ A verification record is durable evidence that a **current guarantee** holds:
 the date it was checked, the version it was checked against, the exact
 commands run, and their exact output.
 
-bts is a tool whose entire premise is "don't take the claim, check it." That
-standard applies to bts's own claims too. Unit tests prove the code does what
+jig is a tool whose entire premise is "don't take the claim, check it." That
+standard applies to jig's own claims too. Unit tests prove the code does what
 the code says; a verification record proves the shipped system does what the
 README says, including the parts no unit test reaches.
 
 ## What belongs here
 
-- Evidence for a guarantee bts makes to its users — a gate that blocks, a
+- Evidence for a guarantee jig makes to its users — a gate that blocks, a
   state that survives a restart, a bypass that is actually closed.
 - Anything verified by running the real binary end to end rather than by a
   Go test, especially the local-only checks CI cannot run.

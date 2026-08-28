@@ -3,7 +3,7 @@ package cli
 import (
 	"testing"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 func evidenceFixture(t *testing.T, entries []state.VerifyLogEntry) string {

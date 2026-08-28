@@ -23,7 +23,7 @@ import (
 // problem is not silenced by an earlier one's exhausted budget.
 
 // DefaultStopBlockBudget is how many consecutive blocks one reason gets.
-// Kept below Claude Code's 8-block override so bts, not the harness,
+// Kept below Claude Code's 8-block override so jig, not the harness,
 // decides when to give up — the harness's override carries no explanation.
 const DefaultStopBlockBudget = 3
 

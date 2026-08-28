@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
-// runRecipeLog executes `bts recipe log` against root with the given args,
+// runRecipeLog executes `jig recipe log` against root with the given args,
 // capturing stderr so the budget-drift notice can be asserted. The command
 // resolves the project from the working directory, so the test chdirs.
 func runRecipeLog(t *testing.T, root string, args ...string) string {
@@ -51,7 +51,7 @@ func runRecipeLog(t *testing.T, root string, args ...string) string {
 // Without it the log cannot say which regime produced a given Status.
 func TestRecipeLog_StampsBudget(t *testing.T) {
 	root := newRecipeFixture(t, "r-b01", "draft", 0, 0, nil)
-	writeProjectFile(t, root, ".bts/config/settings.yaml", "verify:\n  max_iterations: 4\n")
+	writeProjectFile(t, root, ".jig/config/settings.yaml", "verify:\n  max_iterations: 4\n")
 
 	runRecipeLog(t, root, "r-b01", "--iteration", "1", "--critical", "1", "--doc", "draft.md")
 
@@ -89,7 +89,7 @@ func TestRecipeLog_AnnouncesBudgetDrift(t *testing.T) {
 	root := newRecipeFixture(t, "r-b03", "draft", 0, 1, []state.VerifyLogEntry{
 		{Iteration: 1, Critical: 1, Doc: "draft.md", Status: "continue", Budget: 3},
 	})
-	writeProjectFile(t, root, ".bts/config/settings.yaml", "verify:\n  max_iterations: 6\n")
+	writeProjectFile(t, root, ".jig/config/settings.yaml", "verify:\n  max_iterations: 6\n")
 
 	out := runRecipeLog(t, root, "r-b03", "--iteration", "2", "--critical", "1", "--doc", "draft.md")
 
@@ -121,7 +121,7 @@ func TestRecipeLog_LegacyLogIsNotDrift(t *testing.T) {
 	root := newRecipeFixture(t, "r-b05", "draft", 0, 1, []state.VerifyLogEntry{
 		{Iteration: 1, Critical: 1, Doc: "draft.md", Status: "continue"},
 	})
-	writeProjectFile(t, root, ".bts/config/settings.yaml", "verify:\n  max_iterations: 6\n")
+	writeProjectFile(t, root, ".jig/config/settings.yaml", "verify:\n  max_iterations: 6\n")
 
 	out := runRecipeLog(t, root, "r-b05", "--iteration", "2", "--critical", "1", "--doc", "draft.md")
 
@@ -133,7 +133,7 @@ func TestRecipeLog_LegacyLogIsNotDrift(t *testing.T) {
 // The settings template must not advertise gate knobs that no code reads.
 // The completion gate is fixed in the stop hook.
 func TestSettingsTemplate_HasNoInertConvergenceKnobs(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "template", "templates", ".bts", "config", "settings.yaml"))
+	data, err := os.ReadFile(filepath.Join("..", "template", "templates", ".jig", "config", "settings.yaml"))
 	if err != nil {
 		t.Fatalf("read settings template: %v", err)
 	}

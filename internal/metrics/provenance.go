@@ -11,7 +11,7 @@ import (
 // assess) run with `context: fork` and spawn their own agent, so the
 // isolation itself is enforced by the harness. What was never tied
 // together is the RECORD: the orchestrator writes verification.md and
-// runs `bts recipe log`, and a round logged without any fork having run
+// runs `jig recipe log`, and a round logged without any fork having run
 // looked exactly like a round logged after one.
 //
 // SubagentStop events are the cheapest available witness. They are
@@ -37,7 +37,7 @@ import (
 // a RecipeID at all. Those name no recipe, and counting them would make
 // agent_evidence a claim that the machine was busy rather than that this
 // round forked. A project on the old hook records "none" instead of a
-// guess, and `bts doctor` stays quiet, because absence is only
+// guess, and `jig doctor` stays quiet, because absence is only
 // informative next to rounds that did record evidence.
 func SubagentActivitySince(root, recipeID string, since time.Time) (active bool, ok bool) {
 	scoped, err := ReadRecipeEvents(root, recipeID)
@@ -71,7 +71,7 @@ func SubagentActivitySince(root, recipeID string, since time.Time) (active bool,
 // other work spawned — which turns agent_evidence from a claim about
 // this round into a claim about the machine being busy. A project whose
 // hooks never stamp a RecipeID therefore records "none" rather than a
-// guess, and `bts doctor` stays silent because absence is only
+// guess, and `jig doctor` stays silent because absence is only
 // informative next to rounds that DID record evidence.
 func stopAfter(events []MetricsEvent, recipeID string, since time.Time, requireAttribution bool) bool {
 	for i := range events {

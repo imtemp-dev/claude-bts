@@ -15,13 +15,13 @@ import (
 //
 // A hard gate the operator disagrees with does not stop them; it stops
 // the recorded path and leaves the unrecorded one open. In a measured
-// recipe the completion gate refused `<bts>DONE</bts>` for fourteen
+// recipe the completion gate refused `<jig>DONE</jig>` for fourteen
 // rounds, and the recipe finalized anyway: final.md was written directly
 // from draft.md seventeen hours after a verify round marked `failed`,
 // with seven majors open. The two overrides behind that decision were
 // real, considered, and written down — as four thousand characters of
 // prose in changelog.jsonl and decisions.jsonl. Nothing machine-readable
-// carried them, so `bts recipe status`, `bts doctor` and `bts stats` all
+// carried them, so `jig recipe status`, `jig doctor` and `jig stats` all
 // went on reporting an ordinary finalized recipe, and the README's
 // promise that "specs can't finalize without passing verification" was
 // true of the gate and false of the artifact.
@@ -162,9 +162,9 @@ func ActiveOverride(records []OverrideRecord, gate, docBase, docHash string) Ove
 // nil only where the documents genuinely cannot be read; a nil map skips
 // the staleness filter, which is the behaviour this function used to
 // have unconditionally. That was a divergence with teeth: the stop hook
-// correctly refused a stale override and re-blocked, while `bts recipe
-// status` and `bts doctor` went on printing "override in force" and
-// `bts stats` went on excluding the recipe from the correlation it added
+// correctly refused a stale override and re-blocked, while `jig recipe
+// status` and `jig doctor` went on printing "override in force" and
+// `jig stats` went on excluding the recipe from the correlation it added
 // specifically to avoid over-claiming. Every surface disagreed with the
 // gate, in the direction that flatters the override.
 //

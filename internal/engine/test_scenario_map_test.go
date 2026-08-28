@@ -10,7 +10,7 @@ import (
 func setupScenarioFixture(t *testing.T, sims, testFiles map[string]string, resultsJSON string) string {
 	t.Helper()
 	projectRoot := t.TempDir()
-	recipeDir := filepath.Join(projectRoot, ".bts", "specs", "recipes", "r-001")
+	recipeDir := filepath.Join(projectRoot, ".jig", "specs", "recipes", "r-001")
 	if err := os.MkdirAll(filepath.Join(recipeDir, "simulations"), 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -28,7 +28,7 @@ func setupScenarioFixture(t *testing.T, sims, testFiles map[string]string, resul
 	return recipeDir
 }
 
-// Happy path: each simulate scenario has a matching bts:scenario tag.
+// Happy path: each simulate scenario has a matching jig:scenario tag.
 func TestCheckTestScenarioCoverage_AllLinked(t *testing.T) {
 	sims := map[string]string{
 		"001.md": `## Scenario sim-001.s1 [single-axis: A]
@@ -36,10 +36,10 @@ func TestCheckTestScenarioCoverage_AllLinked(t *testing.T) {
 `,
 	}
 	testFiles := map[string]string{
-		"src/__tests__/a.test.ts": `// bts:scenario sim-001.s1
+		"src/__tests__/a.test.ts": `// jig:scenario sim-001.s1
 it("covers sim-001.s1", () => {});
 
-// bts:scenario sim-001.s2
+// jig:scenario sim-001.s2
 it("covers sim-001.s2", () => {});
 `,
 	}
@@ -84,10 +84,10 @@ func TestCheckTestScenarioCoverage_OrphanTag(t *testing.T) {
 		"001.md": `## Scenario sim-001.s1 [single-axis: A]`,
 	}
 	testFiles := map[string]string{
-		"src/__tests__/a.test.ts": `// bts:scenario sim-001.s1
+		"src/__tests__/a.test.ts": `// jig:scenario sim-001.s1
 it("ok", () => {});
 
-// bts:scenario sim-001.ghost
+// jig:scenario sim-001.ghost
 it("orphan", () => {});
 `,
 	}
@@ -114,7 +114,7 @@ func TestCheckTestScenarioCoverage_FailureCategoryMissing(t *testing.T) {
 		"001.md": `## Scenario sim-001.s1 [single-axis: A]`,
 	}
 	testFiles := map[string]string{
-		"src/__tests__/a.test.ts": `// bts:scenario sim-001.s1
+		"src/__tests__/a.test.ts": `// jig:scenario sim-001.s1
 it("x", () => {});
 `,
 	}
@@ -136,7 +136,7 @@ it("x", () => {});
 // Python test file with hash-comment tag.
 func TestExtractTestScenarioLinks_HashComment(t *testing.T) {
 	testFiles := map[string]string{
-		"tests/test_a.py": `# bts:scenario sim-001.s1
+		"tests/test_a.py": `# jig:scenario sim-001.s1
 def test_something():
     assert True
 `,

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/imtemp-dev/claude-bts/internal/hook"
+	"github.com/imtemp-dev/jig/internal/hook"
 	"github.com/spf13/cobra"
 )
 
@@ -44,7 +44,7 @@ func runHook(cmd *cobra.Command, args []string) error {
 
 	output, err := registry.Dispatch(input)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "bts hook error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "jig hook error: %v\n", err)
 		os.Exit(0) // Always exit 0 to not break Claude Code
 		return nil
 	}

@@ -1,4 +1,4 @@
-# bts — Bulletproof Technical Specification
+# jig — Bulletproof Technical Specification
 
 구현 문서(spec)의 완성도를 극도로 높여서, AI가 한 번에 높은 정확도의 코드를 생성할 수 있게 만드는 도구.
 
@@ -32,7 +32,7 @@ spec 작성 → 검증 → 수정 → 검증 → ... → 완성된 spec → AI �
 | 2 | 설계 | 무엇을 만들 것인지, 컴포넌트, 데이터 흐름 | ~60-70% |
 | 3 | 구현 직전 | 파일 경로, 함수 시그니처, 타입, 연결점, edge case, 스캐폴딩 | **매우 높음** |
 
-bts의 최종 목표는 spec을 **Level 3**까지 끌어올리는 것이다. Level 1(분석)과 Level 2(설계)는 Level 3에 도달하기 위한 전 단계이며, 각 단계에 대응하는 레시피가 있다: `/recipe analyze` (L1), `/recipe design` (L2), `/recipe blueprint` (L3).
+jig의 최종 목표는 spec을 **Level 3**까지 끌어올리는 것이다. Level 1(분석)과 Level 2(설계)는 Level 3에 도달하기 위한 전 단계이며, 각 단계에 대응하는 레시피가 있다: `/recipe map` (L1), `/recipe design` (L2), `/recipe spec` (L3).
 
 전체 스킬 8개, 레시피 9개, 에이전트 3개로 구성된다. (상세: 03-skills-and-recipes.md)
 
@@ -93,20 +93,20 @@ src/auth/oauth.ts 생성:
 ## moai-adk와의 관계
 
 ```
-bts:   요구사항 → 완성도 높은 구현 spec (Level 3)
+jig:   요구사항 → 완성도 높은 구현 spec (Level 3)
 moai:  구현 spec → 코드 (TRUST 5, TDD/DDD)
 ```
 
-bts가 만든 spec이 moai의 SPEC 입력이 될 수 있다. 각자 영역이 명확하다:
-- bts = spec 품질
+jig가 만든 spec이 moai의 SPEC 입력이 될 수 있다. 각자 영역이 명확하다:
+- jig = spec 품질
 - moai = 코드 품질
 
 ## 아키텍처 요약
 
 Go 싱글 바이너리 (moai-adk 패턴):
-- `bts init` → .claude/에 스킬/에이전트/훅/규칙 배포, .bts/에 설정/상태
-- `bts hook <event>` → Claude Code lifecycle 이벤트 처리
-- `bts verify <file>` → 결정론적 팩트 체크
+- `jig init` → .claude/에 스킬/에이전트/훅/규칙 배포, .jig/에 설정/상태
+- `jig hook <event>` → Claude Code lifecycle 이벤트 처리
+- `jig verify <file>` → 결정론적 팩트 체크
 - 스킬/레시피/에이전트는 마크다운 파일 (Claude Code가 읽음)
 - 검증 엔진은 Go 코드 (결정론적 확인)
 - 상태는 JSON/JSONL 파일 (세션 경계 초월, resume 가능)

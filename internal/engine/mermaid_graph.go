@@ -7,12 +7,12 @@ import (
 	"strings"
 )
 
-// Mermaid graph analysis — deterministic path enumeration for /bts-verify.
+// Mermaid graph analysis — deterministic path enumeration for /jig-verify.
 //
 // The verifier LLM used to enumerate diagram paths itself, which is
 // error-prone on large diagrams (miscounted or skipped paths). This
 // module extracts mermaid blocks from a document, parses the two
-// diagram families bts documents actually use (flowchart/graph and
+// diagram families jig documents actually use (flowchart/graph and
 // stateDiagram/stateDiagram-v2), and enumerates:
 //   - all simple paths from start nodes to terminal nodes (capped)
 //   - cycles (capped)
@@ -465,10 +465,10 @@ func displayName(n string) string {
 
 // RenderMermaidAnalysisReport renders analyses as a prompt-friendly
 // deterministic report. The verifier consumes this instead of
-// enumerating paths itself; paths_total feeds the <bts-findings> block.
+// enumerating paths itself; paths_total feeds the <jig-findings> block.
 func RenderMermaidAnalysisReport(analyses []MermaidGraphAnalysis) string {
 	var b strings.Builder
-	b.WriteString("## Mermaid Graph Analysis (deterministic — computed by bts, not the LLM)\n")
+	b.WriteString("## Mermaid Graph Analysis (deterministic — computed by jig, not the LLM)\n")
 
 	supported := 0
 	totalPaths := 0

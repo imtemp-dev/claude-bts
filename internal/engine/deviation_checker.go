@@ -21,7 +21,7 @@ type DeviationRow struct {
 
 // Driver vocabulary — exact tokens the validator accepts. Anything
 // outside this set is reported as driver_invalid. Keep in sync with
-// the list in bts-sync/SKILL.md.
+// the list in jig-sync/SKILL.md.
 var validDriverRe = regexp.MustCompile(
 	`^(?:code-diff|sync-check|simulate:[\w\.\-]+|review:[\w\.\-]+|test:[^,|]+|midrun:[\w\.\-]+)$`,
 )
@@ -119,7 +119,7 @@ func ParseDeviationMd(path string) ([]DeviationRow, error) {
 
 // rowFromCells maps a parsed table row to a DeviationRow. Column
 // positions depend on section: each table has a known schema (see
-// bts-sync/SKILL.md Step 5 canonical layout).
+// jig-sync/SKILL.md Step 5 canonical layout).
 //
 // Layouts:
 //   not_implemented: | ID | Item | File   | Driver | Severity | Reason |

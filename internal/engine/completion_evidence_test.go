@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 var allDims = []string{"audit", "simulate", "verify"}
@@ -51,7 +51,7 @@ func TestCompletionEvidence_SingleCleanRoundIsNotEvidence(t *testing.T) {
 }
 
 // The defect that made the replication gate ornamental: it counted rows,
-// and two rows are produced by running one `bts recipe log` twice. The
+// and two rows are produced by running one `jig recipe log` twice. The
 // document was never read a second time, verification.md never changed,
 // and "two agreeing rounds" was one sample recorded twice.
 func TestCompletionEvidence_RerecordingOneRoundIsNotReplication(t *testing.T) {

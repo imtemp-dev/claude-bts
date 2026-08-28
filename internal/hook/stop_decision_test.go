@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 func holdDecision(t *testing.T, root, recipeID, key, question string) {
@@ -28,7 +28,7 @@ func TestSpecDone_OpenDecisionBlocksCompletion(t *testing.T) {
 	holdDecision(t, root, recipeID, "token-storage", "keychain or httpOnly cookie?")
 
 	out, err := NewStopHandler().Handle(&HookInput{
-		CWD: root, SessionID: "s-1", StopHookContent: "<bts>DONE</bts>",
+		CWD: root, SessionID: "s-1", StopHookContent: "<jig>DONE</jig>",
 	})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
@@ -55,7 +55,7 @@ func TestSpecDone_ResolvedDecisionDoesNotBlock(t *testing.T) {
 	}
 
 	out, err := NewStopHandler().Handle(&HookInput{
-		CWD: root, SessionID: "s-1", StopHookContent: "<bts>DONE</bts>",
+		CWD: root, SessionID: "s-1", StopHookContent: "<jig>DONE</jig>",
 	})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
@@ -102,7 +102,7 @@ func TestSessionStart_SurfacesOpenDecisions(t *testing.T) {
 	if !strings.Contains(ctx, "BLOCKED") || !strings.Contains(ctx, "scope-call") {
 		t.Errorf("resume context must surface the open decision, got:\n%s", ctx)
 	}
-	if !strings.Contains(ctx, "bts recipe decision resolve") {
+	if !strings.Contains(ctx, "jig recipe decision resolve") {
 		t.Errorf("context must carry the command that clears it, got:\n%s", ctx)
 	}
 }

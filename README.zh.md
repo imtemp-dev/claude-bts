@@ -1,9 +1,9 @@
-# claude-bts
+# jig
 
-**B**ulletproof **T**echnical **S**pecification — 在规范错误变成调试会话之前将其捕获。
+**先做工装，再下刀** — 在规范错误变成调试会话之前将其捕获。
 
-[![CI](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-bts)](https://github.com/imtemp-dev/claude-bts/releases)
+[![CI](https://github.com/imtemp-dev/jig/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/jig/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/imtemp-dev/jig)](https://github.com/imtemp-dev/jig/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.22+-00ADD8.svg)](https://go.dev)
 
@@ -17,23 +17,42 @@
 
 - **不一致。** 有些会话你记得要求审查，有些你忘了。质量取决于你当天有多仔细。
 - **错误越早发现越便宜。** 当计划中的错误直接变成代码，它会扩散到多个文件，修复需要构建和调试。在计划阶段发现只需要改文本。但没有验证步骤，计划级别的错误在变成代码问题之前没有机会被发现。
-- **实现会淹没目的地。** AI 能做计划，但一旦深入代码——修复类型错误、追查测试失败——它就会忘记完成的系统整体应该是什么样子。bts 从意图、范围、线框开始正是为此：在细节占满上下文之前，先确立全局。
+- **实现会淹没目的地。** AI 能做计划，但一旦深入代码——修复类型错误、追查测试失败——它就会忘记完成的系统整体应该是什么样子。jig 从意图、范围、线框开始正是为此：在细节占满上下文之前，先确立全局。
 
 模式总是一样的：你在通过对话做质量控制，每个会话从头来过，上次发现的问题这次不一定能再次发现。
 
-## bts 做什么
+## jig 做什么
 
-bts 是一个接入 Claude Code 生命周期钩子的 CLI 工具。它将你已经在做的流程结构化——但使其自动化、可追踪，并由独立的 AI 上下文进行验证。
+jig 是一个接入 Claude Code 生命周期钩子的 CLI 工具。它将你已经在做的流程结构化——但使其自动化、可追踪，并由独立的 AI 上下文进行验证。
 
-**结构化的全局优先。** 在任何代码之前，bts 经历意图探索、范围定义和线框设计。这为后续每个步骤——起草、验证、实现——提供了可以回溯参照的目的地，防止 AI 为了眼前的问题而牺牲整体。
+**结构化的全局优先。** 在任何代码之前，jig 经历意图探索、范围定义和线框设计。这为后续每个步骤——起草、验证、实现——提供了可以回溯参照的目的地，防止 AI 为了眼前的问题而牺牲整体。
 
-**隔离验证。** 当 AI 在同一会话中审查自己的输出时，它共享相同的盲点。bts 在独立的代理上下文中运行验证——一个不共享生成该文档的对话历史的不同 AI 实例。
+**隔离验证。** 当 AI 在同一会话中审查自己的输出时，它共享相同的盲点。jig 在独立的代理上下文中运行验证——一个不共享生成该文档的对话历史的不同 AI 实例。
 
-**跨会话状态追踪。** bts 记录验证中发现的每个问题，追踪哪些已解决，并在会话和上下文压缩之间持久化。当会话恢复时，它确切知道进度和未解决的问题。
+**跨会话状态追踪。** jig 记录验证中发现的每个问题，追踪哪些已解决，并在会话和上下文压缩之间持久化。当会话恢复时，它确切知道进度和未解决的问题。
 
 **完成门控。** 验证不通过就无法定稿。测试通过、审查完成、规范与代码的偏差被记录之前，实现无法完成。这些门控自动执行——不依赖你记得去检查。
 
 核心思想很简单：**在文档中而非代码中捕获错误。** 修改规范是文本编辑，修改代码是构建-测试-调试循环。实现之前过滤掉的错误越多，实现之后的返工越少。
+
+## 从 bts 升级
+
+jig 之前叫 bts。只需替换二进制文件，迁移即告完成 —
+项目中第一次运行的 `jig` 命令会自动接管已有状态:
+
+```bash
+brew uninstall bts && brew install jig   # 或重新运行安装脚本
+cd your-project && jig update
+```
+
+- `.bts/` 重命名为 `.jig/`，`.gitignore` 同步更新
+- `bts-*` 的技能、代理、规则和钩子被移除并替换为 `jig-*`
+- `.claude/settings.local.json` 中的钩子路径会被重写
+- 配方类型改名: `blueprint` → `spec`、`analyze` → `map`
+- 已写好的文档继续可用 — `<bts-findings>` 块、
+  `<bts>DONE</bts>` 标记和 `[!BTS-BLOCK]` 注释仍会被识别
+
+进行中的配方无需先完成或重新开始。
 
 ## 快速开始
 
@@ -42,17 +61,17 @@ bts 是一个接入 Claude Code 生命周期钩子的 CLI 工具。它将你已�
 ```bash
 # Homebrew (macOS / Linux)
 brew tap imtemp-dev/tap
-brew install bts
+brew install jig
 
 # 或一行安装
-curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-bts/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/imtemp-dev/jig/main/install.sh | bash
 
 # 或从源码构建 (Go 1.22+)
-git clone https://github.com/imtemp-dev/claude-bts.git && cd claude-bts && make install
+git clone https://github.com/imtemp-dev/jig.git && cd jig && make install
 
 # 在项目中初始化
 cd your-project
-bts init .
+jig init .
 
 # 启动 Claude Code
 claude
@@ -62,22 +81,22 @@ claude
 
 ```bash
 # 创建完美规范 → 实现 → 测试 → 完成
-/bts-recipe-blueprint 添加 OAuth2 认证
+/jig-spec 添加 OAuth2 认证
 
 # 修复已知漏洞
-/bts-recipe-fix 登录 bcrypt 哈希比较失败
+/jig-fix 登录 bcrypt 哈希比较失败
 
 # 调试未知问题
-/bts-recipe-debug 5分钟后会话断开
+/jig-debug 5分钟后会话断开
 ```
 
 ## 工作原理
 
-bts 将工作分为**规范**和**实现**两个阶段。每种配方类型有自己的规范阶段，但都共享相同的实现循环。
+jig 将工作分为**规范**和**实现**两个阶段。每种配方类型有自己的规范阶段，但都共享相同的实现循环。
 
-在规范阶段，bts 迭代文档——探索意图、调研代码库、起草详细设计，并在独立的 AI 上下文中进行多轮验证。此阶段发现的错误只需文本编辑即可修复。
+在规范阶段，jig 迭代文档——探索意图、调研代码库、起草详细设计，并在独立的 AI 上下文中进行多轮验证。此阶段发现的错误只需文本编辑即可修复。
 
-在实现阶段，bts 从定稿规范生成代码、运行测试（失败时重试）、模拟代码路径、审查质量，并将偏差同步回规范。每个步骤都有自动门控，在满足要求之前阻止完成。
+在实现阶段，jig 从定稿规范生成代码、运行测试（失败时重试）、模拟代码路径、审查质量，并将偏差同步回规范。每个步骤都有自动门控，在满足要求之前阻止完成。
 
 各配方类型的详细流程见[配方生命周期](#配方生命周期)。
 
@@ -85,13 +104,13 @@ bts 将工作分为**规范**和**实现**两个阶段。每种配方类型有�
 
 | 配方 | 用途 | 输出 |
 |------|------|------|
-| `/bts-recipe-blueprint` | 完整实现规范 | Level 3 规范 → 代码 → 测试 |
-| `/bts-recipe-design` | 设计功能 | Level 2 设计文档 |
-| `/bts-recipe-analyze` | 理解现有系统 | Level 1 分析文档 |
-| `/bts-recipe-fix` | 已知漏洞修复 | 修复规范 → 代码 → 测试 |
-| `/bts-recipe-debug` | 未知漏洞调查 | 6视角分析 → 规范 → 代码 |
+| `/jig-spec` | 完整实现规范 | Level 3 规范 → 代码 → 测试 |
+| `/jig-design` | 设计功能 | Level 2 设计文档 |
+| `/jig-map` | 理解现有系统 | Level 1 分析文档 |
+| `/jig-fix` | 已知漏洞修复 | 修复规范 → 代码 → 测试 |
+| `/jig-debug` | 未知漏洞调查 | 6视角分析 → 规范 → 代码 |
 
-对于多功能项目，bts 将工作分解为**愿景 + 路线图**。每个配方映射到路线图项目，完成状态自动跟踪。
+对于多功能项目，jig 将工作分解为**愿景 + 路线图**。每个配方映射到路线图项目，完成状态自动跟踪。
 
 ## 功能
 
@@ -99,7 +118,7 @@ bts 将工作分为**规范**和**实现**两个阶段。每种配方类型有�
 
 | 类别 | 技能 |
 |------|------|
-| **配方** | blueprint, design, analyze, fix, debug |
+| **配方** | spec, design, map, fix, debug |
 | **发现** | discover, wireframe |
 | **验证** | verify, cross-check, audit, assess, sync-check |
 | **分析** | research, simulate, debate, adjudicate |
@@ -120,7 +139,7 @@ bts 将工作分为**规范**和**实现**两个阶段。每种配方类型有�
 ### 指标与成本估算
 
 ```
-bts stats
+jig stats
 ```
 
 ```
@@ -142,7 +161,7 @@ Estimated Cost
 ### 状态栏
 
 ```
-bts v0.1.0 │ JWT auth │ implement 3/5 │ ctx 60%
+jig v0.1.0 │ JWT auth │ implement 3/5 │ ctx 60%
 ```
 
 在 Claude Code 状态栏中实时显示配方进度、阶段和上下文使用情况。
@@ -150,8 +169,8 @@ bts v0.1.0 │ JWT auth │ implement 3/5 │ ctx 60%
 ### 文档可视化
 
 ```bash
-bts graph              # 项目级文档关系图
-bts graph <recipe-id>  # 配方级文档图
+jig graph              # 项目级文档关系图
+jig graph <recipe-id>  # 配方级文档图
 ```
 
 生成 mermaid 图表，显示文档依赖关系、辩论结论和验证链。
@@ -162,7 +181,7 @@ bts graph <recipe-id>  # 配方级文档图
 
 ### 规范阶段（按配方类型）
 
-**Blueprint** — 新功能的完整规范：
+**Spec** — 新功能的完整规范：
 
 ```mermaid
 flowchart LR
@@ -186,7 +205,7 @@ flowchart LR
     BP["6 蓝图"] --> CROSS["交叉分析"] --> SPEC["修复规范"] --> F["定稿"]
 ```
 
-**Design** / **Analyze** — 仅规范，无实现：
+**Design** / **Map** — 仅规范，无实现：
 
 ```mermaid
 flowchart LR
@@ -197,7 +216,7 @@ flowchart LR
 
 ### 实现阶段（共享）
 
-所有生成代码的配方通过 `/bts-implement` 进入相同的实现循环：
+所有生成代码的配方通过 `/jig-implement` 进入相同的实现循环：
 
 ```mermaid
 flowchart LR
@@ -214,11 +233,11 @@ flowchart LR
 
 ## 模型与配置
 
-bts 使用两层 AI 模型：
+jig 使用两层 AI 模型：
 
 **主会话模型** — 你在 Claude Code 中运行的模型（Opus、Sonnet 等）处理所有主要工作：起草规范、实现代码、进行辩论、编排生命周期。
 
-**专家代理** — 验证、审计、模拟和审查在**独立代理上下文**（fork）中运行，不与主会话共享盲点。默认为 Sonnet，可在 `.bts/config/settings.yaml` 中配置：
+**专家代理** — 验证、审计、模拟和审查在**独立代理上下文**（fork）中运行，不与主会话共享盲点。默认为 Sonnet，可在 `.jig/config/settings.yaml` 中配置：
 
 ```yaml
 agents:
@@ -236,8 +255,8 @@ agents:
 
 | 阶段 | 技能 | 上下文 | 模型 |
 |------|------|--------|------|
-| 发现、范围、调研 | discover, blueprint, research | 主会话 | 会话模型 |
-| 线框、草稿、改进 | wireframe, blueprint | 主会话 | 会话模型 |
+| 发现、范围、调研 | discover, spec, research | 主会话 | 会话模型 |
+| 线框、草稿、改进 | wireframe, spec | 主会话 | 会话模型 |
 | 辩论、裁决 | debate, adjudicate | 主会话 | 会话模型 |
 | **验证** | verify | **fork** | 会话模型（核心关卡） |
 | **审计** | audit | **fork** | 会话模型（查找缺失） |
@@ -263,20 +282,22 @@ fork 上下文是关键——当同一模型在同一会话中审查自己的输
 ## CLI
 
 ```
-bts init [dir]              初始化项目（部署技能、钩子、规则）
-bts doctor [recipe-id]      健康检查（系统、配方、文档）
-bts validate [recipe-id]    JSON 模式合规性检查
-bts verify <file>           文档一致性检查，级别评估
-bts recipe status           显示活动配方
-bts recipe list             所有配方列表
-bts recipe create           创建新配方
-bts recipe log <id>         记录操作 / 阶段 / 迭代
-bts recipe cancel           取消活动配方
-bts stats [recipe-id]       指标和成本估算 (--json, --csv)
-bts graph [recipe-id]       文档关系可视化 (--all)
-bts sync-check <id>         验证配方内文档同步
-bts update                  更新模板以匹配二进制版本
-bts version                 显示二进制和模板版本
+jig                         活动配方状态（无参数时）
+jig init [dir]              初始化项目（部署技能、钩子、规则）
+jig doctor [recipe-id]      健康检查（系统、配方、文档）
+jig validate [recipe-id]    JSON 模式合规性检查
+jig verify <file>           文档一致性检查，级别评估
+jig ls                      所有配方列表                （= jig recipe list）
+jig new --topic <主题>      创建新配方                  （= jig recipe create）
+jig log <id>                记录操作 / 阶段 / 迭代       （= jig recipe log）
+jig ask [recipe-id]         保留只有你能回答的问题       （= jig recipe decision hold）
+jig ans <id> <key>          回答已保留的问题            （= jig recipe decision resolve）
+jig recipe cancel           取消活动配方
+jig stats [recipe-id]       指标和成本估算 (--json, --csv)
+jig graph [recipe-id]       文档关系可视化 (--all)
+jig sync-check <id>         验证配方内文档同步
+jig update                  更新模板以匹配二进制版本
+jig version                 显示二进制和模板版本
 ```
 
 ## 要求
@@ -285,16 +306,16 @@ bts version                 显示二进制和模板版本
 - **Claude Code**（[安装](https://docs.anthropic.com/en/docs/claude-code)）
 - **操作系统**：macOS、Linux（Windows 通过 WSL）
 
-安装后运行 `bts doctor` 验证环境。
+安装后运行 `jig doctor` 验证环境。
 
 ## 贡献
 
-欢迎贡献。请通过 [issue](https://github.com/imtemp-dev/claude-bts/issues) 提交漏洞报告或功能请求。
+欢迎贡献。请通过 [issue](https://github.com/imtemp-dev/jig/issues) 提交漏洞报告或功能请求。
 
 ```bash
 # 开发环境设置
-git clone https://github.com/imtemp-dev/claude-bts.git
-cd claude-bts
+git clone https://github.com/imtemp-dev/jig.git
+cd jig
 make install          # 构建并安装到 ~/.local/bin
 go test -race ./...   # 运行测试
 ```

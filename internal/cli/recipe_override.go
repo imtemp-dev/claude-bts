@@ -8,8 +8,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/imtemp-dev/claude-bts/internal/engine"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/engine"
+	"github.com/imtemp-dev/jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +19,7 @@ func init() {
 		recipeOverrideGrantCmd, recipeOverrideListCmd, recipeOverrideRevokeCmd,
 	)
 
-	recipeOverrideGrantCmd.Flags().String("gate", "", "Gate to bypass (see `bts recipe override list --gates`)")
+	recipeOverrideGrantCmd.Flags().String("gate", "", "Gate to bypass (see `jig recipe override list --gates`)")
 	recipeOverrideGrantCmd.Flags().String("reason", "", "Why proceeding past this gate is the right call")
 	recipeOverrideGrantCmd.Flags().String("doc", "", "Document the override applies to — also pins the revision it was granted on")
 	recipeOverrideGrantCmd.Flags().StringArray("finding", nil, "Finding ID this override excuses (repeatable). Required unless --no-findings.")
@@ -50,7 +50,7 @@ and stats all went on reporting an ordinary finalized recipe.
 
 This makes that bypass explicit and narrow:
 
-  bts recipe override grant <id> --gate replicated_clean_pass \
+  jig recipe override grant <id> --gate replicated_clean_pass \
       --doc draft.md --finding F-1a2b3c4d --finding F-5e6f7a8b \
       --reason "both majors are false claims in justification prose; neither
                 changes a line of code or a test assertion"
@@ -69,7 +69,7 @@ var recipeOverrideGrantCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 		recipeID, err := resolveRecipeID(args, root)
 		if err != nil {
@@ -82,7 +82,7 @@ var recipeOverrideGrantCmd = &cobra.Command{
 		noFindings, _ := cmd.Flags().GetBool("no-findings")
 
 		if !engine.IsOverridableGate(gate) {
-			return fmt.Errorf("unknown gate %q — run `bts recipe override list --gates` for the IDs that can be overridden", gate)
+			return fmt.Errorf("unknown gate %q — run `jig recipe override list --gates` for the IDs that can be overridden", gate)
 		}
 		if len(findings) == 0 && !noFindings {
 			return fmt.Errorf("name the findings this override excuses with --finding, or pass --no-findings if the gate is not about findings.\n" +
@@ -136,7 +136,7 @@ var recipeOverrideGrantCmd = &cobra.Command{
 			}
 			if len(unknown) > 0 {
 				fmt.Fprintf(os.Stderr,
-					"[bts] warning: %s not found in the findings ledger for %s — check the IDs with `bts recipe findings list %s --open`\n",
+					"[jig] warning: %s not found in the findings ledger for %s — check the IDs with `jig recipe findings list %s --open`\n",
 					strings.Join(unknown, ", "), rec.Doc, recipeID)
 			}
 		}
@@ -157,7 +157,7 @@ var recipeOverrideGrantCmd = &cobra.Command{
 		} else {
 			fmt.Println("  Pinned to the current revision. Editing the document makes it stale.")
 		}
-		fmt.Printf("  This recipe now reports as overridden in `bts recipe status`, `bts doctor` and `bts stats`.\n")
+		fmt.Printf("  This recipe now reports as overridden in `jig recipe status`, `jig doctor` and `jig stats`.\n")
 		return nil
 	},
 }
@@ -179,7 +179,7 @@ var recipeOverrideListCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 		recipeID, err := resolveRecipeID(args, root)
 		if err != nil {
@@ -230,7 +230,7 @@ var recipeOverrideRevokeCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 		recipeID, err := resolveRecipeID(args, root)
 		if err != nil {
@@ -245,7 +245,7 @@ var recipeOverrideRevokeCmd = &cobra.Command{
 		// matched no grant while telling the operator the gate was
 		// enforced again — the one message they must be able to trust.
 		if !engine.IsOverridableGate(gate) {
-			return fmt.Errorf("unknown gate %q — run `bts recipe override list --gates` for the IDs that can be overridden", gate)
+			return fmt.Errorf("unknown gate %q — run `jig recipe override list --gates` for the IDs that can be overridden", gate)
 		}
 
 		rec := &state.OverrideRecord{Gate: gate, Reason: reason, Revoked: true}

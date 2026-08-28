@@ -41,7 +41,7 @@ func TestCheckCountedClaims_CatchesEveryTranslation(t *testing.T) {
 		"README.ko.md": "21개 스킬 / 8개 라이프사이클 훅 / 6개 규칙",
 		"README.zh.md": "21 个技能, 8 个生命周期钩子, 7 个规则",
 		"README.ja.md": "24スキル 8ライフサイクルフック 7ルール",
-	}, []string{"bts-verify", "bts-audit"}, 8, 7)
+	}, []string{"jig-verify", "jig-audit"}, 8, 7)
 
 	inv := &inventory{skills: make([]string, 24), hooks: 8, rules: 7}
 	problems := checkCountedClaims(repo,
@@ -64,13 +64,13 @@ func TestCheckCountedClaims_CatchesEveryTranslation(t *testing.T) {
 }
 
 // A path segment must not read as a slash-command reference: the doc
-// mentioning scripts/bts-monitor.ts is naming a file, not a skill.
+// mentioning scripts/jig-monitor.ts is naming a file, not a skill.
 func TestCheckSkillNames_PathSegmentIsNotAReference(t *testing.T) {
 	repo := docsFixture(t, map[string]string{
-		"llms.txt": "run `scripts/bts-monitor.ts` and see docs/bts-baseline.md\n",
-	}, []string{"bts-verify"}, 1, 1)
+		"llms.txt": "run `scripts/jig-monitor.ts` and see docs/jig-baseline.md\n",
+	}, []string{"jig-verify"}, 1, 1)
 
-	inv := &inventory{skills: []string{"bts-verify"}}
+	inv := &inventory{skills: []string{"jig-verify"}}
 	if problems := checkSkillNames(repo, []string{"llms.txt"}, inv); len(problems) != 0 {
 		t.Fatalf("file paths are not skill references, got: %v", problems)
 	}
@@ -79,25 +79,25 @@ func TestCheckSkillNames_PathSegmentIsNotAReference(t *testing.T) {
 // A genuine reference to a skill that no longer ships must be caught.
 func TestCheckSkillNames_CatchesRemovedSkill(t *testing.T) {
 	repo := docsFixture(t, map[string]string{
-		"README.md": "Run /bts-verify then /bts-ghost to finish.\n",
-	}, []string{"bts-verify"}, 1, 1)
+		"README.md": "Run /jig-verify then /jig-ghost to finish.\n",
+	}, []string{"jig-verify"}, 1, 1)
 
-	inv := &inventory{skills: []string{"bts-verify"}}
+	inv := &inventory{skills: []string{"jig-verify"}}
 	problems := checkSkillNames(repo, []string{"README.md"}, inv)
-	if len(problems) != 1 || !strings.Contains(problems[0], "bts-ghost") {
-		t.Fatalf("expected one problem naming bts-ghost, got: %v", problems)
+	if len(problems) != 1 || !strings.Contains(problems[0], "jig-ghost") {
+		t.Fatalf("expected one problem naming jig-ghost, got: %v", problems)
 	}
 }
 
-// Only backtick-quoted `bts <word>` is a command reference, so ordinary
+// Only backtick-quoted `jig <word>` is a command reference, so ordinary
 // prose is not mistaken for one.
 func TestCheckCommandNames_CatchesUnknownAndIgnoresProse(t *testing.T) {
 	repo := docsFixture(t, map[string]string{
-		"README.md": "bts then verifies the spec. Run `bts doctor` and `bts nonesuch`.\n",
-	}, []string{"bts-verify"}, 1, 1)
+		"README.md": "jig then verifies the spec. Run `jig doctor` and `jig nonesuch`.\n",
+	}, []string{"jig-verify"}, 1, 1)
 
 	problems := checkCommandNames(repo, []string{"README.md"})
-	if len(problems) != 1 || !strings.Contains(problems[0], "bts nonesuch") {
+	if len(problems) != 1 || !strings.Contains(problems[0], "jig nonesuch") {
 		t.Fatalf("expected exactly the unknown command, got: %v", problems)
 	}
 }
@@ -106,7 +106,7 @@ func TestCheckRelativeLinks_CatchesMissingTargetAndSkipsExternal(t *testing.T) {
 	repo := docsFixture(t, map[string]string{
 		"README.md":    "[ok](docs/real.md) [gone](docs/gone.md) [web](https://example.com) [anchor](#x)\n",
 		"docs/real.md": "hi\n",
-	}, []string{"bts-verify"}, 1, 1)
+	}, []string{"jig-verify"}, 1, 1)
 
 	problems := checkRelativeLinks(repo, []string{"README.md"})
 	if len(problems) != 1 || !strings.Contains(problems[0], "docs/gone.md") {

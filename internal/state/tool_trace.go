@@ -123,7 +123,7 @@ func readAllLines(f *os.File) ([]string, error) {
 
 func writeLinesAtomic(path string, lines []string) error {
 	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".bts-tooltrace-*.tmp")
+	tmp, err := os.CreateTemp(dir, ".jig-tooltrace-*.tmp")
 	if err != nil {
 		return err
 	}

@@ -9,9 +9,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/imtemp-dev/claude-bts/internal/engine"
-	"github.com/imtemp-dev/claude-bts/internal/metrics"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/engine"
+	"github.com/imtemp-dev/jig/internal/metrics"
+	"github.com/imtemp-dev/jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -22,11 +22,11 @@ func init() {
 		recipeCancelCmd, recipeCreateCmd, recipeReconcileCmd,
 		recipeVerifyFocusCmd,
 	)
-	recipeCreateCmd.Flags().String("type", "blueprint", "Recipe type (blueprint, design, analyze, fix, debug)")
+	recipeCreateCmd.Flags().String("type", "spec", "Recipe type (spec, design, map, fix, debug)")
 	recipeCreateCmd.Flags().String("topic", "", "Recipe topic description")
 	_ = recipeCreateCmd.MarkFlagRequired("topic")
 	recipeReconcileCmd.Flags().Bool("dry-run", false, "Print the plan without writing")
-	recipeReconcileCmd.Flags().Bool("force", false, "Bypass blueprint-phase whitelist (implement-phase still protected)")
+	recipeReconcileCmd.Flags().Bool("force", false, "Bypass spec-phase whitelist (implement-phase still protected)")
 }
 
 var recipeCmd = &cobra.Command{
@@ -42,7 +42,7 @@ var recipeStatusCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 
 		recipe, err := state.GetActiveRecipe(root)
@@ -80,7 +80,7 @@ var recipeStatusCmd = &cobra.Command{
 		if recs, oerr := state.ReadOverrides(root, recipe.ID); oerr == nil {
 			if summary := state.OverrideSummary(root, recipe.ID, recs); summary != "" {
 				fmt.Printf("  Overrides:    %s\n", summary)
-				fmt.Printf("                (gates bypassed by recorded operator decision — `bts recipe override list`)\n")
+				fmt.Printf("                (gates bypassed by recorded operator decision — `jig recipe override list`)\n")
 			}
 		}
 		return nil
@@ -94,7 +94,7 @@ var recipeListCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 
 		recipes, err := state.ListRecipes(root)
@@ -126,7 +126,7 @@ var recipeLogCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 
 		recipeID := args[0]
@@ -205,7 +205,7 @@ var recipeLogCmd = &cobra.Command{
 			fmt.Printf("Logged action: %s → %s\n", action, output)
 		} else if phase == "" {
 			// Verify-log mode: log an iteration result.
-			// Preferred: --from-verification parses the <bts-findings>
+			// Preferred: --from-verification parses the <jig-findings>
 			// block so counts can never drift from verification.md.
 			// Fallback: --minor-resolvable / --minor-deferred (split form).
 			// --minor is accepted for legacy callers and mapped to resolvable.
@@ -237,7 +237,7 @@ var recipeLogCmd = &cobra.Command{
 			// declares them, which quietly costs the budget its meaning.
 			if len(dims) == 0 {
 				fmt.Fprintf(os.Stderr,
-					"[bts] note: no --dimension recorded for this round. It is compared only against other "+
+					"[jig] note: no --dimension recorded for this round. It is compared only against other "+
 						"dimensionless rounds by the convergence budget, and it cannot count toward completion — "+
 						"recording nothing is not a claim that every pass ran. Add one per pass that actually ran, "+
 						"e.g. --dimension verify --dimension audit.\n")
@@ -336,7 +336,7 @@ var recipeLogCmd = &cobra.Command{
 			case critical != 0 || major != 0 || minorR != 0:
 				// not clean
 			case !entry.FullPass:
-				fmt.Fprintf(os.Stderr, "[bts] note: clean triple on a scoped delta round — "+
+				fmt.Fprintf(os.Stderr, "[jig] note: clean triple on a scoped delta round — "+
 					"not recorded as converged. A delta pass never re-read the untouched "+
 					"sections against the edits. Re-run with --scope full.\n")
 			case !entry.HasAllDimensions():
@@ -348,12 +348,12 @@ var recipeLogCmd = &cobra.Command{
 				if len(dims) > 0 {
 					ran = strings.Join(dims, "+") + " only"
 				}
-				fmt.Fprintf(os.Stderr, "[bts] note: clean triple with %s — not recorded as "+
+				fmt.Fprintf(os.Stderr, "[jig] note: clean triple with %s — not recorded as "+
 					"converged. Completion needs every dimension (%s): a clean result from one "+
 					"instrument is not evidence the others agree.\n",
 					ran, strings.Join(state.VerifyDimensions, ", "))
 			case doc != "" && entry.DocHash == "":
-				fmt.Fprintf(os.Stderr, "[bts] note: clean triple but no revision was recorded for %s — "+
+				fmt.Fprintf(os.Stderr, "[jig] note: clean triple but no revision was recorded for %s — "+
 					"not recorded as converged. Without a doc_hash no later round can confirm this one.\n",
 					docBase)
 			default:
@@ -361,7 +361,7 @@ var recipeLogCmd = &cobra.Command{
 			}
 			entry.Status = status
 
-			// Convergence budget (bts-verification-protocol.md § Convergence).
+			// Convergence budget (jig-verification-protocol.md § Convergence).
 			// Evaluated on this document's history INCLUDING the round being
 			// logged, so the streak the operator sees is the real one.
 			settings, serr := engine.LoadSettings(root)
@@ -406,7 +406,7 @@ var recipeLogCmd = &cobra.Command{
 			// under the new one.
 			if prev, drifted := state.BudgetDrift(priorRounds, settings.Verify.MaxIterations); drifted {
 				fmt.Fprintf(os.Stderr,
-					"[bts] note: verify.max_iterations changed %d → %d since the last round of %s. "+
+					"[jig] note: verify.max_iterations changed %d → %d since the last round of %s. "+
 						"Earlier rounds were judged under the old budget; the convergence verdict is "+
 						"recomputed from the current one.\n",
 					prev, settings.Verify.MaxIterations, label)
@@ -476,10 +476,10 @@ var recipeLogCmd = &cobra.Command{
 				}
 			} else if docBase == "" {
 				fmt.Fprintln(os.Stderr,
-					"[bts] note: no --doc given — verify state stays unscoped and the findings ledger is skipped.")
+					"[jig] note: no --doc given — verify state stays unscoped and the findings ledger is skipped.")
 			} else if !haveFindingsArray {
 				fmt.Fprintln(os.Stderr,
-					"[bts] note: <bts-findings> has no \"findings\" array — ledger skipped, so stagnation detection is unavailable this round.")
+					"[jig] note: <jig-findings> has no \"findings\" array — ledger skipped, so stagnation detection is unavailable this round.")
 			}
 
 			if verdict.Exceeded {
@@ -501,18 +501,18 @@ var recipeLogCmd = &cobra.Command{
 }
 
 // recipeVerifyFocusCmd prints changes since the last verified snapshot
-// of a document. /bts-verify prepends this to the verifier prompt as
+// of a document. /jig-verify prepends this to the verifier prompt as
 // focus hints — full re-verification still applies; this only directs
 // extra scrutiny at changed sections and their ripple effects.
 var recipeVerifyFocusCmd = &cobra.Command{
 	Use:   "verify-focus <doc-path>",
-	Short: "Print changes since the doc's last verified snapshot (focus hints for /bts-verify)",
+	Short: "Print changes since the doc's last verified snapshot (focus hints for /jig-verify)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 
 		docPath := args[0]
@@ -555,7 +555,7 @@ var recipeCreateCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 
 		recipeType, _ := cmd.Flags().GetString("type")
@@ -564,9 +564,9 @@ var recipeCreateCmd = &cobra.Command{
 		id := state.NewRecipeID(root, topic)
 
 		// Initial phase depends on recipe type
-		initialPhase := "discovery" // blueprint: intent discovery first
+		initialPhase := "discovery" // spec: intent discovery first
 		switch recipeType {
-		case "fix", "debug", "analyze", "design":
+		case "fix", "debug", "map", "design":
 			initialPhase = "research"
 		}
 
@@ -603,7 +603,7 @@ var recipeCancelCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 
 		recipe, err := state.GetActiveRecipe(root)
@@ -631,7 +631,7 @@ func init() {
 	recipeLogCmd.Flags().Int("minor-resolvable", 0, "Minor [resolvable] count — fixable in spec, blocks completion")
 	recipeLogCmd.Flags().Int("minor-deferred", 0, "Minor [deferred] count — runtime-observable, does not block")
 	recipeLogCmd.Flags().Int("info", 0, "Info suggestion count")
-	recipeLogCmd.Flags().String("from-verification", "", "Parse counts from a verification.md <bts-findings> block (atomic; iteration auto-increments unless --iteration given)")
+	recipeLogCmd.Flags().String("from-verification", "", "Parse counts from a verification.md <jig-findings> block (atomic; iteration auto-increments unless --iteration given)")
 	// No backticks in flag usage strings: cobra reads the first
 	// backtick-quoted word as the value placeholder name.
 	recipeLogCmd.Flags().String("doc", "", "Path of the verified document — scopes the verify state and findings ledger to it, and snapshots the revision for the next verify-focus diff")
@@ -715,28 +715,28 @@ func checkPhasePreConditions(root string, recipe *state.RecipeState, newPhase st
 		fmt.Fprintf(os.Stderr, "⚠ Force-completing recipe (bypassing completion gates)\n")
 
 	case "research":
-		if recipe.Type == "blueprint" && !stateExists("project-map.md") {
+		if recipe.Type == "spec" && !stateExists("project-map.md") {
 			warn("project-map.md not found — scan codebase to create it")
 		}
 
 	case "wireframe":
-		// domain.md is a strict precondition for wireframe in blueprint/design
-		// recipes. See bts-recipe-blueprint § "Entering the Adaptive Loop".
+		// domain.md is a strict precondition for wireframe in spec/design
+		// recipes. See jig-spec § "Entering the Adaptive Loop".
 		// The intent: wireframe components must honor the invariant owners
 		// declared in domain.md, so domain.md must exist first.
-		if (recipe.Type == "blueprint" || recipe.Type == "design") && !exists("domain.md") && !force {
-			fmt.Fprintf(os.Stderr, "✗ domain.md not found — run /bts-domain-model before /bts-wireframe.\n")
+		if (recipe.Type == "spec" || recipe.Type == "design") && !exists("domain.md") && !force {
+			fmt.Fprintf(os.Stderr, "✗ domain.md not found — run /jig-domain-model before /jig-wireframe.\n")
 			fmt.Fprintf(os.Stderr, "  Use --force to override (e.g., for legacy recipes).\n")
 			return fmt.Errorf("domain.md required before phase 'wireframe'")
 		}
 
 	case "draft":
-		if recipe.Type == "blueprint" && !exists("wireframe.md") {
-			warn("wireframe.md not found — run /bts-wireframe to design structure first")
+		if recipe.Type == "spec" && !exists("wireframe.md") {
+			warn("wireframe.md not found — run /jig-wireframe to design structure first")
 		}
-		if (recipe.Type == "blueprint" || recipe.Type == "design") && !exists("domain.md") && !force {
+		if (recipe.Type == "spec" || recipe.Type == "design") && !exists("domain.md") && !force {
 			// Same rationale as wireframe — draft references domain entities.
-			fmt.Fprintf(os.Stderr, "✗ domain.md not found — run /bts-domain-model before drafting.\n")
+			fmt.Fprintf(os.Stderr, "✗ domain.md not found — run /jig-domain-model before drafting.\n")
 			fmt.Fprintf(os.Stderr, "  Use --force to override (e.g., for legacy recipes).\n")
 			return fmt.Errorf("domain.md required before phase 'draft'")
 		}
@@ -748,7 +748,7 @@ func checkPhasePreConditions(root string, recipe *state.RecipeState, newPhase st
 
 	case "test":
 		if recipe.Type != "fix" && !exists("tasks.json") {
-			warn("tasks.json not found — run /bts-implement to decompose tasks")
+			warn("tasks.json not found — run /jig-implement to decompose tasks")
 		}
 
 	case "review":
@@ -761,17 +761,17 @@ func checkPhasePreConditions(root string, recipe *state.RecipeState, newPhase st
 		}
 		simsDir := filepath.Join(recipeDir, "simulations")
 		if entries, err := os.ReadDir(simsDir); err != nil || countNonHidden(entries) == 0 {
-			warn("no code simulation found — run /bts-simulate code first")
+			warn("no code simulation found — run /jig-simulate code first")
 		}
 
 	case "sync":
 		if !exists("review.md") {
-			warn("review.md not found — run /bts-review first")
+			warn("review.md not found — run /jig-review first")
 		}
 
 	case "status":
 		if !exists("deviation.md") {
-			warn("deviation.md not found — run /bts-sync first")
+			warn("deviation.md not found — run /jig-sync first")
 		}
 	}
 
@@ -843,7 +843,7 @@ func stampContentHashes(root, recipeID, docPath string, entry *state.VerifyLogEn
 			fmt.Fprintf(os.Stderr, "warning: hash %s: %v\n", resolved, err)
 		case !ok:
 			fmt.Fprintf(os.Stderr,
-				"[bts] warning: %s not found (looked in %s), so this round records no revision. "+
+				"[jig] warning: %s not found (looked in %s), so this round records no revision. "+
 					"The rule-3 gates and the completion replication check both need it — "+
 					"re-run with a --doc path that resolves.\n", docPath, resolved)
 		default:
@@ -863,7 +863,7 @@ func stampContentHashes(root, recipeID, docPath string, entry *state.VerifyLogEn
 		// indistinguishable, so the count stops at 1 no matter how many
 		// more rounds are run, and the operator is told to run more.
 		fmt.Fprintf(os.Stderr,
-			"[bts] warning: no verification.md at %s, so this round records no verification_hash. "+
+			"[jig] warning: no verification.md at %s, so this round records no verification_hash. "+
 				"Completion needs consecutive rounds to be told apart by it, and rounds that record none "+
 				"cannot be — write the round's verification output there before logging it.\n", vpath)
 	default:
@@ -877,9 +877,9 @@ func stampContentHashes(root, recipeID, docPath string, entry *state.VerifyLogEn
 // project are routinely Korean — and panicked outright for max < 3.
 func truncate(s string, max int) string { return state.TruncateRunes(s, max) }
 
-// ===== Sprint 9 P21 — `bts recipe reconcile` =========================
+// ===== Sprint 9 P21 — `jig recipe reconcile` =========================
 
-// reconcileEligiblePhases lists the blueprint-side phases from which
+// reconcileEligiblePhases lists the spec-side phases from which
 // reconcile may promote a recipe to `finalize`. Implementation-lifecycle
 // phases are NEVER eligible — they have their own completion gates via
 // handleImplementDone and reconciling past them would corrupt progress
@@ -899,7 +899,7 @@ var reconcileEligiblePhases = map[string]bool{
 	"debate":       true,
 	"simulate":     true,
 	"audit":        true,
-	"sync-check":   true, // sync-check is still blueprint-side
+	"sync-check":   true, // sync-check is still spec-side
 }
 
 // Sentinel errors callers (and tests) match on for specific remediation.
@@ -931,9 +931,9 @@ type reconcilePlan struct {
 
 var recipeReconcileCmd = &cobra.Command{
 	Use:   "reconcile [recipe-id]",
-	Short: "Normalize recipe.json state from verify-log (recover from missed <bts>DONE</bts>)",
-	Long: `When a session ends without the <bts>DONE</bts> marker being emitted,
-the stop hook never runs and recipe.json stays in a mid-blueprint phase
+	Short: "Normalize recipe.json state from verify-log (recover from missed <jig>DONE</jig>)",
+	Long: `When a session ends without the <jig>DONE</jig> marker being emitted,
+the stop hook never runs and recipe.json stays in a mid-spec phase
 (e.g. phase=simulate, level=0, iteration=0) while verify-log.jsonl
 already shows 'converged'. Reconcile inspects verify-log and, when the
 last entry is converged with critical=0, major=0, resolvable=0,
@@ -944,7 +944,7 @@ updates recipe.json to:
   iteration = max(recipe.iteration, last_verify_entry.iteration)
 
 SAFETY:
-  - Only blueprint-lifecycle phases are eligible by default (discovery
+  - Only spec-lifecycle phases are eligible by default (discovery
     through audit, plus sync-check). Implementation-lifecycle phases
     (implement, test, review, sync, status, complete, finalize,
     cancelled) are NEVER touched — even with --force.
@@ -952,7 +952,7 @@ SAFETY:
     reconcile refuses.
   - recipe.json.bak is written before any change.
   - --dry-run prints the plan without writing.
-  - --force bypasses only the blueprint-phase whitelist. It does not
+  - --force bypasses only the spec-phase whitelist. It does not
     re-enable implement-phase reconciliation.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runRecipeReconcile,
@@ -962,7 +962,7 @@ func runRecipeReconcile(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
 	root, err := state.FindRoot(cwd)
 	if err != nil {
-		return fmt.Errorf("not a bts project: %w", err)
+		return fmt.Errorf("not a jig project: %w", err)
 	}
 
 	recipeID := ""
@@ -1019,7 +1019,7 @@ func reconcileRecipe(root, recipeID string, opts reconcileOpts) (*reconcilePlan,
 	// owns these phases; reconcile touching them would corrupt tasks/
 	// test/sync progress tracking.
 	if state.IsImplementPhase(recipe.Phase) {
-		return nil, fmt.Errorf("%w: recipe is in implement-lifecycle phase %q — reconcile is blueprint-only",
+		return nil, fmt.Errorf("%w: recipe is in implement-lifecycle phase %q — reconcile is spec-only",
 			ErrProtectedPhase, recipe.Phase)
 	}
 

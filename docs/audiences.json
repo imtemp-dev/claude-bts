@@ -1,10 +1,10 @@
 {
   "_comment": [
-    "Audience classification for every maintained prose surface, consumed by `bts docs check`.",
+    "Audience classification for every maintained prose surface, consumed by `jig docs check`.",
     "",
     "Why this file exists: the checks that make sense for a surface depend on what the",
-    "surface is for. A README that names a command bts does not have is a defect. A roadmap",
-    "that names a command bts does not have YET is the roadmap doing its job. Without this",
+    "surface is for. A README that names a command jig does not have is a defect. A roadmap",
+    "that names a command jig does not have YET is the roadmap doing its job. Without this",
     "distinction the check either produces false alarms on design docs or has to skip the",
     "name checks entirely, and then it catches nothing.",
     "",
@@ -27,7 +27,7 @@
     "llms.txt": "user-reference",
     "docs/verification/README.md": "maintainer-verification",
     "docs/verification/completion-gates.md": "maintainer-verification",
-    "docs/bts-flow-metrics.md": "maintainer-design",
+    "docs/jig-flow-metrics.md": "maintainer-design",
     "docs/design/01-overview.md": "maintainer-design",
     "docs/design/02-architecture.md": "maintainer-design",
     "docs/design/03-skills-and-recipes.md": "maintainer-design",

@@ -12,11 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
-// `bts test run` executes the project's test command itself and derives
+// `jig test run` executes the project's test command itself and derives
 // status from the ACTUAL exit code. Before this, test-results.json was
 // hand-written by the orchestrator from its reading of framework output
 // — the IMPLEMENT/FIX DONE gates trusted an LLM transcription. Status
@@ -50,7 +50,7 @@ var testRunCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 		cmdStr, _ := cmd.Flags().GetString("cmd")
 		framework, _ := cmd.Flags().GetString("framework")
@@ -65,7 +65,7 @@ var testRunCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("\n[bts] test run recorded: status=%s exit=%d iteration=%d → test-results.json\n",
+		fmt.Printf("\n[jig] test run recorded: status=%s exit=%d iteration=%d → test-results.json\n",
 			tr.Status, tr.ExitCode, tr.Iterations)
 		if tr.Status != "pass" {
 			// Propagate failure so callers (and the implement/test loop)
@@ -81,7 +81,7 @@ type testCounts struct {
 }
 
 // executeTestRun runs cmdStr via sh -c at root, tees output to sink and
-// to .bts/local/recipes/<id>/test-output.log, and writes
+// to .jig/local/recipes/<id>/test-output.log, and writes
 // test-results.json with status derived SOLELY from the exit code.
 func executeTestRun(root, recipeID, cmdStr, framework string, timeoutSec int, counts testCounts, sink io.Writer) (*state.TestResults, error) {
 	if _, err := state.LoadRecipeState(root, recipeID); err != nil {
@@ -132,8 +132,8 @@ func executeTestRun(root, recipeID, cmdStr, framework string, timeoutSec int, co
 		}
 	}
 	if timedOut {
-		fmt.Fprintf(&buf, "\n[bts] TIMEOUT: killed after %ds\n", timeoutSec)
-		fmt.Fprintf(sink, "\n[bts] TIMEOUT: killed after %ds\n", timeoutSec)
+		fmt.Fprintf(&buf, "\n[jig] TIMEOUT: killed after %ds\n", timeoutSec)
+		fmt.Fprintf(sink, "\n[jig] TIMEOUT: killed after %ds\n", timeoutSec)
 	}
 
 	status := "fail"
@@ -164,7 +164,7 @@ func executeTestRun(root, recipeID, cmdStr, framework string, timeoutSec int, co
 		Skipped:    counts.Skipped,
 		ExitCode:   exitCode,
 		Command:    cmdStr,
-		RecordedBy: "bts",
+		RecordedBy: "jig",
 	}
 	if err := state.SaveTestResults(root, recipeID, tr); err != nil {
 		return nil, fmt.Errorf("save test results: %w", err)

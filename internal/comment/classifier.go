@@ -6,7 +6,7 @@ import (
 )
 
 // Classification adds metadata that the preview view shows BEFORE Claude
-// runs the real analysis. Heuristic-only — Pass A in /bts-comment-apply
+// runs the real analysis. Heuristic-only — Pass A in /jig-comment-apply
 // supersedes this with structured findings.
 type Classification struct {
 	TargetSection string   `json:"target_section,omitempty"` // best-guess section heading the comment refers to
@@ -31,7 +31,7 @@ var cascadeRules = []struct {
 var highSeverityRE = regexp.MustCompile(`(?i)\b(must|required|broken|wrong|incorrect|missing|critical|breaks?)\b`)
 
 // Classify computes a heuristic classification for one comment.
-// It does NOT consult Claude — that happens in /bts-comment-apply Pass A.
+// It does NOT consult Claude — that happens in /jig-comment-apply Pass A.
 func Classify(c Comment) Classification {
 	cls := Classification{}
 

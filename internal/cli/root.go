@@ -4,24 +4,35 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/imtemp-dev/claude-bts/pkg/version"
+	"github.com/imtemp-dev/jig/internal/state"
+	"github.com/imtemp-dev/jig/pkg/version"
 	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
-	Use:     "bts",
-	Short:   "bts — Verify before you code",
+	Use:     "jig",
+	Short:   "jig — Verify before you code",
 	Long:    "Structured AI development for Claude Code — catches spec errors before they become debugging sessions.",
 	Version: version.GetVersion(),
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("bts — Verify before you code")
+	// Bare `jig` reports the active recipe. Status is by far the most-typed
+	// command, and inside a project the banner is never what you wanted.
+	// Outside one — or when status cannot run — fall back to the banner,
+	// which is what a first-time user needs.
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cwd, _ := os.Getwd()
+		if _, err := state.FindRoot(cwd); err == nil {
+			if err := recipeStatusCmd.RunE(cmd, args); err == nil {
+				return nil
+			}
+		}
+		fmt.Println("jig — Verify before you code")
 		fmt.Printf("Version: %s\n\n", version.GetFullVersion())
-		_ = cmd.Help()
+		return cmd.Help()
 	},
 }
 
 func init() {
-	rootCmd.SetVersionTemplate(fmt.Sprintf("bts %s\n", version.GetFullVersion()))
+	rootCmd.SetVersionTemplate(fmt.Sprintf("jig %s\n", version.GetFullVersion()))
 
 	rootCmd.AddGroup(
 		&cobra.Group{ID: "project", Title: "Project Commands:"},
@@ -30,8 +41,9 @@ func init() {
 	)
 }
 
-// Execute is the main entry point for the bts CLI.
+// Execute is the main entry point for the jig CLI.
 func Execute() error {
+	registerShortcuts()
 	return rootCmd.Execute()
 }
 

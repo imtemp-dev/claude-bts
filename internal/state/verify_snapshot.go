@@ -12,12 +12,12 @@ import (
 )
 
 // Verify snapshots — the document revision as of the last completed
-// verification. `bts recipe log --from-verification --doc <path>`
-// saves one; `bts recipe verify-focus <path>` diffs the current doc
+// verification. `jig recipe log --from-verification --doc <path>`
+// saves one; `jig recipe verify-focus <path>` diffs the current doc
 // against it to give the next verification round focus hints.
 // Snapshots live under local/ (never committed, like tool-trace).
 
-// VerifySnapshotDir returns .bts/local/recipes/<id>/verify-snapshots.
+// VerifySnapshotDir returns .jig/local/recipes/<id>/verify-snapshots.
 func VerifySnapshotDir(root, recipeID string) string {
 	return filepath.Join(LocalPath(root), "recipes", recipeID, "verify-snapshots")
 }
@@ -196,7 +196,7 @@ func DirtyVerifiedDocs(root, recipeID string) ([]string, error) {
 }
 
 // RecipeIDFromDocPath extracts the recipe ID from a document path like
-// .bts/specs/recipes/<id>/draft.md. Returns "" if the path does not
+// .jig/specs/recipes/<id>/draft.md. Returns "" if the path does not
 // contain a recipes/<id>/ segment.
 func RecipeIDFromDocPath(path string) string {
 	parts := strings.Split(filepath.ToSlash(filepath.Clean(path)), "/")

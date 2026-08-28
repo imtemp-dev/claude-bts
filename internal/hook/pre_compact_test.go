@@ -6,16 +6,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 func setupPreCompactRoot(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, ".bts", "specs", "recipes"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".jig", "specs", "recipes"), 0755); err != nil {
 		t.Fatalf("mkdir specs: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, ".bts", "local"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".jig", "local"), 0755); err != nil {
 		t.Fatalf("mkdir local: %v", err)
 	}
 	return root
@@ -27,7 +27,7 @@ func seedRecipe(t *testing.T, root, id, phase string) {
 		t.Fatalf("mkdir recipe: %v", err)
 	}
 	r := &state.RecipeState{
-		ID: id, Type: "blueprint", Topic: "test", Phase: phase,
+		ID: id, Type: "spec", Topic: "test", Phase: phase,
 		StartedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 	if err := state.SaveRecipeState(root, r); err != nil {
@@ -118,9 +118,9 @@ func TestPreCompact_NoRecipeNoTrace_MarkerOnly(t *testing.T) {
 }
 
 func TestPreCompact_InvalidRoot_SilentExit(t *testing.T) {
-	// CWD outside any .bts/ tree — handler should no-op
+	// CWD outside any .jig/ tree — handler should no-op
 	h := NewPreCompactHandler()
-	input := &HookInput{SessionID: "s", CWD: "/tmp/nonexistent-bts-root-xyz", HookEventName: "pre-compact"}
+	input := &HookInput{SessionID: "s", CWD: "/tmp/nonexistent-jig-root-xyz", HookEventName: "pre-compact"}
 	out, err := h.Handle(input)
 	if err != nil {
 		t.Fatalf("should not error: %v", err)

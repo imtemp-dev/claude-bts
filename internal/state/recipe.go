@@ -15,7 +15,7 @@ import (
 // RecipeState tracks the current state of a recipe execution.
 type RecipeState struct {
 	ID           string  `json:"id"`
-	Type         string  `json:"type"`                    // analyze, design, blueprint
+	Type         string  `json:"type"`                    // map, design, spec
 	Topic        string  `json:"topic"`                   // user's description
 	Phase        string  `json:"phase"`                   // scoping, research, draft, assess, improve, verify, debate, simulate, audit, finalize, cancelled, implement, test, sync, status, complete
 	Iteration    int     `json:"iteration"`               // current verify iteration
@@ -39,13 +39,13 @@ type TaskState struct {
 // Anchor carries the exact `<!-- task-anchor: {file} {action} -->` string
 // minus the HTML comment wrapper — i.e. the "path action" body. Phase 9
 // requires every Task to reference an anchor declared in final.md and
-// `bts verify` enforces the 1:1 mapping (CheckTaskAnchors).
+// `jig verify` enforces the 1:1 mapping (CheckTaskAnchors).
 //
 // ModifyScope (Phase 14) is required when Action=="modify": the list of
 // symbol names the task is authorized to touch. The anchor comment
 // records the same list after a `scope=` suffix (e.g.
 // `<!-- task-anchor: foo.ts modify scope=a,b -->`). Changes that reach
-// symbols outside this list raise `scope_violation` at `bts verify`
+// symbols outside this list raise `scope_violation` at `jig verify`
 // time.
 type Task struct {
 	ID                string             `json:"id"`
@@ -90,10 +90,10 @@ type TestResults struct {
 	Failed     int      `json:"failed"`
 	Skipped    int      `json:"skipped"`
 	TestFiles  []string `json:"test_files,omitempty"`
-	// Machine-truth fields written by `bts test run`. RecordedBy=="bts"
+	// Machine-truth fields written by `jig test run`. RecordedBy=="jig"
 	// means Status was derived from the actual exit code by the CLI, not
 	// transcribed by the orchestrator. Legacy hand-written files lack
-	// these; `bts doctor` flags them.
+	// these; `jig doctor` flags them.
 	ExitCode   int    `json:"exit_code"`
 	Command    string `json:"command,omitempty"`
 	RecordedBy string `json:"recorded_by,omitempty"`
@@ -143,7 +143,7 @@ func ReadVerifyLog(root, recipeID string) ([]VerifyLogEntry, error) {
 // for that document — that is the point of the field.
 //
 // docBase is matched on basename, so callers may pass either
-// "draft.md" or ".bts/specs/recipes/r-001/draft.md". An empty docBase
+// "draft.md" or ".jig/specs/recipes/r-001/draft.md". An empty docBase
 // means "no document in particular" and returns the whole stream —
 // without this guard filepath.Base("") would be "." and match nothing.
 func VerifyEntriesForDoc(entries []VerifyLogEntry, docBase string) []VerifyLogEntry {
@@ -279,16 +279,16 @@ type VerifyLogEntry struct {
 	// previous round and this one: "observed", "none", or "" for rounds
 	// written before the field existed.
 	//
-	// bts's central claim is that verification runs in a context that
+	// jig's central claim is that verification runs in a context that
 	// does not share the writing session's blind spots. The gate skills
 	// carry `context: fork` and spawn their own agent, so the isolation
 	// is harness-enforced — but the ORCHESTRATOR is what writes
-	// verification.md and runs `bts recipe log`, and nothing tied that
+	// verification.md and runs `jig recipe log`, and nothing tied that
 	// write to a fork having run. This field is that tie.
 	//
 	// It is evidence, not proof, and deliberately not a gate: a missing
 	// signal can mean the harness does not emit subagent events here, not
-	// that anyone cheated. `bts doctor` only reports it when the same
+	// that anyone cheated. `jig doctor` only reports it when the same
 	// project has ALSO produced rounds with evidence, which is the only
 	// case where absence is informative.
 	AgentEvidence string `json:"agent_evidence,omitempty"`
@@ -298,7 +298,7 @@ type VerifyLogEntry struct {
 	//
 	// These exist because the two rule-3 gates used to compare against
 	// state that does not survive a checkout. Dirty-doc detection read
-	// .bts/local/verify-snapshots/, which is gitignored, so the gate was
+	// .jig/local/verify-snapshots/, which is gitignored, so the gate was
 	// silently inert in every worktree and fresh clone. The
 	// unrecorded-verification gate compared verification.md's mtime
 	// against this timestamp, and `git checkout` stamps mtime with the
@@ -361,8 +361,8 @@ func (e *VerifyLogEntry) EffectiveResolvable() int {
 
 // VerifyDimensions are the semantic passes a verify round may run. They
 // mirror the three fork-context checks in
-// bts-verification-protocol.md § Core Principle; the deterministic
-// `bts verify` pass is not one of them because it is not a sample — it
+// jig-verification-protocol.md § Core Principle; the deterministic
+// `jig verify` pass is not one of them because it is not a sample — it
 // returns the same answer on the same bytes every time.
 var VerifyDimensions = []string{"verify", "audit", "simulate"}
 
@@ -429,6 +429,27 @@ func RecipeDir(root, recipeID string) string {
 	return filepath.Join(SpecsPath(root), "recipes", recipeID)
 }
 
+// legacyRecipeTypes maps recipe type names retired by the jig rebrand to
+// their current spelling. Recipes created before the rebrand still carry the
+// old value on disk, and every type comparison in the codebase now tests the
+// new one — without this a legacy recipe would silently lose its gates
+// (a "blueprint" would stop matching the "spec" branch and skip the
+// domain-model, wireframe and simulate preconditions entirely).
+var legacyRecipeTypes = map[string]string{
+	"blueprint": "spec",
+	"analyze":   "map",
+}
+
+// NormalizeType rewrites a retired recipe type to its current spelling and
+// reports whether it changed. Unknown values pass through untouched so the
+// validator can still reject them with its own message.
+func NormalizeType(t string) (string, bool) {
+	if cur, ok := legacyRecipeTypes[t]; ok {
+		return cur, true
+	}
+	return t, false
+}
+
 // LoadRecipeState reads the recipe state file.
 func LoadRecipeState(root, recipeID string) (*RecipeState, error) {
 	path := filepath.Join(RecipeDir(root, recipeID), "recipe.json")
@@ -436,6 +457,7 @@ func LoadRecipeState(root, recipeID string) (*RecipeState, error) {
 	if err := ReadJSON(path, &state); err != nil {
 		return nil, err
 	}
+	state.Type, _ = NormalizeType(state.Type)
 	return &state, nil
 }
 
@@ -455,8 +477,8 @@ func AppendVerifyLog(root, recipeID string, entry *VerifyLogEntry) error {
 
 // LastVerifyEntry returns the most recent verify-log entry for a recipe,
 // or an error when the log is absent, unreadable, or has no valid
-// entries. Shared by the stop hook (normalization on <bts>DONE</bts>)
-// and `bts recipe reconcile` (manual recovery when DONE was never
+// entries. Shared by the stop hook (normalization on <jig>DONE</jig>)
+// and `jig recipe reconcile` (manual recovery when DONE was never
 // emitted). Previously the hook had its own private copy; centralising
 // the parse keeps behaviour in lockstep.
 func LastVerifyEntry(root, recipeID string) (*VerifyLogEntry, error) {

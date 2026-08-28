@@ -77,7 +77,7 @@ func CheckInvariantOwnership(domainPath string) []Issue {
 			Category: "domain",
 			Claim:    "invariant_multiple_owners: " + firstID + " — " + stmt,
 			Severity: "critical",
-			Detail:   "Invariant has multiple owners (" + strings.Join(owners, ", ") + "). Per bts-domain-model, each invariant must have exactly one owner — re-partition the decomposition so truth lives in one place.",
+			Detail:   "Invariant has multiple owners (" + strings.Join(owners, ", ") + "). Per jig-domain-model, each invariant must have exactly one owner — re-partition the decomposition so truth lives in one place.",
 		})
 	}
 	return issues

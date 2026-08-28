@@ -10,9 +10,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/imtemp-dev/claude-bts/internal/comment"
-	"github.com/imtemp-dev/claude-bts/internal/state"
-	"github.com/imtemp-dev/claude-bts/pkg/version"
+	"github.com/imtemp-dev/jig/internal/comment"
+	"github.com/imtemp-dev/jig/internal/state"
+	"github.com/imtemp-dev/jig/pkg/version"
 	"github.com/spf13/cobra"
 )
 
@@ -39,16 +39,16 @@ type doctorIssue struct {
 
 func runDoctor(cmd *cobra.Command, args []string) error {
 	// System diagnostics (always)
-	fmt.Println("bts doctor")
+	fmt.Println("jig doctor")
 	fmt.Println("----------")
-	fmt.Printf("bts version:  %s\n", version.GetFullVersion())
+	fmt.Printf("jig version:  %s\n", version.GetFullVersion())
 	fmt.Printf("Platform:     %s/%s (%s)\n", runtime.GOOS, runtime.GOARCH, runtime.Version())
 
 	// Template version check
 	cwd, _ := os.Getwd()
 	root, rootErr := state.FindRoot(cwd)
 	if rootErr == nil {
-		vf := filepath.Join(root, ".bts", "config", ".template-version")
+		vf := filepath.Join(root, ".jig", "config", ".template-version")
 		if data, err := os.ReadFile(vf); err == nil {
 			tmplVer := strings.TrimSpace(string(data))
 			binVer := version.GetTemplateVersion()
@@ -56,7 +56,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 				fmt.Printf("Templates:    %s (up to date)\n", tmplVer)
 			} else {
 				fmt.Printf("Templates:    %s (outdated, binary: %s)\n", tmplVer, binVer)
-				fmt.Println("              → Run 'bts update' to refresh templates")
+				fmt.Println("              → Run 'jig update' to refresh templates")
 			}
 		}
 	}
@@ -76,8 +76,8 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 	// Recipe health checks
 	if rootErr != nil {
-		fmt.Println("\nNo .bts/ project found.")
-		fmt.Println("  → Run 'bts init' to initialize bts in this project")
+		fmt.Println("\nNo .jig/ project found.")
+		fmt.Println("  → Run 'jig init' to initialize jig in this project")
 		return nil
 	}
 
@@ -116,9 +116,9 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 	if activeCount > 1 {
 		fmt.Printf("\n⚠ %d active recipes found (expected 1)\n", activeCount)
-		fmt.Println("  → Cancel inactive recipes with 'bts recipe cancel'")
+		fmt.Println("  → Cancel inactive recipes with 'jig recipe cancel'")
 		totalWarnings++
-		quickFixes = append(quickFixes, "bts recipe cancel")
+		quickFixes = append(quickFixes, "jig recipe cancel")
 	}
 
 	for _, recipe := range recipes {
@@ -176,7 +176,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	mapPath := filepath.Join(state.SpecsPath(root), "project-map.md")
 	if _, err := os.Stat(mapPath); os.IsNotExist(err) {
 		fmt.Println("   ⚠ project-map.md not found")
-		fmt.Println("     → Run /bts-status to generate, or created during next /bts-recipe-blueprint scoping")
+		fmt.Println("     → Run /jig-status to generate, or created during next /jig-spec scoping")
 		totalWarnings++
 	} else {
 		fmt.Println("   ✓ project-map.md exists")
@@ -186,7 +186,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	if state.VisionExists(root) {
 		visionData, _ := os.ReadFile(filepath.Join(state.SpecsPath(root), "vision.md"))
 		if strings.Contains(string(visionData), "Status: DRAFT") {
-			fmt.Println("   ⚠ vision.md exists (Status: DRAFT — confirm with next /bts-recipe-blueprint)")
+			fmt.Println("   ⚠ vision.md exists (Status: DRAFT — confirm with next /jig-spec)")
 			totalWarnings++
 		} else {
 			fmt.Println("   ✓ vision.md exists")
@@ -204,7 +204,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	// Config drift checks — user-owned files (settings.yaml, .mcp.json)
-	// are preserved by `bts update`, so they silently miss new defaults.
+	// are preserved by `jig update`, so they silently miss new defaults.
 	driftIssues := checkConfigDrift(root)
 	driftIssues = append(driftIssues, checkDuplicateHookRegistration(root)...)
 	driftIssues = append(driftIssues, checkUnreadSettings(root)...)
@@ -248,7 +248,7 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 
 	phaseWeight := map[string]int{
 		"scoping": 1, "research": 2,
-		// Pre-draft structural phases (Phase 15+ blueprint flow). Weight 2
+		// Pre-draft structural phases (Phase 15+ spec flow). Weight 2
 		// keeps them past scoping/research but below draft=3, so doctor
 		// checks scope/research artifacts without false-flagging a missing
 		// draft.md while the recipe is still deciding its decomposition.
@@ -265,12 +265,12 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 		if pw >= 2 && !exists("diagnosis.md") {
 			issues = append(issues, doctorIssue{"warning", "documents",
 				"diagnosis.md — missing",
-				"Run /bts-recipe-fix to start diagnosis"})
+				"Run /jig-fix to start diagnosis"})
 		}
 		if pw >= 3 && !exists("fix-spec.md") {
 			issues = append(issues, doctorIssue{"error", "documents",
 				"fix-spec.md — missing",
-				"Run /bts-recipe-fix to create fix spec"})
+				"Run /jig-fix to create fix spec"})
 		}
 		if pw >= 6 {
 			issues = append(issues, checkTestFile(recipeDir)...)
@@ -278,14 +278,14 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 		if pw >= 8 && !exists("review.md") {
 			issues = append(issues, doctorIssue{"warning", "documents",
 				"review.md — missing",
-				"Run /bts-review to generate code review"})
+				"Run /jig-review to generate code review"})
 		}
 
 	case "debug":
 		if pw >= 2 && !exists("perspectives.md") {
 			issues = append(issues, doctorIssue{"warning", "documents",
 				"perspectives.md — missing",
-				"Run /bts-recipe-debug to collect perspectives"})
+				"Run /jig-debug to collect perspectives"})
 		}
 		if pw >= 3 && !exists("draft.md") {
 			issues = append(issues, doctorIssue{"warning", "documents",
@@ -296,7 +296,7 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 			if !exists("final.md") {
 				issues = append(issues, doctorIssue{"error", "documents",
 					"final.md — missing",
-					"Complete /bts-recipe-debug to produce final.md"})
+					"Complete /jig-debug to produce final.md"})
 			}
 			// verify-log checked separately with recipe ID
 		}
@@ -309,11 +309,11 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 		if pw >= 8 && !exists("review.md") {
 			issues = append(issues, doctorIssue{"error", "documents",
 				"review.md — missing",
-				"Run /bts-review to generate code review"})
+				"Run /jig-review to generate code review"})
 		}
 
-	default: // blueprint, analyze, design
-		if pw >= 1 && recipe.Type == "blueprint" {
+	default: // spec, map, design
+		if pw >= 1 && recipe.Type == "spec" {
 			if exists("scope.md") {
 				data, _ := os.ReadFile(filepath.Join(recipeDir, "scope.md"))
 				if len(data) > 0 {
@@ -321,12 +321,12 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 					if strings.Contains(content, "Status: DRAFT") && !strings.Contains(content, "Status: CONFIRMED") {
 						issues = append(issues, doctorIssue{"warning", "documents",
 							"scope.md — Status: DRAFT (not confirmed)",
-							"Confirm scope in /bts-recipe-blueprint"})
+							"Confirm scope in /jig-spec"})
 					}
 				}
 			}
 		}
-		if pw >= 3 && recipe.Type == "blueprint" && !exists("draft.md") {
+		if pw >= 3 && recipe.Type == "spec" && !exists("draft.md") {
 			issues = append(issues, doctorIssue{"warning", "documents",
 				"draft.md — missing",
 				"Draft should exist at this phase"})
@@ -335,7 +335,7 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 			if !exists("final.md") {
 				issues = append(issues, doctorIssue{"error", "documents",
 					"final.md — missing",
-					fmt.Sprintf("Complete /bts-recipe-%s to produce final.md", recipe.Type)})
+					fmt.Sprintf("Complete /jig-%s to produce final.md", recipe.Type)})
 			}
 			// verify-log checked separately with recipe ID
 		}
@@ -348,12 +348,12 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 		if pw >= 8 && !exists("review.md") {
 			issues = append(issues, doctorIssue{"error", "documents",
 				"review.md — missing",
-				"Run /bts-review to generate code review"})
+				"Run /jig-review to generate code review"})
 		}
 		if pw >= 8 && !exists("deviation.md") {
 			issues = append(issues, doctorIssue{"warning", "documents",
 				"deviation.md — missing",
-				"Run /bts-sync to compare spec with code"})
+				"Run /jig-sync to compare spec with code"})
 		}
 	}
 
@@ -410,7 +410,7 @@ func checkGateEvidence(root, recipeID string) []doctorIssue {
 	return []doctorIssue{{"warning", "evidence",
 		fmt.Sprintf("%d verify round(s) recorded with no subagent activity: %s",
 			len(bare), strings.Join(bare, ", ")),
-		"Verification must run in a fork (/bts-verify), not inline — re-run it for those rounds if the spec still depends on them"}}
+		"Verification must run in a fork (/jig-verify), not inline — re-run it for those rounds if the spec still depends on them"}}
 }
 
 // checkOpenDecisions reports questions the recipe is waiting on. This is
@@ -425,7 +425,7 @@ func checkOpenDecisions(root, recipeID string) []doctorIssue {
 	for _, d := range open {
 		issues = append(issues, doctorIssue{"error", "decision",
 			fmt.Sprintf("blocked on your decision %q: %s", d.Key, truncate(oneLine(d.Question), 60)),
-			fmt.Sprintf("bts recipe decision resolve %s %s --answer \"...\"", recipeID, d.Key)})
+			fmt.Sprintf("jig recipe decision resolve %s %s --answer \"...\"", recipeID, d.Key)})
 	}
 	return issues
 }
@@ -441,7 +441,7 @@ func checkVerifyLog(recipeDir string, recipeID string) []doctorIssue {
 	if verifyCount > 0 && logCount == 0 {
 		issues = append(issues, doctorIssue{"error", "flow",
 			fmt.Sprintf("verify-log.jsonl — %d verify in changelog, 0 in verify-log", verifyCount),
-			fmt.Sprintf("bts recipe log %s --iteration 1 --critical 0 --major 0", recipeID)})
+			fmt.Sprintf("jig recipe log %s --iteration 1 --critical 0 --major 0", recipeID)})
 	}
 
 	// Check verify-log last entry for unresolved issues
@@ -449,7 +449,7 @@ func checkVerifyLog(recipeDir string, recipeID string) []doctorIssue {
 		if last.Critical > 0 || last.Major > 0 {
 			issues = append(issues, doctorIssue{"error", "flow",
 				fmt.Sprintf("verify-log: %d critical, %d major unresolved", last.Critical, last.Major),
-				"Fix issues and re-run /bts-verify"})
+				"Fix issues and re-run /jig-verify"})
 		}
 	}
 
@@ -463,7 +463,7 @@ func checkTasks(recipeDir string) []doctorIssue {
 	if err != nil {
 		issues = append(issues, doctorIssue{"error", "documents",
 			"tasks.json — missing",
-			"Run /bts-implement to decompose tasks"})
+			"Run /jig-implement to decompose tasks"})
 		return issues
 	}
 	var ts state.TaskState
@@ -486,7 +486,7 @@ func checkTasks(recipeDir string) []doctorIssue {
 		fmt.Printf(", %d blocked", blocked)
 		issues = append(issues, doctorIssue{"warning", "documents",
 			fmt.Sprintf("tasks.json — %d task(s) blocked", blocked),
-			"Run /bts-implement to retry or skip blocked tasks"})
+			"Run /jig-implement to retry or skip blocked tasks"})
 	}
 	if pending > 0 {
 		fmt.Printf(", %d pending", pending)
@@ -510,13 +510,13 @@ func checkTestFile(recipeDir string) []doctorIssue {
 	if tr.Status != "pass" {
 		issues = append(issues, doctorIssue{"warning", "documents",
 			fmt.Sprintf("tests — %d/%d failed", tr.Failed, tr.Total),
-			"Fix failing tests and re-run /bts-test"})
+			"Fix failing tests and re-run /jig-test"})
 	}
 	return issues
 }
 
-// checkOpenComments warns when BTS callouts remain in any recipe doc and
-// errors when any [!BTS-BLOCK] callouts are unresolved (these block finalize).
+// checkOpenComments warns when jig callouts remain in any recipe doc and
+// errors when any [!JIG-BLOCK] callouts are unresolved (these block finalize).
 // Skips recipes already past the spec lifecycle — comments on a finalized
 // or completed recipe are stale by definition (the spec is sealed).
 func checkOpenComments(recipeDir, recipeID, phase string) []doctorIssue {
@@ -529,7 +529,7 @@ func checkOpenComments(recipeDir, recipeID, phase string) []doctorIssue {
 		return []doctorIssue{{
 			level:   "warning",
 			section: "comments",
-			message: fmt.Sprintf("could not parse recipe for BTS comments: %v", err),
+			message: fmt.Sprintf("could not parse recipe for jig comments: %v", err),
 			fix:     "ensure recipe directory is readable",
 		}}
 	}
@@ -542,8 +542,8 @@ func checkOpenComments(recipeDir, recipeID, phase string) []doctorIssue {
 		issues = append(issues, doctorIssue{
 			level:   "error",
 			section: "comments",
-			message: fmt.Sprintf("%d BTS-BLOCK comment(s) unresolved (blocks finalize)", summary.TotalBlocking),
-			fix:     fmt.Sprintf("bts comment list %s   then   /bts-comment-apply %s", recipeID, recipeID),
+			message: fmt.Sprintf("%d JIG-BLOCK comment(s) unresolved (blocks finalize)", summary.TotalBlocking),
+			fix:     fmt.Sprintf("jig comment list %s   then   /jig-comment-apply %s", recipeID, recipeID),
 		})
 	}
 	openOnly := summary.TotalOpen - summary.TotalBlocking
@@ -551,8 +551,8 @@ func checkOpenComments(recipeDir, recipeID, phase string) []doctorIssue {
 		issues = append(issues, doctorIssue{
 			level:   "warning",
 			section: "comments",
-			message: fmt.Sprintf("%d BTS comment(s) pending (non-blocking)", openOnly),
-			fix:     fmt.Sprintf("/bts-comment-apply %s", recipeID),
+			message: fmt.Sprintf("%d jig comment(s) pending (non-blocking)", openOnly),
+			fix:     fmt.Sprintf("/jig-comment-apply %s", recipeID),
 		})
 	}
 	return issues
@@ -584,7 +584,7 @@ func checkManifestConsistency(recipeDir string, recipeID string, manifest *state
 			if _, inManifest := manifest.Documents[name]; !inManifest {
 				issues = append(issues, doctorIssue{"warning", "manifest",
 					name + " — on disk but not in manifest",
-					fmt.Sprintf("bts recipe log %s --action [type] --output %s", recipeID, name)})
+					fmt.Sprintf("jig recipe log %s --action [type] --output %s", recipeID, name)})
 			}
 		}
 	}
@@ -610,7 +610,7 @@ func checkFlowCompliance(recipeDir string, recipe *state.RecipeState) []doctorIs
 				if actions[j] == "improve" {
 					issues = append(issues, doctorIssue{"warning", "flow",
 						"improve before finalize without verify",
-						"Run /bts-verify before finalizing"})
+						"Run /jig-verify before finalizing"})
 					break
 				}
 			}
@@ -621,21 +621,21 @@ func checkFlowCompliance(recipeDir string, recipe *state.RecipeState) []doctorIs
 	if pw >= 6 && containsAction(actions, "implement") && !containsAction(actions, "test") {
 		issues = append(issues, doctorIssue{"warning", "flow",
 			"implement without test",
-			"Run /bts-test to generate and execute tests"})
+			"Run /jig-test to generate and execute tests"})
 	}
 
 	// Check: test without simulate
 	if pw >= 7 && containsAction(actions, "test") && !containsAction(actions, "simulate") {
 		issues = append(issues, doctorIssue{"warning", "flow",
 			"test without code simulation",
-			"Run /bts-simulate code to verify all code paths"})
+			"Run /jig-simulate code to verify all code paths"})
 	}
 
 	// Check: test without review
 	if pw >= 8 && containsAction(actions, "test") && !containsAction(actions, "review") {
 		issues = append(issues, doctorIssue{"warning", "flow",
 			"test without review",
-			"Run /bts-review to check code quality"})
+			"Run /jig-review to check code quality"})
 	}
 
 	return issues
@@ -644,7 +644,7 @@ func checkFlowCompliance(recipeDir string, recipe *state.RecipeState) []doctorIs
 func phaseWeightOf(phase string) int {
 	w := map[string]int{
 		"scoping": 1, "research": 2,
-		// Pre-draft structural phases (Phase 15+ blueprint flow). Weight 2
+		// Pre-draft structural phases (Phase 15+ spec flow). Weight 2
 		// keeps them past scoping/research but below draft=3, so doctor
 		// checks scope/research artifacts without false-flagging a missing
 		// draft.md while the recipe is still deciding its decomposition.

@@ -27,7 +27,7 @@ jobs:
       # Structural drift only: names resolve, links resolve, counted
       # claims match what the templates ship. All four README translations
       # are checked, since they carry the same claims and drift apart.
-      - run: go run ./cmd/bts docs check
+      - run: go run ./cmd/jig docs check
 
   test:
     runs-on: ubuntu-latest

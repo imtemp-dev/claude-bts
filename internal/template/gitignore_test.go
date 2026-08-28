@@ -17,7 +17,7 @@ dist/
 .idea/
 .vscode/
 
-# Exception: keep a template shipped by bts
+# Exception: keep a template shipped by jig
 !internal/template/templates/.vscode/
 !internal/template/templates/.vscode/**
 
@@ -41,7 +41,7 @@ func readGitignore(t *testing.T, root string) string {
 	return string(data)
 }
 
-// The core regression: bts must never destroy the user's existing rules.
+// The core regression: jig must never destroy the user's existing rules.
 func TestEnsureGitignore_PreservesExistingRules(t *testing.T) {
 	root := t.TempDir()
 	writeGitignore(t, root, userGitignore)
@@ -66,7 +66,7 @@ func TestEnsureGitignore_PreservesExistingRules(t *testing.T) {
 			t.Errorf("lost user rule %q after EnsureGitignore", want)
 		}
 	}
-	// And the bts rule must now be present exactly once.
+	// And the jig rule must now be present exactly once.
 	if n := strings.Count(got, "\n"+gitignorePattern+"\n"); n != 1 {
 		t.Errorf("expected exactly one %q line, got %d.\n%s", gitignorePattern, n, got)
 	}
@@ -97,10 +97,10 @@ func TestEnsureGitignore_Idempotent(t *testing.T) {
 	}
 }
 
-// A file that already ignores .bts/local/ must be left byte-for-byte untouched.
+// A file that already ignores .jig/local/ must be left byte-for-byte untouched.
 func TestEnsureGitignore_AlreadyPresentUntouched(t *testing.T) {
 	root := t.TempDir()
-	original := userGitignore + "\n# bts local data (not committed)\n" + gitignorePattern + "\n"
+	original := userGitignore + "\n# jig local data (not committed)\n" + gitignorePattern + "\n"
 	writeGitignore(t, root, original)
 
 	if err := EnsureGitignore(root); err != nil {
@@ -126,7 +126,7 @@ func TestEnsureGitignore_DetectsPaddedRule(t *testing.T) {
 	}
 }
 
-// No .gitignore yet → create one containing just the bts block.
+// No .gitignore yet → create one containing just the jig block.
 func TestEnsureGitignore_CreatesWhenMissing(t *testing.T) {
 	root := t.TempDir()
 
@@ -155,14 +155,14 @@ func TestEnsureGitignore_NoTrailingNewline(t *testing.T) {
 	}
 
 	got := readGitignore(t, root)
-	if strings.Contains(got, ".env"+gitignorePattern) || strings.Contains(got, ".env# bts") {
-		t.Errorf("last user line was merged with bts block: %q", got)
+	if strings.Contains(got, ".env"+gitignorePattern) || strings.Contains(got, ".env# jig") {
+		t.Errorf("last user line was merged with jig block: %q", got)
 	}
 	if !strings.Contains(got, "\n.env\n") {
 		t.Errorf("expected .env preserved on its own line: %q", got)
 	}
 	if !strings.Contains(got, "\n"+gitignorePattern+"\n") {
-		t.Errorf("bts rule not appended cleanly: %q", got)
+		t.Errorf("jig rule not appended cleanly: %q", got)
 	}
 }
 
@@ -183,7 +183,7 @@ func TestEnsureGitignore_PreservesCRLF(t *testing.T) {
 	}
 }
 
-// Guard: bts must not ship a .gitignore as an overwritable template again.
+// Guard: jig must not ship a .gitignore as an overwritable template again.
 // Shipping it would let DeployForce clobber the user's real .gitignore.
 func TestEmbeddedTemplatesHasNoGitignore(t *testing.T) {
 	tmplFS, err := EmbeddedTemplates()

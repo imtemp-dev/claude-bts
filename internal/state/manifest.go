@@ -8,19 +8,19 @@ import (
 // Manifest tracks all documents and their relationships within a recipe.
 //
 // ArchitectDecision names the decomposition alternative selected by
-// /bts-architect (Phase 5). Empty for recipes authored before architect
+// /jig-architect (Phase 5). Empty for recipes authored before architect
 // existed, or for recipes in the skip-architect path (trivially small
-// scope). `bts validate` treats the field as optional.
+// scope). `jig validate` treats the field as optional.
 type Manifest struct {
 	CurrentDraft      string                    `json:"current_draft"`
 	Level             float64                   `json:"level"`
 	ArchitectDecision string                    `json:"architect_decision,omitempty"`
 	Documents         map[string]DocumentEntry  `json:"documents"`
 
-	// OpenComments / BlockingComments are populated by `bts comment apply`
+	// OpenComments / BlockingComments are populated by `jig comment apply`
 	// (and recounted by the stop hook). Both maps key on the doc filename
 	// (e.g. "draft.md") and store the parsed callout count. BlockingComments
-	// is the [!BTS-BLOCK] subset — finalize is gated when its sum > 0.
+	// is the [!JIG-BLOCK] subset — finalize is gated when its sum > 0.
 	OpenComments     map[string]int `json:"open_comments,omitempty"`
 	BlockingComments map[string]int `json:"blocking_comments,omitempty"`
 }

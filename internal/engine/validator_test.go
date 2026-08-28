@@ -27,14 +27,14 @@ func TestValidateVerificationMd_ValidBlock(t *testing.T) {
 	path := filepath.Join(dir, "verification.md")
 	content := `# Report
 
-<bts-findings>
+<jig-findings>
 {
   "critical": 0,
   "major": 1,
   "minor_resolvable": 2,
   "minor_deferred": 0
 }
-</bts-findings>
+</jig-findings>
 
 findings list below…
 `
@@ -50,9 +50,9 @@ findings list below…
 func TestValidateVerificationMd_MissingField(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "verification.md")
-	content := `<bts-findings>
+	content := `<jig-findings>
 {"critical": 0, "major": 0}
-</bts-findings>`
+</jig-findings>`
 	_ = os.WriteFile(path, []byte(content), 0644)
 	errs := validateVerificationMd(path)
 	// missing: minor_resolvable, minor_deferred
@@ -64,14 +64,14 @@ func TestValidateVerificationMd_MissingField(t *testing.T) {
 func TestValidateAssessDecisionBlock_Valid(t *testing.T) {
 	content := `## Assessment
 
-<bts-decision>
+<jig-decision>
 {
   "level": 2.5,
   "action": "IMPROVE",
   "phase": "draft",
   "reason": "add signatures"
 }
-</bts-decision>
+</jig-decision>
 `
 	action, errs := ValidateAssessDecisionBlock(content)
 	if len(errs) != 0 {
@@ -83,9 +83,9 @@ func TestValidateAssessDecisionBlock_Valid(t *testing.T) {
 }
 
 func TestValidateAssessDecisionBlock_InvalidEnum(t *testing.T) {
-	content := `<bts-decision>
+	content := `<jig-decision>
 {"level": 1.0, "action": "RAGEQUIT", "phase": "draft", "reason": "x"}
-</bts-decision>`
+</jig-decision>`
 	_, errs := ValidateAssessDecisionBlock(content)
 	if len(errs) == 0 {
 		t.Fatal("expected enum error")
@@ -108,9 +108,9 @@ func TestValidateAssessDecisionBlock_Missing(t *testing.T) {
 	}
 }
 
-// Sprint 10: ParseFindingsBlock backs `bts recipe log --from-verification`.
+// Sprint 10: ParseFindingsBlock backs `jig recipe log --from-verification`.
 func TestParseFindingsBlock_Valid(t *testing.T) {
-	doc := []byte("prose\n<bts-findings>\n{\"critical\": 1, \"major\": 2, \"minor_resolvable\": 3, \"minor_deferred\": 4, \"info\": 5}\n</bts-findings>\nfindings...")
+	doc := []byte("prose\n<jig-findings>\n{\"critical\": 1, \"major\": 2, \"minor_resolvable\": 3, \"minor_deferred\": 4, \"info\": 5}\n</jig-findings>\nfindings...")
 	c, err := ParseFindingsBlock(doc)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -123,9 +123,9 @@ func TestParseFindingsBlock_Valid(t *testing.T) {
 func TestParseFindingsBlock_Errors(t *testing.T) {
 	cases := map[string][]byte{
 		"missing block":   []byte("no block here"),
-		"duplicate block": []byte("<bts-findings>{\"critical\":0,\"major\":0,\"minor_resolvable\":0,\"minor_deferred\":0}</bts-findings><bts-findings>{\"critical\":0,\"major\":0,\"minor_resolvable\":0,\"minor_deferred\":0}</bts-findings>"),
-		"missing field":   []byte("<bts-findings>{\"critical\":0,\"major\":0,\"minor_resolvable\":0}</bts-findings>"),
-		"malformed json":  []byte("<bts-findings>{critical: 0}</bts-findings>"),
+		"duplicate block": []byte("<jig-findings>{\"critical\":0,\"major\":0,\"minor_resolvable\":0,\"minor_deferred\":0}</jig-findings><jig-findings>{\"critical\":0,\"major\":0,\"minor_resolvable\":0,\"minor_deferred\":0}</jig-findings>"),
+		"missing field":   []byte("<jig-findings>{\"critical\":0,\"major\":0,\"minor_resolvable\":0}</jig-findings>"),
+		"malformed json":  []byte("<jig-findings>{critical: 0}</jig-findings>"),
 	}
 	for name, doc := range cases {
 		if _, err := ParseFindingsBlock(doc); err == nil {

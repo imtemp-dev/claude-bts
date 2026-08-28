@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/imtemp-dev/claude-bts/internal/metrics"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/metrics"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 type sessionEndHandler struct{}

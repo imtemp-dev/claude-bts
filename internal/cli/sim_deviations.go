@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/imtemp-dev/claude-bts/internal/engine"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/engine"
+	"github.com/imtemp-dev/jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +20,7 @@ var simDeviationsCmd = &cobra.Command{
 	Use:   "sim-deviations",
 	Short: "List DEVIATION entries parsed from simulations/*.md (Phase 12)",
 	Long: `Walks the recipe's simulations/ directory and emits every DEVIATION
-entry the simulate step produced. Used by /bts-sync Step 2.5 to
+entry the simulate step produced. Used by /jig-sync Step 2.5 to
 ingest simulate findings into deviation.md without rediscovering
 them via file-by-file comparison.
 
@@ -36,7 +36,7 @@ func runSimDeviations(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
 	root, err := state.FindRoot(cwd)
 	if err != nil {
-		return fmt.Errorf("not a bts project: %w", err)
+		return fmt.Errorf("not a jig project: %w", err)
 	}
 
 	recipeID, _ := cmd.Flags().GetString("recipe")

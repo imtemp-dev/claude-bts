@@ -1,4 +1,4 @@
-# bts — 스킬, 레시피, 에이전트
+# jig — 스킬, 레시피, 에이전트
 
 ## 스킬 (개별 기능)
 
@@ -44,9 +44,9 @@
 
 | 레시피 | 목적 | 최종 산출물 | 산출물 Level |
 |--------|------|-----------|-------------|
-| `/recipe analyze` | 기존 시스템/코드 분석 | 검증된 분석 문서 | Level 1 (이해) |
+| `/recipe map` | 기존 시스템/코드 분석 | 검증된 분석 문서 | Level 1 (이해) |
 | `/recipe design` | 기능/시스템 설계 | 검증된 설계 문서 | Level 2 (설계) |
-| `/recipe blueprint` | 설계를 구현 직전까지 구체화 | 구현 문서 (스캐폴딩 포함) | Level 3 (구현 직전) |
+| `/recipe spec` | 설계를 구현 직전까지 구체화 | 구현 문서 (스캐폴딩 포함) | Level 3 (구현 직전) |
 
 ### Phase 2 레시피 (4개)
 
@@ -84,7 +84,7 @@ Phase 2 검증 루프 (+ 흐름):
 
 Phase 1 레시피는 flowcheck/visualize 없이 동작한다. Phase 2에서 이 스킬들이 추가되면 검증 루프가 강화된다.
 
-### 킬러 레시피: `/recipe blueprint`
+### 킬러 레시피: `/recipe spec`
 
 Level 2 설계 문서를 Level 3 구현 문서로 변환하는 레시피.
 
@@ -96,12 +96,12 @@ Level 2 설계 문서를 Level 3 구현 문서로 변환하는 레시피.
 Step 1: Research (조사)
   ├─ /research 스킬 호출 (내부: Agent(Explore) spawn)
   ├─ 기존 코드 구조, 연결점, 의존성, 패턴 조사
-  └─ .bts/state/{id}/01-research.md 저장
+  └─ .jig/state/{id}/01-research.md 저장
 
 Step 2: Draft (Level 3 초안 작성)
   ├─ 메인 Claude가 작성:
   │   파일 경로, 함수 시그니처, 타입, 연결점, edge case, 스캐폴딩
-  └─ .bts/state/{id}/02-draft.md 저장
+  └─ .jig/state/{id}/02-draft.md 저장
 
 Step 3: Verify Loop (검증 루프, 자동 반복)
   ├─ /cross-check → 사실 대조 (바이너리 + 서브에이전트)
@@ -109,7 +109,7 @@ Step 3: Verify Loop (검증 루프, 자동 반복)
   ├─ /audit → 완결성 검토 (서브에이전트)
   ├─ (Phase 2+) /flowcheck → 호출 체인 연결성 확인
   ├─ (Phase 2+) /visualize → 다이어그램으로 누락 경로 감지
-  ├─ 결과 → Bash: `bts recipe log {id} --iteration N ...`
+  ├─ 결과 → Bash: `jig recipe log {id} --iteration N ...`
   ├─ critical/major > 0 → 문서 수정 → Step 3 재실행 (최대 N회)
   └─ critical=0, major=0 → Step 4로
 
@@ -120,8 +120,8 @@ Step 4: Decision (필요 시만)
   └─ verify-log는 유지 (이전 이터레이션 이력 보존)
 
 Step 5: Finalize (완료)
-  ├─ .bts/state/{id}/final.md로 최종 문서 확정
-  └─ <bts>DONE</bts> 출력 → Stop Hook이 verify-log 최종 확인
+  ├─ .jig/state/{id}/final.md로 최종 문서 확정
+  └─ <jig>DONE</jig> 출력 → Stop Hook이 verify-log 최종 확인
 
 산출물 예시:
   src/auth/oauth.ts:
@@ -206,16 +206,16 @@ Round 3: 합의 도출
 ### 상태 관리
 
 ```
-.bts/state/debates/{id}/
+.jig/state/debates/{id}/
   ├── debate.json       { topic, rounds: 3, conclusion, decided: true }
   ├── round-1.md
   ├── round-2.md
   └── round-3.md
 ```
 
-- `bts debate list` → 저장된 토론 목록
-- `bts debate resume <id>` → 이전 토론 이어서 (새 정보 추가 후 추가 라운드)
-- `bts debate export <id>` → 마크다운으로 내보내기
+- `jig debate list` → 저장된 토론 목록
+- `jig debate resume <id>` → 이전 토론 이어서 (새 정보 추가 후 추가 라운드)
+- `jig debate export <id>` → 마크다운으로 내보내기
 
 ### 교착 시 사람 개입
 

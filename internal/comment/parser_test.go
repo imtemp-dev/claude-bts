@@ -23,7 +23,7 @@ func TestParseFile_SingleComment(t *testing.T) {
 
 Some prose.
 
-> [!BTS-COMMENT]
+> [!JIG-COMMENT]
 > Make this section concrete.
 
 More prose.
@@ -58,7 +58,7 @@ More prose.
 
 func TestParseFile_MultiLineBody(t *testing.T) {
 	dir := t.TempDir()
-	p := writeMd(t, dir, "draft.md", `> [!BTS-BLOCK]
+	p := writeMd(t, dir, "draft.md", `> [!JIG-BLOCK]
 > First line.
 > Second line.
 > Third line.
@@ -79,9 +79,9 @@ trailing prose
 
 func TestParseFile_BackToBackCallouts(t *testing.T) {
 	dir := t.TempDir()
-	p := writeMd(t, dir, "draft.md", `> [!BTS-COMMENT]
+	p := writeMd(t, dir, "draft.md", `> [!JIG-COMMENT]
 > first
-> [!BTS-Q]
+> [!JIG-Q]
 > second
 `)
 	cs, _ := ParseFile(p)
@@ -109,7 +109,7 @@ content
 ## B
 content
 
-> [!BTS-COMMENT]
+> [!JIG-COMMENT]
 > on B
 `)
 	cs, _ := ParseFile(p)
@@ -129,7 +129,7 @@ content
 
 func TestParseFile_CalloutAtEOF(t *testing.T) {
 	dir := t.TempDir()
-	p := writeMd(t, dir, "draft.md", "# X\n\n> [!BTS-COMMENT]\n> tail")
+	p := writeMd(t, dir, "draft.md", "# X\n\n> [!JIG-COMMENT]\n> tail")
 	cs, _ := ParseFile(p)
 	if len(cs) != 1 {
 		t.Fatalf("want 1, got %d", len(cs))
@@ -141,7 +141,7 @@ func TestParseFile_CalloutAtEOF(t *testing.T) {
 
 func TestParseFile_IgnoresCalloutInsideCodeFence(t *testing.T) {
 	dir := t.TempDir()
-	p := writeMd(t, dir, "draft.md", "# X\n\n```markdown\n> [!BTS-COMMENT]\n> not a real comment\n```\n")
+	p := writeMd(t, dir, "draft.md", "# X\n\n```markdown\n> [!JIG-COMMENT]\n> not a real comment\n```\n")
 	cs, _ := ParseFile(p)
 	if len(cs) != 0 {
 		t.Fatalf("want 0 (inside fence), got %d", len(cs))
@@ -150,7 +150,7 @@ func TestParseFile_IgnoresCalloutInsideCodeFence(t *testing.T) {
 
 func TestParseFile_IgnoresPlainBlockquote(t *testing.T) {
 	dir := t.TempDir()
-	p := writeMd(t, dir, "draft.md", "> a quote\n> not a BTS callout\n")
+	p := writeMd(t, dir, "draft.md", "> a quote\n> not a jig callout\n")
 	cs, _ := ParseFile(p)
 	if len(cs) != 0 {
 		t.Fatalf("want 0, got %d", len(cs))
@@ -196,12 +196,12 @@ func TestParseFile_DuplicateBodyGetsDistinctIDs(t *testing.T) {
 	dir := t.TempDir()
 	p := writeMd(t, dir, "draft.md", `# X
 
-> [!BTS-COMMENT]
+> [!JIG-COMMENT]
 > same body
 
 intermediate prose
 
-> [!BTS-COMMENT]
+> [!JIG-COMMENT]
 > same body
 `)
 	cs, _ := ParseFile(p)
@@ -215,14 +215,14 @@ intermediate prose
 
 func TestParseRecipe_AcrossMultipleDocs(t *testing.T) {
 	dir := t.TempDir()
-	writeMd(t, dir, "draft.md", "> [!BTS-COMMENT]\n> a\n")
-	writeMd(t, dir, "scope.md", "> [!BTS-BLOCK]\n> b\n")
+	writeMd(t, dir, "draft.md", "> [!JIG-COMMENT]\n> a\n")
+	writeMd(t, dir, "scope.md", "> [!JIG-BLOCK]\n> b\n")
 	writeMd(t, dir, "manifest.json", `{"x":1}`) // non-md, skipped
 	// nested dir should be ignored (recipes are flat)
 	if err := os.Mkdir(filepath.Join(dir, "nested"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	writeMd(t, dir, filepath.Join("nested", "buried.md"), "> [!BTS-COMMENT]\n> nope\n")
+	writeMd(t, dir, filepath.Join("nested", "buried.md"), "> [!JIG-COMMENT]\n> nope\n")
 
 	cs, err := ParseRecipe(dir)
 	if err != nil {
@@ -239,13 +239,13 @@ func TestParseRecipe_AcrossMultipleDocs(t *testing.T) {
 
 func TestParseFile_AllThreeKinds(t *testing.T) {
 	dir := t.TempDir()
-	p := writeMd(t, dir, "x.md", `> [!BTS-COMMENT]
+	p := writeMd(t, dir, "x.md", `> [!JIG-COMMENT]
 > a
 
-> [!BTS-BLOCK]
+> [!JIG-BLOCK]
 > b
 
-> [!BTS-Q]
+> [!JIG-Q]
 > c
 `)
 	cs, _ := ParseFile(p)
@@ -260,7 +260,7 @@ func TestParseFile_AllThreeKinds(t *testing.T) {
 func TestParseFile_AnchorTruncated(t *testing.T) {
 	long := strings.Repeat("x", 200)
 	dir := t.TempDir()
-	p := writeMd(t, dir, "x.md", long+"\n\n> [!BTS-COMMENT]\n> body\n")
+	p := writeMd(t, dir, "x.md", long+"\n\n> [!JIG-COMMENT]\n> body\n")
 	cs, _ := ParseFile(p)
 	if len(cs) != 1 {
 		t.Fatalf("want 1, got %d", len(cs))
@@ -299,7 +299,7 @@ func TestParseDiffFreeForm_SkipsCalloutLines(t *testing.T) {
 --- a/specs/draft.md
 +++ b/specs/draft.md
 @@ -10,0 +11,2 @@
-+> [!BTS-COMMENT]
++> [!JIG-COMMENT]
 +> a real callout
 `
 	out := parseDiffFreeForm(diff, "specs")
@@ -374,9 +374,9 @@ func TestParseFile_EmptyBodyCalloutSkipped(t *testing.T) {
 	dir := t.TempDir()
 	p := writeMd(t, dir, "x.md", `# X
 
-> [!BTS-COMMENT]
+> [!JIG-COMMENT]
 
-> [!BTS-BLOCK]
+> [!JIG-BLOCK]
 > not empty
 `)
 	cs, _ := ParseFile(p)
@@ -392,7 +392,7 @@ func TestParseFile_EmptyBodyCalloutSkipped(t *testing.T) {
 // is documentation, not a real callout.
 func TestParseFile_IndentedCodeBlockIgnoresMarker(t *testing.T) {
 	dir := t.TempDir()
-	p := writeMd(t, dir, "x.md", "# Doc\n\n    > [!BTS-COMMENT]\n    > example syntax\n\nreal prose\n")
+	p := writeMd(t, dir, "x.md", "# Doc\n\n    > [!JIG-COMMENT]\n    > example syntax\n\nreal prose\n")
 	cs, _ := ParseFile(p)
 	if len(cs) != 0 {
 		t.Fatalf("want 0 (marker is in indented code), got %d", len(cs))
@@ -405,7 +405,7 @@ func TestParseFile_AnchorTruncationIsRuneSafe(t *testing.T) {
 	// 100 Korean syllables ≈ 300 bytes. anchorMaxLen=80 runes.
 	long := strings.Repeat("가", 100)
 	dir := t.TempDir()
-	p := writeMd(t, dir, "x.md", long+"\n\n> [!BTS-COMMENT]\n> body\n")
+	p := writeMd(t, dir, "x.md", long+"\n\n> [!JIG-COMMENT]\n> body\n")
 	cs, _ := ParseFile(p)
 	if len(cs) != 1 {
 		t.Fatalf("want 1, got %d", len(cs))

@@ -7,7 +7,7 @@ import (
 )
 
 // DebateRoundState tracks the position of an in-flight debate so it can
-// be resumed after compaction. Written by bts-debate skill flow, read by
+// be resumed after compaction. Written by jig-debate skill flow, read by
 // work-state builder.
 type DebateRoundState struct {
 	DebateID     string   `json:"debate_id"`

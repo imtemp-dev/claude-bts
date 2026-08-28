@@ -7,20 +7,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 func setupSessionStartRoot(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, ".bts", "specs", "recipes"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".jig", "specs", "recipes"), 0755); err != nil {
 		t.Fatalf("mkdir specs: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, ".bts", "local"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".jig", "local"), 0755); err != nil {
 		t.Fatalf("mkdir local: %v", err)
 	}
 	// Pin template-version file so autoUpdateTemplates is a no-op in tests.
-	configDir := filepath.Join(root, ".bts", "config")
+	configDir := filepath.Join(root, ".jig", "config")
 	_ = os.MkdirAll(configDir, 0755)
 	_ = os.WriteFile(filepath.Join(configDir, ".template-version"), []byte("test"), 0644)
 	// Isolate HOME so plan lookups don't leak real state
@@ -186,7 +186,7 @@ func TestSessionStart_StaleWorkStateIsDiscarded(t *testing.T) {
 	// Seed two recipes: one cancelled (old), one active (new)
 	seedRecipe(t, root, "r-new-001", "draft")
 	oldRecipe := &state.RecipeState{
-		ID: "r-old-999", Type: "blueprint", Topic: "old one", Phase: "cancelled",
+		ID: "r-old-999", Type: "spec", Topic: "old one", Phase: "cancelled",
 		StartedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 	if err := os.MkdirAll(state.RecipeDir(root, oldRecipe.ID), 0755); err != nil {
@@ -201,7 +201,7 @@ func TestSessionStart_StaleWorkStateIsDiscarded(t *testing.T) {
 		RecipeID: "r-old-999",
 		Phase:    "draft",
 		Topic:    "old one",
-		Summary:  "Recipe r-old-999 (blueprint) \"old one\" — phase: draft.",
+		Summary:  "Recipe r-old-999 (spec) \"old one\" — phase: draft.",
 	}
 	if err := state.SaveWorkState(root, staleWS); err != nil {
 		t.Fatalf("save stale ws: %v", err)
@@ -227,7 +227,7 @@ func TestSessionStart_StaleWorkStateIsDiscarded(t *testing.T) {
 
 // TestSessionStart_AssessNextActionReRead verifies that buildHint reads
 // the CURRENT assess.json rather than using the ws cache. This protects
-// against the case where /bts-assess ran after PreCompact captured ws.
+// against the case where /jig-assess ran after PreCompact captured ws.
 func TestSessionStart_AssessNextActionReRead(t *testing.T) {
 	root := setupSessionStartRoot(t)
 	recipeID := "r-001-fresh"
@@ -242,7 +242,7 @@ func TestSessionStart_AssessNextActionReRead(t *testing.T) {
 		t.Fatalf("cache check failed: %+v", ws)
 	}
 	_ = state.SaveWorkState(root, ws)
-	// After ws is cached, a fresh /bts-assess run updates assess.json:
+	// After ws is cached, a fresh /jig-assess run updates assess.json:
 	_ = os.WriteFile(assess, []byte(`{"next_action":"NEW: verify claim in section 2."}`), 0644)
 	_ = state.WriteCompactMarker(root, &state.CompactMarker{SessionID: "s"})
 

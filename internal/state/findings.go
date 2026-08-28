@@ -21,7 +21,7 @@ import (
 // round 6 are unrelated. Nothing carried forward between rounds: a
 // fresh verifier re-derived the whole document from scratch each time,
 // re-raising points an earlier round had already settled, and
-// `bts-verification-protocol.md`'s stagnation detector ("if the SAME
+// `jig-verification-protocol.md`'s stagnation detector ("if the SAME
 // finding IDs persist across max_iterations, do not retry") had no
 // finding IDs to detect with.
 //
@@ -94,7 +94,7 @@ type FindingState struct {
 	Reopened       int `json:"reopened"`    // times it went fixed → open again
 }
 
-// ReportedFinding is one entry of the <bts-findings> block's findings array.
+// ReportedFinding is one entry of the <jig-findings> block's findings array.
 type ReportedFinding struct {
 	Severity string `json:"severity"`
 	Title    string `json:"title"`
@@ -224,7 +224,7 @@ func FoldFindings(events []FindingEvent) map[string]*FindingState {
 
 		// A reopen is a settled finding being raised again: either a
 		// fixed one coming back (the last IMPROVE regressed) or a
-		// dismissed one being re-litigated. `bts recipe log` reports
+		// dismissed one being re-litigated. `jig recipe log` reports
 		// both, so this view must count both or the two disagree.
 		if e.Status == FindingOpen && (st.Status == FindingFixed || dismissed) {
 			st.Reopened++
@@ -304,7 +304,7 @@ type SyncResult struct {
 
 // SyncFindings reconciles one verification round against the ledger.
 //
-// reported is the findings array from that round's <bts-findings> block.
+// reported is the findings array from that round's <jig-findings> block.
 //
 // Absence does not close anything. A finding that was open and is not
 // reported this round is demoted to `unreported`; it becomes `fixed`

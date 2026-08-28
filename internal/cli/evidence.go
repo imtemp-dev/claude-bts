@@ -6,8 +6,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/imtemp-dev/claude-bts/internal/engine"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/engine"
+	"github.com/imtemp-dev/jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -33,19 +33,19 @@ var evidenceCmd = &cobra.Command{
 	Use:     "evidence",
 	Short:   "Cache of framework/platform claim research",
 	GroupID: "tools",
-	Long: `Memoises the evidence lookups required by bts-evidence-policy.md so a
+	Long: `Memoises the evidence lookups required by jig-evidence-policy.md so a
 verification loop does not re-research the same framework claim on every round.
 
 Verifiers should check the cache BEFORE spending a Context7/WebFetch/WebSearch
 call, and record the outcome afterwards:
 
-  bts evidence get --library swiftui --topic "safeAreaInset" --claim "..."
-  bts evidence put --library swiftui --topic "safeAreaInset" --claim "..." \
+  jig evidence get --library swiftui --topic "safeAreaInset" --claim "..."
+  jig evidence put --library swiftui --topic "safeAreaInset" --claim "..." \
       --verdict silent --gathered "Context7:miss | WebFetch:developer.apple.com:200"
 
-Entries live in .bts/local/evidence-cache.jsonl (machine-local, never committed).
+Entries live in .jig/local/evidence-cache.jsonl (machine-local, never committed).
 The log is append-only so concurrent verify/audit forks cannot lose entries;
-"bts evidence prune" compacts it.
+"jig evidence prune" compacts it.
 Successful lookups expire after verify.evidence_ttl_days; "unavailable" results
 expire after one hour so an outage never pins a claim for long.`,
 }
@@ -67,7 +67,7 @@ var evidenceGetCmd = &cobra.Command{
 			return fmt.Errorf("read evidence cache: %w", err)
 		}
 		if e == nil {
-			fmt.Printf("MISS %s\nNo live cache entry — gather evidence per bts-evidence-policy.md, then record it with `bts evidence put`.\n",
+			fmt.Printf("MISS %s\nNo live cache entry — gather evidence per jig-evidence-policy.md, then record it with `jig evidence put`.\n",
 				state.EvidenceKey(library, topic, claim))
 			os.Exit(10)
 		}
@@ -105,7 +105,7 @@ var evidencePutCmd = &cobra.Command{
 		urls, _ := cmd.Flags().GetStringSlice("url")
 		summary, _ := cmd.Flags().GetString("summary")
 
-		// Citations are load-bearing: bts-evidence-policy.md forbids
+		// Citations are load-bearing: jig-evidence-policy.md forbids
 		// inventing them, and a cached verdict is replayed verbatim into
 		// later rounds. A verdict that claims an official source must
 		// carry the URL that backs it.
@@ -176,7 +176,7 @@ func evidenceContext() (string, int, error) {
 	cwd, _ := os.Getwd()
 	root, err := state.FindRoot(cwd)
 	if err != nil {
-		return "", 0, fmt.Errorf("not a bts project: %w", err)
+		return "", 0, fmt.Errorf("not a jig project: %w", err)
 	}
 	settings, err := engine.LoadSettings(root)
 	if err != nil {

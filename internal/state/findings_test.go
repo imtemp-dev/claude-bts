@@ -409,7 +409,7 @@ not json at all
 // A dismissal is an adjudication: the verifier raising the point again
 // must NOT silently un-dismiss it. Otherwise one re-raise erases the
 // "do NOT re-raise" hint and the finding is re-litigated forever —
-// defeating the purpose of `bts recipe findings dismiss`.
+// defeating the purpose of `jig recipe findings dismiss`.
 func TestDismissalIsStickyAcrossReRaises(t *testing.T) {
 	root, id := findingsRoot(t)
 	title := "uses deprecated lifecycle hook"
@@ -452,8 +452,8 @@ func TestDismissalIsStickyAcrossReRaises(t *testing.T) {
 	}
 }
 
-// FoldFindings (what `bts recipe findings list` shows) and SyncFindings
-// (what `bts recipe log` prints) must agree on what counts as a reopen.
+// FoldFindings (what `jig recipe findings list` shows) and SyncFindings
+// (what `jig recipe log` prints) must agree on what counts as a reopen.
 func TestReopenCountersAgreeBetweenFoldAndSync(t *testing.T) {
 	root, id := findingsRoot(t)
 	title := "retry policy contradicts timeout"

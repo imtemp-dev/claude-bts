@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
-	"github.com/imtemp-dev/claude-bts/internal/template"
-	"github.com/imtemp-dev/claude-bts/pkg/version"
+	"github.com/imtemp-dev/jig/internal/state"
+	"github.com/imtemp-dev/jig/internal/template"
+	"github.com/imtemp-dev/jig/pkg/version"
 	"github.com/spf13/cobra"
 )
 
@@ -24,11 +24,11 @@ var updateCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project. Run 'bts init' first")
+			return fmt.Errorf("not a jig project. Run 'jig init' first")
 		}
 
 		current := version.GetTemplateVersion()
-		versionFile := filepath.Join(root, ".bts", "config", ".template-version")
+		versionFile := filepath.Join(root, ".jig", "config", ".template-version")
 		existing, _ := os.ReadFile(versionFile)
 		oldVer := strings.TrimSpace(string(existing))
 
@@ -39,13 +39,13 @@ var updateCmd = &cobra.Command{
 
 		// DeployForce (same skip list as auto-update and init --force).
 		// .gitignore is user-owned — merged via EnsureGitignore, never overwritten.
-		skipFiles := []string{".bts/config/settings.yaml", ".mcp.json", ".gitignore"}
+		skipFiles := []string{".jig/config/settings.yaml", ".mcp.json", ".gitignore"}
 		updated, err := template.DeployForce(root, skipFiles)
 		if err != nil {
 			return fmt.Errorf("update templates: %w", err)
 		}
 
-		// Ensure .gitignore ignores bts local data without destroying existing rules.
+		// Ensure .gitignore ignores jig local data without destroying existing rules.
 		if err := template.EnsureGitignore(root); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: update .gitignore: %v\n", err)
 		}
@@ -55,9 +55,13 @@ var updateCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "warning: save template version: %v\n", err)
 		}
 
-		// Clean up legacy forge-* template files and settings
-		cleanupLegacyForge(root)
-		migrateHookSettings(root)
+		// Clean up template files left under a retired name prefix
+		if n := template.CleanupLegacyPrefixes(root); n > 0 {
+			fmt.Printf("Cleaned up %d legacy template files\n", n)
+		}
+		if from := template.MigrateHookSettings(root); from != "" {
+			fmt.Printf("Migrated hook settings: %s → jig\n", from)
+		}
 		pruneDeadSettings(root)
 
 		// Merge statusline and hook settings (same as init)
@@ -75,68 +79,19 @@ var updateCmd = &cobra.Command{
 	},
 }
 
-// migrateHookSettings replaces forge-handle-* with bts-handle-* in settings.local.json.
-func migrateHookSettings(root string) {
-	path := filepath.Join(root, ".claude", "settings.local.json")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return
-	}
-	content := string(data)
-	if !strings.Contains(content, "forge-handle-") {
-		return
-	}
-	content = strings.ReplaceAll(content, "forge-handle-", "bts-handle-")
-	content = strings.ReplaceAll(content, ".forge/status_line.sh", ".bts/status_line.sh")
-	_ = os.WriteFile(path, []byte(content), 0644)
-	fmt.Println("Migrated hook settings: forge → bts")
-}
 
-// cleanupLegacyForge removes old forge-* template files left from pre-rename versions.
-func cleanupLegacyForge(root string) {
-	claudeDir := filepath.Join(root, ".claude")
-	dirs := []string{"skills", "agents", "rules", "hooks", "commands"}
-	removed := 0
 
-	for _, d := range dirs {
-		base := filepath.Join(claudeDir, d)
-		entries, err := os.ReadDir(base)
-		if err != nil {
-			continue
-		}
-		for _, entry := range entries {
-			if strings.HasPrefix(entry.Name(), "forge-") {
-				path := filepath.Join(base, entry.Name())
-				if err := os.RemoveAll(path); err == nil {
-					removed++
-				}
-			}
-		}
-	}
-
-	// Remove legacy .forge/ status_line.sh if .bts/ version exists
-	oldStatus := filepath.Join(root, ".forge", "status_line.sh")
-	if _, err := os.Stat(oldStatus); err == nil {
-		_ = os.Remove(oldStatus)
-		removed++
-	}
-
-	if removed > 0 {
-		fmt.Printf("Cleaned up %d legacy forge files\n", removed)
-	}
-}
-
-// deadSettingsKeys are settings.yaml keys bts itself once shipped and
-// nothing has ever read. `bts update` deletes them.
+// deadSettingsKeys are settings.yaml keys jig itself once shipped and
+// nothing has ever read. `jig update` deletes them.
 //
 // settings.yaml is user-owned and deliberately preserved across updates
 // (it is in skipFiles above), so removing a key from the template only
-// affects projects created by a fresh `bts init`. Every existing project
-// kept its copy — and `bts doctor` reports unread keys, so upgrading
+// affects projects created by a fresh `jig init`. Every existing project
+// kept its copy — and `jig doctor` reports unread keys, so upgrading
 // turned a healthy project's `--strict` run red with a remedy that said
 // "delete them" and no way to do it but by hand.
 //
-// Only keys that were shipped by bts and read by nothing belong here. A
+// Only keys that were shipped by jig and read by nothing belong here. A
 // key a user added themselves is theirs; doctor reports it and leaves it
 // alone.
 var deadSettingsKeys = [][]string{
@@ -153,7 +108,7 @@ var deadSettingsKeys = [][]string{
 // key order elsewhere are preserved by editing the text rather than
 // re-serialising the tree.
 func pruneDeadSettings(root string) {
-	path := filepath.Join(root, ".bts", "config", "settings.yaml")
+	path := filepath.Join(root, ".jig", "config", "settings.yaml")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return

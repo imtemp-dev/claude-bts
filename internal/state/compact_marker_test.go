@@ -9,7 +9,7 @@ import (
 func setupMarkerRoot(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, ".bts", "local"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".jig", "local"), 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
 	return root

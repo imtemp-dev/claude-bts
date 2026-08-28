@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/imtemp-dev/claude-bts/internal/metrics"
-	"github.com/imtemp-dev/claude-bts/internal/state"
-	"github.com/imtemp-dev/claude-bts/internal/template"
-	"github.com/imtemp-dev/claude-bts/pkg/version"
+	"github.com/imtemp-dev/jig/internal/metrics"
+	"github.com/imtemp-dev/jig/internal/state"
+	"github.com/imtemp-dev/jig/internal/template"
+	"github.com/imtemp-dev/jig/pkg/version"
 )
 
 type sessionStartHandler struct{}
@@ -70,12 +70,12 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 			if total > 0 {
 				var msg string
 				if nextItem != "" {
-					msg = fmt.Sprintf("[bts] Roadmap: %d/%d done. Next: %s\nRun /bts-recipe-blueprint to start.", done, total, nextItem)
+					msg = fmt.Sprintf("[jig] Roadmap: %d/%d done. Next: %s\nRun /jig-spec to start.", done, total, nextItem)
 				} else {
-					msg = fmt.Sprintf("[bts] Roadmap complete: %d/%d done. Run /bts-recipe-blueprint to add new items or start a new vision.", done, total)
+					msg = fmt.Sprintf("[jig] Roadmap complete: %d/%d done. Run /jig-spec to add new items or start a new vision.", done, total)
 				}
 				if updated {
-					msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)
+					msg = fmt.Sprintf("[jig] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)
 				}
 				return &HookOutput{
 					HookSpecificOutput: &HookSpecificOutput{
@@ -88,9 +88,9 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 			if state.VisionExists(root) {
 				visionData, _ := os.ReadFile(filepath.Join(state.SpecsPath(root), "vision.md"))
 				if strings.Contains(string(visionData), "Status: DRAFT") {
-					msg := "[bts] Vision document in progress (Status: DRAFT).\nRun /bts-recipe-blueprint to continue."
+					msg := "[jig] Vision document in progress (Status: DRAFT).\nRun /jig-spec to continue."
 					if updated {
-						msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)
+						msg = fmt.Sprintf("[jig] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)
 					}
 					return &HookOutput{
 						HookSpecificOutput: &HookSpecificOutput{
@@ -104,7 +104,7 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 				return &HookOutput{
 					HookSpecificOutput: &HookSpecificOutput{
 						HookEventName:     "SessionStart",
-						AdditionalContext: fmt.Sprintf("[bts] Templates updated to %s", version.GetTemplateVersion()),
+						AdditionalContext: fmt.Sprintf("[jig] Templates updated to %s", version.GetTemplateVersion()),
 					},
 				}, nil
 			}
@@ -121,20 +121,20 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 		}
 
 		msg := fmt.Sprintf(
-			"[bts] Recipe ready for implementation: %s \"%s\" (ID: %s)\nRun /bts-implement %s to start coding.",
+			"[jig] Recipe ready for implementation: %s \"%s\" (ID: %s)\nRun /jig-implement %s to start coding.",
 			recipe.Type, recipe.Topic, recipe.ID, recipe.ID,
 		)
 
 		// Enrich with work state if resuming
 		if ws != nil && (source == "compact" || source == "resume") {
-			msg = fmt.Sprintf("[bts] Resuming. %s\nRun /bts-implement %s to start coding.", ws.Summary, recipe.ID)
+			msg = fmt.Sprintf("[jig] Resuming. %s\nRun /jig-implement %s to start coding.", ws.Summary, recipe.ID)
 		}
 
 		msg += openDecisionNotice(root, recipe.ID)
 		msg += dirtyDocWarning(root, recipe.ID)
 
 		if updated {
-			msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)
+			msg = fmt.Sprintf("[jig] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)
 		}
 
 		return &HookOutput{
@@ -165,21 +165,21 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 	switch source {
 	case "resume":
 		if ws != nil {
-			msg = fmt.Sprintf("[bts] Session restored. %s\nNEXT: %s", ws.Summary, hint)
+			msg = fmt.Sprintf("[jig] Session restored. %s\nNEXT: %s", ws.Summary, hint)
 		} else {
-			msg = fmt.Sprintf("[bts] Session restored. %s \"%s\" (Step: %s)\nNEXT: %s",
+			msg = fmt.Sprintf("[jig] Session restored. %s \"%s\" (Step: %s)\nNEXT: %s",
 				recipe.Type, recipe.Topic, recipe.Phase, hint)
 		}
 	case "compact":
 		if ws != nil {
-			msg = fmt.Sprintf("[bts] Context compacted. %s\nNEXT: %s", ws.Summary, hint)
+			msg = fmt.Sprintf("[jig] Context compacted. %s\nNEXT: %s", ws.Summary, hint)
 		} else {
-			msg = fmt.Sprintf("[bts] Context compacted. %s \"%s\" (Step: %s)\nNEXT: %s",
+			msg = fmt.Sprintf("[jig] Context compacted. %s \"%s\" (Step: %s)\nNEXT: %s",
 				recipe.Type, recipe.Topic, recipe.Phase, hint)
 		}
 	default:
 		msg = fmt.Sprintf(
-			"[bts] Active recipe: %s \"%s\" (Step: %s, Iteration: %d)\nNEXT: %s",
+			"[jig] Active recipe: %s \"%s\" (Step: %s, Iteration: %d)\nNEXT: %s",
 			recipe.Type, recipe.Topic, recipe.Phase, recipe.Iteration, hint,
 		)
 	}
@@ -188,7 +188,7 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 	msg += dirtyDocWarning(root, recipe.ID)
 
 	if updated {
-		msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)
+		msg = fmt.Sprintf("[jig] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)
 	}
 
 	return &HookOutput{
@@ -216,7 +216,7 @@ func openDecisionNotice(root, recipeID string) string {
 		if len(d.Options) > 0 {
 			fmt.Fprintf(&sb, "\n     options: %s", strings.Join(d.Options, " | "))
 		}
-		fmt.Fprintf(&sb, "\n     record the answer: bts recipe decision resolve %s %s --answer \"...\"", recipeID, d.Key)
+		fmt.Fprintf(&sb, "\n     record the answer: jig recipe decision resolve %s %s --answer \"...\"", recipeID, d.Key)
 	}
 	return sb.String()
 }
@@ -231,7 +231,7 @@ func dirtyDocWarning(root, recipeID string) string {
 		return ""
 	}
 	return fmt.Sprintf(
-		"\n⚠ %s modified after last verification — run /bts-verify before continuing (rule 3).",
+		"\n⚠ %s modified after last verification — run /jig-verify before continuing (rule 3).",
 		strings.Join(dirty, ", "))
 }
 
@@ -252,30 +252,30 @@ func buildHint(root string, recipe *state.RecipeState, ws *state.WorkState) stri
 	if ws != nil && ws.SubState != nil {
 		switch ws.SubState.Kind {
 		case "debate":
-			return fmt.Sprintf("Resume debate (%s). Run /bts-debate to continue.", ws.SubState.Position)
+			return fmt.Sprintf("Resume debate (%s). Run /jig-debate to continue.", ws.SubState.Position)
 		case "simulate":
-			return fmt.Sprintf("Resume simulation (%s). Run /bts-simulate to continue.", ws.SubState.Position)
+			return fmt.Sprintf("Resume simulation (%s). Run /jig-simulate to continue.", ws.SubState.Position)
 		}
 	}
 
 	// 3. Phase-specific hints (existing logic)
 	if recipe.Phase == "discovery" {
-		return fmt.Sprintf("Read .bts/specs/recipes/%s/intent.md and continue intent discovery.", recipe.ID)
+		return fmt.Sprintf("Read .jig/specs/recipes/%s/intent.md and continue intent discovery.", recipe.ID)
 	}
 	if recipe.Phase == "scoping" {
-		return fmt.Sprintf("Read .bts/specs/recipes/%s/scope.md and confirm or adjust scope.", recipe.ID)
+		return fmt.Sprintf("Read .jig/specs/recipes/%s/scope.md and confirm or adjust scope.", recipe.ID)
 	}
 	if next := nextStepHint(root, recipe); next != "" {
 		return next
 	}
 	if state.IsImplementPhase(recipe.Phase) {
-		implCmd := fmt.Sprintf("/bts-implement %s", recipe.ID)
+		implCmd := fmt.Sprintf("/jig-implement %s", recipe.ID)
 		if recipe.Type == "fix" {
-			implCmd = fmt.Sprintf("/bts-recipe-fix %s", recipe.ID)
+			implCmd = fmt.Sprintf("/jig-fix %s", recipe.ID)
 		}
 		return fmt.Sprintf("Run %s to continue.", implCmd)
 	}
-	return fmt.Sprintf("Run /bts-recipe-%s to re-enter the recipe, or /recipe cancel to abort.", recipe.Type)
+	return fmt.Sprintf("Run /jig-%s to re-enter the recipe, or `jig recipe cancel` to abort.", recipe.Type)
 }
 
 // buildNonRecipeCompactMsg returns a recovery message for compactions that
@@ -291,9 +291,9 @@ func buildNonRecipeCompactMsg(root string, templatesUpdated bool) string {
 	}
 	var b strings.Builder
 	if templatesUpdated {
-		fmt.Fprintf(&b, "[bts] Templates updated to %s\n", version.GetTemplateVersion())
+		fmt.Fprintf(&b, "[jig] Templates updated to %s\n", version.GetTemplateVersion())
 	}
-	b.WriteString("[bts] Context compacted (no active recipe).")
+	b.WriteString("[jig] Context compacted (no active recipe).")
 	if len(ss.OpenFiles) > 0 {
 		b.WriteString("\nOpen files: ")
 		b.WriteString(strings.Join(ss.OpenFiles, ", "))
@@ -320,7 +320,7 @@ func buildNonRecipeCompactMsg(root string, templatesUpdated bool) string {
 // autoUpdateTemplates checks if templates need updating and deploys if so.
 // Returns true if templates were updated, false if skipped.
 func autoUpdateTemplates(root string) bool {
-	versionFile := filepath.Join(root, ".bts", "config", ".template-version")
+	versionFile := filepath.Join(root, ".jig", "config", ".template-version")
 	existing, _ := os.ReadFile(versionFile)
 
 	current := version.GetTemplateVersion()
@@ -332,13 +332,20 @@ func autoUpdateTemplates(root string) bool {
 	// Deploy templates (overwrite all except user-owned files).
 	// .gitignore is user-owned — merged via EnsureGitignore below, never overwritten.
 	_, _ = template.DeployForce(root, []string{
-		".bts/config/settings.yaml",
+		".jig/config/settings.yaml",
 		".mcp.json",
 		".gitignore",
 	})
 
-	// Ensure .gitignore ignores bts local data without destroying existing rules.
+	// Ensure .gitignore ignores jig local data without destroying existing rules.
 	_ = template.EnsureGitignore(root)
+
+	// Drop templates left under a retired name prefix and repoint hook paths
+	// at the current scripts. The binary can be upgraded out from under a
+	// project (brew, curl), so this auto-update path — not just an explicit
+	// `jig update` — is where most users cross a rebrand.
+	template.CleanupLegacyPrefixes(root)
+	template.MigrateHookSettings(root)
 
 	// Ensure hooks are registered in settings.local.json
 	_ = template.MergeHookSettings(root)
@@ -377,14 +384,14 @@ func cleanupLegacyTemplates(root string) {
 	}
 	content := string(data)
 	if strings.Contains(content, "forge-handle-") {
-		content = strings.ReplaceAll(content, "forge-handle-", "bts-handle-")
-		content = strings.ReplaceAll(content, ".forge/status_line.sh", ".bts/status_line.sh")
+		content = strings.ReplaceAll(content, "forge-handle-", "jig-handle-")
+		content = strings.ReplaceAll(content, ".forge/status_line.sh", ".jig/status_line.sh")
 		_ = os.WriteFile(settingsPath, []byte(content), 0644)
 	}
 }
 
 // nextStepHint returns a specific next-action hint based on recipe phase and state files.
-// For implementation phases, always guides back to the orchestrator (/bts-implement)
+// For implementation phases, always guides back to the orchestrator (/jig-implement)
 // to maintain flow continuity, with a description of what step comes next.
 func nextStepHint(root string, recipe *state.RecipeState) string {
 	recipeDir := state.RecipeDir(root, recipe.ID)
@@ -400,17 +407,17 @@ func nextStepHint(root string, recipe *state.RecipeState) string {
 	case recipe.Phase == "scoping":
 		return "Read scope.md and confirm or adjust scope."
 	case recipe.Phase == "wireframe":
-		return "Run /bts-wireframe to design system structure."
+		return "Run /jig-wireframe to design system structure."
 	case recipe.Phase == "finalize":
-		return fmt.Sprintf("Spec finalized. Run /bts-implement %s to start implementation.", recipe.ID)
+		return fmt.Sprintf("Spec finalized. Run /jig-implement %s to start implementation.", recipe.ID)
 	case !state.IsImplementPhase(recipe.Phase):
-		return "Run /bts-assess on draft.md to determine next action."
+		return "Run /jig-assess on draft.md to determine next action."
 	}
 
 	// Implementation phases — always guide to orchestrator
-	implCmd := fmt.Sprintf("/bts-implement %s", recipe.ID)
+	implCmd := fmt.Sprintf("/jig-implement %s", recipe.ID)
 	if recipe.Type == "fix" {
-		implCmd = fmt.Sprintf("/bts-recipe-fix %s", recipe.ID)
+		implCmd = fmt.Sprintf("/jig-fix %s", recipe.ID)
 	}
 
 	var detail string

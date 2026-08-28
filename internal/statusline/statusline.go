@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/imtemp-dev/claude-bts/internal/metrics"
-	"github.com/imtemp-dev/claude-bts/internal/state"
-	"github.com/imtemp-dev/claude-bts/pkg/version"
+	"github.com/imtemp-dev/jig/internal/metrics"
+	"github.com/imtemp-dev/jig/internal/state"
+	"github.com/imtemp-dev/jig/pkg/version"
 )
 
 // StdinData is the JSON Claude Code sends to the statusline hook.
@@ -36,7 +36,7 @@ type CurrentUsage struct {
 	OutputTokens        int `json:"output_tokens"`
 }
 
-// Render reads Claude Code's stdin JSON and bts state, returns a 1-line statusline.
+// Render reads Claude Code's stdin JSON and jig state, returns a 1-line statusline.
 func Render(stdin io.Reader, root string) string {
 	// Parse stdin
 	var data StdinData
@@ -45,12 +45,12 @@ func Render(stdin io.Reader, root string) string {
 		if len(raw) > 0 {
 			_ = json.Unmarshal(raw, &data)
 			// Always save last payload for diagnosis (overwritten each call, low overhead)
-			_ = os.WriteFile("/tmp/bts-sl-last.json", raw, 0644)
+			_ = os.WriteFile("/tmp/jig-sl-last.json", raw, 0644)
 		}
 	}
 
 	var segments []string
-	segments = append(segments, "bts"+version.GetVersion())
+	segments = append(segments, "jig"+version.GetVersion())
 
 	// Recipe info
 	if root != "" {

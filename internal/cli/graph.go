@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/imtemp-dev/claude-bts/internal/engine"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/engine"
+	"github.com/imtemp-dev/jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +21,7 @@ func init() {
 }
 
 // graphPathsCmd deterministically enumerates mermaid diagram paths in a
-// document. /bts-verify feeds this to the verifier agent so the LLM
+// document. /jig-verify feeds this to the verifier agent so the LLM
 // judges specification coverage per path instead of enumerating paths
 // itself (which miscounts on large diagrams).
 var graphPathsCmd = &cobra.Command{
@@ -50,7 +50,7 @@ func runGraph(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
 	root, err := state.FindRoot(cwd)
 	if err != nil {
-		return fmt.Errorf("not a bts project: %w", err)
+		return fmt.Errorf("not a jig project: %w", err)
 	}
 
 	importMode, _ := cmd.Flags().GetBool("import")
@@ -85,15 +85,15 @@ func runGraph(cmd *cobra.Command, args []string) error {
 
 // renderImportGraph reads tasks.json to find the recipe's implemented
 // file list, extracts the import graph, and writes the mermaid rendering
-// to stdout. Used by /bts-review's architecture agent to compare actual
-// code structure against wireframe.md (see bts-review SKILL.md).
+// to stdout. Used by /jig-review's architecture agent to compare actual
+// code structure against wireframe.md (see jig-review SKILL.md).
 func renderImportGraph(root, recipeID string) error {
 	tasks, err := state.LoadTaskState(root, recipeID)
 	if err != nil {
 		return fmt.Errorf("load tasks.json for %s: %w", recipeID, err)
 	}
 	if len(tasks.Tasks) == 0 {
-		return fmt.Errorf("tasks.json has no tasks — run /bts-implement first")
+		return fmt.Errorf("tasks.json has no tasks — run /jig-implement first")
 	}
 
 	// tasks.json may store file paths relative to project root. Resolve

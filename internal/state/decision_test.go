@@ -188,7 +188,7 @@ func TestReadDecisionEvents_MissingLedgerIsEmpty(t *testing.T) {
 // shaped a spec is part of that spec's provenance.
 func TestDecisionsPath_IsTracked(t *testing.T) {
 	got := DecisionsPath("/p", "r-1")
-	want := filepath.Join("/p", ".bts", "specs", "recipes", "r-1", "decisions.jsonl")
+	want := filepath.Join("/p", ".jig", "specs", "recipes", "r-1", "decisions.jsonl")
 	if got != want {
 		t.Errorf("got %s, want %s", got, want)
 	}

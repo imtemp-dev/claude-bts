@@ -161,7 +161,7 @@ func TestNextRetryDecision_FullLadderWalkWithinDefaultCap(t *testing.T) {
 
 		d := NextRetryDecision(tier, attemptsInTier, errClass, cfg)
 
-		// Hard cap (bts-implement Step 5): once retry_count reaches
+		// Hard cap (jig-implement Step 5): once retry_count reaches
 		// max_build_retries the skill forces block REGARDLESS of the
 		// ladder's preferred action, so an escalation returned on the
 		// cap-th failure is never executed. This is what makes the walk

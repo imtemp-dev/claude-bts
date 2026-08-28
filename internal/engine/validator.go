@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 // ValidationError represents one schema violation.
@@ -49,13 +49,13 @@ func ValidateRecipeDir(recipeDir string) ([]ValidationError, error) {
 	// 4. debate state files
 	//
 	// This used to look for `meta.json` under the recipe. Nothing has
-	// ever written that name: `bts debate log` writes `debate.json`, and
-	// it writes it under .bts/specs/debates/, not under the recipe. So
+	// ever written that name: `jig debate log` writes `debate.json`, and
+	// it writes it under .jig/specs/debates/, not under the recipe. So
 	// the adjudicate_every_debate gate was checking a filename that does
 	// not exist, at a path the writer does not use, and passed every
 	// project by finding nothing. Both locations are walked now, because
 	// real projects have both — the CLI writes the project-level tree
-	// and /bts-debate writes its round markdown beside the recipe.
+	// and /jig-debate writes its round markdown beside the recipe.
 	if errs := validateDebates(recipeDir); len(errs) > 0 {
 		errors = append(errors, errs...)
 	}
@@ -72,7 +72,7 @@ func ValidateRecipeDir(recipeDir string) ([]ValidationError, error) {
 		errors = append(errors, errs...)
 	}
 
-	// 7. verification.md — required <bts-findings> block when present.
+	// 7. verification.md — required <jig-findings> block when present.
 	verifyDocPath := filepath.Join(recipeDir, "verification.md")
 	if errs := validateVerificationMd(verifyDocPath); len(errs) > 0 {
 		errors = append(errors, errs...)
@@ -90,7 +90,7 @@ func ValidateRecipeDir(recipeDir string) ([]ValidationError, error) {
 	}
 
 	// 7b. deviation.md — Phase 16 machine-readable schema. Runs only
-	// when deviation.md exists so recipes still in blueprint/verify
+	// when deviation.md exists so recipes still in spec/verify
 	// phase are not flagged.
 	deviationPath := filepath.Join(recipeDir, "deviation.md")
 	if _, err := os.Stat(deviationPath); err == nil {
@@ -165,7 +165,7 @@ func isStructuredVerifyResult(result string) bool {
 }
 
 // FindingsCounts carries the counts parsed from a document's single
-// <bts-findings> block. Used by `bts recipe log --from-verification`
+// <jig-findings> block. Used by `jig recipe log --from-verification`
 // to write verify-log entries atomically from verification.md, so the
 // two sources can never drift (the failure class Phase 22 detects).
 type FindingsCounts struct {
@@ -197,17 +197,17 @@ var validFindingSeverities = map[string]bool{
 	"minor_deferred": true, "info": true,
 }
 
-// ParseFindingsBlock extracts the single <bts-findings> JSON block.
+// ParseFindingsBlock extracts the single <jig-findings> JSON block.
 // Errors on a missing, duplicated, or malformed block, and on any
 // absent required count — callers must fail fast rather than log
 // drifted numbers.
 func ParseFindingsBlock(data []byte) (*FindingsCounts, error) {
 	matches := findingsBlockRe.FindAllSubmatch(data, -1)
 	if len(matches) == 0 {
-		return nil, fmt.Errorf("no <bts-findings> block found")
+		return nil, fmt.Errorf("no <jig-findings> block found")
 	}
 	if len(matches) > 1 {
-		return nil, fmt.Errorf("expected exactly 1 <bts-findings> block, found %d", len(matches))
+		return nil, fmt.Errorf("expected exactly 1 <jig-findings> block, found %d", len(matches))
 	}
 	var raw struct {
 		Critical        *int                    `json:"critical"`
@@ -275,15 +275,18 @@ func ParseFindingsBlock(data []byte) (*FindingsCounts, error) {
 	return out, nil
 }
 
-// findingsBlockRe matches <bts-findings>...</bts-findings> with JSON inside.
-// Multi-line (dot matches newline) and non-greedy body.
-var findingsBlockRe = regexp.MustCompile(`(?s)<bts-findings>\s*(\{.*?\})\s*</bts-findings>`)
+// findingsBlockRe matches <jig-findings>...</jig-findings> with JSON inside.
+// Multi-line (dot matches newline) and non-greedy body. The legacy <bts-…>
+// spelling is still accepted: documents written before the jig rebrand carry
+// it, and re-verifying an old recipe must not silently see zero findings.
+var findingsBlockRe = regexp.MustCompile(`(?s)<(?:jig|bts)-findings>\s*(\{.*?\})\s*</(?:jig|bts)-findings>`)
 
-// decisionBlockRe matches <bts-decision>...</bts-decision> similarly.
-var decisionBlockRe = regexp.MustCompile(`(?s)<bts-decision>\s*(\{.*?\})\s*</bts-decision>`)
+// decisionBlockRe matches <jig-decision>...</jig-decision> similarly, and
+// accepts the legacy <bts-decision> spelling for the same reason.
+var decisionBlockRe = regexp.MustCompile(`(?s)<(?:jig|bts)-decision>\s*(\{.*?\})\s*</(?:jig|bts)-decision>`)
 
-// validDecisionActions is the authoritative enum for <bts-decision>.action.
-// Source: bts-assess/SKILL.md § Part A. Changes require updating both files.
+// validDecisionActions is the authoritative enum for <jig-decision>.action.
+// Source: jig-assess/SKILL.md § Part A. Changes require updating both files.
 var validDecisionActions = map[string]bool{
 	"RESEARCH": true, "DEBATE": true, "ADJUDICATE": true, "SIMULATE": true,
 	"AUDIT": true, "IMPROVE": true, "VERIFY": true, "SYNC_CHECK": true,
@@ -307,34 +310,34 @@ func validateVerificationMd(path string) []ValidationError {
 
 	matches := findingsBlockRe.FindAllSubmatch(data, -1)
 	if len(matches) == 0 {
-		return []ValidationError{{File: "verification.md", Field: "<bts-findings>", Message: "missing structured findings block — add <bts-findings>{...}</bts-findings> per bts-verify skill spec"}}
+		return []ValidationError{{File: "verification.md", Field: "<jig-findings>", Message: "missing structured findings block — add <jig-findings>{...}</jig-findings> per jig-verify skill spec"}}
 	}
 	if len(matches) > 1 {
-		return []ValidationError{{File: "verification.md", Field: "<bts-findings>", Message: fmt.Sprintf("expected exactly 1 block, found %d", len(matches))}}
+		return []ValidationError{{File: "verification.md", Field: "<jig-findings>", Message: fmt.Sprintf("expected exactly 1 block, found %d", len(matches))}}
 	}
 
 	var raw map[string]interface{}
 	if err := json.Unmarshal(matches[0][1], &raw); err != nil {
-		return []ValidationError{{File: "verification.md", Field: "<bts-findings>", Message: "invalid JSON in findings block: " + err.Error()}}
+		return []ValidationError{{File: "verification.md", Field: "<jig-findings>", Message: "invalid JSON in findings block: " + err.Error()}}
 	}
 
 	var errs []ValidationError
 	for _, field := range []string{"critical", "major", "minor_resolvable", "minor_deferred"} {
 		v, ok := raw[field]
 		if !ok {
-			errs = append(errs, ValidationError{File: "verification.md", Field: "<bts-findings>." + field, Message: "missing required count"})
+			errs = append(errs, ValidationError{File: "verification.md", Field: "<jig-findings>." + field, Message: "missing required count"})
 			continue
 		}
 		// JSON numbers arrive as float64
 		if _, isNum := v.(float64); !isNum {
-			errs = append(errs, ValidationError{File: "verification.md", Field: "<bts-findings>." + field, Message: "must be a number"})
+			errs = append(errs, ValidationError{File: "verification.md", Field: "<jig-findings>." + field, Message: "must be a number"})
 		}
 	}
 	return errs
 }
 
 // validateVerificationLogConsistency cross-checks the counts embedded
-// in verification.md's <bts-findings> block against the last entry of
+// in verification.md's <jig-findings> block against the last entry of
 // verify-log.jsonl. Sprint 9 P22 — r-018 showed the two sources can
 // drift when verify-log gets a new entry but verification.md isn't
 // re-generated, or when manual log edits occur.
@@ -414,7 +417,7 @@ func validateVerificationLogConsistency(verificationPath, verifyLogPath string) 
 			File:  "verification.md ↔ verify-log.jsonl",
 			Field: "verification_log_mismatch." + c.key,
 			Message: fmt.Sprintf(
-				"%sverification.md says %s=%d but verify-log.jsonl last entry (iteration=%d) says %s=%d — re-run /bts-verify on draft.md to refresh.",
+				"%sverification.md says %s=%d but verify-log.jsonl last entry (iteration=%d) says %s=%d — re-run /jig-verify on draft.md to refresh.",
 				prefix, c.key, int(num), lastEntry.Iteration, c.key, c.expected,
 			),
 		})
@@ -478,33 +481,33 @@ func readLastVerifyEntryFile(path string) (*verifyLogLite, error) {
 	return &last, nil
 }
 
-// ValidateAssessDecisionBlock parses and validates a <bts-decision> block.
+// ValidateAssessDecisionBlock parses and validates a <jig-decision> block.
 // Returns the parsed action or an error if the block is malformed. Callers
 // that embed decisions in changelog or external outputs can use this to
 // verify conformance before writing.
 func ValidateAssessDecisionBlock(content string) (string, []ValidationError) {
 	matches := decisionBlockRe.FindAllStringSubmatch(content, -1)
 	if len(matches) == 0 {
-		return "", []ValidationError{{File: "(assess output)", Field: "<bts-decision>", Message: "missing decision block"}}
+		return "", []ValidationError{{File: "(assess output)", Field: "<jig-decision>", Message: "missing decision block"}}
 	}
 	if len(matches) > 1 {
-		return "", []ValidationError{{File: "(assess output)", Field: "<bts-decision>", Message: fmt.Sprintf("expected 1 block, found %d", len(matches))}}
+		return "", []ValidationError{{File: "(assess output)", Field: "<jig-decision>", Message: fmt.Sprintf("expected 1 block, found %d", len(matches))}}
 	}
 
 	var raw map[string]interface{}
 	if err := json.Unmarshal([]byte(matches[0][1]), &raw); err != nil {
-		return "", []ValidationError{{File: "(assess output)", Field: "<bts-decision>", Message: "invalid JSON: " + err.Error()}}
+		return "", []ValidationError{{File: "(assess output)", Field: "<jig-decision>", Message: "invalid JSON: " + err.Error()}}
 	}
 
 	var errs []ValidationError
 	for _, field := range []string{"level", "action", "phase", "reason"} {
 		if _, ok := raw[field]; !ok {
-			errs = append(errs, ValidationError{File: "(assess output)", Field: "<bts-decision>." + field, Message: "missing required field"})
+			errs = append(errs, ValidationError{File: "(assess output)", Field: "<jig-decision>." + field, Message: "missing required field"})
 		}
 	}
 	action, _ := raw["action"].(string)
 	if action != "" && !validDecisionActions[action] {
-		errs = append(errs, ValidationError{File: "(assess output)", Field: "<bts-decision>.action", Message: fmt.Sprintf("invalid action '%s' — not in enum", action)})
+		errs = append(errs, ValidationError{File: "(assess output)", Field: "<jig-decision>.action", Message: fmt.Sprintf("invalid action '%s' — not in enum", action)})
 	}
 	return action, errs
 }
@@ -535,11 +538,14 @@ func validateRecipeJSON(path string) []ValidationError {
 		}
 	}
 
-	// Validate type enum
+	// Validate type enum. Retired spellings normalize first so a recipe
+	// created before the jig rebrand validates instead of being reported
+	// as corrupt; `jig migrate rebrand` rewrites them on disk.
 	if t, ok := raw["type"].(string); ok {
-		valid := map[string]bool{"analyze": true, "design": true, "blueprint": true, "fix": true, "debug": true}
+		t, _ = state.NormalizeType(t)
+		valid := map[string]bool{"map": true, "design": true, "spec": true, "fix": true, "debug": true}
 		if !valid[t] {
-			errs = append(errs, ValidationError{File: "recipe.json", Field: "type", Message: fmt.Sprintf("invalid value '%s', must be analyze/design/blueprint", t)})
+			errs = append(errs, ValidationError{File: "recipe.json", Field: "type", Message: fmt.Sprintf("invalid value '%s', must be map/design/spec/fix/debug", t)})
 		}
 	}
 
@@ -756,11 +762,11 @@ func validateDebateMetaJSON(path string) []ValidationError {
 }
 
 // debateDirs returns every directory that may hold debate state for a
-// recipe: the project-level tree `bts debate` writes, and the
-// recipe-level tree the manifest references and /bts-debate writes into.
+// recipe: the project-level tree `jig debate` writes, and the
+// recipe-level tree the manifest references and /jig-debate writes into.
 func debateDirs(recipeDir string) []string {
 	dirs := []string{filepath.Join(recipeDir, "debates")}
-	// recipeDir is .bts/specs/recipes/{id}; the project tree is its
+	// recipeDir is .jig/specs/recipes/{id}; the project tree is its
 	// grandparent's "debates".
 	if specs := filepath.Dir(filepath.Dir(recipeDir)); filepath.Base(specs) == "specs" {
 		dirs = append(dirs, filepath.Join(specs, "debates"))
@@ -770,9 +776,9 @@ func debateDirs(recipeDir string) []string {
 
 // validateDebates validates each debate ONCE, across both trees.
 //
-// The two trees hold different halves of the same debate: `bts debate
-// log` writes machine state to .bts/specs/debates/{id}/debate.json,
-// while /bts-debate writes its round markdown beside the recipe. Neither
+// The two trees hold different halves of the same debate: `jig debate
+// log` writes machine state to .jig/specs/debates/{id}/debate.json,
+// while /jig-debate writes its round markdown beside the recipe. Neither
 // half is wrong, so the unit of validation is the debate ID, not the
 // directory — checking directories independently reports the normal
 // arrangement (rounds here, state there) as a missing state file.
@@ -790,7 +796,7 @@ func validateDebates(recipeDir string) []ValidationError {
 	// Which debates are THIS recipe's: the ones under its own tree.
 	// Nothing links a project-tree debate back to a recipe — DebateState
 	// records no recipe id — so scanning that tree for IDs made every
-	// recipe answer for every debate in the project, and `bts validate
+	// recipe answer for every debate in the project, and `jig validate
 	// r-002` reported a missing state file belonging to r-001.
 	ids := map[string][]string{}
 	entries, err := os.ReadDir(recipeTree)
@@ -830,7 +836,7 @@ func validateDebates(recipeDir string) []ValidationError {
 		errs = append(errs, ValidationError{
 			File:    id,
 			Field:   "debate.json",
-			Message: "debate has rounds but no state file in any debate tree — `bts debate log` records the conclusion and whether it was decided",
+			Message: "debate has rounds but no state file in any debate tree — `jig debate log` records the conclusion and whether it was decided",
 		})
 	}
 	return errs
@@ -850,7 +856,7 @@ func ValidateDebateDir(dir string) []ValidationError {
 	return []ValidationError{{
 		File:    filepath.Base(dir),
 		Field:   "debate.json",
-		Message: "debate has rounds but no state file — `bts debate log` records the conclusion and whether it was decided",
+		Message: "debate has rounds but no state file — `jig debate log` records the conclusion and whether it was decided",
 	}}
 }
 

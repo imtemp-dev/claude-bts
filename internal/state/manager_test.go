@@ -11,7 +11,7 @@ import (
 func TestFindRoot(t *testing.T) {
 	t.Run("found at cwd", func(t *testing.T) {
 		dir := t.TempDir()
-		os.MkdirAll(filepath.Join(dir, ".bts"), 0755)
+		os.MkdirAll(filepath.Join(dir, ".jig"), 0755)
 
 		root, err := FindRoot(dir)
 		if err != nil {
@@ -24,7 +24,7 @@ func TestFindRoot(t *testing.T) {
 
 	t.Run("found in parent", func(t *testing.T) {
 		dir := t.TempDir()
-		os.MkdirAll(filepath.Join(dir, ".bts"), 0755)
+		os.MkdirAll(filepath.Join(dir, ".jig"), 0755)
 		child := filepath.Join(dir, "a", "b", "c")
 		os.MkdirAll(child, 0755)
 
@@ -43,7 +43,7 @@ func TestFindRoot(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
-		if !strings.Contains(err.Error(), ".bts/ not found") {
+		if !strings.Contains(err.Error(), ".jig/ not found") {
 			t.Errorf("unexpected error: %v", err)
 		}
 	})
@@ -51,7 +51,7 @@ func TestFindRoot(t *testing.T) {
 
 func TestSpecsPath(t *testing.T) {
 	got := SpecsPath("/project")
-	want := filepath.Join("/project", ".bts", "specs")
+	want := filepath.Join("/project", ".jig", "specs")
 	if got != want {
 		t.Errorf("got %s, want %s", got, want)
 	}
@@ -134,7 +134,7 @@ func TestWriteJSON(t *testing.T) {
 
 		entries, _ := os.ReadDir(dir)
 		for _, e := range entries {
-			if strings.Contains(e.Name(), ".bts-") && strings.HasSuffix(e.Name(), ".tmp") {
+			if strings.Contains(e.Name(), ".jig-") && strings.HasSuffix(e.Name(), ".tmp") {
 				t.Errorf("temp file left behind: %s", e.Name())
 			}
 		}

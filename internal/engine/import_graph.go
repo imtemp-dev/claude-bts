@@ -17,7 +17,7 @@ import (
 type ImportGraph map[string][]string
 
 // Language detection is path-based — we do not execute or compile the
-// files. The regex families below cover the three languages BTS targets
+// files. The regex families below cover the three languages jig targets
 // today; others pass through as empty.
 var (
 	goImportLineRe     = regexp.MustCompile(`^\s*import\s+(?:\(\s*)?(?:([a-zA-Z_][\w]*)\s+)?"([^"]+)"`)

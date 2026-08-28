@@ -1,5 +1,5 @@
 #!/bin/bash
-# claude-bts installer — downloads the latest release binary for your platform
+# jig installer — downloads the latest release binary for your platform
 set -e
 
 RED='\033[0;31m'
@@ -38,7 +38,7 @@ detect_platform() {
 }
 
 get_latest_version() {
-    local url="https://api.github.com/repos/imtemp-dev/claude-bts/releases/latest"
+    local url="https://api.github.com/repos/imtemp-dev/jig/releases/latest"
 
     if command -v curl &> /dev/null; then
         VERSION=$(curl -s "$url" | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
@@ -52,7 +52,7 @@ get_latest_version() {
     if [ -z "$VERSION" ]; then
         print_error "Failed to fetch latest version from GitHub"
         echo "  Try: $0 --version 0.1.0"
-        echo "  Or:  go install github.com/imtemp-dev/claude-bts/cmd/bts@latest"
+        echo "  Or:  go install github.com/imtemp-dev/jig/cmd/jig@latest"
         exit 1
     fi
 
@@ -60,8 +60,8 @@ get_latest_version() {
 }
 
 download_and_install() {
-    local archive="claude-bts_${VERSION}_${OS}_${ARCH}.tar.gz"
-    local base_url="https://github.com/imtemp-dev/claude-bts/releases/download/v${VERSION}"
+    local archive="jig_${VERSION}_${OS}_${ARCH}.tar.gz"
+    local base_url="https://github.com/imtemp-dev/jig/releases/download/v${VERSION}"
     local tmp=$(mktemp -d)
     trap "rm -rf '$tmp'" EXIT
 
@@ -96,7 +96,7 @@ download_and_install() {
 
     # Extract
     tar -xzf "$tmp/$archive" -C "$tmp" || { print_error "Extraction failed"; exit 1; }
-    chmod +x "$tmp/bts"
+    chmod +x "$tmp/jig"
 
     # Determine install directory
     if [ -n "$INSTALL_DIR" ]; then
@@ -116,20 +116,20 @@ download_and_install() {
     fi
 
     mkdir -p "$TARGET_DIR"
-    mv "$tmp/bts" "$TARGET_DIR/bts" || { cp "$tmp/bts" "$TARGET_DIR/bts" && chmod +x "$TARGET_DIR/bts"; }
-    print_success "Installed to $TARGET_DIR/bts"
+    mv "$tmp/jig" "$TARGET_DIR/jig" || { cp "$tmp/jig" "$TARGET_DIR/jig" && chmod +x "$TARGET_DIR/jig"; }
+    print_success "Installed to $TARGET_DIR/jig"
 }
 
 verify_installation() {
-    if command -v bts &> /dev/null; then
-        print_success "bts installed successfully!"
+    if command -v jig &> /dev/null; then
+        print_success "jig installed successfully!"
         echo ""
-        bts --help 2>&1 | head -3
+        jig --help 2>&1 | head -3
         echo ""
         print_info "Get started:"
-        echo "  bts init .     # Initialize in current project"
+        echo "  jig init .     # Initialize in current project"
     else
-        print_warning "'bts' not found in PATH"
+        print_warning "'jig' not found in PATH"
         print_info "Add to your shell config:"
         echo ""
         echo "  export PATH=\"\$PATH:$TARGET_DIR\""
@@ -140,7 +140,7 @@ verify_installation() {
 
 main() {
     echo ""
-    echo "  claude-bts installer"
+    echo "  jig installer"
     echo "  ──────────────────────"
     echo ""
 
@@ -160,7 +160,7 @@ main() {
                 echo "  -h, --help           Show this help"
                 echo ""
                 echo "Examples:"
-                echo "  curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-bts/main/install.sh | bash"
+                echo "  curl -fsSL https://raw.githubusercontent.com/imtemp-dev/jig/main/install.sh | bash"
                 echo "  $0 --version 0.1.0"
                 echo "  $0 --install-dir /usr/local/bin"
                 exit 0 ;;
@@ -181,7 +181,7 @@ main() {
 
     echo ""
     print_success "Done!"
-    print_info "https://github.com/imtemp-dev/claude-bts"
+    print_info "https://github.com/imtemp-dev/jig"
     echo ""
 }
 

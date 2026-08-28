@@ -9,28 +9,32 @@ import (
 	"strings"
 )
 
-// FindRoot searches for .bts/ directory starting from cwd upward.
-// Automatically migrates old .bts/state/ layout to specs/ + local/ if needed.
+// FindRoot searches for .jig/ directory starting from cwd upward.
+// Automatically migrates old .jig/state/ layout to specs/ + local/ if needed.
 func FindRoot(cwd string) (string, error) {
 	dir := cwd
 	for i := 0; i < 10; i++ {
-		// Check for .bts/ (current) or .forge/ (legacy)
-		btsDir := filepath.Join(dir, ".bts")
-		forgeDir := filepath.Join(dir, ".forge")
+		// Check for .jig/ (current) or a legacy name from an earlier rebrand
+		jigDir := filepath.Join(dir, ".jig")
 
-		if _, err := os.Stat(btsDir); err == nil {
+		if _, err := os.Stat(jigDir); err == nil {
 			_ = maybeMigrate(dir)
 			return dir, nil
 		}
 
-		// Legacy: rename .forge/ → .bts/
-		if _, err := os.Stat(forgeDir); err == nil {
-			fmt.Fprintf(os.Stderr, "[bts] Migrating .forge/ → .bts/\n")
-			if err := os.Rename(forgeDir, btsDir); err == nil {
-				_ = updateGitignoreForRename(dir)
-				_ = maybeMigrate(dir)
-				return dir, nil
+		// Legacy: rename .bts/ (v0.x) or .forge/ (pre-v0) → .jig/
+		for _, legacy := range []string{".bts", ".forge"} {
+			legacyDir := filepath.Join(dir, legacy)
+			if _, err := os.Stat(legacyDir); err != nil {
+				continue
 			}
+			fmt.Fprintf(os.Stderr, "[jig] Migrating %s/ → .jig/\n", legacy)
+			if err := os.Rename(legacyDir, jigDir); err != nil {
+				continue
+			}
+			_ = updateGitignoreForRename(dir, legacy)
+			_ = maybeMigrate(dir)
+			return dir, nil
 		}
 
 		parent := filepath.Dir(dir)
@@ -39,24 +43,24 @@ func FindRoot(cwd string) (string, error) {
 		}
 		dir = parent
 	}
-	return "", fmt.Errorf(".bts/ not found from %s", cwd)
+	return "", fmt.Errorf(".jig/ not found from %s", cwd)
 }
 
 // SpecsPath returns the path to the specs directory (git tracked).
 func SpecsPath(root string) string {
-	return filepath.Join(root, ".bts", "specs")
+	return filepath.Join(root, ".jig", "specs")
 }
 
 // LocalPath returns the path to the local runtime directory (gitignored).
 func LocalPath(root string) string {
-	return filepath.Join(root, ".bts", "local")
+	return filepath.Join(root, ".jig", "local")
 }
 
-// maybeMigrate migrates old .bts/state/ layout to .bts/specs/ + .bts/local/.
+// maybeMigrate migrates old .jig/state/ layout to .jig/specs/ + .jig/local/.
 func maybeMigrate(root string) error {
-	stateDir := filepath.Join(root, ".bts", "state")
-	specsDir := filepath.Join(root, ".bts", "specs")
-	localDir := filepath.Join(root, ".bts", "local")
+	stateDir := filepath.Join(root, ".jig", "state")
+	specsDir := filepath.Join(root, ".jig", "specs")
+	localDir := filepath.Join(root, ".jig", "local")
 
 	// Only migrate if old state/ directory still exists
 	if _, err := os.Stat(stateDir); os.IsNotExist(err) {
@@ -70,7 +74,7 @@ func maybeMigrate(root string) error {
 		return nil
 	}
 
-	fmt.Fprintf(os.Stderr, "[bts] Migrating .bts/state/ → .bts/specs/ + .bts/local/\n")
+	fmt.Fprintf(os.Stderr, "[jig] Migrating .jig/state/ → .jig/specs/ + .jig/local/\n")
 
 	_ = os.MkdirAll(specsDir, 0755)
 	_ = os.MkdirAll(localDir, 0755)
@@ -123,13 +127,13 @@ func moveIfExists(src, dst string) {
 	_ = os.Rename(src, dst)
 }
 
-func updateGitignoreForRename(root string) error {
+func updateGitignoreForRename(root, legacy string) error {
 	path := filepath.Join(root, ".gitignore")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	content := strings.ReplaceAll(string(data), ".forge/", ".bts/")
+	content := strings.ReplaceAll(string(data), legacy+"/", ".jig/")
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
@@ -141,13 +145,13 @@ func updateGitignore(root string) {
 	}
 
 	content := string(data)
-	if strings.Contains(content, ".bts/local/") {
+	if strings.Contains(content, ".jig/local/") {
 		return // already updated
 	}
 
 	// Replace old pattern or append new
-	if strings.Contains(content, ".bts/state/") {
-		content = strings.Replace(content, ".bts/state/", ".bts/local/", 1)
+	if strings.Contains(content, ".jig/state/") {
+		content = strings.Replace(content, ".jig/state/", ".jig/local/", 1)
 	} else {
 		// Read lines, replace the comment too if present
 		var lines []string
@@ -155,8 +159,8 @@ func updateGitignore(root string) {
 		for scanner.Scan() {
 			lines = append(lines, scanner.Text())
 		}
-		lines = append(lines, "# bts local data (not committed)")
-		lines = append(lines, ".bts/local/")
+		lines = append(lines, "# jig local data (not committed)")
+		lines = append(lines, ".jig/local/")
 		content = strings.Join(lines, "\n") + "\n"
 	}
 
@@ -184,7 +188,7 @@ func WriteJSON(path string, data interface{}) error {
 		return fmt.Errorf("mkdir: %w", err)
 	}
 
-	tmp, err := os.CreateTemp(dir, ".bts-*.tmp")
+	tmp, err := os.CreateTemp(dir, ".jig-*.tmp")
 	if err != nil {
 		return fmt.Errorf("create temp: %w", err)
 	}

@@ -8,12 +8,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/imtemp-dev/claude-bts/internal/engine"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/engine"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 // Config-drift checks. settings.yaml and .mcp.json are user-owned
-// (preserved by `bts update`), so template-default changes never reach
+// (preserved by `jig update`), so template-default changes never reach
 // existing projects — doctor is where that drift becomes visible.
 
 // activeReviewerSecurityRe matches an UNCOMMENTED reviewer_security
@@ -25,7 +25,7 @@ var activeReviewerSecurityRe = regexp.MustCompile(`(?m)^\s+reviewer_security\s*:
 func checkConfigDrift(root string) []doctorIssue {
 	var issues []doctorIssue
 
-	settingsPath := filepath.Join(root, ".bts", "config", "settings.yaml")
+	settingsPath := filepath.Join(root, ".jig", "config", "settings.yaml")
 	if data, err := os.ReadFile(settingsPath); err == nil {
 		if activeReviewerSecurityRe.Match(data) {
 			issues = append(issues, doctorIssue{
@@ -54,22 +54,22 @@ func checkConfigDrift(root string) []doctorIssue {
 }
 
 // checkTestResultsProvenance warns when test-results.json was written
-// by hand instead of `bts test run` — the DONE gates trust its status
-// field, and only recorded_by=="bts" means the status came from the
+// by hand instead of `jig test run` — the DONE gates trust its status
+// field, and only recorded_by=="jig" means the status came from the
 // actual exit code.
 func checkTestResultsProvenance(root, recipeID string) []doctorIssue {
 	tr, err := state.LoadTestResults(root, recipeID)
 	if err != nil {
 		return nil // no test results yet — nothing to check
 	}
-	if tr.RecordedBy == "bts" {
+	if tr.RecordedBy == "jig" {
 		return nil
 	}
 	return []doctorIssue{{
 		level:   "warning",
 		section: "tests",
-		message: fmt.Sprintf("test-results.json is hand-recorded (status=%s without recorded_by:\"bts\") — the DONE gates are trusting a transcription, not an exit code", tr.Status),
-		fix:     fmt.Sprintf("re-run via `bts test run %s --cmd \"<test command>\"` so status is machine-derived", recipeID),
+		message: fmt.Sprintf("test-results.json is hand-recorded (status=%s without recorded_by:\"jig\") — the DONE gates are trusting a transcription, not an exit code", tr.Status),
+		fix:     fmt.Sprintf("re-run via `jig test run %s --cmd \"<test command>\"` so status is machine-derived", recipeID),
 	}}
 }
 
@@ -85,7 +85,7 @@ func checkDirtyVerifiedDocs(root, recipeID string) []doctorIssue {
 		level:   "warning",
 		section: "verification",
 		message: fmt.Sprintf("%s modified after last verification (rule 3)", strings.Join(dirty, ", ")),
-		fix:     "run /bts-verify on the modified doc(s), then `bts recipe log " + recipeID + " --from-verification ... --doc <path>`",
+		fix:     "run /jig-verify on the modified doc(s), then `jig recipe log " + recipeID + " --from-verification ... --doc <path>`",
 	}}
 }
 
@@ -95,7 +95,7 @@ func checkDirtyVerifiedDocs(root, recipeID string) []doctorIssue {
 // A document is enforceable when its last full pass recorded a content
 // hash, or when its local snapshot is still on disk. Neither holds for a
 // round logged before hashes existed and then carried into a fresh clone
-// or worktree — .bts/local/ is gitignored, so nothing came across. The
+// or worktree — .jig/local/ is gitignored, so nothing came across. The
 // gate does not fire, and silence there reads exactly like "verified and
 // unchanged". This check is what makes the difference visible; one full
 // pass re-arms it.
@@ -132,7 +132,7 @@ func checkUnenforceableRule3(root, recipeID string) []doctorIssue {
 		message: fmt.Sprintf(
 			"rule 3 is unenforceable for %s: the round that verified it recorded no content hash and its local snapshot is absent, so an edit since then would pass every gate unnoticed",
 			strings.Join(gaps, ", ")),
-		fix: "run one full pass to re-arm it: /bts-verify, then `bts recipe log " + recipeID + " --from-verification ... --doc <path> --scope full`",
+		fix: "run one full pass to re-arm it: /jig-verify, then `jig recipe log " + recipeID + " --from-verification ... --doc <path> --scope full`",
 	}}
 }
 
@@ -181,7 +181,7 @@ func checkUnrecordedRevisions(root, recipeID string) []doctorIssue {
 		message: fmt.Sprintf(
 			"%d of the last %d verify rounds recorded no doc_hash (most recently iteration %d), so rule 3 was not enforced on them and completion has no revision to confirm against",
 			missing, examined, last),
-		fix: "run `bts recipe log` from the project root with a --doc path that resolves from there — a relative --doc resolved against another directory hashes nothing and only warns on stderr",
+		fix: "run `jig recipe log` from the project root with a --doc path that resolves from there — a relative --doc resolved against another directory hashes nothing and only warns on stderr",
 	}}
 }
 
@@ -190,7 +190,7 @@ func checkUnrecordedRevisions(root, recipeID string) []doctorIssue {
 //
 // An override is a legitimate operator decision, so this is not an error
 // — but it must never be invisible. A measured recipe finalized past two
-// hard gates with seven majors open, and `bts doctor` reported a healthy
+// hard gates with seven majors open, and `jig doctor` reported a healthy
 // recipe, because the decisions lived only as prose in changelog.jsonl.
 func checkActiveOverrides(root, recipeID string) []doctorIssue {
 	records, err := state.ReadOverrides(root, recipeID)
@@ -215,7 +215,7 @@ func checkActiveOverrides(root, recipeID string) []doctorIssue {
 			section: "verification",
 			message: fmt.Sprintf("gate override in force: %s (%s) — %s",
 				what, pin, state.TruncateRunes(strings.ReplaceAll(r.Reason, "\n", " "), 120)),
-			fix: "keep it if the judgement still holds, or `bts recipe override revoke " + recipeID +
+			fix: "keep it if the judgement still holds, or `jig recipe override revoke " + recipeID +
 				" --gate " + r.Gate + " --reason \"...\"` to put the gate back",
 		})
 	}
@@ -275,17 +275,17 @@ func checkLedgerAgreesWithVerifyLog(root, recipeID string) []doctorIssue {
 			"the findings ledger and verify-log disagree about %s: ledger has %d critical / %d major / %d minor_resolvable still owed, round %d recorded %d / %d / %d",
 			last.Doc, critical, major, minorR,
 			last.Iteration, last.Critical, last.Major, last.EffectiveResolvable()),
-		fix: "the ledger is the itemised record and the log is the round total — reconcile with `bts recipe findings list " +
+		fix: "the ledger is the itemised record and the log is the round total — reconcile with `jig recipe findings list " +
 			recipeID + " --doc " + last.Doc + " --open`. A gap usually means a round was logged without its " +
-			"<bts-findings> array, so the ledger never saw the findings the totals claim",
+			"<jig-findings> array, so the ledger never saw the findings the totals claim",
 	}}
 }
 
 // checkDebateTreeDivergence reports debates that exist in both the
 // project-level and recipe-level trees with different content.
 //
-// `bts debate log` writes rounds to .bts/specs/debates/{id}/, while
-// /bts-debate writes its round markdown under the recipe and the
+// `jig debate log` writes rounds to .jig/specs/debates/{id}/, while
+// /jig-debate writes its round markdown under the recipe and the
 // manifest references it there. Both trees are legitimate; two copies of
 // the SAME debate that disagree are not. A measured project carried both
 // for two debates and all six round files differed, with the machine
@@ -320,7 +320,7 @@ func checkDebateTreeDivergence(root, recipeID string) []doctorIssue {
 			message: fmt.Sprintf(
 				"debate %q exists in both %s and %s, and %s differ — which copy records what was decided depends on which one is opened",
 				e.Name(), recipeTree, projectTree, strings.Join(diverged, ", ")),
-			fix: "keep one. The manifest references the recipe-level copy; `bts debate list` reads the project-level one. " +
+			fix: "keep one. The manifest references the recipe-level copy; `jig debate list` reads the project-level one. " +
 				"Reconcile them, then delete the copy you are not keeping",
 		})
 	}
@@ -330,11 +330,11 @@ func checkDebateTreeDivergence(root, recipeID string) []doctorIssue {
 // checkOrphanedProjectDebates validates debates that live ONLY in the
 // project tree.
 //
-// `bts validate <recipe>` takes its debate IDs from the recipe's own
+// `jig validate <recipe>` takes its debate IDs from the recipe's own
 // tree, so one recipe is never held to another's. That leaves a hole at
-// the other end: `bts debate log` writes only to
-// .bts/specs/debates/{id}/, and a debate recorded that way and never
-// touched by /bts-debate belongs to no recipe — so nothing validated it
+// the other end: `jig debate log` writes only to
+// .jig/specs/debates/{id}/, and a debate recorded that way and never
+// touched by /jig-debate belongs to no recipe — so nothing validated it
 // at all, which is the same "passes by finding nothing" outcome the
 // recipe-side fix removed. The project is the right scope for a
 // project-level tree.
@@ -381,8 +381,8 @@ func checkOrphanedProjectDebates(root string) []doctorIssue {
 		section: "documents",
 		message: fmt.Sprintf("%d debate(s) in %s belong to no recipe and do not adjudicate: %s",
 			len(orphans), projectTree, strings.Join(orphans, ", ")),
-		fix: "`bts validate <recipe>` only sees debates under that recipe's own tree. Record the conclusion with " +
-			"`bts debate log`, or move the debate under the recipe that owns it",
+		fix: "`jig validate <recipe>` only sees debates under that recipe's own tree. Record the conclusion with " +
+			"`jig debate log`, or move the debate under the recipe that owns it",
 	}}
 }
 
@@ -401,7 +401,7 @@ func divergentFiles(a, b string) []string {
 			continue
 		}
 		// state.ContentHash, not bytes.Equal: it normalises line endings,
-		// and every other content comparison in bts goes through it. A
+		// and every other content comparison in jig goes through it. A
 		// raw byte compare reports two copies as divergent when the only
 		// difference is CRLF, which is noise on a checkout, not a
 		// disagreement about what was decided.

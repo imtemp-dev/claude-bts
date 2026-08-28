@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// RecipeStats bundles the numbers scripts/bts-monitor.ts reads for
+// RecipeStats bundles the numbers scripts/jig-monitor.ts reads for
 // Phase 17's 14-indicator report. One struct per recipe; aggregate
 // math stays in the TS layer where the report format lives.
 type RecipeStats struct {
@@ -101,7 +101,7 @@ func ComputeRecipeStats(projectRoot, recipeDir string) (*RecipeStats, error) {
 		}
 	}
 	// projectRoot is the argument the CLI passes through; stats.go's
-	// caller resolves it to the BTS root, so LoadSettings works here.
+	// caller resolves it to the jig root, so LoadSettings works here.
 	// If settings.yaml is absent LoadSettings returns DefaultSettings.
 	if settings, err := LoadSettings(projectRoot); err == nil {
 		every := settings.Implement.MidrunReviewEvery

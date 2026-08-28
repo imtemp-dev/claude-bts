@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 // A clean round on ANOTHER document must not satisfy draft.md's
@@ -22,7 +22,7 @@ func TestStopSpecDone_WireframeRoundCannotSatisfyDraftGate(t *testing.T) {
 	})
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestStopSpecDone_BlocksOnDeltaOnlyVerification(t *testing.T) {
 	})
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestStopSpecDone_AllowsConfirmedCleanFullPass(t *testing.T) {
 	})
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestStopSpecDone_AllowsConfirmedCleanFullPass(t *testing.T) {
 	}
 }
 
-// Two rows are not two readings. Re-running `bts recipe log` against the
+// Two rows are not two readings. Re-running `jig recipe log` against the
 // same verification.md produced a second confirming round without the
 // document ever being read again, which made the replication gate
 // satisfiable by re-typing one command.
@@ -94,7 +94,7 @@ func TestStopSpecDone_BlocksWhenBothRoundsCiteTheSameVerification(t *testing.T) 
 	})
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestStopSpecDone_OverrideFooterAsksForTheFlagGrantAccepts(t *testing.T) {
 	})
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestStopSpecDone_FindingGateFooterAsksForFindingIDs(t *testing.T) {
 	})
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestStopSpecDone_BlocksOnUnreplicatedCleanPass(t *testing.T) {
 	})
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -194,7 +194,7 @@ func TestStopSpecDone_EditBetweenCleanRoundsResetsConfirmation(t *testing.T) {
 	})
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestStopSpecDone_BlocksOnSingleDimensionCleanPass(t *testing.T) {
 	})
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestStopSpecDone_BlocksWhenRevisionUnrecorded(t *testing.T) {
 	})
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -262,7 +262,7 @@ func TestStopSpecDone_LegacyLogUnaffected(t *testing.T) {
 	})
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -280,7 +280,7 @@ func TestStopSpecDone_BlocksOnFailedStatus(t *testing.T) {
 	})
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -309,7 +309,7 @@ func TestStopSpecDone_HandWrittenOverrideOfANonOverridableGateIsIgnored(t *testi
 	// And a legitimately overridable gate is still blocked by a record
 	// naming a DIFFERENT gate.
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -332,7 +332,7 @@ func TestStopSpecDone_RecordedOverrideAllowsTheNamedGate(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -355,7 +355,7 @@ func TestStopSpecDone_StaleOverrideDoesNotApply(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -383,7 +383,7 @@ func TestStopSpecDone_OverridingOneGateDoesNotCarryTheOthers(t *testing.T) {
 	}
 
 	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -433,7 +433,7 @@ func TestStopSpecDone_PinnedOverrideAppliesWhenTheRoundRecordedNoRevision(t *tes
 
 	// Pinned to the text on disk: the override applies.
 	root := setup(t, "# draft\n", "")
-	out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -443,7 +443,7 @@ func TestStopSpecDone_PinnedOverrideAppliesWhenTheRoundRecordedNoRevision(t *tes
 
 	// Pinned to text the document no longer carries: it does not.
 	stale := setup(t, "# draft, revised\n", "sha256:"+strings.Repeat("a", 64))
-	out2, err := NewStopHandler().Handle(&HookInput{CWD: stale, StopHookContent: "<bts>DONE</bts>"})
+	out2, err := NewStopHandler().Handle(&HookInput{CWD: stale, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -454,7 +454,7 @@ func TestStopSpecDone_PinnedOverrideAppliesWhenTheRoundRecordedNoRevision(t *tes
 }
 
 // absence_is_not_closure was in the gate registry as a hard gate and
-// blocked nothing. A round's totals come from the same <bts-findings>
+// blocked nothing. A round's totals come from the same <jig-findings>
 // block the verifier writes, so a verifier that simply stopped reporting
 // its findings produced a clean round; the ledger demoted them all to
 // `unreported`, two such rounds confirmed each other, and DONE went
@@ -480,7 +480,7 @@ func TestStopSpecDone_BlocksWhileTheLedgerStillOwesFindings(t *testing.T) {
 			DocHash: "sha256:aaa", VerificationHash: "sha256:v3", Status: "converged"},
 	})
 
-	out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
@@ -496,7 +496,7 @@ func TestStopSpecDone_BlocksWhileTheLedgerStillOwesFindings(t *testing.T) {
 	if _, err := state.SyncFindings(root, recipeID, "draft.md", 3, nil, 0); err != nil {
 		t.Fatal(err)
 	}
-	out2, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out2, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<jig>DONE</jig>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/imtemp-dev/claude-bts/internal/engine"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/engine"
+	"github.com/imtemp-dev/jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -46,11 +46,11 @@ var recipeFindingsCmd = &cobra.Command{
 identity across rounds. verification.md is overwritten every cycle and numbers
 its findings positionally, so without the ledger "#4" in one round and "#4" in
 the next are unrelated — settled points get re-litigated and the stagnation
-rule in bts-verification-protocol.md has nothing to detect with.
+rule in jig-verification-protocol.md has nothing to detect with.
 
 The ledger is written automatically by
-  bts recipe log <id> --from-verification <path> --doc <doc>
-whenever the <bts-findings> block carries a "findings" array.`,
+  jig recipe log <id> --from-verification <path> --doc <doc>
+whenever the <jig-findings> block carries a "findings" array.`,
 }
 
 var recipeFindingsListCmd = &cobra.Command{
@@ -61,7 +61,7 @@ var recipeFindingsListCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 		recipeID, err := resolveRecipeID(args, root)
 		if err != nil {
@@ -116,7 +116,7 @@ var recipeFindingsCarryCmd = &cobra.Command{
 	Use:   "carry-forward [recipe-id]",
 	Short: "Print the adjudicated-findings block for the next verifier prompt",
 	Long: `Renders the previous rounds' findings as a prompt section telling the
-verifier which points are already settled. /bts-verify appends this to the
+verifier which points are already settled. /jig-verify appends this to the
 verifier prompt so a fresh agent does not re-derive the whole document and
 re-raise findings that were already fixed or dismissed.
 
@@ -126,7 +126,7 @@ Prints nothing when the ledger is empty (first round).`,
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 		recipeID, err := resolveRecipeID(args, root)
 		if err != nil {
@@ -155,7 +155,7 @@ var recipeFindingsDismissCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 		reason, _ := cmd.Flags().GetString("reason")
 		if err := state.DismissFinding(root, args[0], args[1], reason); err != nil {
@@ -176,9 +176,9 @@ var recipeFindingsDismissCmd = &cobra.Command{
 // answers from state alone.
 var recipeAssessPrecheckCmd = &cobra.Command{
 	Use:   "assess-precheck [recipe-id]",
-	Short: "Emit a <bts-decision> from recorded state when no LLM assessment is needed",
-	Long: `Prints a <bts-decision> block when the next action is determined by state
-alone, letting the loop skip the /bts-assess round entirely:
+	Short: "Emit a <jig-decision> from recorded state when no LLM assessment is needed",
+	Long: `Prints a <jig-decision> block when the next action is determined by state
+alone, letting the loop skip the /jig-assess round entirely:
 
   FINALIZE                 the doc's verify history satisfies the completion
                            contract (clean, full pass, every dimension,
@@ -188,13 +188,13 @@ alone, letting the loop skip the /bts-assess round entirely:
   VERIFY                   the doc changed since its last verification
 
 Exits 10 with no decision when the situation needs judgement; callers should
-fall through to /bts-assess in that case.`,
+fall through to /jig-assess in that case.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 		recipeID, err := resolveRecipeID(args, root)
 		if err != nil {
@@ -236,7 +236,7 @@ fall through to /bts-assess in that case.`,
 			for _, d := range dirty {
 				if d == docBase {
 					emitDecision("VERIFY", "verify", verdict.Latest.String(),
-						docBase+" changed since its last verification — rule 3 requires /bts-verify before assessing")
+						docBase+" changed since its last verification — rule 3 requires /jig-verify before assessing")
 					return nil
 				}
 			}
@@ -266,7 +266,7 @@ fall through to /bts-assess in that case.`,
 
 		reason := docBase + " converged on a replicated full pass across every dimension and is unchanged since"
 		if last.MinorDeferred > 0 {
-			reason += fmt.Sprintf("; %d [deferred] minor(s) carry into /bts-implement as watch-items", last.MinorDeferred)
+			reason += fmt.Sprintf("; %d [deferred] minor(s) carry into /jig-implement as watch-items", last.MinorDeferred)
 		}
 		emitDecision("FINALIZE", "finalize", verdict.Latest.String(), reason)
 		return nil
@@ -287,13 +287,13 @@ func emitDecision(action, phase, findings, reason string) {
 		delete(payload, "level")
 	}
 	b, _ := json.MarshalIndent(payload, "", "  ")
-	fmt.Printf("<bts-decision>\n%s\n</bts-decision>\n", b)
+	fmt.Printf("<jig-decision>\n%s\n</jig-decision>\n", b)
 }
 
 // precheckUndecided reports that judgement is required. Exit code 10
-// distinguishes "needs /bts-assess" from a real failure.
+// distinguishes "needs /jig-assess" from a real failure.
 func precheckUndecided(why string) error {
-	fmt.Printf("UNDECIDED: %s\nRun /bts-assess for a judgement round.\n", why)
+	fmt.Printf("UNDECIDED: %s\nRun /jig-assess for a judgement round.\n", why)
 	os.Exit(10)
 	return nil
 }

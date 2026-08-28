@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// TestScenarioLink records one `bts:scenario {id}` annotation found in
+// TestScenarioLink records one `jig:scenario {id}` annotation found in
 // a test source file. Phase 13 requires every test to tag which
 // simulation scenario it exercises; simulate scenarios without a
 // linked test surface as coverage gaps.
@@ -20,12 +20,12 @@ type TestScenarioLink struct {
 	LineNumber int
 }
 
-// Three comment forms — cover the test languages BTS recipes actually
-// use today. `bts:scenario` is the canonical tag; spacing is flexible.
+// Three comment forms — cover the test languages jig recipes actually
+// use today. `jig:scenario` is the canonical tag; spacing is flexible.
 var (
-	tagCommentSlashRe = regexp.MustCompile(`(?m)^\s*//\s*bts:scenario\s+(\S+)\s*$`)
-	tagCommentHashRe  = regexp.MustCompile(`(?m)^\s*#\s*bts:scenario\s+(\S+)\s*$`)
-	tagCommentBlockRe = regexp.MustCompile(`(?m)^\s*/\*\s*bts:scenario\s+(\S+)\s*\*/\s*$`)
+	tagCommentSlashRe = regexp.MustCompile(`(?m)^\s*//\s*jig:scenario\s+(\S+)\s*$`)
+	tagCommentHashRe  = regexp.MustCompile(`(?m)^\s*#\s*jig:scenario\s+(\S+)\s*$`)
+	tagCommentBlockRe = regexp.MustCompile(`(?m)^\s*/\*\s*jig:scenario\s+(\S+)\s*\*/\s*$`)
 
 	// Test name matchers — the comment tag typically sits on the line
 	// directly above a `test(`/`it(`/`def test_*` declaration.
@@ -37,7 +37,7 @@ var (
 
 // ExtractTestScenarioLinks walks the test files listed in
 // test-results.json (via its `test_files` array) and collects every
-// `bts:scenario {id}` annotation it finds. The test name reported is a
+// `jig:scenario {id}` annotation it finds. The test name reported is a
 // best-effort match on the language's test declaration that follows
 // the tag; when none can be inferred, the returned TestName is empty.
 func ExtractTestScenarioLinks(recipeDir string) ([]TestScenarioLink, error) {
@@ -59,7 +59,7 @@ func ExtractTestScenarioLinks(recipeDir string) ([]TestScenarioLink, error) {
 		if !filepath.IsAbs(path) {
 			// test_files entries are project-relative; resolve against
 			// the recipe's project root (two levels up from recipeDir:
-			// .bts/specs/recipes/{id}).
+			// .jig/specs/recipes/{id}).
 			path = filepath.Join(projectRootFromRecipeDir(recipeDir), rel)
 		}
 		data, err := os.ReadFile(path)
@@ -71,7 +71,7 @@ func ExtractTestScenarioLinks(recipeDir string) ([]TestScenarioLink, error) {
 	return links, nil
 }
 
-// parseTestFileLinks finds bts:scenario comments and pairs each with
+// parseTestFileLinks finds jig:scenario comments and pairs each with
 // the next test declaration in the file. Supports JS/TS/Go/Python/Swift
 // naming conventions; if no declaration follows within 5 lines, the
 // TestName is left empty (the link still counts for coverage purposes).
@@ -127,10 +127,10 @@ func parseTestFileLinks(fileLabel, content string) []TestScenarioLink {
 // CheckTestScenarioCoverage reports three issue categories:
 //
 //   - scenario_unlinked — a scenario defined in simulations/*.md has no
-//     bts:scenario tag referencing it anywhere in the project's tests.
+//     jig:scenario tag referencing it anywhere in the project's tests.
 //     Cross-boundary or illegal-cell scenarios with zero linked tests
 //     are CRITICAL; single-axis scenarios are MAJOR.
-//   - scenario_orphan — a test tags `bts:scenario X` but X does not
+//   - scenario_orphan — a test tags `jig:scenario X` but X does not
 //     appear as a scenario in simulations/*.md. MAJOR.
 //   - failure_category_missing — test-results.json has status=fail but
 //     one or more failures lack the `category` field (Phase 13 requires
@@ -155,7 +155,7 @@ func CheckTestScenarioCoverage(recipeDir string) []Issue {
 				Category: "test_scenario",
 				Claim:    "scenario_orphan: " + link.ScenarioID,
 				Severity: "major",
-				Detail:   link.TestFile + ":" + itoa(link.LineNumber) + " tags `bts:scenario " + link.ScenarioID + "` but no matching scenario exists in simulations/*.md.",
+				Detail:   link.TestFile + ":" + itoa(link.LineNumber) + " tags `jig:scenario " + link.ScenarioID + "` but no matching scenario exists in simulations/*.md.",
 			})
 		}
 	}
@@ -188,7 +188,7 @@ func CheckTestScenarioCoverage(recipeDir string) []Issue {
 			Category: "test_scenario",
 			Claim:    "scenario_unlinked: " + sc.id,
 			Severity: sev,
-			Detail:   "simulations/" + sc.sourceFile + " declares scenario '" + sc.id + "' but no test carries a `bts:scenario " + sc.id + "` tag. (Add a test with the tag, or record an explicit scenario_coverage entry in test-results.json.)",
+			Detail:   "simulations/" + sc.sourceFile + " declares scenario '" + sc.id + "' but no test carries a `jig:scenario " + sc.id + "` tag. (Add a test with the tag, or record an explicit scenario_coverage entry in test-results.json.)",
 		})
 	}
 
@@ -221,7 +221,7 @@ type simScenarioSet struct {
 }
 
 // CollectSimulationScenarioIDsForMigration exposes the scenario-id
-// collector as a stable public helper so bts migrate test-scenarios
+// collector as a stable public helper so jig migrate test-scenarios
 // can seed scenario_coverage with exactly the ids the checker counts.
 // Returns a sorted slice for deterministic migration output.
 func CollectSimulationScenarioIDsForMigration(recipeDir string) []string {
@@ -311,11 +311,11 @@ func loadTestResultsForScenarios(recipeDir string) (*testResultsForScenarios, er
 }
 
 // projectRootFromRecipeDir reverses RecipeDir: given
-// "/root/.bts/specs/recipes/{id}" return "/root". Any other shape
+// "/root/.jig/specs/recipes/{id}" return "/root". Any other shape
 // returns the input unchanged so callers fall back to recipe-local
 // paths rather than walking up into filesystem surprises.
 func projectRootFromRecipeDir(recipeDir string) string {
-	expected := filepath.Join(".bts", "specs", "recipes")
+	expected := filepath.Join(".jig", "specs", "recipes")
 	if idx := strings.Index(recipeDir, expected); idx > 0 {
 		return recipeDir[:idx-1] // strip trailing separator
 	}

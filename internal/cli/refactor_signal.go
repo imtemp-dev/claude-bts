@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/imtemp-dev/claude-bts/internal/engine"
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/engine"
+	"github.com/imtemp-dev/jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -27,7 +27,7 @@ the current decomposition is wrong:
 
 Signals are diagnostic, not blocking. Each carries a suggested next
 step — typically to revisit domain.md invariant ownership or run
-/bts-architect to consider an alternative decomposition.`,
+/jig-architect to consider an alternative decomposition.`,
 	Args:    cobra.MaximumNArgs(1),
 	GroupID: "tools",
 	RunE:    runRefactorSignal,
@@ -37,7 +37,7 @@ func runRefactorSignal(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
 	root, err := state.FindRoot(cwd)
 	if err != nil {
-		return fmt.Errorf("not a bts project: %w", err)
+		return fmt.Errorf("not a jig project: %w", err)
 	}
 
 	recipeID := ""

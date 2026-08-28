@@ -24,7 +24,7 @@ var conjunctionRe = regexp.MustCompile(`(?i)(\band\b|\s&\s|\s및\s)`)
 // CheckWireframeResponsibilities parses wireframe.md mermaid nodes and
 // flags any node whose label (second line, responsibility) contains a
 // banned conjunction. The label format is "name\n(responsibility)" per
-// bts-wireframe SKILL.md Step 1.
+// jig-wireframe SKILL.md Step 1.
 //
 // The checker is deliberately permissive about label format — if a node
 // does not follow the "\n(responsibility)" convention we pass it through
@@ -62,7 +62,7 @@ func CheckWireframeResponsibilities(wireframePath string) []Issue {
 				Category: "wireframe_responsibility",
 				Claim:    "multi_job_node: " + truncate(label, 60),
 				Severity: "major",
-				Detail:   "Node responsibility \"" + responsibility + "\" contains a conjunction (and / & / 및). Split the node into two: one job per module. See bts-wireframe SKILL.md Step 1.",
+				Detail:   "Node responsibility \"" + responsibility + "\" contains a conjunction (and / & / 및). Split the node into two: one job per module. See jig-wireframe SKILL.md Step 1.",
 			})
 		}
 	}

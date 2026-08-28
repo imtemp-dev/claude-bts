@@ -5,20 +5,20 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/imtemp-dev/claude-bts/internal/template"
-	"github.com/imtemp-dev/claude-bts/pkg/version"
+	"github.com/imtemp-dev/jig/internal/template"
+	"github.com/imtemp-dev/jig/pkg/version"
 	"github.com/spf13/cobra"
 )
 
 func init() {
 	rootCmd.AddCommand(initCmd)
-	initCmd.Flags().Bool("force", false, "Reinitialize (overwrites existing bts files)")
+	initCmd.Flags().Bool("force", false, "Reinitialize (overwrites existing jig files)")
 }
 
 var initCmd = &cobra.Command{
 	Use:     "init [directory]",
-	Short:   "Initialize bts in a project",
-	Long:    "Deploy skills, agents, hooks, and rules to .claude/ and create .bts/ for state management.",
+	Short:   "Initialize jig in a project",
+	Long:    "Deploy skills, agents, hooks, and rules to .claude/ and create .jig/ for state management.",
 	Args:    cobra.MaximumNArgs(1),
 	GroupID: "project",
 	RunE:    runInit,
@@ -37,20 +37,20 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if already initialized
-	btsDir := filepath.Join(absRoot, ".bts")
+	jigDir := filepath.Join(absRoot, ".jig")
 	force, _ := cmd.Flags().GetBool("force")
-	if _, err := os.Stat(btsDir); err == nil && !force {
-		return fmt.Errorf(".bts/ already exists. Use --force to reinitialize")
+	if _, err := os.Stat(jigDir); err == nil && !force {
+		return fmt.Errorf(".jig/ already exists. Use --force to reinitialize")
 	}
 
-	fmt.Println("Initializing bts...")
+	fmt.Println("Initializing jig...")
 
-	// Create .bts directories
+	// Create .jig directories
 	stateDirs := []string{
-		filepath.Join(btsDir, "config"),
-		filepath.Join(btsDir, "specs", "recipes"),
-		filepath.Join(btsDir, "specs", "debates"),
-		filepath.Join(btsDir, "local"),
+		filepath.Join(jigDir, "config"),
+		filepath.Join(jigDir, "specs", "recipes"),
+		filepath.Join(jigDir, "specs", "debates"),
+		filepath.Join(jigDir, "local"),
 	}
 	for _, dir := range stateDirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -59,8 +59,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Deploy templates. .gitignore is user-owned — never deploy/overwrite it;
-	// EnsureGitignore below merges the bts rule in without clobbering user rules.
-	skipFiles := []string{".bts/config/settings.yaml", ".mcp.json", ".gitignore"}
+	// EnsureGitignore below merges the jig rule in without clobbering user rules.
+	skipFiles := []string{".jig/config/settings.yaml", ".mcp.json", ".gitignore"}
 	var created []string
 	if force {
 		created, err = template.DeployForce(absRoot, skipFiles)
@@ -71,7 +71,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("deploy templates: %w", err)
 	}
 
-	// Ensure .gitignore ignores bts local data without destroying existing rules.
+	// Ensure .gitignore ignores jig local data without destroying existing rules.
 	if err := template.EnsureGitignore(absRoot); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: update .gitignore: %v\n", err)
 	}
@@ -81,7 +81,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if version.Commit != "none" && len(version.Commit) >= 7 {
 		tv += "-" + version.Commit[:7]
 	}
-	if err := os.WriteFile(filepath.Join(absRoot, ".bts", "config", ".template-version"), []byte(tv), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(absRoot, ".jig", "config", ".template-version"), []byte(tv), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: save template version: %v\n", err)
 	}
 
@@ -90,16 +90,16 @@ func runInit(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "Warning: could not configure hooks: %v\n", err)
 	}
 
-	fmt.Printf("\nbts initialized successfully.\n")
+	fmt.Printf("\njig initialized successfully.\n")
 	fmt.Printf("  Files created: %d\n", len(created))
-	fmt.Printf("  Skills:        .claude/skills/bts-*/\n")
-	fmt.Printf("  Agents:        .claude/agents/bts-*/\n")
-	fmt.Printf("  Commands:      .claude/commands/bts-*/\n")
-	fmt.Printf("  Rules:         .claude/rules/bts-*/\n")
-	fmt.Printf("  Hooks:         .claude/hooks/bts-*/\n")
-	fmt.Printf("  State:         .bts/\n")
-	fmt.Printf("  VS Code:       .vscode/markdown.code-snippets (type btsc/btscb/btscq + Tab in any .md)\n")
-	fmt.Printf("\nStart Claude Code and try: /bts-recipe-blueprint \"your feature\"\n")
+	fmt.Printf("  Skills:        .claude/skills/jig-*/\n")
+	fmt.Printf("  Agents:        .claude/agents/jig-*/\n")
+	fmt.Printf("  Commands:      .claude/commands/jig-*/\n")
+	fmt.Printf("  Rules:         .claude/rules/jig-*/\n")
+	fmt.Printf("  Hooks:         .claude/hooks/jig-*/\n")
+	fmt.Printf("  State:         .jig/\n")
+	fmt.Printf("  VS Code:       .vscode/markdown.code-snippets (type jigc/jigcb/jigcq + Tab in any .md)\n")
+	fmt.Printf("\nStart Claude Code and try: /jig-spec \"your feature\"\n")
 
 	return nil
 }

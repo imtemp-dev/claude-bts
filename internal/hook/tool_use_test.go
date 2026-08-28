@@ -6,16 +6,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 )
 
 func setupToolUseRoot(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, ".bts", "local"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".jig", "local"), 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, ".bts", "specs", "recipes"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".jig", "specs", "recipes"), 0755); err != nil {
 		t.Fatalf("mkdir specs: %v", err)
 	}
 	return root
@@ -120,8 +120,8 @@ func TestPreToolUse_BashCommandTruncation(t *testing.T) {
 	// A realistic long command rather than 200 x's: the point of the cap
 	// is that a partial entry must not read as a whole one, and a run of
 	// identical bytes cannot show that.
-	longCmd := "cd /Users/someone/Workspace/a-project/.bts/specs/recipes/r-001-support-gpt-solterra && " +
-		"bts recipe log r-001-support-gpt-solterra --from-verification verification.md --doc draft.md --scope full --dimension verify --dimension audit"
+	longCmd := "cd /Users/someone/Workspace/a-project/.jig/specs/recipes/r-001-support-gpt-solterra && " +
+		"jig recipe log r-001-support-gpt-solterra --from-verification verification.md --doc draft.md --scope full --dimension verify --dimension audit"
 	h := NewPreToolUseHandler()
 	input := &HookInput{
 		CWD:       root,

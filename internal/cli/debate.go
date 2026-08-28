@@ -5,7 +5,7 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/jig/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -32,7 +32,7 @@ var debateListCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 
 		debates, err := state.ListDebates(root)
@@ -63,7 +63,7 @@ var debateLogCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 
 		topic, _ := cmd.Flags().GetString("topic")
@@ -136,7 +136,7 @@ var debateResumeCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 
 		ds, err := state.LoadDebateState(root, args[0])
@@ -172,7 +172,7 @@ var debateExportCmd = &cobra.Command{
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
 		if err != nil {
-			return fmt.Errorf("not a bts project: %w", err)
+			return fmt.Errorf("not a jig project: %w", err)
 		}
 
 		ds, err := state.LoadDebateState(root, args[0])
