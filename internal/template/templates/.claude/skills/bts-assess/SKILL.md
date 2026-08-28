@@ -60,7 +60,7 @@ judgement is genuinely required.
      user) rather than another IMPROVE cycle against the same wall.
 
 3. Read the document fully yourself and evaluate:
-   - What level is this document at? (1=understanding, 2=design, 3=implementation-ready)
+   - What level is this document at? (1=understanding, 2=design, 3=blueprint)
    - What specific content is missing to reach the next level?
    - Are there uncertain technical decisions that need debate?
    - Are there scenarios that haven't been walked through?

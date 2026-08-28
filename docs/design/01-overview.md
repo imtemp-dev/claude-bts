@@ -30,7 +30,7 @@ spec 작성 → 검증 → 수정 → 검증 → ... → 완성된 spec → AI �
 |-------|------|------|----------------|
 | 1 | 이해 | 현재 시스템 구조, 파일 위치, 의존성 | 불가 |
 | 2 | 설계 | 무엇을 만들 것인지, 컴포넌트, 데이터 흐름 | ~60-70% |
-| 3 | 구현 직전 | 파일 경로, 함수 시그니처, 타입, 연결점, edge case, 스캐폴딩 | **매우 높음** |
+| 3 | 블루프린트 | 불변식과 그것을 지키는 파일, 경계 계약, 되돌릴 수 없는 순서와 롤백, 불변식별 반증자, 선언된 불확실성 | **매우 높음** |
 
 bts의 최종 목표는 spec을 **Level 3**까지 끌어올리는 것이다. Level 1(분석)과 Level 2(설계)는 Level 3에 도달하기 위한 전 단계이며, 각 단계에 대응하는 레시피가 있다: `/recipe analyze` (L1), `/recipe design` (L2), `/recipe blueprint` (L3).
 
@@ -38,20 +38,29 @@ bts의 최종 목표는 spec을 **Level 3**까지 끌어올리는 것이다. Lev
 
 Level 3 문서의 예:
 ```
-src/auth/oauth.ts 생성:
-  - export function configureOAuth(app: Express): void
-  - 파라미터: app (src/server/app.ts:14의 Express instance)
-  - passport.use(new OAuth2Strategy({...}))
-  - 콜백: /auth/callback → src/auth/routes.ts:handleCallback()
-  - 에러: InvalidGrantError → 401 + redirect to /login
-  - 세션: express-session (기존 src/server/session.ts 재사용)
-  - 테스트 시나리오:
-    - happy: valid code → token → session
-    - error: expired code → 401
-    - error: invalid state → 403
+## 불변식
+| ID | 불변식 | 소유자 | 반증자 |
+|---------|--------|--------|--------|
+| INV-001 | 세션은 토큰 교환이 성공한 뒤에만 생성된다 | `src/auth/oauth.ts` | `test/auth/oauth.spec.ts` |
+| INV-002 | state 파라미터는 정확히 한 번만 소비된다 | `src/auth/state-store.ts` | `test/auth/state.spec.ts` |
+
+## 경계 계약
+| 방향 | 페이로드 | 실패 시 |
+|------|----------|---------|
+| IdP → `/auth/callback` | `{ code, state }` | state 불일치 → 403 |
+
+## 되돌릴 수 없는 순서
+1. `sessions` 테이블 마이그레이션 — 되돌리기: `0007_down.sql`
+2. 배포 — 되돌리기: 직전 리비전 재배포
+
+## Known Uncertainties
+### U-001 IdP 토큰 만료가 5분인지 60분인지
+Opens-with: 스테이징 첫 토큰 교환 로그
 ```
 
-이 문서를 Opus에 넣으면 추측 없이 구현한다.
+이 문서에 함수 시그니처는 없다. 그것은 의도적이다. 컴파일러가 공짜로 만들어내고 몇 초 만에 확정하는 것을 산문으로 확정하면, 검증 라운드가 하나씩 들고 다음 라운드가 다시 검사해야 할 주장만 남는다. 블루프린트는 **코드가 값싸게 반증할 수 없는 것**만 담는다 — 방향을 틀리지 않게 하는 것이 문서의 일이고, 세부는 실행이 정한다.
+
+문서가 길어지는 것 자체가 비용이다. 섹션 길이와 발견 건수는 r=+0.95로 상관한다(100줄당 약 12.7건). 즉 초안의 길이가 루프의 비용을 아무도 읽기 전에 결정한다. 측정 근거는 `docs/bts-flow-metrics.md`, 강제되는 기준은 `internal/template/templates/.claude/rules/bts-level-criteria.md`.
 
 ## 4단계 검증 체계
 

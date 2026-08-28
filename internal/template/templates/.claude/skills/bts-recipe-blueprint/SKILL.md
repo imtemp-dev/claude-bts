@@ -1,9 +1,10 @@
 ---
 name: bts-recipe-blueprint
 description: >
-  Create a Level 3 implementation spec through an adaptive loop of research,
-  drafting, debate, simulation, and verification. The loop continues until
-  the document is bulletproof.
+  Create a Level 3 blueprint — the skeleton a compiler cannot settle — through
+  an adaptive loop of research, drafting, debate, simulation, and verification.
+  The loop is bounded: it converges or it hands its open questions to
+  implementation.
 user-invocable: true
 allowed-tools: Read Write Edit Grep Glob Bash Agent AskUserQuestion mcp__context7__resolve-library-id mcp__context7__get-library-docs
 argument-hint: "\"feature description\""
@@ -11,7 +12,7 @@ argument-hint: "\"feature description\""
 
 # Recipe: Blueprint
 
-Create a bulletproof implementation spec for: $ARGUMENTS
+Create a Level 3 blueprint for: $ARGUMENTS
 
 **This recipe creates a SPEC DOCUMENT, not code.**
 Do NOT write source code files (.ts, .js, .go, .py, .rs, etc.) during this recipe.

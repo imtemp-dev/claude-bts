@@ -46,7 +46,7 @@
 |--------|------|-----------|-------------|
 | `/recipe analyze` | 기존 시스템/코드 분석 | 검증된 분석 문서 | Level 1 (이해) |
 | `/recipe design` | 기능/시스템 설계 | 검증된 설계 문서 | Level 2 (설계) |
-| `/recipe blueprint` | 설계를 구현 직전까지 구체화 | 구현 문서 (스캐폴딩 포함) | Level 3 (구현 직전) |
+| `/recipe blueprint` | 설계를 블루프린트로 구체화 | 블루프린트 (불변식·경계·순서) | Level 3 (블루프린트) |
 
 ### Phase 2 레시피 (4개)
 
@@ -86,7 +86,7 @@ Phase 1 레시피는 flowcheck/visualize 없이 동작한다. Phase 2에서 이 
 
 ### 킬러 레시피: `/recipe blueprint`
 
-Level 2 설계 문서를 Level 3 구현 문서로 변환하는 레시피.
+Level 2 설계 문서를 Level 3 블루프린트로 변환하는 레시피.
 
 **입력**: Level 2 설계 문서 (있으면 사용, 없으면 Step 1에서 자동 생성)
 - 있을 때: "OAuth2 인증. Passport.js 사용. 세션 기반." → Step 1에서 이를 기반으로 조사
@@ -98,9 +98,11 @@ Step 1: Research (조사)
   ├─ 기존 코드 구조, 연결점, 의존성, 패턴 조사
   └─ .bts/state/{id}/01-research.md 저장
 
-Step 2: Draft (Level 3 초안 작성)
+Step 2: Draft (Level 3 블루프린트 초안 작성)
   ├─ 메인 Claude가 작성:
-  │   파일 경로, 함수 시그니처, 타입, 연결점, edge case, 스캐폴딩
+  │   불변식과 소유자, 경계 계약, 되돌릴 수 없는 순서와 롤백,
+  │   불변식별 반증자, 선언된 불확실성
+  │   (함수 시그니처·타입·edge case 표는 제외 — 컴파일러가 정한다)
   └─ .bts/state/{id}/02-draft.md 저장
 
 Step 3: Verify Loop (검증 루프, 자동 반복)

@@ -104,6 +104,10 @@ bts recipe list             List all recipes
 bts recipe create           Create recipe (--type blueprint|fix|debug|design|analyze --topic "...")
 bts recipe log <id>         Record action/phase/iteration (--phase, --action, --output, --force)
 bts recipe cancel           Cancel active recipe
+bts recipe findings list|resolve|dismiss   Cross-round findings ledger (--open)
+bts recipe assess-precheck <id> --doc <doc>   Decide from recorded state (exit 10 = judgement needed)
+bts recipe decision hold|list|resolve|drop    Questions only the user can answer
+bts recipe override         Record a deliberate decision to proceed past a hard gate
 bts stats [recipe-id]       Metrics and cost estimation (--json, --csv)
 bts graph [recipe-id]       Document relationship graph (--all)
 bts sync-check [recipe-id]  Verify documents are in sync
@@ -112,7 +116,7 @@ bts update                  Update templates to match binary version
 bts version                 Show versions
 ```
 
-## Skills (21)
+## Skills (24)
 
 Inside Claude Code, invoke skills with `/skill-name`:
 
@@ -124,7 +128,9 @@ Inside Claude Code, invoke skills with `/skill-name`:
 | /bts-recipe-fix | Bug fix with diagnosis |
 | /bts-recipe-debug | Multi-perspective debugging |
 | /bts-discover | Intent discovery conversation |
-| /bts-wireframe | Structure design with mermaid diagrams |
+| /bts-wireframe | Structure design with mermaid diagrams — owns the flow, the decomposition and the File Structure table |
+| /bts-domain-model | Invariants and their owners (`domain.md`) — the blueprint references these, it does not restate them |
+| /bts-architect | Records the decomposition decision as an `<!-- architect-decision -->` block in wireframe.md |
 | /bts-research | Codebase and external research |
 | /bts-verify | Logical verification (fork context) |
 | /bts-cross-check | Internal consistency check (fork context) |
@@ -139,6 +145,7 @@ Inside Claude Code, invoke skills with `/skill-name`:
 | /bts-review | Multi-perspective code review (fork context, 3 parallel agents) |
 | /bts-sync | Sync spec with implementation |
 | /bts-status | Project status aggregation |
+| /bts-comment-apply | Apply review comments back into the spec |
 
 ## Models
 
@@ -166,7 +173,17 @@ Override in `.bts/config/settings.yaml`. Options: sonnet, opus, haiku.
 
 ## Completion Gates
 
-Specs complete when: verification.md exists, verify-log last entry shows critical=0 major=0. Output `<bts>DONE</bts>`. This sets phase to `finalize`.
+Specs complete when ALL of these hold for the gated document:
+
+- verification.md exists, and the last verify-log entry for that document shows critical=0, major=0, minor[resolvable]=0
+- that entry is not marked `failed` (convergence budget exhausted)
+- `verify.confirm_passes` consecutive clean full passes — every dimension, over one unchanged revision. A verify round is a sample, not a measurement: rounds over byte-identical documents have disagreed by two criticals and nine majors
+- every finding in the ledger is confirmed fixed or explicitly dismissed — an unrepeated finding is not a resolved one
+- every declared `INV-NNN` names a falsifier
+- remaining `MINOR [deferred]` items are declared under `## Known Uncertainties`
+- /bts-simulate has run at least once
+
+Output `<bts>DONE</bts>`. This sets phase to `finalize`.
 
 Implementation completes when: all tasks done, tests pass, review.md exists, deviation.md exists. Output `<bts>IMPLEMENT DONE</bts>`.
 
@@ -178,16 +195,60 @@ Fix completes when: fix-spec.md exists, tests pass. Output `<bts>FIX DONE</bts>`
 2. Verification runs in separate agent context (never self-review).
 3. Edit draft.md in place (Edit tool), don't rewrite.
 4. Log every action: `bts recipe log {id} --action [type] --output [path]`.
-5. Run /bts-simulate at least once before Level 3.
+5. Every verify round runs all three instruments — verify, audit and simulate —
+   in one batch. A round's counts are comparable only against rounds of the same
+   measurement class, and a held-back instrument does not find less, it finds the
+   same things later.
 6. Run /bts-adjudicate after every debate.
 7. Run /bts-sync-check before finalizing.
 8. Deviations are reports, not gates — they don't block completion.
+9. Never recommend IMPROVE for elaboration. Criteria are met by adding a missing
+   STRUCTURE, never by adding detail to what is already there.
 
 ## Document Levels
 
-- Level 1 (Understanding): components listed, relationships explained, tech stack specified
-- Level 2 (Design): data flow, error handling, interfaces, rationale for choices
-- Level 3 (Implementation-ready): every file path, function signature, type, edge case, test scenario specified
+A level says what a document is, not how much of it there is. Every criterion is
+structural and **saturates**: once met, more text cannot raise the score.
+`.claude/rules/bts-level-criteria.md` is authoritative.
+
+- Level 1 (Understanding): parts named, relations between them, tech stack evidenced by the kinds of file the spec touches
+- Level 2 (Design): data flow, a named failure AND its disposition, something named at a boundary, a choice recorded as a choice
+- Level 3 (Blueprint): what code cannot cheaply falsify — every `INV-NNN` paired with the file that keeps it, boundary contracts pinned in a table or fence, irreversible order with what undoes it, a named falsifier per invariant, and a `## Known Uncertainties` section
+
+Level 3 does NOT ask for function signatures, type definitions, edge-case tables
+or code scaffolding. A compiler produces them for free and settles them in
+seconds; arguing them in prose costs a verify round each and leaves a claim
+behind that the next round has to re-check.
+
+**Delegation**: a Level 1 or Level 2 criterion whose content has a home upstream
+is satisfied by NAMING that home ("the flow is in `wireframe.md` §3"), not by
+copying it into the draft. Level 3 criteria never delegate.
+
+**Falsifiers, not test scenarios**: a claim about code that does not exist yet
+has no truth value until something executes. Name what would open the box — a
+test, a spec, a probe — and stop. What the assertion should contain is decided
+while writing the test.
+
+## Bounds
+
+The loop is bounded on purpose. Never raise a limit to get past it.
+
+| Bound | Setting | Default |
+|-------|---------|---------|
+| Verify rounds per document | `verify.max_rounds` | 6 |
+| Consecutive no-progress rounds | `verify.max_iterations` | 3 |
+| Whole-document lines | `verify.max_document_lines` | 400 |
+| H2 section lines | `verify.max_section_lines` | 300 |
+| Clean full passes required to finish | `verify.confirm_passes` | 2 |
+
+Span reports are `major` by default — an oversize document blocks completion.
+Section length and finding count correlate at r=+0.95 (~12.7 findings per 100
+lines), so how long the draft is decides how much the loop will cost before
+anyone reads a word.
+
+Hitting the round cap or the no-progress budget means the remaining questions
+move to `## Known Uncertainties` and implementation starts — a compiler and a
+test settle in seconds what another round would argue about.
 
 ---
-bts version: 0.2.0
+bts version: v0.14.0

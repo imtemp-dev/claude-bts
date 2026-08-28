@@ -70,7 +70,7 @@ flowchart LR
 
 Before writing anything, bts establishes *what the finished system looks like*. Intent discovery clarifies purpose. Wireframe designs structure with mermaid diagrams. This is the map every later step refers back to.
 
-### 2. Iterate the spec until bulletproof
+### 2. Iterate the spec until it converges
 
 ```mermaid
 flowchart LR
@@ -83,7 +83,11 @@ flowchart LR
     V -->|"pass"| F["Finalize"]
 ```
 
-The adaptive loop: draft → verify → assess what's needed → act → verify again. **↗ = fork context** (separate AI instance). The loop runs until verification passes with zero critical and zero major issues.
+The adaptive loop: draft → verify → assess what's needed → act → verify again. **↗ = fork context** (separate AI instance).
+
+What comes out is a **blueprint, not a transcription**. It carries the part code cannot cheaply falsify — each invariant and the file that keeps it, what crosses every boundary, irreversible order and what undoes it, and the test that would prove each invariant wrong. Function signatures, type definitions and edge-case tables are left out on purpose: a compiler produces them for free, while arguing them in prose costs a verify round each and leaves a claim behind that the next round has to re-check.
+
+The loop ends when verification passes with zero critical and zero major issues, confirmed by two consecutive clean passes over an unchanged spec — one clean round is a sample, not a result. It is also bounded, by a round cap and a no-progress budget. Hitting either means the open questions move to `## Known Uncertainties` and implementation begins, where running code settles them in seconds.
 
 ### 3. Generate and validate code
 
