@@ -123,3 +123,50 @@ func CheckSectionSpan(docPath string, maxLines int, severity string) []Issue {
 	}
 	return issues
 }
+
+// CheckDocumentSpan reports a document whose whole length exceeds the
+// limit.
+//
+// The per-section limit does not bound a document — several sections at
+// the limit exceed this one many times over, which is how a measured
+// draft reached 2,184 lines while every individual section stayed
+// arguable. Findings scale with span at r=+0.95, so the length is the
+// finding count the completion gate will later be asked to drive to
+// zero, decided before anyone reads a word.
+func CheckDocumentSpan(docPath string, maxLines int, severity string) []Issue {
+	if maxLines <= 0 {
+		return nil
+	}
+	if severity == "" {
+		severity = SeverityInfo
+	}
+	data, err := os.ReadFile(docPath)
+	if err != nil {
+		return nil
+	}
+	lines := strings.Split(string(data), "\n")
+	// A file ending in a newline splits to a trailing empty element that
+	// is not a line of the document.
+	if n := len(lines); n > 0 && lines[n-1] == "" {
+		lines = lines[:n-1]
+	}
+	if len(lines) <= maxLines {
+		return nil
+	}
+	return []Issue{{
+		Category: "document_span",
+		Claim:    fmt.Sprintf("the document runs %d lines", len(lines)),
+		Severity: severity,
+		Detail: fmt.Sprintf(
+			"A blueprint carries what code cannot cheaply falsify — invariants and their "+
+				"owners, boundary contracts, irreversible order, falsifiers, open questions — "+
+				"and that is short. Past %d lines something else has gotten in: signatures a "+
+				"compiler produces, scaffolding, per-file walkthroughs, enumerated error cases, "+
+				"test assertion values. Each is settled in seconds by a build or one test run, "+
+				"and each costs a verify round here plus the prose written to settle it, which "+
+				"the next round re-checks. Find that content and take it out, or move it to the "+
+				"document that owns it (wireframe.md, domain.md). "+
+				"Threshold: verify.max_document_lines=%d.",
+			maxLines, maxLines),
+	}}
+}

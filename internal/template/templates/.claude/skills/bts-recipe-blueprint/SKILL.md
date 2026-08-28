@@ -101,12 +101,24 @@ ASSESS determines what to do next based on the document's current state.
    - Add to `resolves` array if a simulation gap was addressed
    - Clear `verified_by` to `""` (draft changed, not yet re-verified)
 4. Run `bts validate` to verify schema compliance
-5. Run the semantic pass on draft.md. When both /bts-verify and
-   /bts-audit are due this round, **invoke them in a single message so
-   the two forks run concurrently** — they are independent (logical
-   consistency vs. completeness), read the same document, and share no
-   state. Do NOT run them one after the other. Once critical=0, /bts-simulate
-   joins the same concurrent batch (see Quality Rule 4).
+5. Run the semantic pass on draft.md. **Invoke /bts-verify, /bts-audit
+   and /bts-simulate in a SINGLE message so all three forks run
+   concurrently** — they are independent (logical consistency vs.
+   completeness vs. scenario coverage), read the same document, and
+   share no state. Do NOT run them one after another, and do not hold
+   one back for a later round.
+
+   All three from the first full pass, not just the first two. Rotating
+   instruments across the loop looks like thoroughness and behaves like
+   a reset: a measured recipe ran audit at rounds 1-2, then not again
+   until rounds 10 and 16, and each return produced five majors nobody
+   had seen. The document had not got worse — a different instrument was
+   pointed at it. Findings that arrive on round 10 cost ten rounds of
+   IMPROVE built on a draft that had not been audited; the same findings
+   on round 1 cost one edit. And a round's counts are only comparable to
+   rounds of the same measurement class, so a loop that keeps changing
+   class is a loop whose convergence budget never accumulates.
+
    Save the verify findings to `verification.md` (overwrite previous).
 6. After /verify, update manifest: set draft.md `verified_by` to `"verification.md"`
 7. Record verify results to verify-log (atomic — parses the `<bts-findings>`
@@ -481,16 +493,20 @@ and assess behavior.
      will emit `action: FINALIZE` (see its "only [deferred] minors remain"
      branch). Follow that — do NOT call IMPROVE again. The deferred items
      carry into `/bts-implement` as a watch-list.
-4. **/simulate early**: Run after the FIRST verify cycle that produces critical=0.
-   Simulation catches scenario-level gaps (failure modes, race conditions, edge cases)
-   that structural verification cannot find. Running it early prevents late-stage rework.
-   - First verify has critical=0 → run /simulate immediately (before more IMPROVE cycles)
-   - First verify has critical>0 → fix criticals first, then /simulate
-   - Run /simulate again before finalization if major structural changes were made
-   - Once critical=0, /simulate belongs in the SAME concurrent batch as
-     /bts-verify and /bts-audit (loop protocol step 5) — all three read
-     the same document and answer independent questions, so running them
-     sequentially triples the wall-clock of every round for no gain.
+4. **All three instruments, every round.** /bts-verify, /bts-audit and
+   /bts-simulate go in one concurrent batch (loop protocol step 5) from
+   the first full pass onward. They read the same document and answer
+   independent questions, so running them sequentially triples the
+   wall-clock for no gain — and running them in different rounds makes
+   each round's counts incomparable with the last, which is what the
+   convergence budget is counting.
+   - Completion requires a clean round from all three anyway
+     (`bts-verification-protocol.md § Completion Evidence`). A dimension
+     held back is a dimension whose findings arrive later, on top of
+     more IMPROVE work.
+   - The round cap (`verify.max_rounds`, default 6) counts rounds, not
+     dimensions. Spending three of them on one instrument each buys
+     nothing and costs half the budget.
 5. **/debate for every uncertain technical choice.** Don't guess.
 6. **/sync-check before finalizing.** All documents must be in sync.
 
@@ -585,19 +601,102 @@ Progress is tracked in changelog.jsonl and the user can check `/status` at any t
 
 ## Output Target
 
-The final document should contain, for every component:
-- Exact file paths (create/modify)
-- Function signatures (name, params with types, return type)
-- Data types and interfaces (full type definitions)
-- Connection points to other components
-- Error handling strategy for every failure mode
-- Edge cases enumerated
-- Test scenarios (happy + error + edge)
+A blueprint, not a transcription.
 
-**Code in the spec**: Use short code snippets (5-15 lines) ONLY to clarify
-non-obvious logic — algorithms, tricky transformations, critical sequences.
-Do NOT write full function implementations. The spec describes WHAT and WHY,
-not the complete HOW. Implementation happens in `/bts-implement`.
+The document carries the part **code cannot cheaply falsify**, and stops
+there. Concretely (`bts-level-criteria.md § Level 3` is authoritative):
+
+- What ships, and what explicitly does not
+- **Invariants and their owners** — every `INV-NNN` on a line that names
+  the file that keeps it
+- **Boundary contracts** — the exact shape of what crosses a wire, a
+  schema, a stored row, a public API
+- **Units and dependency order** — `wireframe.md § File Structure` is
+  authoritative; reference it, do not copy it
+- **Irreversible order and rollback** — migrations, rollouts, data
+  transforms, and what undoes each
+- **Falsifiers** — for every invariant, the test or observation that
+  would prove it false. Names only
+- **Known Uncertainties** — each with `Opens-with:` (the command that
+  settles it) or `Why-deferred:`
+
+What is deliberately NOT here: function signatures, type definitions,
+code scaffolding, per-file walkthroughs, error enumerations, edge-case
+tables, and test assertion values. A compiler, a type checker and one
+test run settle every one of those in seconds. Arguing about them in
+prose costs a verify round each — and every paragraph written to settle
+one becomes a claim the next round has to re-check, in a document where
+correcting a statement in one section falsifies a statement in another.
+
+**Delegation is the rule, not a shortcut.** `domain.md`, `wireframe.md`
+and `scope.md` are the recipe's other links, not drafts of this one.
+Naming them is how the blueprint stays a blueprint; each copy is a second
+place the same claim can go stale.
+
+**Length is a diagnosis.** The skeleton of a feature is short — a few
+hundred lines — because invariants are independent of one another and do
+not accumulate seams. If the document is growing past
+`verify.max_section_lines` per section, flesh has gotten in: find what a
+compiler or a test would have settled and take it out.
+
+**Code in the spec**: short snippets (5-15 lines) ONLY where a shape
+cannot be stated any other way — a wire payload, a migration's ordering,
+a tricky sequence. Never a function body. Implementation happens in
+`/bts-implement`.
+
+### The skeleton
+
+Start from this shape. Sections may be renamed or merged when a recipe
+genuinely has nothing for one, but nothing here is optional filler —
+each is a Level 3 criterion.
+
+```markdown
+# Blueprint: {topic}
+
+## 1. What ships
+What the user gets, and — explicitly — what this does NOT do.
+
+## 2. Invariants and owners
+| ID | Statement | Owner |
+|---|---|---|
+| INV-001 | what is always true | `path/to/the/file/that/keeps/it` |
+
+## 3. Boundary contracts
+The exact shape of what crosses a wire, a schema, a stored row, an API.
+| Layer | Name | Shape | Absence |
+|---|---|---|---|
+
+## 4. Units and dependency order
+`wireframe.md § File Structure` is authoritative. Reference it. Do not
+copy the table.
+
+## 5. Irreversible order and rollback
+Ordered steps, what each depends on, and what undoes it. Name the one
+mistake that cannot be taken back.
+
+## 6. Falsifiers
+| Invariant | Falsifier |
+|---|---|
+| INV-001 | `path/to/the.spec.ts` — one clause on what going red means |
+
+Names only. What the assertion should contain is decided while writing
+the test.
+
+## Known Uncertainties
+
+### U-001: {the open question}
+Opens-with: `{the command that settles it}`
+Why-deferred: {the observation that would resolve it}
+```
+
+Section 6 is what used to be "Test scenarios", and the difference is the
+point: a scenario section states expected values, which is a claim about
+unwritten code that only an execution can settle — and four rounds
+arguing about one threshold is what a measured recipe actually spent.
+A falsifier row names the thing that would go red and stops.
+
+`bts verify` raises a major for every invariant section 6 leaves out
+(`falsifier_assigned`), and the stop hook blocks `<bts>DONE</bts>` on it.
 
 ## Recovery: `recipe.json` stuck mid-phase
 

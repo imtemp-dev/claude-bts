@@ -239,6 +239,12 @@ var InvariantGates = []HardGate{
 		Summary:     "Every invariant in domain.md §2 must have exactly one owner; duplicates raise critical",
 	},
 	{
+		ID:          "falsifier_assigned",
+		Rule:        "bts-level-criteria.md §Level 3 falsifiers_assigned",
+		Enforcement: "internal/engine/falsifier_checker.go:CheckFalsifierCoverage + internal/hook/stop.go:handleSpecDone",
+		Summary:     "Every invariant a spec declares must name the test, probe or observation that would prove it false; agreement about prose is not evidence that anything was executed",
+	},
+	{
 		ID:          "midrun_review_scheduled",
 		Rule:        "bts-implement/SKILL.md §Step 3 MID-RUN REVIEW + settings.implement.midrun_review_every",
 		Enforcement: "bts-implement/SKILL.md orchestrator (advisory — not hook-blocked)",

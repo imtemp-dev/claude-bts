@@ -267,26 +267,33 @@ var recipeLogCmd = &cobra.Command{
 				minor = 0
 				reported = counts.Findings
 				haveFindingsArray = len(counts.Findings) > 0 || counts.Total() == 0
-				if iteration == 0 {
-					// Iteration numbering follows the document's own
-					// history when one is recorded — a wireframe round
-					// must not advance the draft's counter.
-					var last *state.VerifyLogEntry
-					if docBase != "" {
-						if e, derr := state.LastVerifyEntryForDoc(root, recipeID, docBase); derr == nil {
-							last = e
-						}
+			}
+
+			// Iteration numbering follows the document's own history when
+			// one is recorded — a wireframe round must not advance the
+			// draft's counter.
+			//
+			// This used to sit inside the --from-verification branch, so a
+			// caller passing explicit counts and no --iteration recorded
+			// round 0. One measured recipe's seventeenth round is logged
+			// as iteration 0 for exactly that reason, which makes the
+			// document's own history read as though it had restarted.
+			if iteration == 0 {
+				var last *state.VerifyLogEntry
+				if docBase != "" {
+					if e, derr := state.LastVerifyEntryForDoc(root, recipeID, docBase); derr == nil {
+						last = e
 					}
-					if last == nil {
-						if e, lerr := state.LastVerifyEntry(root, recipeID); lerr == nil {
-							last = e
-						}
+				}
+				if last == nil {
+					if e, lerr := state.LastVerifyEntry(root, recipeID); lerr == nil {
+						last = e
 					}
-					if last != nil {
-						iteration = last.Iteration + 1
-					} else {
-						iteration = 1
-					}
+				}
+				if last != nil {
+					iteration = last.Iteration + 1
+				} else {
+					iteration = 1
 				}
 			}
 
@@ -397,7 +404,8 @@ var recipeLogCmd = &cobra.Command{
 			scopedHistory := make([]state.VerifyLogEntry, 0, len(priorRounds)+1)
 			scopedHistory = append(scopedHistory, priorRounds...)
 			scopedHistory = append(scopedHistory, *entry)
-			verdict := engine.EvaluateConvergence(scopedHistory, settings.Verify.MaxIterations)
+			verdict := engine.EvaluateConvergenceWithCap(scopedHistory,
+				settings.Verify.MaxIterations, settings.Verify.MaxRounds)
 
 			// A budget change re-judges this document's whole history on the
 			// next evaluation. That is a legitimate operator action, but it
@@ -425,7 +433,7 @@ var recipeLogCmd = &cobra.Command{
 				}
 			}
 
-			if verdict.Exceeded {
+			if verdict.Exceeded || verdict.CapHit {
 				entry.Status = "failed"
 				status = "failed"
 			}
@@ -482,6 +490,18 @@ var recipeLogCmd = &cobra.Command{
 					"[bts] note: <bts-findings> has no \"findings\" array — ledger skipped, so stagnation detection is unavailable this round.")
 			}
 
+			// The cap is reported first when both fire: it is the outcome
+			// that cannot be argued with, and the remedy differs — the
+			// budget asks the operator a question, the cap ends the
+			// verifying and starts the implementing.
+			if verdict.CapHit {
+				// The round WAS logged; this is a loop-control outcome,
+				// not a misuse of flags, so suppress cobra's usage dump.
+				cmd.SilenceUsage = true
+				fmt.Fprintln(os.Stderr, verdict.CapMessage(label))
+				return fmt.Errorf("round cap reached: %d rounds recorded on %s (verify.max_rounds=%d)",
+					verdict.Rounds, label, verdict.RoundCap)
+			}
 			if verdict.Exceeded {
 				// The round WAS logged; this is a loop-control outcome,
 				// not a misuse of flags, so suppress cobra's usage dump —
@@ -493,6 +513,9 @@ var recipeLogCmd = &cobra.Command{
 			if verdict.Budget > 0 && verdict.Streak > 0 {
 				fmt.Printf("Convergence: %d/%d rounds without progress (best so far: %s)\n",
 					verdict.Streak, verdict.Budget, verdict.Best)
+			}
+			if verdict.RoundCap > 0 {
+				fmt.Printf("Rounds: %d/%d on %s\n", verdict.Rounds, verdict.RoundCap, label)
 			}
 		}
 

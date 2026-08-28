@@ -219,7 +219,16 @@ fall through to /bts-assess in that case.`,
 			return precheckUndecided("no verification history for " + docBase)
 		}
 
-		verdict := engine.EvaluateConvergence(scoped, settings.Verify.MaxIterations)
+		verdict := engine.EvaluateConvergenceWithCap(scoped,
+			settings.Verify.MaxIterations, settings.Verify.MaxRounds)
+		if verdict.CapHit {
+			emitDecision("HALT_CONVERGENCE_FAILED", "verify", verdict.Latest.String(),
+				fmt.Sprintf("round cap reached: %d rounds recorded (verify.max_rounds=%d). "+
+					"Move the open findings to Known Uncertainties with the command that would "+
+					"settle each, then implement.",
+					verdict.Rounds, verdict.RoundCap))
+			return nil
+		}
 		if verdict.Exceeded {
 			emitDecision("HALT_CONVERGENCE_FAILED", "verify", verdict.Latest.String(),
 				fmt.Sprintf("%d consecutive rounds without progress (budget %d); best reached %s",

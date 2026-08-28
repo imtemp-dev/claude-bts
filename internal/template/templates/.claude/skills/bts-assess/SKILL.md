@@ -89,8 +89,23 @@ judgement is genuinely required.
    **If gaps may exist** → recommend `/simulate`
    "Walk through [specific scenarios] to find blind spots."
 
-   **If content needs to be added** → recommend IMPROVE
-   "Add [specific items] to reach Level [N]. Then run /verify."
+   **If a level criterion is unmet** → recommend IMPROVE
+   Name the criterion and what would satisfy it, from
+   `bts verify`'s `Missing` list and `bts-level-criteria.md`:
+   "INV-004 and INV-007 have owners but no falsifier — add a row naming
+   the test that would go red. Then run /verify."
+
+   Every criterion is structural and saturating: it is met by adding a
+   specific missing STRUCTURE, never by adding detail to what is already
+   there. **Never recommend IMPROVE for elaboration** — more signatures,
+   more edge cases, more scaffolding, a fuller walkthrough. Those are not
+   criteria, a compiler settles them faster than a verify round, and the
+   prose written to settle one becomes a claim the next round re-checks.
+
+   If a criterion's content belongs upstream (the flow, the
+   decomposition, the recorded decision), the fix is a reference to
+   `wireframe.md` or `domain.md` — not a copy of it.
+
    (Do NOT use this branch for `MINOR [deferred]` findings — those are
    runtime-observable items, not missing spec content. If the only gaps
    are [deferred] minors, skip to the "only [deferred] minors remain"
@@ -102,8 +117,11 @@ judgement is genuinely required.
    **If completeness is uncertain** → recommend `/audit`
    "Review for missing error cases, edge cases, security."
 
-   **If mermaid diagrams are missing or incomplete** → recommend IMPROVE
-   "Add state machine and flow diagrams with all execution paths enumerated."
+   **If the structure or flow is missing** → recommend WIREFRAME, not
+   IMPROVE. State machines, flow diagrams and enumerated execution paths
+   live in `wireframe.md`; the blueprint references them. Recommending
+   IMPROVE here asks the draft for a second copy, which is one more place
+   the same claim can go stale.
 
    **If Level 3 criteria all met** → recommend `/sync-check` then finalize
    "Document appears complete. Run sync-check before finalizing."
@@ -132,7 +150,7 @@ judgement is genuinely required.
      "level": 2.5,
      "action": "IMPROVE",
      "phase": "draft",
-     "reason": "Add function signatures for arrangement module",
+     "reason": "INV-004 and INV-007 have owners but no falsifier",
      "findings_ref": "verification.md#last-run"
    }
    </bts-decision>
@@ -162,19 +180,32 @@ judgement is genuinely required.
    [Why this action is needed now]
    ```
 
-## Simulate Timing
+## Measurement Timing
 
-**Priority rule**: If verify-log shows critical=0 has been achieved AND no simulation
-has run yet (check changelog.jsonl for "simulate" action), strongly recommend /simulate
-BEFORE further IMPROVE cycles.
+**Priority rule**: every verify round runs all three instruments —
+verify, audit and simulate — in one concurrent batch. If the last round
+recorded fewer than three dimensions, recommend VERIFY and say which
+instrument was missing.
 
-Rationale: structural verification (critical=0) means the spec is internally consistent.
-Now is the best time to test scenarios — simulation catches behavioral gaps (failure modes,
-race conditions, edge cases) that verification cannot find. Running simulation early
-prevents discovering these gaps late and needing additional rework iterations.
+Rationale: a round's counts are comparable only against rounds of the
+same measurement class, so a loop that changes class each round is a
+loop whose convergence budget never accumulates. Worse, a held-back
+instrument does not find less; it finds the same things later. A
+measured recipe ran audit at rounds 1-2, then not again until rounds 10
+and 16, and each return produced five majors nobody had seen — on top of
+ten rounds of IMPROVE built on an un-audited draft.
+
+Completion requires a clean round from all three anyway
+(`bts-verification-protocol.md § Completion Evidence`), and the round cap
+counts rounds rather than dimensions, so spending a round per instrument
+buys nothing and costs half the budget.
 
 ## Important
 
-- Always be specific. Not "needs more detail" but "add function signatures for auth module."
+- Always be specific, and always name a STRUCTURE rather than an amount.
+  Not "needs more detail", and not "add function signatures for the auth
+  module" — that is elaboration, which no criterion asks for. Name the
+  unmet criterion and the smallest structure that satisfies it: "INV-006
+  has no falsifier — add a row naming the test that would go red."
 - Consider what has already been done (check .bts/specs/recipes/{id}/ for previous research, debates, simulations).
 - If previous debates exist, check if their conclusions are reflected in the current draft.

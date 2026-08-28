@@ -195,3 +195,46 @@ func TestStrengthClassAndDimensionNormalisation(t *testing.T) {
 		t.Errorf("legacy class = %q, want ?/delta", got)
 	}
 }
+
+// A class measured once, early, when the document was bad leaves a
+// target that stays trivially beatable forever. One measured recipe left
+// the loop through exactly that door: its budget was exhausted at round
+// 16 with a streak of 6, then round 17 rotated to a class last seen at
+// round 4, beat that class's (4,17,8) with (1,10,4), and reset the
+// streak to zero. Nothing recent had improved.
+func TestStaleBaselineDoesNotResetTheStreak(t *testing.T) {
+	simulate := []string{"simulate"}
+	verifyOnly := []string{"verify"}
+	entries := []state.VerifyLogEntry{
+		round(1, 4, 17, 8, simulate, true), // the ancient, easy baseline
+		round(2, 0, 0, 2, verifyOnly, true),
+		round(3, 0, 2, 4, verifyOnly, true),
+		round(4, 0, 4, 7, verifyOnly, true),
+		round(5, 0, 4, 5, verifyOnly, true),
+		round(6, 1, 10, 4, simulate, true), // beats round 1, but round 1 is stale
+	}
+	got := NoProgressStreak(entries)
+	if got == 0 {
+		t.Fatal("a baseline older than one full rotation reset the streak — " +
+			"this is the escape hatch the staleness rule closes")
+	}
+	if got != 3 {
+		t.Errorf("streak = %d, want 3 (rounds 3-5 fail against round 2; round 6 holds)", got)
+	}
+	if v := EvaluateConvergence(entries, 3); !v.Exceeded {
+		t.Errorf("the budget must stay exhausted, got %+v", v)
+	}
+}
+
+// A class re-measured INSIDE the window still compares normally: the
+// rule is about age, not about rotation.
+func TestFreshBaselineStillComparesNormally(t *testing.T) {
+	verifyOnly := []string{"verify"}
+	entries := []state.VerifyLogEntry{
+		round(1, 0, 5, 5, verifyOnly, true),
+		round(2, 0, 4, 4, verifyOnly, true), // improves, one round later
+	}
+	if got := NoProgressStreak(entries); got != 0 {
+		t.Errorf("streak = %d, want 0 — an improvement on a recent baseline resets", got)
+	}
+}

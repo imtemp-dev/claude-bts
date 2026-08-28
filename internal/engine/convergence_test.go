@@ -136,3 +136,47 @@ func TestConvergenceHaltsTheMeasuredWorstCase(t *testing.T) {
 		t.Errorf("halted at round %d, expected to stop the thrash well before round 8", halted)
 	}
 }
+
+// The cap counts rounds and judges nothing. Every hole found in the
+// progress budget — per-document, per-class, baseline staleness — was
+// found only after a recipe had escaped through it; this backstop has
+// no judgement to escape through.
+func TestRoundCap(t *testing.T) {
+	round := func(n, c, m, r int) state.VerifyLogEntry {
+		return state.VerifyLogEntry{
+			Iteration: n, Critical: c, Major: m, MinorResolvable: r,
+			Dimensions: []string{"audit", "simulate", "verify"}, FullPass: true,
+			Status: "continue",
+		}
+	}
+	// Six rounds that improve every time: the progress budget is never
+	// touched, and the cap fires anyway.
+	var improving []state.VerifyLogEntry
+	for i := 0; i < 6; i++ {
+		improving = append(improving, round(i+1, 0, 10-i, 10-i))
+	}
+	v := EvaluateConvergenceWithCap(improving, 3, 6)
+	if v.Streak != 0 {
+		t.Fatalf("streak = %d, want 0 — every round improved", v.Streak)
+	}
+	if !v.CapHit {
+		t.Errorf("cap must fire at %d rounds with max_rounds=6, got %+v", len(improving), v)
+	}
+	if v.Rounds != 6 || v.RoundCap != 6 {
+		t.Errorf("Rounds/RoundCap = %d/%d, want 6/6", v.Rounds, v.RoundCap)
+	}
+
+	// Under the cap, nothing fires.
+	if v := EvaluateConvergenceWithCap(improving[:5], 3, 6); v.CapHit {
+		t.Error("cap fired at 5 rounds with max_rounds=6")
+	}
+	// A clean document is finished, not capped.
+	clean := append(append([]state.VerifyLogEntry{}, improving...), round(7, 0, 0, 0))
+	if v := EvaluateConvergenceWithCap(clean, 3, 6); v.CapHit {
+		t.Error("a clean latest round must never be reported as capped")
+	}
+	// 0 disables.
+	if v := EvaluateConvergenceWithCap(improving, 3, 0); v.CapHit {
+		t.Error("max_rounds=0 must disable the cap")
+	}
+}

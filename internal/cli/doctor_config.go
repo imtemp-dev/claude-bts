@@ -151,9 +151,11 @@ func isBtsHookCommand(cmd string) bool {
 // than whitelisted here: whitelisting a dead knob keeps the knob.
 var settingsKeysRead = map[string]bool{
 	"verify.max_iterations":                     true,
+	"verify.max_rounds":                         true,
 	"verify.evidence_ttl_days":                  true,
 	"verify.confirm_passes":                     true,
 	"verify.max_section_lines":                  true,
+	"verify.max_document_lines":                 true,
 	"verify.section_span_severity":              true,
 	"debate.rounds":                             true,
 	"debate.max_extensions":                     true,

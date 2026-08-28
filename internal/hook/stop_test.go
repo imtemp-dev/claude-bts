@@ -558,3 +558,59 @@ func TestStopFixDone_BlocksDirtyFixSpec(t *testing.T) {
 		t.Fatalf("expected fix-spec dirty block, got decision=%q reason=%q", out.Decision, out.Reason)
 	}
 }
+
+// Phase 2 gate 2c-bis: a blueprint whose spec declares invariants with
+// no falsifier must block. Completion otherwise certifies that agents
+// agreed about prose — which is not evidence that anything was executed.
+func TestStopSpecDone_BlocksOnInvariantWithoutFalsifier(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 0, Major: 0, MinorResolvable: 0, Status: "converged"},
+	})
+	draft := "# Draft\n\n" +
+		"| INV-001 | covers are https | `backend/community.service.ts` |\n" +
+		"| INV-002 | absence is one value | `ios/CommunityModels.swift` |\n\n" +
+		"## Falsifiers\n" +
+		"| INV-001 | `backend/test/guards.spec.ts` |\n"
+	draftPath := filepath.Join(state.RecipeDir(root, recipeID), "draft.md")
+	if err := os.WriteFile(draftPath, []byte(draft), 0644); err != nil {
+		t.Fatalf("write draft.md: %v", err)
+	}
+
+	h := NewStopHandler()
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision != "block" {
+		t.Fatalf("expected block, got decision=%q", out.Decision)
+	}
+	if !strings.Contains(out.Reason, "INV-002") {
+		t.Errorf("reason should name the uncovered invariant, got %q", out.Reason)
+	}
+	if strings.Contains(out.Reason, "INV-001") {
+		t.Errorf("reason should not name the covered invariant, got %q", out.Reason)
+	}
+}
+
+// A spec that declares no invariants has nothing to falsify. The gate
+// must not invent a requirement for it.
+func TestStopSpecDone_NoInvariantsNoFalsifierGate(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 1, Critical: 0, Major: 0, MinorResolvable: 0, Status: "converged"},
+	})
+	draftPath := filepath.Join(state.RecipeDir(root, recipeID), "draft.md")
+	if err := os.WriteFile(draftPath, []byte("# Draft with no invariants\n"), 0644); err != nil {
+		t.Fatalf("write draft.md: %v", err)
+	}
+
+	h := NewStopHandler()
+	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision == "block" && strings.Contains(out.Reason, "falsifier") {
+		t.Fatalf("falsifier gate fired with no invariants declared: %s", out.Reason)
+	}
+}

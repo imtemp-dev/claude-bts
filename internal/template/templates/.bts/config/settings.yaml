@@ -9,6 +9,23 @@ verify:
                                  # loop must stop and ask. Enforced by `bts recipe log`, which
                                  # exits non-zero with [CONVERGENCE FAILED]. Evaluated per
                                  # verified document.
+  max_rounds: 6                  # Total verify rounds allowed on one document, whatever they
+                                 # measured. max_iterations judges progress, and every hole
+                                 # found in that judgement was found after a recipe had already
+                                 # escaped through it — one ran 17 rounds against a budget of 3.
+                                 # This one only counts, so there is nothing to argue with.
+                                 # At the cap: move open findings to Known Uncertainties with
+                                 # the command that settles each, and start implementing.
+                                 # 0 disables.
+  max_section_lines: 300         # H2 section length at which `bts verify` reports span.
+  max_document_lines: 400        # Whole-document length at which it reports span. A blueprint
+                                 # carries what code cannot cheaply falsify, and that is short.
+                                 # Section length and finding count correlate at r=+0.95, so
+                                 # the length IS the finding count the completion gate will
+                                 # later be asked to drive to zero. 0 disables either check.
+  section_span_severity: major   # Severity for both span reports. "info" reports without
+                                 # blocking — which is what it did while the check was new, on
+                                 # 15 of 26 recipes in one project, with nothing following.
   evidence_ttl_days: 30          # How long a cached framework-claim lookup stays usable.
                                  # 0 = never expire. "unavailable" results always expire after
                                  # an hour so an outage never pins a claim.

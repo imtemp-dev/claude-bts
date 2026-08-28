@@ -9,36 +9,94 @@ authoritative_for:
 
 # BTS Level Criteria
 
+A level says what a document is, not how much of it there is.
+
+Every criterion below is checked structurally by
+`internal/engine/level3_structural.go` and every threshold **saturates**:
+once met, more text cannot raise the score. That is deliberate. The
+criteria used to be keyword counts over an unbounded document, so the
+only way to raise a level was to write more — and `/bts-assess` turns
+every unmet criterion into an IMPROVE instruction. One measured recipe
+reached 2,184 lines and 17 verify rounds against a budget of 3 with that
+pressure behind it.
+
+**Delegation.** A recipe is a chain: `scope.md` holds the boundaries,
+`domain.md` the invariants, `wireframe.md` the decomposition, the flow
+and the recorded architect decision. A Level 1 or Level 2 criterion whose
+content has a home upstream is satisfied by **naming that home** —
+"the flow is in `wireframe.md` §3" locates the flow, it does not lose it.
+Level 3 criteria never delegate: they are the blueprint's own job.
+
 ## Level 1: Understanding
-A document achieves Level 1 when it demonstrates understanding of the system:
-- [ ] Main components/modules are listed and described
-- [ ] Relationships between components are explained
-- [ ] Technology stack is specified (language, framework, database, etc.)
-- [ ] Core data model or schema is outlined
+
+- [ ] **components_listed** — at least two distinct parts are named
+      (file paths or backticked identifiers). *Delegable.*
+- [ ] **relationships_described** — the parts are related to each other:
+      a dependency column, flow arrows, or an ordered sequence. A list
+      without relations is a glossary. *Delegable.*
+- [ ] **tech_stack_specified** — two or more distinct source-file kinds
+      among the paths named, or a named technology in prose. The
+      extensions of the files a spec touches are evidence; a word list
+      is an assertion. *Delegable.*
 
 ## Level 2: Design
-A document achieves Level 2 when it provides a concrete design:
-- [ ] All Level 1 criteria met
-- [ ] New components to build are defined with responsibilities
-- [ ] Data flow is specified (input → processing → output for each major flow)
-- [ ] Error handling strategy is defined (not just "handle errors" but how)
-- [ ] Key interfaces (API endpoints, function contracts) are described
-- [ ] Technology choices have stated rationale (why this over alternatives)
 
-## Level 3: Implementation-Ready
-A document achieves Level 3 when an AI can implement directly from it:
+- [ ] All Level 1 criteria met
+- [ ] **data_flow_defined** — input reaches output visibly: two or more
+      flow arrows, or a mermaid flow diagram. *Delegable.*
+- [ ] **error_strategy_defined** — a failure is named **and** so is what
+      happens next (a status code, a fallback, a rejection). "Handle
+      errors" names the failure and no disposition.
+- [ ] **interfaces_described** — something at a boundary is named.
+- [ ] **tech_choices_rationale** — a choice is recorded as a choice: an
+      `architect-decision` block, a stated reason, or the alternative it
+      was chosen over. *Delegable.*
+
+## Level 3: Blueprint
+
+A Level 3 document carries the part **code cannot cheaply falsify**.
+
+Function signatures, type definitions and code scaffolding are not on
+this list. A compiler produces them for free and settles them in seconds;
+arguing about them in prose costs a verify round each and leaves a claim
+behind that the next round has to re-check.
+
 - [ ] All Level 2 criteria met
-- [ ] Every file path is specified (create new / modify existing)
-- [ ] Every function has signature (name, typed parameters, return type)
-- [ ] Data types and interfaces are formally defined
-- [ ] Connection points are specific (which file, which function, which line)
-- [ ] Every error case is enumerated with handling strategy
-- [ ] Edge cases are listed (empty, null, concurrent, large data, etc.)
-- [ ] Code scaffolding is included (skeleton structure showing how pieces connect)
-- [ ] Test scenarios are defined (happy path + error paths + edge cases)
+- [ ] **file_paths_specified** — at least three distinct units are named.
+- [ ] **invariants_owned** — the document declares at least one
+      `INV-NNN`, and **every** invariant it declares appears on a line
+      that also names the file that keeps it. An invariant without an
+      owner is one nobody keeps, or two places keeping it differently.
+- [ ] **boundary_contracts** — a boundary is named (contract, wire,
+      schema, payload, DTO, endpoint, migration) and its shape is pinned
+      in a table or a fence. What crosses a boundary is the expensive
+      thing to get wrong: both sides get rebuilt, and once shipped a
+      migration is involved.
+- [ ] **irreversible_order** — two or more ordered steps **and** what
+      undoes them. A wrong order here is not a code fix; it is a
+      production incident with no rollback.
+- [ ] **falsifiers_assigned** — **every** declared invariant appears on a
+      line that also names what would prove it false: a test, a spec, a
+      probe, an observation. Names only — what the assertion should
+      contain is decided while writing the test, not here.
+- [ ] **uncertainties_declared** — a `## Known Uncertainties` section
+      exists, and every `### U-NNN` entry carries a `Why-deferred:` or
+      `Opens-with:` line. A section declaring nothing open passes;
+      having no section does not. Silence is what lets an unopened
+      question read as a settled one.
+
+### Why falsifiers, and not test scenarios
+
+A claim in a document about code that does not exist yet has no truth
+value until something executes. Writing the expected threshold into the
+spec does not settle it — it just moves the argument earlier, where it
+costs more and where three verify rounds can disagree about it.
+
+So the blueprint names **what would open the box** and stops there. The
+inverse matters too: a load-bearing claim with no falsifier is not
+verified because three agents read it and agreed. It is unopened.
 
 ## Level Assessment
 
-Run `bts verify <file>` to get an automated level assessment.
-The score is approximate — /assess provides a more nuanced evaluation
-by reading the document in context.
+`bts verify <file>` reports the level and the unmet criteria. The score
+is structural and cheap; `/bts-assess` weighs it in context.

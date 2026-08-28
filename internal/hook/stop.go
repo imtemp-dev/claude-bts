@@ -427,6 +427,34 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		}
 	}
 
+	// 2c-bis. Every invariant the spec declares must name what would prove
+	// it false. Without this, completion certifies that three agents read
+	// the same prose and agreed, which is not evidence that anything was
+	// ever executed. On one measured recipe, nine of seventeen CRITICAL
+	// findings were questions a single command answers, and the spec named
+	// a falsifier for none of its nine invariants.
+	if recipe.Type == "blueprint" {
+		specPath := filepath.Join(recipeDir, "final.md")
+		if _, statErr := os.Stat(specPath); os.IsNotExist(statErr) {
+			specPath = filepath.Join(recipeDir, "draft.md")
+		}
+		if data, rerr := os.ReadFile(specPath); rerr == nil {
+			if uncovered := engine.FalsifierCoverage(string(data)); len(uncovered) > 0 {
+				ids := make([]string, 0, len(uncovered))
+				for _, u := range uncovered {
+					ids = append(ids, u.ID)
+				}
+				if out, blocked := gateBlock(root, recipe.ID, "falsifier_assigned",
+					lastEntry.Doc, lastEntry.DocHash, fmt.Sprintf(
+						"%s declares %d invariant(s) with no falsifier: %s. Add a row naming the test, probe or observation that would go red for each — the name only, not what it asserts. Then re-verify (the edit is a modification — rule 3) and re-emit DONE.",
+						filepath.Base(specPath), len(uncovered), strings.Join(ids, ", "),
+					)); blocked {
+					return out, nil
+				}
+			}
+		}
+	}
+
 	// 2d. Blueprint-only changelog gates: simulate-at-least-once (rule 5)
 	// and sync-check-after-last-modification (rule 8). Both rules are
 	// tagged {gate: hard} — before Sprint 10 neither was actually

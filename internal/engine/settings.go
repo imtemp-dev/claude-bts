@@ -61,6 +61,24 @@ type VerifySettings struct {
 	// before the loop must stop and ask the user. Enforced in
 	// engine/convergence.go and `bts recipe log`.
 	MaxIterations int `yaml:"max_iterations"`
+	// MaxRounds is the total number of verify rounds allowed on one
+	// document, regardless of what any of them measured. 0 disables.
+	//
+	// MaxIterations bounds rounds that make NO PROGRESS, which is a
+	// judgement about the triple and therefore about which instruments
+	// produced it. Every refinement of that judgement — per-document,
+	// per-measurement-class, baseline staleness — closed a way for the
+	// budget to be reset by something other than the document improving,
+	// and each was found only after a recipe had already escaped through
+	// it. One ran seventeen rounds against a budget of three.
+	//
+	// This cap makes no judgement at all. It counts. Nothing a round can
+	// measure, declare or improve changes the count, so there is no hole
+	// to find. It is the backstop, not the mechanism: a recipe that hits
+	// it should move its open findings to Known Uncertainties and start
+	// implementing, where a compiler and a test settle in seconds what
+	// the eighteenth round was going to argue about.
+	MaxRounds int `yaml:"max_rounds"`
 	// EvidenceTTLDays is how long a cached framework-claim lookup stays
 	// usable. 0 disables expiry for successful lookups; "unavailable"
 	// results always expire after an hour regardless.
@@ -68,9 +86,24 @@ type VerifySettings struct {
 	// MaxSectionLines is the H2 section length at which `bts verify`
 	// starts reporting span. 0 disables. See section_span_checker.go.
 	MaxSectionLines int `yaml:"max_section_lines"`
-	// SectionSpanSeverity classifies those reports. "info" (default)
-	// records without blocking; "major" makes an oversize section a
-	// completion blocker.
+	// MaxDocumentLines is the whole-document length at which `bts verify`
+	// reports span. 0 disables.
+	//
+	// The per-section limit alone does not bound a document: seven
+	// sections at the limit is 2,100 lines. Span is the one input to the
+	// loop's total cost that is knowable before the loop starts —
+	// section length and finding count correlate at r=+0.95 — so the
+	// document as a whole needs its own bound, and a blueprint that
+	// carries only what code cannot cheaply falsify does not approach it.
+	MaxDocumentLines int `yaml:"max_document_lines"`
+	// SectionSpanSeverity classifies both span reports. "major" (default)
+	// makes an oversize document or section a completion blocker; "info"
+	// records without blocking.
+	//
+	// It defaulted to info while the check was new. Measured afterwards:
+	// 15 of 26 recipes in one project carried an oversize section, the
+	// report fired on every one of them, and nothing followed. A finding
+	// nobody has to act on is a finding nobody acts on.
 	SectionSpanSeverity string `yaml:"section_span_severity"`
 	// ConfirmPasses is how many consecutive clean full passes over an
 	// unchanged revision the completion gate requires. 1 restores the
@@ -110,10 +143,12 @@ func DefaultSettings() *Settings {
 		},
 		Verify: VerifySettings{
 			MaxIterations:       3,
+			MaxRounds:           6,
 			EvidenceTTLDays:     30,
 			ConfirmPasses:       2,
 			MaxSectionLines:     300,
-			SectionSpanSeverity: SeverityInfo,
+			MaxDocumentLines:    400,
+			SectionSpanSeverity: SeverityMajor,
 		},
 	}
 }
@@ -166,6 +201,12 @@ func LoadSettings(root string) (*Settings, error) {
 	// falls back to the default.
 	if s.Verify.MaxSectionLines < 0 {
 		s.Verify.MaxSectionLines = def.Verify.MaxSectionLines
+	}
+	if s.Verify.MaxDocumentLines < 0 {
+		s.Verify.MaxDocumentLines = def.Verify.MaxDocumentLines
+	}
+	if s.Verify.MaxRounds < 0 {
+		s.Verify.MaxRounds = def.Verify.MaxRounds
 	}
 	// An unrecognised severity was passed through verbatim and ended up
 	// in the Issue as a classification nothing downstream knows how to

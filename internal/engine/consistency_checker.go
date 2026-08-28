@@ -56,34 +56,71 @@ var level2Criteria = []string{
 	"tech_choices_rationale", // 기술 선택 근거
 }
 
+// Level 3 is structural, not lexical.
+//
+// The old checklist scored by keyword presence: one code fence met
+// "scaffolding_included", the substring "()" met "function_signatures",
+// the word "test" met "test_scenarios". Every criterion was reachable by
+// writing more text and by nothing else — and `bts verify` hands the
+// unmet ones to /bts-assess, which turns each into an IMPROVE
+// instruction. A 250-line skeleton therefore scored BELOW a 2,000-line
+// transcription of the same design, and the loop was pointed at length.
+//
+// Measured consequence: one recipe's draft reached 2,184 lines and 17
+// verify rounds against a budget of 3, and 46.5% of its findings arrived
+// after round 4 — the round by which every finding that named the
+// design's direction had already been raised. See
+// docs/bts-flow-metrics.md indicators 15-19.
+//
+// These criteria ask for structure instead, and every threshold is
+// BOUNDED: once three files are named, or every invariant has an owner,
+// writing more cannot raise the score. That is the whole point. This
+// file stops rewarding length; section_span_checker.go is what makes
+// length cost something.
+//
+// What a Level 3 document owes its reader is the part code cannot cheaply
+// falsify — what is always true and who keeps it true, what shape crosses
+// a boundary, what cannot be undone, and what is still unknown. Function
+// signatures, type definitions and scaffolding are not on the list
+// because a compiler produces them for free and settles them faster than
+// a verify round can argue about them.
 var level3Criteria = []string{
-	"file_paths_specified",   // 모든 파일 경로 명시
-	"function_signatures",    // 함수 시그니처 (이름, 파라미터, 리턴)
-	"type_definitions",       // 데이터 타입/인터페이스 정의
-	"connection_points",      // 컴포넌트 연결점 구체적
-	"error_cases_enumerated", // 에러 케이스 열거
-	"edge_cases_listed",      // Edge case 명시
-	"scaffolding_included",   // 코드 스캐폴딩 포함
-	"test_scenarios",         // 테스트 시나리오
+	"file_paths_specified",   // the units this spec touches are named
+	"invariants_owned",       // every invariant names the file that keeps it
+	"boundary_contracts",     // what crosses a boundary has a declared shape
+	"irreversible_order",     // ordered steps, and what undoes them
+	"falsifiers_assigned",    // every invariant names what would prove it false
+	"uncertainties_declared", // what is not yet known, and what would settle it
 }
 
-// Keyword indicators for each criterion
-var criteriaKeywords = map[string][]string{
-	"components_listed":       {"component", "module", "service", "layer", "package", "컴포넌트", "모듈", "서비스"},
-	"relationships_described": {"depends on", "calls", "connects", "integrates", "imports from", "의존", "호출", "연결"},
-	"tech_stack_specified":    {"typescript", "python", "go", "react", "node", "express", "django", "postgresql", "redis"},
-	"data_flow_defined":       {"input", "output", "request", "response", "flow", "pipeline", "→", "데이터 흐름", "입력", "출력"},
-	"error_strategy_defined":  {"error", "exception", "catch", "throw", "retry", "fallback", "에러", "예외", "실패"},
-	"interfaces_described":    {"interface", "api", "endpoint", "method", "function", "인터페이스", "엔드포인트"},
-	"tech_choices_rationale":  {"because", "reason", "rationale", "chose", "selected", "over", "이유", "선택", "근거"},
-	"file_paths_specified":    {"/", ".ts", ".go", ".py", ".js", "src/", "internal/", "cmd/"},
-	"function_signatures":     {"function", "func ", "def ", "export", "()", "params", "returns", "파라미터", "리턴"},
-	"type_definitions":        {"type ", "interface ", "struct ", "class ", "enum ", "타입", "인터페이스"},
-	"connection_points":       {"calls", "imports", "uses", "호출", "사용", "연결점"},
-	"error_cases_enumerated":  {"400", "401", "403", "404", "500", "timeout", "invalid", "unauthorized", "에러 케이스"},
-	"edge_cases_listed":       {"edge case", "empty", "null", "concurrent", "large", "엣지", "빈 값", "동시"},
-	"scaffolding_included":    {"```", "skeleton", "scaffold", "골격", "스캐폴딩"},
-	"test_scenarios":          {"test", "scenario", "happy path", "should", "expect", "테스트", "시나리오"},
+// Level predicates. Every criterion is judged on the document's shape.
+//
+// See level3_structural.go for why none of these is a keyword count: a
+// threshold over an unbounded text is cleared by length, and the level
+// score is what /bts-assess turns into IMPROVE instructions.
+var structuralCriteria = map[string]func(string) bool{
+	// Level 1 — is this an understanding of a system?
+	// These have a canonical home upstream (wireframe.md, scope.md), so
+	// naming it counts. See "Delegation" in level3_structural.go.
+	"components_listed":       orDelegated(hasNamedComponents),
+	"relationships_described": orDelegated(hasRelationships),
+	"tech_stack_specified":    orDelegated(hasTechStack),
+
+	// Level 2 — is this a design?
+	// The flow and the recorded decision live in wireframe.md; error
+	// disposition and the boundary shapes are the document's own.
+	"data_flow_defined":      orDelegated(hasDataFlow),
+	"error_strategy_defined": hasErrorStrategy,
+	"interfaces_described":   hasInterfaces,
+	"tech_choices_rationale": orDelegated(hasTechRationale),
+
+	// Level 3 — is this a blueprint? See level3Criteria.
+	"file_paths_specified":   hasNamedUnits,
+	"invariants_owned":       func(c string) bool { return invariantsCarry(c, lineNamesOwner) },
+	"falsifiers_assigned":    func(c string) bool { return invariantsCarry(c, lineNamesFalsifier) },
+	"boundary_contracts":     hasBoundaryContract,
+	"irreversible_order":     hasIrreversibleOrder,
+	"uncertainties_declared": hasDeclaredUncertainties,
 }
 
 // VerifyDocument checks a document for internal consistency and assesses its level.
@@ -102,11 +139,10 @@ func VerifyDocument(docPath string, projectRoot string, checkCode bool) (*Verify
 	}
 
 	content := string(data)
-	contentLower := strings.ToLower(content)
 	result := &VerifyResult{File: docPath}
 
 	// 1. Assess document level
-	result.Level = assessLevel(contentLower)
+	result.Level = assessLevel(content)
 
 	// 2. Check internal consistency
 	checkInternalConsistency(content, result)
@@ -134,6 +170,13 @@ func VerifyDocument(docPath string, projectRoot string, checkCode bool) (*Verify
 		appendIssues(result, CheckInterfaceJustification(docPath))
 	}
 
+	// 5a. Falsifier coverage (draft.md / final.md). Every invariant the
+	// spec declares must name what would prove it false. Runs on final.md
+	// too because that is the document /bts-implement reads.
+	if strings.EqualFold(base, "draft.md") || strings.EqualFold(base, "final.md") {
+		appendIssues(result, CheckFalsifierCoverage(docPath))
+	}
+
 	// 5b. Section span (draft.md / final.md). Findings scale with
 	// section length at r=+0.95, so length is the one lever on the
 	// loop's cost that is knowable before the loop runs. Settings are
@@ -144,6 +187,8 @@ func VerifyDocument(docPath string, projectRoot string, checkCode bool) (*Verify
 			if st, serr := LoadSettings(projectRoot); serr == nil {
 				appendIssues(result, CheckSectionSpan(docPath,
 					st.Verify.MaxSectionLines, st.Verify.SectionSpanSeverity))
+				appendIssues(result, CheckDocumentSpan(docPath,
+					st.Verify.MaxDocumentLines, st.Verify.SectionSpanSeverity))
 			}
 		}
 	}
@@ -181,15 +226,21 @@ func appendIssues(result *VerifyResult, issues []Issue) {
 	}
 }
 
-// assessLevel evaluates the document against level criteria checklists.
-func assessLevel(contentLower string) LevelScore {
+// assessLevel evaluates the document against the level criteria.
+//
+// Levels 1 and 2 are lexical: they ask whether the document reads like an
+// understanding or a design, and keyword presence is a fair proxy for
+// that. Level 3 is structural (see level3Criteria), so it needs the
+// original text — identifiers, paths and table rows do not survive
+// lower-casing intact.
+func assessLevel(content string) LevelScore {
 	checklist := make(map[string]bool)
 	var missing []string
 
 	// Check Level 1 criteria
 	l1Met := 0
 	for _, c := range level1Criteria {
-		met := checkCriterion(contentLower, c)
+		met := checkCriterion(content, c)
 		checklist[c] = met
 		if met {
 			l1Met++
@@ -201,7 +252,7 @@ func assessLevel(contentLower string) LevelScore {
 	// Check Level 2 criteria
 	l2Met := 0
 	for _, c := range level2Criteria {
-		met := checkCriterion(contentLower, c)
+		met := checkCriterion(content, c)
 		checklist[c] = met
 		if met {
 			l2Met++
@@ -213,7 +264,7 @@ func assessLevel(contentLower string) LevelScore {
 	// Check Level 3 criteria
 	l3Met := 0
 	for _, c := range level3Criteria {
-		met := checkCriterion(contentLower, c)
+		met := checkCriterion(content, c)
 		checklist[c] = met
 		if met {
 			l3Met++
@@ -242,19 +293,16 @@ func assessLevel(contentLower string) LevelScore {
 	}
 }
 
-func checkCriterion(contentLower string, criterion string) bool {
-	keywords, ok := criteriaKeywords[criterion]
+// checkCriterion reports whether the document satisfies one criterion.
+// An unknown criterion is not met: with no predicate there is nothing to
+// judge it by, and answering "met" would drop it from the Missing list
+// without anyone having addressed it.
+func checkCriterion(content string, criterion string) bool {
+	predicate, ok := structuralCriteria[criterion]
 	if !ok {
 		return false
 	}
-	matchCount := 0
-	for _, kw := range keywords {
-		if strings.Contains(contentLower, strings.ToLower(kw)) {
-			matchCount++
-		}
-	}
-	// Need at least 2 keyword matches to consider criterion met
-	return matchCount >= 2
+	return predicate(content)
 }
 
 // checkInternalConsistency finds contradictions within the document.

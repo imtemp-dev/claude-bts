@@ -33,10 +33,63 @@ This is non-negotiable. The recipe protocol enforces this.
 - **critical**: Internal contradiction, undefined behavior in scenarios, impossible claims, execution path leading to undefined behavior. Never `[deferred]`.
 - **major**: Missing error handling, incomplete data flow, unresolved design questions, important execution path not specified. Never `[deferred]`.
 - **minor [resolvable]**: Fixable in the spec itself — metadata, typos, internal inconsistencies, cross-reference errors, unused declarations, outdated level/version headers, misused terminology, ambiguous wording, unspecified minor branches.
-- **minor [deferred]**: Only resolvable at implementation/runtime — device-specific behavior, measured thresholds, framework-version-specific quirks, observable race windows. Every `[deferred]` minor MUST include a `Why-deferred:` line naming the specific runtime observation that would resolve it.
+- **minor [deferred]**: Only resolvable at implementation/runtime — device-specific behavior, measured thresholds, framework-version-specific quirks, observable race windows. Every `[deferred]` minor MUST include a `Why-deferred:` line naming the specific runtime observation that would resolve it, and an `Opens-with:` line carrying the exact command whenever one exists.
 - **info**: Improvement suggestions, alternative approaches.
 
-Rule: if filling the gap requires executing the code (or observing it on a physical device) to resolve, it is `[deferred]`, not an IMPROVE target. CRITICAL and MAJOR are never `[deferred]` — unknowable-pre-implementation gaps that would cause failure stay MAJOR; the spec must document the uncertainty as a defensive design decision.
+### What a severity is about
+
+A finding is CRITICAL or MAJOR only when it names a **load-bearing**
+item — one of:
+
+- an **invariant** or its **owner**
+- a **boundary contract**: the shape of what crosses a wire, a schema, a
+  stored row, a public API
+- an **irreversible order** or its rollback: migrations, rollouts, data
+  transforms
+- a **scope** decision: what ships and what does not
+
+Everything else is at most `minor`. Signatures, type shapes, thresholds,
+test assertion values, enumerated error cases, edge-case tables and
+cross-references between detail sections are not load-bearing, however
+convincingly wrong they look. A compiler, a type checker and one test run
+settle them in seconds; a verify round costs a full document read and
+leaves behind the prose it wrote to settle them, which the next round
+re-checks.
+
+Measured on one recipe: of seventeen CRITICAL findings, five named the
+direction, three existed only because the document was long enough to
+contradict itself, and **nine were questions a single execution
+answers** — whether `RegExp.prototype.source` escapes forward slashes,
+whether a synthesized `Encodable` omits nil optionals, whether Postgres
+bracket ranges expand over the collating sequence.
+
+### Opening the box
+
+If something you can run would settle a finding, **do not argue about it
+in prose**. Either run it now, or record it as `[deferred]` with the
+command:
+
+```
+Opens-with: `node -e "console.log(/a\/b/.source)"`
+```
+
+A claim about code that does not exist yet has no truth value until
+something executes. Writing the expected answer into the spec does not
+settle it — it moves the argument earlier, where it costs more and where
+two rounds reading identical bytes can disagree.
+
+The inverse is the same rule. A load-bearing claim that nothing can
+falsify is not verified because three agents read it and agreed; it is
+**unopened**, and it stays unopened through completion unless the spec
+names what would prove it false.
+
+That half **is** machine-enforced: `falsifier_assigned`
+(`engine/falsifier_checker.go` raises a major per uncovered invariant,
+and `hook/stop.go:handleSpecDone` blocks `<bts>DONE</bts>`). The rest of
+this section is not — no code can tell whether you argued about a
+regex for four rounds or ran it. Both rules above are yours to keep.
+
+Rule: if filling the gap requires executing the code (or observing it on a physical device) to resolve, it is `[deferred]`, not an IMPROVE target. The one exception is a gap whose ANSWER CHANGES WHAT GETS BUILT — a different host allowlist, a different release order, a different contract. Those stay MAJOR even though only a run can settle them, because the spec has to commit to a defensible choice now and say so. A gap that only changes a value the implementation discovers on its first run is `[deferred]`, whatever it would have cost at runtime.
 
 ## Finding Identity {gate: hard}
 
@@ -217,6 +270,35 @@ function so the loop has one oracle rather than two. Set
 - Every logged round records the `budget` it was judged under. Changing
   `verify.max_iterations` mid-document re-judges that document's whole
   history, so `bts recipe log` prints a notice when it changes.
+
+- **Baseline staleness**: a class's best expires once the loop has run
+  longer than one full rotation of its own measurements without
+  re-measuring that class. A stale round sets a fresh baseline and HOLDS
+  the streak, exactly like a first sighting.
+
+  Without this, a class measured once — early, when the document was
+  genuinely bad — left a target that stayed trivially beatable forever.
+  A measured recipe left through that door: budget exhausted at round 16
+  with a streak of 6, then round 17 rotated to `simulate/full`, beat the
+  baseline that class had set at round 4 with `(4,17,8)` by scoring
+  `(1,10,4)`, and reset the streak to zero. Nothing recent had improved.
+
+- **Round cap**: `verify.max_rounds` (default 6) total rounds on one
+  document, regardless of what any of them measured → the round is
+  logged with `status: failed`, `bts recipe log` exits non-zero with
+  `[ROUND CAP]`, and the loop stops.
+
+  The budget is a judgement about the triple, and therefore about which
+  instruments produced it. Every refinement of that judgement —
+  per-document, per-class, staleness — closed a way to reset it without
+  the document improving, and each was found only after a recipe had
+  already escaped through it. The cap makes no judgement. It counts.
+
+  At the cap, the answer is not another round. Move the open findings to
+  `## Known Uncertainties`, each with the `Opens-with:` command that
+  would settle it, and start implementing — a compiler and one test run
+  answer in seconds what the next round would spend a full document read
+  arguing about.
 
 This is enforced in code (`internal/engine/convergence.go`), not by
 self-counting. Recipes measured before it existed ran up to 15 verify

@@ -107,21 +107,53 @@ func (k ProgressKey) String() string {
 // prevent it: once the instruments stop being new, every round that
 // fails to beat its own class counts.
 //
+// A baseline also goes STALE. The per-class best was a high-water mark
+// over the whole history, so a class measured once — early, when the
+// document was genuinely bad — left a target that stayed trivially
+// beatable forever. One measured recipe left the loop through exactly
+// that door: its budget was exhausted at round 16 with a streak of 6,
+// then round 17 rotated to `simulate/full`, beat the baseline that class
+// had set at round 4 with (4,17,8) by scoring (1,10,4), and reset the
+// streak to zero. Nothing recent had improved; the document had beaten
+// its own condition from thirteen rounds earlier.
+//
+// A baseline is stale when the loop has run longer than one full
+// rotation of its own measurements without re-measuring that class. The
+// window is therefore the number of distinct classes seen so far: if
+// every other way of measuring has had a turn and this one did not, its
+// last reading no longer describes the document.
+//
+// Sizing the window to the budget instead was tried and is wrong — with
+// seven reachable classes and a budget of 3, every second pass through
+// the rotation reads as stale and the budget can never fire at all,
+// which is a wider escape hatch than the one being closed.
+//
+// A stale round is treated exactly like a first sighting: it sets a
+// fresh baseline and HOLDS the streak. Improving still resets the
+// budget — but only against a measurement recent enough to be about the
+// same document.
+//
 // Callers should pass entries already narrowed to a single document via
 // state.VerifyEntriesForDoc — a wireframe round must not reset the
 // draft's budget, which is exactly what the undifferentiated log did.
 func NoProgressStreak(entries []state.VerifyLogEntry) int {
 	streak := 0
 	best := make(map[string]ProgressKey, 4)
+	// lastSeen tracks when a class was last MEASURED, not when its best
+	// was set: consecutive non-improving rounds of a class keep its
+	// reading current, and ageing the baseline through them would make a
+	// class go stale while it was being actively used.
+	lastSeen := make(map[string]int, 4)
 	for i := range entries {
 		class := entries[i].StrengthClass()
 		k := ProgressKeyOf(&entries[i])
 		b, seen := best[class]
+		stale := seen && i-lastSeen[class] > len(best)
+		lastSeen[class] = i
 		switch {
-		case !seen:
-			// No same-class predecessor: this round has nothing it could
-			// have improved on. Record the baseline and HOLD the streak —
-			// neither reset nor advanced.
+		case !seen || stale:
+			// Nothing comparable behind this round: record the baseline
+			// and HOLD the streak — neither reset nor advanced.
 			best[class] = k
 		case k.Better(b):
 			best[class] = k
@@ -160,6 +192,9 @@ type ConvergenceVerdict struct {
 	Stagnant  []string    // finding IDs unchanged across the streak
 	Iteration int         // iteration number of the most recent round
 	Class     string      // measurement class of the most recent round
+	Rounds    int         // total rounds recorded for this document
+	RoundCap  int         // verify.max_rounds in effect (0 = disabled)
+	CapHit    bool        // Rounds >= RoundCap (and RoundCap > 0)
 }
 
 // Message renders the operator-facing [CONVERGENCE FAILED] report.
@@ -181,6 +216,28 @@ func (v ConvergenceVerdict) Message(docBase string) string {
 // EvaluateConvergence applies the budget to one document's history.
 // budget <= 0 disables the check (Exceeded is always false), matching
 // the settings normalisation that treats non-positive values as unset.
+// EvaluateConvergenceWithCap is EvaluateConvergence plus the total-round
+// cap, which is judgement-free: it counts rounds and ignores what they
+// measured. See VerifySettings.MaxRounds.
+func EvaluateConvergenceWithCap(entries []state.VerifyLogEntry, budget, cap int) ConvergenceVerdict {
+	v := EvaluateConvergence(entries, budget)
+	v.Rounds, v.RoundCap = len(entries), cap
+	v.CapHit = cap > 0 && v.Rounds >= cap && !v.Latest.Clean()
+	return v
+}
+
+// CapMessage renders the operator-facing [ROUND CAP] report.
+func (v ConvergenceVerdict) CapMessage(docBase string) string {
+	return fmt.Sprintf(
+		"[ROUND CAP] %s: %d verify rounds recorded (cap: verify.max_rounds=%d).\n"+
+			"  latest round : %s\n"+
+			"  Stop verifying. Move the open findings to '## Known Uncertainties' — each with the\n"+
+			"  command that would settle it (Opens-with:) — and start implementing. A compiler and a\n"+
+			"  test run answer in seconds what another round would spend a full document read arguing\n"+
+			"  about (bts-verification-protocol.md § Convergence).",
+		docBase, v.Rounds, v.RoundCap, v.Latest)
+}
+
 func EvaluateConvergence(entries []state.VerifyLogEntry, budget int) ConvergenceVerdict {
 	v := ConvergenceVerdict{Budget: budget}
 	if len(entries) == 0 {
