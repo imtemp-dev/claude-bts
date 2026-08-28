@@ -13,6 +13,16 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, writeFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  H2_LIMIT,
+  LATE_ROUND_FROM,
+  analyzeFindings,
+  dimensionSwitchSpike,
+  lateRoundNewFindings,
+  measureDoc,
+  roundsAfterFirstFailure,
+  type FindingRow,
+} from './lib/doc-metrics.js';
 
 interface VerifyLogEntry {
   iteration: number;
@@ -21,6 +31,8 @@ interface VerifyLogEntry {
   minor?: number;
   minor_resolvable?: number;
   minor_deferred?: number;
+  full_pass?: boolean;
+  dimensions?: string[];
   status: string;
 }
 
@@ -68,6 +80,16 @@ interface RecipeSnapshot {
   invariant_violation_count: number;
   cross_boundary_ratio: number; // NaN if no simulations
   unauthorized_coupling_count: number;
+  // v0.13.0 span-side measurement — see docs/bts-flow-metrics.md 15-19.
+  draft_lines: number;
+  draft_h2_max_lines: number;
+  draft_h2_over_limit: number;
+  findings_unique: number;
+  findings_density: number;
+  new_findings_per_round: number[];
+  late_round_new_findings: number;
+  dimension_switch_spike: number | null;
+  rounds_after_failed: number;
   // Phase 8-16 indicators populated from `bts stats --indicators`.
   indicators?: RecipeIndicators;
 }
@@ -97,6 +119,14 @@ interface MonitoringReport {
     deviation_driver_diversity: number;             // #12 — P16
     test_scenario_link_coverage: number;            // #13 — P13
     retry_ladder_tier_distribution: number[];       // #14 — P15 aggregate
+    // v0.13.0 indicators (5) — span side
+    median_draft_lines: number;                     // #15
+    max_draft_lines: number;                        // #15
+    recipes_over_span_limit: number;                // #15
+    mean_findings_density: number;                  // #16 — control, not a goal
+    late_round_new_finding_share: number;           // #17
+    mean_dimension_switch_spike: number;            // #18
+    rounds_logged_after_failed: number;             // #19
   };
   per_recipe: RecipeSnapshot[];
   delta?: Partial<Record<keyof MonitoringReport['indicators'], number>>;
@@ -250,6 +280,12 @@ function captureRecipe(target: string, recipeID: string): RecipeSnapshot {
     if (e.status === 'converged' && firstConverge === null) firstConverge = e.iteration;
     if (e.status === 'failed') failures++;
   }
+  const roundsAfterFailed = roundsAfterFirstFailure(verifyLog);
+
+  const draftSpan = measureDoc(join(recipeDir, 'draft.md'));
+  const findings = analyzeFindings(
+    readJsonl<FindingRow>(join(recipeDir, 'findings.jsonl')),
+  );
 
   return {
     id: recipeID,
@@ -263,6 +299,18 @@ function captureRecipe(target: string, recipeID: string): RecipeSnapshot {
     invariant_violation_count: countInvariantViolations(recipeDir),
     cross_boundary_ratio: crossBoundaryRatio(recipeDir),
     unauthorized_coupling_count: 0, // populated when review.md parsing lands in Phase 6.3 follow-up
+    draft_lines: draftSpan.lines,
+    draft_h2_max_lines: draftSpan.h2_max_lines,
+    draft_h2_over_limit: draftSpan.h2_over_limit,
+    findings_unique: findings.unique,
+    findings_density:
+      draftSpan.lines > 0
+        ? Number(((findings.unique / draftSpan.lines) * 100).toFixed(2))
+        : 0,
+    new_findings_per_round: findings.new_per_round,
+    late_round_new_findings: lateRoundNewFindings(findings.new_per_round),
+    dimension_switch_spike: dimensionSwitchSpike(verifyLog, findings.new_per_round),
+    rounds_after_failed: roundsAfterFailed,
     indicators: fetchRecipeIndicators(recipeID, target),
   };
 }
@@ -335,6 +383,28 @@ function main() {
   const scenariosTotal = sum(i => i.test_scenarios_total);
   const scenariosLinked = sum(i => i.test_scenarios_linked);
 
+  // v0.13.0 span-side aggregation.
+  const draftLines = recipes.map(r => r.draft_lines).filter(n => n > 0);
+  // Density and the switch spike are averaged only over recipes that HAVE
+  // a findings ledger. The ledger arrived in v0.12; recipes finished
+  // before it report zero findings, and folding those zeros in would
+  // report a feature's rollout date as an improvement in the documents.
+  const ledgered = recipes.filter(r => r.findings_unique > 0);
+  const meanDensity =
+    ledgered.length > 0
+      ? ledgered.reduce((a, r) => a + r.findings_density, 0) / ledgered.length
+      : 0;
+  const spikes = recipes
+    .map(r => r.dimension_switch_spike)
+    .filter((x): x is number => x !== null);
+  const meanSpike =
+    spikes.length > 0 ? spikes.reduce((a, b) => a + b, 0) / spikes.length : 0;
+  const allNew = recipes.reduce(
+    (a, r) => a + r.new_findings_per_round.reduce((x, y) => x + y, 0),
+    0,
+  );
+  const lateNew = recipes.reduce((a, r) => a + r.late_round_new_findings, 0);
+
   // Retry ladder tier distribution — element-wise sum across recipes.
   const retryAgg = new Array(7).fill(0) as number[];
   for (const i of present) {
@@ -364,6 +434,14 @@ function main() {
     deviation_driver_diversity: deviationTotal > 0 ? Number((deviationNonCodeDiff / deviationTotal).toFixed(3)) : 0,
     test_scenario_link_coverage: scenariosTotal > 0 ? Number((scenariosLinked / scenariosTotal).toFixed(3)) : 1,
     retry_ladder_tier_distribution: retryAgg,
+    // v0.13.0 (5) — span side
+    median_draft_lines: median(draftLines),
+    max_draft_lines: draftLines.length > 0 ? Math.max(...draftLines) : 0,
+    recipes_over_span_limit: recipes.filter(r => r.draft_h2_over_limit > 0).length,
+    mean_findings_density: Number(meanDensity.toFixed(2)),
+    late_round_new_finding_share: allNew > 0 ? Number((lateNew / allNew).toFixed(3)) : 0,
+    mean_dimension_switch_spike: Number(meanSpike.toFixed(2)),
+    rounds_logged_after_failed: recipes.reduce((a, r) => a + r.rounds_after_failed, 0),
   };
 
   let delta: MonitoringReport['delta'] | undefined;
@@ -409,7 +487,13 @@ function main() {
       `  mid-run review coverage:          ${(indicators.midrun_review_coverage * 100).toFixed(1)}%\n` +
       `  deviation driver diversity:       ${(indicators.deviation_driver_diversity * 100).toFixed(1)}%\n` +
       `  test-scenario link coverage:      ${(indicators.test_scenario_link_coverage * 100).toFixed(1)}%\n` +
-      `  retry ladder distribution [t1..t6]: ${indicators.retry_ladder_tier_distribution.slice(1).join(', ')}`,
+      `  retry ladder distribution [t1..t6]: ${indicators.retry_ladder_tier_distribution.slice(1).join(', ')}\n` +
+      `  draft span:                       median ${indicators.median_draft_lines}, max ${indicators.max_draft_lines} lines` +
+      ` (${indicators.recipes_over_span_limit} over the ${H2_LIMIT}-line section limit)\n` +
+      `  findings density:                 ${indicators.mean_findings_density} per 100 lines\n` +
+      `  late-round share (round >= ${LATE_ROUND_FROM}):    ${(indicators.late_round_new_finding_share * 100).toFixed(1)}%\n` +
+      `  dimension-switch spike:           ${indicators.mean_dimension_switch_spike}x\n` +
+      `  rounds logged after failed:       ${indicators.rounds_logged_after_failed}`,
   );
 }
 

@@ -275,3 +275,146 @@ jump straight from tier 0 to 6 indicate callers are skipping the
 ladder entirely.
 
 **Target**: majority at 0–2, very few at 3–5, zero at 6.
+
+---
+
+# v0.13.0 additions — Span-side indicators
+
+Indicators 1–14 ask whether the loop ran correctly. Indicators 15–19 ask
+whether it ran on the right document.
+
+The prior behind all five is already in the codebase, in
+`engine/section_span_checker.go`: across one Level 3 draft's 21 H2
+sections and the 453 findings anchored to them, section length and
+finding count correlate at **r=+0.95**, at a near-constant ~12.7 findings
+per 100 lines. Findings are not mainly a property of how good a document
+is. They are a property of how much document there is — and the
+completion gate asks for zero of them.
+
+That check has been running on every `bts verify` at `info` severity, so
+it reports and nothing follows. These indicators exist to make the
+consequence visible before the wiring changes.
+
+**Baseline of record**: `data/baselines/snap-voca-cover-2026-08-28.json`
+— 26 recipes, captured 2026-08-28 with:
+
+```bash
+npx tsx scripts/bts-baseline.ts \
+  --target /path/to/project \
+  --out data/baselines/{name}-$(date +%Y-%m-%d).json
+```
+
+Both scripts measure these five through `scripts/lib/doc-metrics.ts`, so
+the recorded and the recomputed numbers cannot drift apart. `measureDoc`
+counts a section the way `engine/section_span_checker.go` does — from the
+heading line inclusive — so `draft_h2_max_lines` equals the span
+`bts verify` reports. The worked example throughout is
+`r-026-p1-sourcecoverurl`, the recipe that motivated the set: 2,184-line
+draft, 17 verify rounds against a budget of 3, 202 unique findings, never
+finalized.
+
+## 15. Draft span
+
+**What**: `median_draft_lines`, `max_draft_lines`, and
+`recipes_over_span_limit` — recipes with at least one H2 section beyond
+`verify.max_section_lines` (300).
+
+**Signal it catches**: cost incurred before the loop starts. Span is the
+only input to the total round count that is knowable in advance.
+
+**Baseline**: median 890.5 lines, max 2,184, and **15 of 26 recipes**
+carry at least one oversize section.
+
+**Target after Phases 1–2**: median ≤ 400; zero recipes over the section
+limit.
+
+## 16. Finding density
+
+**What**: `mean_findings_density` — unique findings per 100 draft lines,
+averaged over recipes that have a `findings.jsonl`.
+
+**Signal it catches**: whether a span reduction removed claim surface or
+just removed words.
+
+**Baseline**: 9.25 per 100 lines (1 recipe; the findings ledger arrived
+in v0.12, so earlier recipes have no ledger and are excluded — folding
+their zeros in would report a feature's rollout date as a quality
+improvement).
+
+**Target**: none. This is a **control, not a goal.** If span falls and
+density holds, the removed text was carrying claims and the reduction is
+real. If density *rises* as span falls, we deleted the text that was not
+generating findings — which is the text worth keeping. Read it against
+indicator 15; never optimize it directly.
+
+## 17. Late-round yield
+
+**What**: `late_round_new_finding_share` — the share of findings whose
+FIRST sighting was at round 5 or later.
+
+**Signal it catches**: the loop spending itself at the wrong altitude.
+On r-026, every finding that named the design's direction — the
+app-before-backend release order, the missing host allowlist, a reversed
+contract decision from #203, an early return reopening a domain cell —
+had arrived **by round 4**. Rounds 5–17 were dominated by claims an
+execution would have settled and by contradictions the document's own
+size created.
+
+**Baseline**: 0.465 — nearly half of all new findings arrived after the
+document's direction was already settled.
+
+**Target after Phase 3**: ≤ 0.15.
+
+## 18. Dimension-switch spike
+
+**What**: `dimension_switch_spike` — mean new findings on rounds whose
+measurement class differs from the previous round, divided by the mean on
+rounds that repeated the previous class. `null` when a recipe has no
+rounds of one kind.
+
+**Signal it catches**: rounds measuring the instrument instead of the
+document. `bts-verification-protocol.md § Measurement Strength` already
+records that findings track how hard a round looked (r=+0.69 against
+subagents spawned) far more than what changed in the document (r=+0.16
+against edits). This turns that into a per-recipe number.
+
+**Baseline**: **1.50** on r-026. Its new-findings-per-round series was
+`33, 26, 20, 29, 12, 9, 7, 4, 2, 12, 4, 5, 11, 9, 9, 10` — decaying to 2
+by round 9, then jumping to 12 the moment `audit` returned at round 10,
+and to 10 again when `audit` returned at round 16. The document did not
+get worse; a different instrument was pointed at it.
+
+**Target after Phase 3**: ≤ 1.2, by running all three dimensions on the
+first full pass instead of rotating them across the loop.
+
+## 19. Round overrun
+
+**What**: `verify_iterations` against `verify.max_iterations`, and the
+count of rounds logged *after* a `status: failed` round.
+
+**Signal it catches**: a budget that does not bind. The convergence
+budget is computed in `engine/convergence.go` and `bts recipe log` exits
+non-zero — but stopping is left to the model reading the message.
+
+**Baseline**: r-026 ran 17 rounds against `max_iterations: 3`, recorded
+`status: failed` **four times** (rounds 13, 14, 15, 16), and continued
+past every one of them.
+
+**Target after Phase 3**: zero recipes exceed `verify.max_rounds`; zero
+rounds logged after a failed status.
+
+## What these indicators do not measure
+
+The classification that motivated the work is **not automatable** and is
+recorded here by hand rather than inferred. All 17 unique CRITICAL
+findings on r-026, classified by what would have settled them:
+
+| Class | Count | Example |
+|---|---|---|
+| **An execution settles it** | 9 (53%) | `RegExp.prototype.source` escapes forward slashes · synthesized `Encodable` omits nil optionals · Postgres `[!-~]` expands over the collating sequence · the DTO regex and the DB CHECK do not accept the same set |
+| **The document's own size created it** | 3 (18%) | a withdrawn `originBundleId` edit still standing in five other sections · one paragraph sanctioning what the same paragraph forbids |
+| **Direction — what a blueprint is for** | 5 (29%) | app-before-backend release order 400s every publish · no host allowlist, content-type check or byte bound · omitting `originBundleId` reverses #203's recorded decision · a generation-mismatch early return reopens domain cell 13 |
+
+All five direction findings arrived in rounds 1–4. This is the split
+indicator 17 is a cheap proxy for; when a recipe regresses, classify its
+criticals by hand before concluding anything from the proxy alone.

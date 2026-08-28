@@ -11,6 +11,16 @@
 
 import { readFileSync, readdirSync, writeFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  H2_LIMIT,
+  LATE_ROUND_FROM,
+  analyzeFindings,
+  dimensionSwitchSpike,
+  lateRoundNewFindings,
+  measureDoc,
+  roundsAfterFirstFailure,
+  type FindingRow,
+} from './lib/doc-metrics.js';
 
 interface VerifyLogEntry {
   iteration: number;
@@ -20,6 +30,9 @@ interface VerifyLogEntry {
   minor_resolvable?: number;
   minor_deferred?: number;
   info?: number;
+  doc?: string;
+  full_pass?: boolean;
+  dimensions?: string[];
   status: string;
   timestamp: string;
 }
@@ -58,6 +71,30 @@ interface RecipeSnapshot {
   has_test_results_json: boolean;
   changelog_action_counts: Record<string, number>;
   convergence_failures: number; // status=failed entries
+
+  // Span and density.
+  //
+  // engine/section_span_checker.go measured section length against
+  // findings at r=+0.95, ~12.7 findings per 100 lines. A long document
+  // is not a document that happened to need many rounds; it is a
+  // document that already held those findings before anyone looked, and
+  // the completion gate asks for zero. Span is therefore the only lever
+  // on the loop's total cost that is knowable before the loop starts —
+  // so it is measured here, per recipe, from the baseline forward.
+  draft_lines: number;
+  final_lines: number;
+  draft_h2_sections: number;
+  draft_h2_max_lines: number;
+  draft_h2_over_limit: number;
+  draft_fence_lines: number;
+  findings_rows: number;
+  findings_unique: number;
+  findings_by_severity: Record<string, number>;
+  findings_density: number; // unique findings per 100 draft lines
+  new_findings_per_round: number[];
+  late_round_new_findings: number; // first seen at round >= LATE_ROUND_FROM
+  dimension_switch_spike: number | null;
+  rounds_after_failed: number; // rounds logged after the budget first fired
 }
 
 interface Baseline {
@@ -75,6 +112,13 @@ interface Baseline {
     median_verify_iterations: number;
     legacy_minor_format_count: number;
     convergence_failure_rate: number;
+    median_draft_lines: number;
+    max_draft_lines: number;
+    recipes_over_span_limit: number; // any H2 section beyond H2_LIMIT
+    mean_findings_density: number; // unique findings per 100 draft lines
+    late_round_new_finding_share: number; // share first seen at round >= LATE_ROUND_FROM
+    mean_dimension_switch_spike: number;
+    rounds_logged_after_failed: number;
   };
 }
 
@@ -169,6 +213,13 @@ function captureRecipe(recipeDir: string, id: string): RecipeSnapshot | null {
     if (c.action) actionCounts[c.action] = (actionCounts[c.action] || 0) + 1;
   }
 
+  const draftSpan = measureDoc(join(recipeDir, 'draft.md'));
+  const finalSpan = measureDoc(join(recipeDir, 'final.md'));
+  const findings = analyzeFindings(
+    readJsonl<FindingRow>(join(recipeDir, 'findings.jsonl')),
+  );
+  const lateNew = lateRoundNewFindings(findings.new_per_round);
+
   // Legacy minor maps conservatively to resolvable for monitoring.
   const lastResolvable =
     last?.minor_resolvable ?? (last?.minor !== undefined ? last.minor : 0);
@@ -199,6 +250,26 @@ function captureRecipe(recipeDir: string, id: string): RecipeSnapshot | null {
     has_test_results_json: exists(join(recipeDir, 'test-results.json')),
     changelog_action_counts: actionCounts,
     convergence_failures: convergenceFailures,
+    draft_lines: draftSpan.lines,
+    final_lines: finalSpan.lines,
+    draft_h2_sections: draftSpan.h2_sections,
+    draft_h2_max_lines: draftSpan.h2_max_lines,
+    draft_h2_over_limit: draftSpan.h2_over_limit,
+    draft_fence_lines: draftSpan.fence_lines,
+    findings_rows: findings.rows,
+    findings_unique: findings.unique,
+    findings_by_severity: findings.by_severity,
+    findings_density:
+      draftSpan.lines > 0
+        ? Number(((findings.unique / draftSpan.lines) * 100).toFixed(2))
+        : 0,
+    new_findings_per_round: findings.new_per_round,
+    late_round_new_findings: lateNew,
+    dimension_switch_spike: dimensionSwitchSpike(
+      verifyLog,
+      findings.new_per_round,
+    ),
+    rounds_after_failed: roundsAfterFirstFailure(verifyLog),
   };
 }
 
@@ -249,6 +320,29 @@ function main() {
   const meanIter =
     iters.length > 0 ? iters.reduce((a, b) => a + b, 0) / iters.length : 0;
 
+  const draftLines = recipes.map(r => r.draft_lines).filter(n => n > 0);
+  // Density is averaged only over recipes that HAVE a findings ledger.
+  // The ledger arrived in v0.12; recipes finished before it report zero
+  // findings, and folding those zeros in would report the feature's
+  // rollout date as an improvement in document quality.
+  const densities = recipes
+    .filter(r => r.findings_rows > 0)
+    .map(r => r.findings_density);
+  const meanDensity =
+    densities.length > 0
+      ? densities.reduce((a, b) => a + b, 0) / densities.length
+      : 0;
+  const allNew = recipes.reduce(
+    (a, r) => a + r.new_findings_per_round.reduce((x, y) => x + y, 0),
+    0,
+  );
+  const lateNew = recipes.reduce((a, r) => a + r.late_round_new_findings, 0);
+  const spikes = recipes
+    .map(r => r.dimension_switch_spike)
+    .filter((x): x is number => x !== null);
+  const meanSpike =
+    spikes.length > 0 ? spikes.reduce((a, b) => a + b, 0) / spikes.length : 0;
+
   const baseline: Baseline = {
     captured_at: new Date().toISOString(),
     target,
@@ -267,6 +361,18 @@ function main() {
         recipes.length > 0
           ? Number((totalFailures / recipes.length).toFixed(3))
           : 0,
+      median_draft_lines: median(draftLines),
+      max_draft_lines: draftLines.length > 0 ? Math.max(...draftLines) : 0,
+      recipes_over_span_limit: recipes.filter(r => r.draft_h2_over_limit > 0)
+        .length,
+      mean_findings_density: Number(meanDensity.toFixed(2)),
+      late_round_new_finding_share:
+        allNew > 0 ? Number((lateNew / allNew).toFixed(3)) : 0,
+      mean_dimension_switch_spike: Number(meanSpike.toFixed(2)),
+      rounds_logged_after_failed: recipes.reduce(
+        (a, r) => a + r.rounds_after_failed,
+        0,
+      ),
     },
   };
 
@@ -275,7 +381,14 @@ function main() {
     `Captured ${recipes.length} recipes from ${target} → ${out}\n` +
       `  phases: ${JSON.stringify(byPhase)}\n` +
       `  mean_first_converge: ${meanIter.toFixed(2)} iterations\n` +
-      `  legacy_minor_format: ${baseline.aggregate.legacy_minor_format_count}/${recipes.length}`,
+      `  legacy_minor_format: ${baseline.aggregate.legacy_minor_format_count}/${recipes.length}\n` +
+      `  draft span: median ${baseline.aggregate.median_draft_lines}, max ${baseline.aggregate.max_draft_lines} lines` +
+      ` (${baseline.aggregate.recipes_over_span_limit} recipes over the ${H2_LIMIT}-line section limit)\n` +
+      `  findings density: ${baseline.aggregate.mean_findings_density} per 100 lines` +
+      ` (${densities.length} recipes with a ledger)\n` +
+      `  late-round share (round >= ${LATE_ROUND_FROM}): ${baseline.aggregate.late_round_new_finding_share}\n` +
+      `  dimension-switch spike: ${baseline.aggregate.mean_dimension_switch_spike}x` +
+      `, rounds logged after failed: ${baseline.aggregate.rounds_logged_after_failed}`,
   );
 }
 
