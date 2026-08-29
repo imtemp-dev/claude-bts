@@ -23,9 +23,15 @@ verify:
                                  # Section length and finding count correlate at r=+0.95, so
                                  # the length IS the finding count the completion gate will
                                  # later be asked to drive to zero. 0 disables either check.
-  section_span_severity: major   # Severity for both span reports. "info" reports without
-                                 # blocking — which is what it did while the check was new, on
-                                 # 15 of 26 recipes in one project, with nothing following.
+  section_span_severity: major   # Severity for both span reports. "critical" or "major" make
+                                 # `bts verify` exit non-zero; "minor_resolvable" and "info"
+                                 # report without blocking — which is what it did while the
+                                 # check was new, on 15 of 26 recipes in one project, with
+                                 # nothing following. Either way it is a report to the operator
+                                 # and to the verifying agent: it does NOT enter findings.jsonl
+                                 # or verify-log.jsonl (those come from the <bts-findings> block
+                                 # in verification.md), so no value here blocks <bts>DONE</bts>
+                                 # on its own.
   evidence_ttl_days: 30          # How long a cached framework-claim lookup stays usable.
                                  # 0 = never expire. "unavailable" results always expire after
                                  # an hour so an outage never pins a claim.
@@ -54,18 +60,6 @@ verify:
                                  # the SAME recorded revision, before <bts>DONE</bts> is allowed.
                                  # Editing the document resets the count — that is the point.
                                  # 1 restores the old single-round rule.
-
-  max_section_lines: 300         # `bts verify` reports draft/final H2 sections longer than this.
-                                 # Section length and finding count correlate at r=+0.95 (~12.7
-                                 # findings per 100 lines), so length is the one lever on the
-                                 # loop's total cost that is knowable before the loop starts.
-                                 # 0 disables.
-  section_span_severity: info    # How `bts verify` classifies those reports. "critical" or "major"
-                                 # make `bts verify` exit non-zero; "minor_resolvable" and "info"
-                                 # do not. It is a report to the operator and to the verifying
-                                 # agent — it does NOT enter findings.jsonl or verify-log.jsonl
-                                 # (those come from the <bts-findings> block in verification.md),
-                                 # so no value here blocks <bts>DONE</bts> on its own.
 
 # Debate
 debate:

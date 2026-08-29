@@ -63,10 +63,14 @@ behind that the next round has to re-check.
 
 - [ ] All Level 2 criteria met
 - [ ] **file_paths_specified** — at least three distinct units are named.
-- [ ] **invariants_owned** — the document declares at least one
-      `INV-NNN`, and **every** invariant it declares appears on a line
-      that also names the file that keeps it. An invariant without an
-      owner is one nobody keeps, or two places keeping it differently.
+- [ ] **invariants_owned** — **every** `INV-NNN` the document declares
+      appears on a line that also names the file that keeps it. An
+      invariant without an owner is one nobody keeps, or two places
+      keeping it differently. A design that genuinely has no invariant
+      passes by saying so under an invariants heading — the same rule
+      `uncertainties_declared` uses. Having no such section does not
+      pass: silence here is not the same claim, and it must not be the
+      cheap way past this criterion and `falsifiers_assigned`.
 - [ ] **boundary_contracts** — a boundary is named (contract, wire,
       schema, payload, DTO, endpoint, migration) and its shape is pinned
       in a table or a fence. What crosses a boundary is the expensive
@@ -77,8 +81,11 @@ behind that the next round has to re-check.
       production incident with no rollback.
 - [ ] **falsifiers_assigned** — **every** declared invariant appears on a
       line that also names what would prove it false: a test, a spec, a
-      probe, an observation. Names only — what the assertion should
-      contain is decided while writing the test, not here.
+      probe, an observation. The name has to be a named artifact — a
+      file with an extension, or a backticked identifier — not a word
+      like "tests" and a slash somewhere in the same row. Names only:
+      what the assertion should contain is decided while writing the
+      test, not here. A document with no invariants passes as above.
 - [ ] **uncertainties_declared** — a `## Known Uncertainties` section
       exists, and every `### U-NNN` entry carries a `Why-deferred:` or
       `Opens-with:` line. A section declaring nothing open passes;

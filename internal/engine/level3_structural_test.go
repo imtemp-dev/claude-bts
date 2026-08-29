@@ -71,9 +71,47 @@ func TestInvariantsCarryNeedsEveryInvariantPaired(t *testing.T) {
 	if !invariantsCarry(full, lineNamesOwner) {
 		t.Error("every invariant owned should pass")
 	}
-	// No invariants at all is not a pass — there is nothing to have owned.
+	// A section declaring that there are none passes vacuously, on
+	// FalsifierCoverage's reasoning: invariants are domain.md's to
+	// introduce, and a spec that legitimately has none must not be told
+	// to invent one. Failing instead put invariants_owned and
+	// falsifiers_assigned permanently in Missing, and /bts-assess turns
+	// every unmet criterion into an IMPROVE instruction — so the only
+	// instruction that could clear them was "make one up".
+	declaredNone := "## Invariants\n\nThis change introduces none.\n"
+	if !invariantsCarry(declaredNone, lineNamesOwner) {
+		t.Error("a section declaring no invariants has nothing unowned")
+	}
+	if !invariantsCarry(declaredNone, lineNamesFalsifier) {
+		t.Error("a section declaring no invariants has nothing to falsify")
+	}
+	// Silence is not that claim. Omitting the section must not be the
+	// cheap way past two Level 3 criteria.
 	if invariantsCarry("no invariants here", lineNamesOwner) {
-		t.Error("a document with no invariants must not satisfy the criterion")
+		t.Error("a document that never mentions invariants must not pass")
+	}
+}
+
+// pathTokenRe's dotless `a/b` alternative matches ordinary prose, so a
+// slash inside an invariant's own statement satisfied the criterion that
+// asks what would falsify it — and falsifiers_assigned gates
+// <bts>DONE</bts>. An owner is a file and a falsifier is a file or a
+// command; both have to be named.
+func TestProseSlashIsNotANamedArtifact(t *testing.T) {
+	if invariantsCarry("| INV-004 | the spec pins read/write order | TBD |\n", lineNamesFalsifier) {
+		t.Error("a slash in the statement must not count as a falsifier")
+	}
+	if invariantsCarry("| INV-003 | reads/writes stay ordered | TBD |\n", lineNamesOwner) {
+		t.Error("a slash in the statement must not count as an owner")
+	}
+	// Nor does prose punctuation that happens to carry a dot.
+	if invariantsCarry("| INV-005 | order holds, e.g. at r=+0.95 | TBD |\n", lineNamesOwner) {
+		t.Error("e.g. and a decimal are not file names")
+	}
+	// A `.md` sibling is a real artifact even though it is not a source
+	// extension pathTokenRe knows.
+	if !invariantsCarry("| INV-006 | statement | spec: `docs/design/01-overview.md` |\n", lineNamesFalsifier) {
+		t.Error("a named document should count as a falsifier")
 	}
 }
 

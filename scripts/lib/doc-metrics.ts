@@ -119,7 +119,16 @@ export function measureDoc(path: string): DocSpan {
   let inFence = false;
   let fenceLines = 0;
   for (const line of lines) {
-    const isFenceDelimiter = /^```/.test(line);
+    // Fence detection mirrors section_span_checker.go exactly: it trims
+    // the line first and accepts both delimiters. Testing /^```/ on the
+    // raw line instead meant a `~~~` document, or a fence indented
+    // inside a list item, toggled inFence in Go and not here — so a `##`
+    // buried in that block counted as a heading in one and not the
+    // other, and the monitored h2_max_lines / h2_over_limit disagreed
+    // with the number `bts verify` actually gates on.
+    const trimmed = line.trim();
+    const isFenceDelimiter =
+      trimmed.startsWith('```') || trimmed.startsWith('~~~');
     if (isFenceDelimiter) inFence = !inFence;
     else if (inFence) fenceLines++;
 
@@ -128,7 +137,15 @@ export function measureDoc(path: string): DocSpan {
     // measures every line from a heading to the next one, so excluding
     // fence delimiters here would report a smaller span than the number
     // `bts verify` gates on.
-    if (!inFence && !isFenceDelimiter && /^##\s+\S/.test(line)) {
+    //
+    // The `## ` prefix test is the Go checker's own second condition —
+    // it requires a space, so `##\tTitle` is not a heading there either.
+    if (
+      !inFence &&
+      !isFenceDelimiter &&
+      line.startsWith('## ') &&
+      /^##\s+\S/.test(line)
+    ) {
       if (current !== null) spans.push(current);
       // Start at 1: the Go checker measures FROM the heading, so the
       // heading line is part of its own section's span.

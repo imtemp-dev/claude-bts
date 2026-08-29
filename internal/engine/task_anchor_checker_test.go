@@ -258,3 +258,100 @@ func TestParseWireframeFileTable(t *testing.T) {
 		t.Errorf("a wireframe without the section must declare nothing, got %v", got)
 	}
 }
+
+// A recipe anchored in final.md keeps working untouched — the promise
+// CheckTaskAnchors makes in place of a migration. Every wireframe
+// written under the old contract has a File Structure table, and it is
+// routinely a superset of tasks.json: files later dropped, rows spelled
+// with a different relative path. Enforcing those rows as orphans would
+// open one critical per extra row on the next `bts verify`.
+func TestCheckTaskAnchors_WireframeRowsAreNotOrphansWhenFinalAnchors(t *testing.T) {
+	finalMd := `<!-- task-anchor: src/a.ts create -->`
+	tasksJson := `{
+  "recipe_id": "r-1",
+  "tasks": [
+    {"id": "t-001", "file": "src/a.ts", "action": "create", "status": "done", "description": "x", "anchor": "src/a.ts create"}
+  ]
+}`
+	finalPath, tasksPath := writeFinalAndTasks(t, finalMd, tasksJson)
+	writeSiblingWireframe(t, finalPath, "# Wireframe\n\n## File Structure\n\n"+
+		"| File | Action |\n|---|---|\n"+
+		"| `src/a.ts` | create |\n"+
+		"| `src/dropped.ts` | create |\n"+
+		"| `pkg/types.go` | modify |\n")
+	if issues := CheckTaskAnchors(finalPath, wireframePathFor(finalPath), tasksPath); len(issues) != 0 {
+		t.Fatalf("a final.md-anchored recipe must not be judged against wireframe rows, got %d: %v", len(issues), issues)
+	}
+}
+
+// With no final.md anchor the table IS the decomposition, so the reverse
+// direction is enforced against it.
+func TestCheckTaskAnchors_WireframeRowsAreOrphansWhenSoleSource(t *testing.T) {
+	tasksJson := `{"recipe_id": "r-1", "tasks": []}`
+	finalPath, tasksPath := writeFinalAndTasks(t, "# Blueprint\n", tasksJson)
+	writeSiblingWireframe(t, finalPath, "# Wireframe\n\n## File Structure\n\n"+
+		"| File | Action |\n|---|---|\n| `src/a.ts` | create |\n")
+	issues := CheckTaskAnchors(finalPath, wireframePathFor(finalPath), tasksPath)
+	if len(issues) != 1 || !strings.HasPrefix(issues[0].Claim, "orphan_anchor") {
+		t.Fatalf("want 1 orphan_anchor, got %v", issues)
+	}
+}
+
+// The section bound has to come from the heading that matched. A
+// hardcoded `^#{1,2}` scanned past the siblings of a `### File
+// Structure`, and since the column indices are already locked to this
+// table's header, the next table's rows were read as anchor rows.
+func TestParseWireframeFileTable_SubsectionStopsAtItsSibling(t *testing.T) {
+	body := "## Step 4\n\n### File Structure\n\n" +
+		"| File | Action |\n|---|---|\n| `a/b.ts` | create |\n\n" +
+		"### Rollback plan\n\n" +
+		"| File | Action |\n|---|---|\n| `a/b.ts` | delete |\n| `legacy/old.ts` | modify |\n"
+	got := ParseWireframeFileTable(body)
+	if len(got) != 1 || got[0].Path != "a/b.ts" || got[0].Action != "create" {
+		t.Fatalf("want only the File Structure row, got %v", got)
+	}
+}
+
+// The anchor check used to run only when final.md existed, so a
+// wireframe-anchored recipe — the shape this change exists to enable —
+// skipped 1:1 validation entirely, while engine/stats.go went on
+// counting its orphans. The two disagreed about the same tree.
+func TestValidateTasksJSON_RunsForWireframeOnlyRecipe(t *testing.T) {
+	dir := t.TempDir()
+	tasksPath := filepath.Join(dir, "tasks.json")
+	if err := os.WriteFile(tasksPath, []byte(`{
+  "recipe_id": "r-1",
+  "tasks": [
+    {"id": "t-001", "file": "src/nowhere.ts", "action": "create", "status": "pending", "description": "x", "anchor": "src/nowhere.ts create"}
+  ]
+}`), 0644); err != nil {
+		t.Fatalf("write tasks: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "wireframe.md"),
+		[]byte("# Wireframe\n\n## File Structure\n\n| File | Action |\n|---|---|\n| `src/a.ts` | create |\n"),
+		0644); err != nil {
+		t.Fatalf("write wireframe: %v", err)
+	}
+
+	var found bool
+	for _, e := range validateTasksJSON(tasksPath) {
+		if strings.Contains(e.Message, "missing_anchor") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("a wireframe-anchored recipe with no final.md must still be checked against its table")
+	}
+
+	// A loose tasks.json with neither document is still skipped, so test
+	// fixtures that are not recipes keep validating.
+	loose := filepath.Join(t.TempDir(), "tasks.json")
+	if err := os.WriteFile(loose, []byte(`{"recipe_id": "r-2", "tasks": []}`), 0644); err != nil {
+		t.Fatalf("write loose tasks: %v", err)
+	}
+	for _, e := range validateTasksJSON(loose) {
+		if strings.Contains(e.File, "final.md") {
+			t.Errorf("a standalone tasks.json must not be anchor-checked, got %v", e)
+		}
+	}
+}

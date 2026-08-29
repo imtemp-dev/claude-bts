@@ -325,8 +325,15 @@ function main() {
   // The ledger arrived in v0.12; recipes finished before it report zero
   // findings, and folding those zeros in would report the feature's
   // rollout date as an improvement in document quality.
+  //
+  // The cohort is findings_unique, not findings_rows, because that is
+  // what bts-monitor.ts uses and density is unique-per-100-lines on both
+  // sides. A ledger whose rows all lack an `id` is skipped by
+  // analyzeFindings, so it has rows and no unique findings: counting it
+  // here and not there moved mean_findings_density between capture and
+  // monitoring for a reason the project never caused.
   const densities = recipes
-    .filter(r => r.findings_rows > 0)
+    .filter(r => r.findings_unique > 0)
     .map(r => r.findings_density);
   const meanDensity =
     densities.length > 0

@@ -944,13 +944,20 @@ func validateTasksJSON(path string) []ValidationError {
 		}
 	}
 
-	// Phase 9: anchor contract — tasks.json ↔ final.md 1:1.
-	// Only runs when tasks.json lives inside a recipe directory that
-	// also has final.md. Missing final.md is silently skipped so that
-	// loose test fixtures (e.g. standalone tasks.json) validate.
+	// Phase 9: anchor contract — tasks.json ↔ the recipe's declared
+	// anchors, 1:1. Anchors come from final.md's `<!-- task-anchor: -->`
+	// comments OR from wireframe.md's File Structure table, so the check
+	// runs when either file is present. Gating on final.md alone skipped
+	// it entirely for a wireframe-anchored recipe, while engine/stats.go
+	// — which calls CheckTaskAnchors unconditionally — went on counting
+	// that recipe's orphans, so the two disagreed about the same tree.
+	// Neither file present is silently skipped so that loose test
+	// fixtures (e.g. standalone tasks.json) validate.
 	finalPath := filepath.Join(filepath.Dir(path), "final.md")
 	wireframePath := filepath.Join(filepath.Dir(path), "wireframe.md")
-	if _, err := os.Stat(finalPath); err == nil {
+	_, finalErr := os.Stat(finalPath)
+	_, wireframeErr := os.Stat(wireframePath)
+	if finalErr == nil || wireframeErr == nil {
 		for _, issue := range CheckTaskAnchors(finalPath, wireframePath, path) {
 			errs = append(errs, ValidationError{
 				File:    "tasks.json → final.md",
@@ -961,9 +968,11 @@ func validateTasksJSON(path string) []ValidationError {
 
 		// Phase 14: modify scope. Runs after anchor check so missing
 		// anchors are reported there first; modify scope adds the
-		// scope=/ModifyScope consistency layer. projectRoot is passed
-		// as "" to skip the scope_symbol_missing filesystem check in
-		// static validation — the stop hook wires the real root later.
+		// scope=/ModifyScope consistency layer. It reads final.md and
+		// returns nothing without it, so a wireframe-only recipe passes
+		// through it untouched. projectRoot is passed as "" to skip the
+		// scope_symbol_missing filesystem check in static validation —
+		// the stop hook wires the real root later.
 		for _, issue := range CheckModifyScope(finalPath, path, "") {
 			errs = append(errs, ValidationError{
 				File:    "tasks.json → final.md",

@@ -213,16 +213,13 @@ func (v ConvergenceVerdict) Message(docBase string) string {
 	return msg
 }
 
-// EvaluateConvergence applies the budget to one document's history.
-// budget <= 0 disables the check (Exceeded is always false), matching
-// the settings normalisation that treats non-positive values as unset.
 // EvaluateConvergenceWithCap is EvaluateConvergence plus the total-round
 // cap, which is judgement-free: it counts rounds and ignores what they
 // measured. See VerifySettings.MaxRounds.
-func EvaluateConvergenceWithCap(entries []state.VerifyLogEntry, budget, cap int) ConvergenceVerdict {
+func EvaluateConvergenceWithCap(entries []state.VerifyLogEntry, budget, roundCap int) ConvergenceVerdict {
 	v := EvaluateConvergence(entries, budget)
-	v.Rounds, v.RoundCap = len(entries), cap
-	v.CapHit = cap > 0 && v.Rounds >= cap && !v.Latest.Clean()
+	v.Rounds, v.RoundCap = len(entries), roundCap
+	v.CapHit = roundCap > 0 && v.Rounds >= roundCap && !v.Latest.Clean()
 	return v
 }
 
@@ -238,6 +235,9 @@ func (v ConvergenceVerdict) CapMessage(docBase string) string {
 		docBase, v.Rounds, v.RoundCap, v.Latest)
 }
 
+// EvaluateConvergence applies the budget to one document's history.
+// budget <= 0 disables the check (Exceeded is always false), matching
+// the settings normalisation that treats non-positive values as unset.
 func EvaluateConvergence(entries []state.VerifyLogEntry, budget int) ConvergenceVerdict {
 	v := ConvergenceVerdict{Budget: budget}
 	if len(entries) == 0 {

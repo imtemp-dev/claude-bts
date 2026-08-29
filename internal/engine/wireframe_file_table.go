@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -81,6 +82,39 @@ func columnIndex(header []string, names ...string) int {
 	return -1
 }
 
+// headingLevel counts the leading `#` of a matched heading. A match
+// always starts at one, so the zero case is defensive only.
+func headingLevel(heading string) int {
+	n := 0
+	for n < len(heading) && heading[n] == '#' {
+		n++
+	}
+	if n == 0 {
+		return 1
+	}
+	return n
+}
+
+// sectionEndRes[l] matches the next heading at level l or higher. There
+// are only six levels, so they are compiled once.
+var sectionEndRes = func() [7]*regexp.Regexp {
+	var res [7]*regexp.Regexp
+	for l := 1; l <= 6; l++ {
+		res[l] = regexp.MustCompile(fmt.Sprintf(`(?m)^#{1,%d}\s`, l))
+	}
+	return res
+}()
+
+func sectionEndRe(level int) *regexp.Regexp {
+	if level < 1 {
+		level = 1
+	}
+	if level > 6 {
+		level = 6
+	}
+	return sectionEndRes[level]
+}
+
 // ParseWireframeFileTable returns the task anchors declared by the File
 // Structure table, in document order. Anything else in the wireframe is
 // ignored, and a wireframe without the section returns nothing.
@@ -91,8 +125,14 @@ func ParseWireframeFileTable(content string) []TaskAnchorKey {
 	}
 	section := content[loc[1]:]
 	// Stop at the next heading of the same level or higher so a later
-	// section's table cannot be read as this one's.
-	if end := regexp.MustCompile(`(?m)^#{1,2}\s`).FindStringIndex(section); end != nil {
+	// section's table cannot be read as this one's. The bound has to come
+	// from the heading that was actually matched: hardcoding `^#{1,2}`
+	// scanned straight past the siblings of a `### File Structure`, and
+	// because the column indices are already locked to this table's
+	// header by then, the next table's data rows were read as anchor
+	// rows — a `### Rollback plan` listing the same files became two
+	// critical orphan_anchor findings on a wireframe declaring one unit.
+	if end := sectionEndRe(headingLevel(content[loc[0]:loc[1]])).FindStringIndex(section); end != nil {
 		section = section[:end[0]]
 	}
 

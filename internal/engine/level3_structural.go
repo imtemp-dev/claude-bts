@@ -26,8 +26,27 @@ var (
 	// (for matching, so INV-007 and INV-7 are one invariant).
 	invariantIDRe = regexp.MustCompile(`(?i)\b(INV-0*(\d+))\b`)
 
-	// A line that names an owner: it carries a path.
-	ownerTokenRe = pathTokenRe
+	// A token that names an actual artifact: a name, optionally preceded
+	// by path segments, ending in a file extension.
+	//
+	// This is deliberately stricter than pathTokenRe, whose dotless
+	// `a/b` alternative matches ordinary prose. `read/write` and
+	// `reads/writes` are indistinguishable from a two-segment path, so
+	// `| INV-004 | the spec pins read/write order | TBD |` satisfied both
+	// the owner and the falsifier predicate — and falsifiers_assigned
+	// gates <bts>DONE</bts> (hook/stop.go 2c-bis), so an invariant with
+	// no falsifier at all passed on the strength of a slash in its own
+	// statement.
+	//
+	// An owner is a file and a falsifier is a file or a command, so
+	// requiring the extension costs nothing an honest document was doing:
+	// the extension must be two or more letters (or `c`/`h`), which is
+	// what separates `docs/spec.md` from "e.g.", "i.e." and "r=+0.95".
+	artifactTokenRe = regexp.MustCompile(
+		`(?i)\b[\w.@-]+(?:/[\w.@-]+)*\.(?:[a-z]{2,10}|[ch])\b`)
+
+	// A line that names an owner: it carries a named file.
+	ownerTokenRe = artifactTokenRe
 
 	// A falsifier has to be a NAMED thing that can go red — a test file, a
 	// spec, a probe, a command. The word alone is not enough: on one
@@ -82,6 +101,12 @@ var (
 	// and uncertaintyHeadingRe from uncertainty_checker.go, so the shape
 	// the stop hook and /bts-implement parse is the shape scored here.
 	deferralMarkerRe = regexp.MustCompile(`(?im)^\s*[*_>-]*\s*(?:why-deferred|opens-with)\s*:\s*\S`)
+
+	// A heading that opens the invariants section. Its presence is what
+	// separates "this design has no invariant" from "this document did
+	// not say" — see invariantsCarry.
+	invariantSectionRe = regexp.MustCompile(
+		`(?im)^#{1,6}[^\n]*(?:\binvariants?\b|불변식|불변 ?조건)`)
 )
 
 // minNamedUnits is the point past which naming more files says nothing
@@ -101,15 +126,32 @@ func hasNamedUnits(content string) bool {
 	return false
 }
 
-// invariantsCarry reports whether the document declares at least one
-// invariant AND every distinct invariant it declares appears on some
-// line that also matches want.
+// invariantsCarry reports whether every distinct invariant the document
+// declares appears on some line that also matches want.
 //
 // "On some line" is deliberate: both the owner table and the falsifier
 // table put the invariant and its answer in the same row, which is the
 // shape that makes the pairing checkable at all. An invariant listed in
 // one place and answered in another prose paragraph is exactly the
 // arrangement that lets an owner go missing without anyone noticing.
+//
+// A document that declares NO invariant satisfies this vacuously — but
+// only if it has an invariants section. That is the same rule
+// hasDeclaredUncertainties applies, for the same reason: a section
+// declaring "this design introduces none" is a claim the reader can act
+// on, and no section at all is silence.
+//
+// Failing both cases capped an honestly invariant-free spec at level
+// 2 + 4/6 permanently. /bts-assess turns every unmet criterion into an
+// IMPROVE instruction, so the only instruction that could ever clear
+// invariants_owned and falsifiers_assigned was "make an invariant up" —
+// the unbounded IMPROVE loop these criteria exist to end, and the
+// opposite of what FalsifierCoverage says about the same question
+// ("a spec that legitimately has none must not be told to invent one").
+//
+// Requiring the section is what keeps this from becoming delegation by
+// omission: a blueprint that says "see `domain.md`" and names no
+// invariant still fails, because Level 3 is the blueprint's own job.
 func invariantsCarry(content string, want func(string) bool) bool {
 	declared := make(map[string]bool)
 	satisfied := make(map[string]bool)
@@ -127,7 +169,7 @@ func invariantsCarry(content string, want func(string) bool) bool {
 		}
 	}
 	if len(declared) == 0 {
-		return false
+		return invariantSectionRe.MatchString(content)
 	}
 	return len(satisfied) == len(declared)
 }
@@ -145,7 +187,7 @@ func lineNamesFalsifier(line string) bool {
 	if !falsifierWordRe.MatchString(line) {
 		return false
 	}
-	return pathTokenRe.MatchString(line) || backtickedIdentRe.MatchString(line)
+	return artifactTokenRe.MatchString(line) || backtickedIdentRe.MatchString(line)
 }
 
 // minPinnedShapeLines is how much pinned shape — table rows, fenced

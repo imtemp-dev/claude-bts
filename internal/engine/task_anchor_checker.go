@@ -49,16 +49,23 @@ func (k TaskAnchorKey) String() string { return k.Path + " " + k.Action }
 // re-expanded 31 wireframe rows (47 lines) into 1,322 lines of per-file
 // prose, which then drew over two hundred verify findings.
 //
-// Accepting both is also the migration: recipes anchored in final.md
-// keep working untouched.
+// Accepting both is also the migration: a recipe anchored in final.md
+// keeps working untouched, and no `bts migrate` step is needed. That
+// promise is what decides which source the orphan direction enforces —
+// a wireframe File Structure table is historically a superset of
+// tasks.json, so unioning it into the enforced set would have opened
+// tens of criticals on every recipe written before this change.
 //
 // The check produces four issue categories:
 //
 //   - missing_anchor — tasks.json declares a Task whose Anchor (or
 //     implicit File+Action if Anchor is empty) has no corresponding
 //     <!-- task-anchor: ... --> in final.md. CRITICAL.
-//   - orphan_anchor — final.md declares an anchor with no matching
-//     Task in tasks.json. CRITICAL.
+//   - orphan_anchor — the recipe's authoritative anchor source declares
+//     an anchor with no matching Task in tasks.json. CRITICAL. The
+//     authoritative source is final.md when it carries any anchor at
+//     all, and the wireframe table otherwise; see the union comment in
+//     the body for why the reverse direction is not the union.
 //   - duplicate_anchor — the same (path, action) appears more than
 //     once in final.md. MAJOR.
 //   - action_mismatch — Task.Anchor says "foo.go create" but the
@@ -113,18 +120,40 @@ func CheckTaskAnchors(finalPath, wireframePath, tasksPath string) []Issue {
 		}
 	}
 
-	declared := make([]TaskAnchorKey, 0, len(finalAnchors)+len(wireframeAnchors))
-	declared = append(declared, finalAnchors...)
-	declared = append(declared, wireframeAnchors...)
-	finalSet := make(map[TaskAnchorKey]bool, len(declared))
-	for _, a := range declared {
-		finalSet[a] = true
+	// A task is anchored if EITHER source declares it, so the forward
+	// direction reads the union.
+	declaredSet := make(map[TaskAnchorKey]bool, len(finalAnchors)+len(wireframeAnchors))
+	for _, a := range finalAnchors {
+		declaredSet[a] = true
+	}
+	for _, a := range wireframeAnchors {
+		declaredSet[a] = true
 	}
 
-	// missing_anchor: tasks.json key ∉ final.md set.
+	// The reverse direction is NOT the union, because the two sources do
+	// not carry the same claim. A `<!-- task-anchor: -->` comment exists
+	// only to be matched, so one with no task is a defect. A File
+	// Structure row is a decomposition the wireframe wrote before
+	// tasks.json existed, and under the old contract it is routinely a
+	// superset: files later dropped, rows spelled with a different
+	// relative path than the task carries. Enforcing those as orphans
+	// turned one measured recipe's 31 rows against 12 final.md anchors
+	// into 19 criticals on the next `bts verify`, with no migration to
+	// run — the opposite of what this checker promises.
+	//
+	// So the table is authoritative exactly when it is the only source: a
+	// recipe anchored in final.md keeps final.md's answer and is left
+	// alone, and a recipe written against the table gets the both-ways
+	// check the table was wired for.
+	enforced := finalAnchors
+	if len(finalAnchors) == 0 {
+		enforced = wireframeAnchors
+	}
+
+	// missing_anchor: tasks.json key ∉ the declared union.
 	var missing []TaskAnchorKey
 	for key := range taskByKey {
-		if !finalSet[key] {
+		if !declaredSet[key] {
 			missing = append(missing, key)
 		}
 	}
@@ -140,14 +169,14 @@ func CheckTaskAnchors(finalPath, wireframePath, tasksPath string) []Issue {
 		})
 	}
 
-	// orphan_anchor: final.md key ∉ tasks.json set.
+	// orphan_anchor: an enforced declaration ∉ tasks.json set.
 	taskSet := make(map[TaskAnchorKey]bool, len(taskByKey))
 	for k := range taskByKey {
 		taskSet[k] = true
 	}
 	var orphan []TaskAnchorKey
 	seenOrphan := map[TaskAnchorKey]bool{}
-	for _, a := range declared {
+	for _, a := range enforced {
 		if taskSet[a] || seenOrphan[a] {
 			continue
 		}
