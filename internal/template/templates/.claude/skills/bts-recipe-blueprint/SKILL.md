@@ -660,7 +660,7 @@ What the user gets, and — explicitly — what this does NOT do.
 ## 2. Invariants and owners
 | ID | Statement | Owner |
 |---|---|---|
-| INV-001 | what is always true | `path/to/the/file/that/keeps/it` |
+| INV-001 | what is always true | `path/to/the-file-that-keeps-it.ts` |
 
 ## 3. Boundary contracts
 The exact shape of what crosses a wire, a schema, a stored row, an API.
@@ -672,8 +672,9 @@ The exact shape of what crosses a wire, a schema, a stored row, an API.
 copy the table.
 
 ## 5. Irreversible order and rollback
-Ordered steps, what each depends on, and what undoes it. Name the one
-mistake that cannot be taken back.
+1. Ordered steps, numbered, what each depends on, and what undoes it.
+2. Name the one mistake that cannot be taken back.
+   (Numbering the sections above does not count — the steps do.)
 
 ## 6. Falsifiers
 | Invariant | Falsifier |

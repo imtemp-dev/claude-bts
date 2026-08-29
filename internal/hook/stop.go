@@ -143,10 +143,32 @@ func (h *stopHandler) handleBlindStop(root string, recipe *state.RecipeState) (*
 		return &HookOutput{}, nil
 	}
 
-	// C. Convergence budget exhausted. Checked first: it is the most
+	// C. The verify loop stopped itself. Checked first: it is the most
 	// consequential state to leave unannounced, and it is terminal for
 	// the loop rather than a step the model can just redo.
+	//
+	// Two rules write Status "failed" and their remedies are opposites,
+	// so the message branches on which one did. Before FailedBy existed
+	// every halt was reported as an exhausted verify.max_iterations —
+	// including a round-cap halt on a recipe that had improved every
+	// round and never stagnated once — and it asked the agent to hold a
+	// decision when what the cap actually says is "stop arguing and go
+	// implement".
 	if last, err := readLastVerifyEntry(filepath.Join(recipeDir, "verify-log.jsonl")); err == nil && last.Status == "failed" {
+		if last.FailedBy == state.FailedByRoundCap {
+			roundCap := "the round cap"
+			if last.RoundCap > 0 {
+				roundCap = fmt.Sprintf("verify.max_rounds=%d", last.RoundCap)
+			}
+			return blockOutput(fmt.Sprintf(
+				"The verify loop for %s hit %s with %d critical, %d major, %d minor [resolvable] still open. "+
+					"Do not end the turn silently. Stop verifying: move the open findings "+
+					"(`bts recipe findings list --open %s`) into the spec's '## Known Uncertainties' — each with the "+
+					"command that would settle it (Opens-with:) — tell the user, and start implementing. Another round "+
+					"spends a full document read arguing about what a compiler and a test run answer in seconds.",
+				lastVerifyLabel(last), roundCap, last.Critical, last.Major, last.EffectiveResolvable(), recipe.ID,
+			)), nil
+		}
 		budget := "the convergence budget"
 		if last.Budget > 0 {
 			budget = fmt.Sprintf("verify.max_iterations=%d", last.Budget)

@@ -110,7 +110,7 @@ var HardGates = []HardGate{
 		ID:          "task_anchor_coverage",
 		Rule:        "bts-implement/SKILL.md §Step 1 + bts-schema.md tasks.json",
 		Enforcement: "internal/engine/task_anchor_checker.go:CheckTaskAnchors + internal/engine/wireframe_file_table.go:ParseWireframeFileTable",
-		Summary:     "Every Task.anchor must match a wireframe.md File Structure row (or a legacy `<!-- task-anchor: path action -->` in final.md) and every declaration must have a task — 1:1 against the union of the two sources",
+		Summary:     "Every Task.anchor must match a wireframe.md File Structure row (or a legacy `<!-- task-anchor: path action -->` in final.md); the reverse — every declaration has a task — is enforced against final.md when it carries any anchor, and against the wireframe table when it is the only source",
 	},
 	{
 		ID:          "modify_scope_declared",
@@ -277,6 +277,15 @@ var overridableGates = map[string]bool{
 	"revision_recorded_before_final": true,
 	"deferred_minors_declared":       true,
 	"simulate_at_least_once":         true,
+	// falsifier_assigned is a judgement about the document, exactly like
+	// its sibling at stop.go step 2c. Leaving it out made it the only
+	// DONE-blocking gate with no escape hatch: overrideFooter returns ""
+	// for a gate the CLI would refuse, so the block message named no way
+	// forward, and `override grant --gate falsifier_assigned` answered
+	// "unknown gate". An invariant whose falsifier genuinely cannot be
+	// named yet belongs in Known Uncertainties — but that is the
+	// operator's call to record, not a wall.
+	"falsifier_assigned": true,
 }
 
 // IsOverridableGate reports whether gate accepts an override record.
@@ -320,9 +329,18 @@ func GateIsDocumentScoped(gate string) bool {
 }
 
 // OverridableGates returns the registry entries an override may name.
+//
+// Both registries are scanned. `bts recipe override list --gates` is the
+// command every block message points at, so a gate listed only in
+// InvariantGates would be grantable and undiscoverable at the same time.
 func OverridableGates() []HardGate {
 	var out []HardGate
 	for _, g := range HardGates {
+		if overridableGates[g.ID] {
+			out = append(out, g)
+		}
+	}
+	for _, g := range InvariantGates {
 		if overridableGates[g.ID] {
 			out = append(out, g)
 		}

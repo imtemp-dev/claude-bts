@@ -130,25 +130,7 @@ func CheckTaskAnchors(finalPath, wireframePath, tasksPath string) []Issue {
 		declaredSet[a] = true
 	}
 
-	// The reverse direction is NOT the union, because the two sources do
-	// not carry the same claim. A `<!-- task-anchor: -->` comment exists
-	// only to be matched, so one with no task is a defect. A File
-	// Structure row is a decomposition the wireframe wrote before
-	// tasks.json existed, and under the old contract it is routinely a
-	// superset: files later dropped, rows spelled with a different
-	// relative path than the task carries. Enforcing those as orphans
-	// turned one measured recipe's 31 rows against 12 final.md anchors
-	// into 19 criticals on the next `bts verify`, with no migration to
-	// run — the opposite of what this checker promises.
-	//
-	// So the table is authoritative exactly when it is the only source: a
-	// recipe anchored in final.md keeps final.md's answer and is left
-	// alone, and a recipe written against the table gets the both-ways
-	// check the table was wired for.
-	enforced := finalAnchors
-	if len(finalAnchors) == 0 {
-		enforced = wireframeAnchors
-	}
+	enforced := enforcedAnchors(finalAnchors, wireframeAnchors)
 
 	// missing_anchor: tasks.json key ∉ the declared union.
 	var missing []TaskAnchorKey
@@ -194,6 +176,58 @@ func CheckTaskAnchors(finalPath, wireframePath, tasksPath string) []Issue {
 		})
 	}
 	return issues
+}
+
+// enforcedAnchors picks the source the orphan direction is judged
+// against.
+//
+// The reverse direction is NOT the union, because the two sources do not
+// carry the same claim. A `<!-- task-anchor: -->` comment exists only to
+// be matched, so one with no task is a defect. A File Structure row is a
+// decomposition the wireframe wrote before tasks.json existed, and under
+// the old contract it is routinely a superset: files later dropped, rows
+// spelled with a different relative path than the task carries.
+// Enforcing those as orphans turned one measured recipe's 31 rows
+// against 12 final.md anchors into 19 criticals on the next
+// `bts verify`, with no migration to run — the opposite of what this
+// checker promises.
+//
+// So the table is authoritative exactly when it is the only source: a
+// recipe anchored in final.md keeps final.md's answer and is left alone,
+// and a recipe written against the table gets the both-ways check the
+// table was wired for.
+func enforcedAnchors(finalAnchors, wireframeAnchors []TaskAnchorKey) []TaskAnchorKey {
+	if len(finalAnchors) == 0 {
+		return wireframeAnchors
+	}
+	return finalAnchors
+}
+
+// TaskAnchorPopulation is the set of distinct (path, action) keys
+// CheckTaskAnchors judges: the declarations it enforces, plus the tasks
+// it can report as missing. Both issue categories draw from this set, so
+// it is the denominator Phase 17's task_anchor_orphan_rate needs.
+//
+// stats.go used to count the final∪wireframe union instead. Once the
+// wireframe table became a declaration source, that denominator picked
+// up every row the orphan direction deliberately does NOT enforce — on
+// the measured recipe, 31 rows against 12 enforced anchors — so the
+// indicator improved threefold with nothing in the project having
+// changed. Same artefact the fence-parity fix removed from
+// mean_findings_density, in the other direction.
+func TaskAnchorPopulation(finalPath, wireframePath, tasksPath string) int {
+	finalAnchors, _ := parseFinalAnchors(readFileOrEmpty(finalPath))
+	wireframeAnchors := ParseWireframeFileTable(readFileOrEmpty(wireframePath))
+	population := map[TaskAnchorKey]bool{}
+	for _, a := range enforcedAnchors(finalAnchors, wireframeAnchors) {
+		population[a] = true
+	}
+	if tasks, err := loadTasksForAnchor(tasksPath); err == nil {
+		for _, t := range tasks {
+			population[taskAnchorKey(t)] = true
+		}
+	}
+	return len(population)
 }
 
 // parseFinalAnchors returns anchors in document order (preserving first

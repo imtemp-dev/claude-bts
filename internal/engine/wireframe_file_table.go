@@ -41,10 +41,21 @@ var tableSeparatorRowRe = regexp.MustCompile(`^[\s|:-]+$`)
 // `0026communitybundlecoverurl.sql` when they were.
 var cellCleanupRe = regexp.MustCompile("[`*]")
 
-// cleanCell removes decoration without touching the content. Edge
-// underscores go; interior ones stay.
+// cleanCell removes decoration without touching the content.
+//
+// An underscore is markdown italics only when it wraps the WHOLE cell,
+// so only a wrapping pair comes off. Trimming both edges instead renamed
+// the file: `__init__.py` became `init__.py` and `_layout.tsx` became
+// `layout.tsx`, and each produced a CRITICAL missing_anchor against a
+// tasks.json that spells the name correctly — plus, on a recipe whose
+// anchors come from the table, a CRITICAL orphan_anchor for the
+// corrupted key alongside it.
 func cleanCell(s string) string {
-	return strings.Trim(strings.TrimSpace(cellCleanupRe.ReplaceAllString(s, "")), "_")
+	s = strings.TrimSpace(cellCleanupRe.ReplaceAllString(s, ""))
+	for len(s) > 2 && s[0] == '_' && s[len(s)-1] == '_' {
+		s = s[1 : len(s)-1]
+	}
+	return s
 }
 
 // anchorActions are the actions a task can carry. A File Structure row

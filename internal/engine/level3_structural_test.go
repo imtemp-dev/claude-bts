@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -260,5 +261,152 @@ func TestKoreanDocumentReachesLevel3(t *testing.T) {
 	got := assessLevel(doc)
 	if got.Level < 3.0 {
 		t.Errorf("Korean skeleton level = %.3f, want 3.0; unmet: %v", got.Level, got.Missing)
+	}
+}
+
+// `\b` is ASCII-only and `_` is a word character, so `\btests?\b` cannot
+// match inside `foo_test.go` — the most common way a Go recipe names the
+// thing that would go red. The row was correct and the checker reported
+// it as naming no falsifier, which blocks <bts>DONE</bts> with no edit
+// to the row that clears it.
+func TestFalsifierAcceptsTestFileNamesAndCommands(t *testing.T) {
+	named := []string{
+		"| INV-001 | statement | `internal/engine/foo_test.go` — goes red |",
+		"| INV-002 | statement | `tools/test_covers.py` |",
+		"| INV-003 | statement | `lib/user_spec.rb` |",
+		// A command is a falsifier bts-level-criteria.md already names,
+		// and backtickedIdentRe stops at the first space.
+		"| INV-004 | statement | `go test ./internal/engine` |",
+	}
+	for _, line := range named {
+		if !lineNamesFalsifier(line) {
+			t.Errorf("should name a falsifier: %s", line)
+		}
+	}
+	// The falsifier WORD is still required: a backticked command that
+	// runs something else is not a red light for this invariant.
+	if lineNamesFalsifier("| INV-005 | statement | `npm run build` |") {
+		t.Error("a command with no falsifier word must not count")
+	}
+	// End to end: the gate that reads this must find nothing uncovered.
+	doc := strings.Join(named, "\n") + "\n"
+	if got := FalsifierCoverage(doc); len(got) != 0 {
+		t.Errorf("named test files and commands must cover their invariants, got %v", got)
+	}
+}
+
+// ownerTokenRe and the artifact half of lineNamesFalsifier are the same
+// regex — both ask "does this line name a file" — so an unscoped owner
+// check was answered by the falsifier table. The criterion that exists
+// to catch an invariant nobody keeps reported met on a row whose owner
+// column says TBD.
+func TestInvariantsOwnedIsScopedToTheInvariantsSection(t *testing.T) {
+	const unowned = "## 2. Invariants and owners\n" +
+		"| ID | Statement | Owner |\n|---|---|---|\n" +
+		"| INV-001 | user email is unique | TBD |\n\n" +
+		"## 6. Falsifiers\n" +
+		"| Invariant | Falsifier |\n|---|---|\n" +
+		"| INV-001 | `src/user.spec.ts` |\n"
+	if invariantsOwned(unowned) {
+		t.Error("a falsifier row must not answer for a missing owner")
+	}
+	// The falsifier side of the same document is genuinely answered.
+	if !invariantsCarry(unowned, lineNamesFalsifier) {
+		t.Error("the falsifier table still satisfies falsifiers_assigned")
+	}
+	owned := strings.Replace(unowned, "| INV-001 | user email is unique | TBD |",
+		"| INV-001 | user email is unique | `src/user.service.ts` |", 1)
+	if !invariantsOwned(owned) {
+		t.Error("an owner named in the invariants section should pass")
+	}
+	// A document with no invariants heading is judged whole, as before —
+	// scoping must not newly fail a fragment or a differently titled doc.
+	if !invariantsOwned("| INV-001 | statement | `src/user.service.ts` |\n") {
+		t.Error("with no invariants section the whole document is the scope")
+	}
+}
+
+// The shipped skeleton numbers all six of its H2 sections and titles one
+// of them "Irreversible order and rollback", so counting numbered
+// headings meant the template's own table of contents satisfied the
+// criterion before anyone wrote an order.
+func TestIrreversibleOrderIgnoresNumberedSectionHeadings(t *testing.T) {
+	if hasIrreversibleOrder("## 1. What ships\n## 5. Irreversible order and rollback\n") {
+		t.Error("numbered section headings are a table of contents, not steps")
+	}
+	// A numbered sub-heading IS a step, and so is a numbered table row.
+	if !hasIrreversibleOrder("### 1. Create the table\n### 2. Backfill\nrollback: drop it.\n") {
+		t.Error("numbered H3 steps should count")
+	}
+	if !hasIrreversibleOrder("| Step | Action | Undo |\n|---|---|---|\n" +
+		"| 1 | create table | drop table |\n| 2 | backfill | truncate |\n") {
+		t.Error("a numbered order table should count")
+	}
+}
+
+// markers >= entries compared document-wide counts, and the shipped
+// skeleton writes TWO markers per entry (Opens-with: and Why-deferred:),
+// so two complete entries bought a third one silence.
+func TestDeclaredUncertaintiesIsCheckedPerEntry(t *testing.T) {
+	const heading = "## Known Uncertainties\n\n"
+	twoPaidForThree := heading +
+		"### U-001: a\nOpens-with: `probe a`\nWhy-deferred: not yet\n\n" +
+		"### U-002: b\nOpens-with: `probe b`\nWhy-deferred: not yet\n\n" +
+		"### U-003: c\nNobody said what would settle it.\n"
+	if hasDeclaredUncertainties(twoPaidForThree) {
+		t.Error("a surplus of markers on other entries must not cover U-003")
+	}
+	if !hasDeclaredUncertainties(twoPaidForThree + "Opens-with: `probe c`\n") {
+		t.Error("every entry answered should pass")
+	}
+	// An entry outside the section belongs to whatever follows it, and
+	// the implement hook does not read it either.
+	if !hasDeclaredUncertainties(heading + "None open.\n\n## Notes\n\n### U-009: stray\n") {
+		t.Error("a U-NNN under a later section is not an entry of this one")
+	}
+}
+
+// pathTokenRe's dotless `a/b` alternative matches ordinary prose, and
+// three such phrases met the three-distinct-units threshold in a
+// document that named no file at all.
+func TestFilePathsSpecifiedRejectsProseSlashes(t *testing.T) {
+	if hasNamedUnits("We keep read/write ordering, split client/server, and pipe input/output.\n") {
+		t.Error("prose slashes are not named units")
+	}
+	if !hasNamedUnits("touches `a/b.ts`, `c/d.go` and `e/f.py`") {
+		t.Error("three named files should pass")
+	}
+	// A directory the author marked up as one still counts: the backticks
+	// are the claim that this is a path.
+	if !hasNamedUnits("under `internal/engine`, `src/components` and `db/migrations`") {
+		t.Error("three backticked paths should pass")
+	}
+}
+
+// The template teaches the form authors copy, so it has to be a form the
+// checker accepts. The owner example was `path/to/the/file/that/keeps/it`
+// — no extension, so lineNamesOwner rejected it, and a blueprint copying
+// it literally failed invariants_owned.
+func TestShippedSkeletonOwnerExampleNamesAFile(t *testing.T) {
+	const skillPath = "../template/templates/.claude/skills/bts-recipe-blueprint/SKILL.md"
+	data, err := os.ReadFile(skillPath)
+	if err != nil {
+		t.Fatalf("read the shipped blueprint skill: %v", err)
+	}
+	var checked int
+	for _, line := range strings.Split(string(data), "\n") {
+		if !strings.Contains(line, "INV-001") || !strings.HasPrefix(strings.TrimSpace(line), "|") {
+			continue
+		}
+		checked++
+		if strings.Contains(strings.ToLower(line), "falsifier") {
+			continue
+		}
+		if !lineNamesOwner(line) && !lineNamesFalsifier(line) {
+			t.Errorf("the skeleton row teaches a form the checker rejects: %s", line)
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no INV-001 example row found — the skeleton moved and this test went blind")
 	}
 }

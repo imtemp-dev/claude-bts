@@ -377,6 +377,7 @@ var recipeLogCmd = &cobra.Command{
 			// without this stamp the log cannot say which regime produced a
 			// given Status — see state.VerifyLogEntry.Budget.
 			entry.Budget = settings.Verify.MaxIterations
+			entry.RoundCap = settings.Verify.MaxRounds
 			history, herr := state.ReadVerifyLog(root, recipeID)
 			if herr != nil {
 				fmt.Fprintf(os.Stderr, "warning: read verify-log for convergence check: %v\n", herr)
@@ -433,6 +434,15 @@ var recipeLogCmd = &cobra.Command{
 			if verdict.Exceeded || verdict.CapHit {
 				entry.Status = "failed"
 				status = "failed"
+				// Which rule stopped the loop, so the reader of the log does
+				// not have to guess — the two have opposite remedies. See
+				// state.VerifyLogEntry.FailedBy. Convergence wins when both
+				// fire: it is the more specific diagnosis, and its remedy
+				// (ask the operator) is the safer one to be given twice.
+				entry.FailedBy = state.FailedByRoundCap
+				if verdict.Exceeded {
+					entry.FailedBy = state.FailedByConvergence
+				}
 			}
 
 			if err := state.AppendVerifyLog(root, recipeID, entry); err != nil {

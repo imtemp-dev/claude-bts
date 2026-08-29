@@ -62,12 +62,18 @@ arguing about them in prose costs a verify round each and leaves a claim
 behind that the next round has to re-check.
 
 - [ ] All Level 2 criteria met
-- [ ] **file_paths_specified** — at least three distinct units are named.
+- [ ] **file_paths_specified** — at least three distinct units are
+      named. Named means a file with an extension, or a backticked path
+      for a directory: `read/write` and `client/server` are prose, and
+      three such phrases must not read as three units.
 - [ ] **invariants_owned** — **every** `INV-NNN` the document declares
-      appears on a line that also names the file that keeps it. An
-      invariant without an owner is one nobody keeps, or two places
-      keeping it differently. A design that genuinely has no invariant
-      passes by saying so under an invariants heading — the same rule
+      appears, **in the invariants section**, on a line that also names
+      the file that keeps it. An invariant without an owner is one
+      nobody keeps, or two places keeping it differently. The section
+      matters because an owner row and a falsifier row look identical to
+      a checker — both name a file — so an unscoped check let §6 answer
+      for §2. A design that genuinely has no invariant passes by saying
+      so under an invariants heading, the same rule
       `uncertainties_declared` uses. Having no such section does not
       pass: silence here is not the same claim, and it must not be the
       cheap way past this criterion and `falsifiers_assigned`.
@@ -77,15 +83,21 @@ behind that the next round has to re-check.
       thing to get wrong: both sides get rebuilt, and once shipped a
       migration is involved.
 - [ ] **irreversible_order** — two or more ordered steps **and** what
-      undoes them. A wrong order here is not a code fix; it is a
-      production incident with no rollback.
+      undoes them. The steps have to be steps: a numbered list, numbered
+      table rows, or numbered `###` sub-headings. Numbering the
+      document's own top-level sections is a table of contents, and
+      counting it meant the skeleton satisfied this criterion before
+      anyone wrote an order. A wrong order here is not a code fix; it is
+      a production incident with no rollback.
 - [ ] **falsifiers_assigned** — **every** declared invariant appears on a
       line that also names what would prove it false: a test, a spec, a
       probe, an observation. The name has to be a named artifact — a
-      file with an extension, or a backticked identifier — not a word
-      like "tests" and a slash somewhere in the same row. Names only:
-      what the assertion should contain is decided while writing the
-      test, not here. A document with no invariants passes as above.
+      file with an extension, a backticked identifier, or a backticked
+      command — not a word like "tests" and a slash somewhere in the
+      same row. A test file's own name counts as naming a test:
+      `foo_test.go`, `test_foo.py`, `user_spec.rb`. Names only: what the
+      assertion should contain is decided while writing the test, not
+      here. A document with no invariants passes as above.
 - [ ] **uncertainties_declared** — a `## Known Uncertainties` section
       exists, and every `### U-NNN` entry carries a `Why-deferred:` or
       `Opens-with:` line. A section declaring nothing open passes;

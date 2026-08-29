@@ -349,3 +349,51 @@ func TestStopBlockBudget_AppliesToDonePath(t *testing.T) {
 		t.Fatal("the DONE path must also be bounded by the block budget")
 	}
 }
+
+// C-bis: the ROUND CAP stopped the loop, not the convergence budget.
+// Both write Status "failed" and their remedies are opposites — the
+// budget says stop and ask the operator, the cap says stop arguing and
+// go implement — so a recipe that improved every round and never
+// stagnated once was told its verify.max_iterations had been exhausted
+// and asked to hold a decision it did not need.
+func TestBlindStop_RoundCapFailed_ReportsTheCap(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	logged := time.Now()
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 6, Critical: 0, Major: 1, Doc: "draft.md", Status: "failed",
+			Budget: 3, RoundCap: 6, FailedBy: state.FailedByRoundCap,
+			Timestamp: logged.UTC().Format(time.RFC3339)},
+	})
+	recordVerification(t, root, recipeID)
+
+	out := blindStop(t, root)
+	if out.Decision != "block" {
+		t.Fatal("a round-cap halt must not end the turn silently")
+	}
+	if !strings.Contains(out.Reason, "verify.max_rounds=6") {
+		t.Errorf("reason must name the cap it hit, got: %s", out.Reason)
+	}
+	if strings.Contains(out.Reason, "max_iterations") {
+		t.Errorf("reason must not blame a budget that was never exhausted, got: %s", out.Reason)
+	}
+	if !strings.Contains(out.Reason, "Known Uncertainties") {
+		t.Errorf("reason must give the cap's remedy, not the budget's, got: %s", out.Reason)
+	}
+}
+
+// A log written before FailedBy existed still has to say something
+// useful, so an unstamped failure keeps the budget wording.
+func TestBlindStop_LegacyFailedRound_KeepsBudgetWording(t *testing.T) {
+	root, recipeID := setupStopRoot(t)
+	logged := time.Now()
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
+		{Iteration: 4, Critical: 1, Major: 2, Doc: "draft.md", Status: "failed",
+			Budget: 3, Timestamp: logged.UTC().Format(time.RFC3339)},
+	})
+	recordVerification(t, root, recipeID)
+
+	out := blindStop(t, root)
+	if out.Decision != "block" || !strings.Contains(out.Reason, "verify.max_iterations=3") {
+		t.Errorf("an unstamped failure should read as before, got: %s", out.Reason)
+	}
+}

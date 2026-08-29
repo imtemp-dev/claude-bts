@@ -275,6 +275,23 @@ type VerifyLogEntry struct {
 	// budget per round makes that regime change visible instead of
 	// silent. 0 means "written before this field existed".
 	Budget int `json:"budget,omitempty"`
+	// RoundCap is the verify.max_rounds value in effect when this round
+	// was judged, recorded for the same reason as Budget. 0 means
+	// "disabled, or written before this field existed".
+	RoundCap int `json:"round_cap,omitempty"`
+	// FailedBy names which rule produced Status "failed":
+	// FailedByConvergence (max_iterations rounds without progress) or
+	// FailedByRoundCap (max_rounds total rounds recorded).
+	//
+	// The two halts are terminal in different ways and their remedies
+	// are opposites — convergence says stop and ask the operator a
+	// question, the round cap says stop arguing and go implement — but
+	// both wrote the same Status, so the blind-stop message reported
+	// every cap halt as an exhausted max_iterations and told the agent
+	// to hold a decision it did not need. Empty means "not a failure, or
+	// written before this field existed"; readers fall back to the
+	// budget wording rather than guess.
+	FailedBy string `json:"failed_by,omitempty"`
 	// AgentEvidence records whether any subagent finished between the
 	// previous round and this one: "observed", "none", or "" for rounds
 	// written before the field existed.
@@ -328,6 +345,12 @@ type VerifyLogEntry struct {
 const (
 	AgentEvidenceObserved = "observed"
 	AgentEvidenceNone     = "none"
+)
+
+// Failure causes for VerifyLogEntry.FailedBy.
+const (
+	FailedByConvergence = "convergence"
+	FailedByRoundCap    = "round_cap"
 )
 
 // BudgetDrift reports the most recent budget recorded in entries that

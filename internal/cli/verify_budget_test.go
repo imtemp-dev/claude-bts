@@ -143,3 +143,42 @@ func TestSettingsTemplate_HasNoInertConvergenceKnobs(t *testing.T) {
 		}
 	}
 }
+
+// Two rules write Status "failed" and their remedies are opposites, so
+// the round has to say which one fired. Here every round improves — the
+// progress budget is never touched — and the cap fires on round count
+// alone. Without FailedBy the stop hook read this as an exhausted
+// verify.max_iterations and told the agent to hold a decision.
+func TestRecipeLog_StampsRoundCapAsTheCause(t *testing.T) {
+	var prior []state.VerifyLogEntry
+	for i := 0; i < 5; i++ {
+		prior = append(prior, state.VerifyLogEntry{
+			Iteration: i + 1, Critical: 0, Major: 10 - i, Doc: "draft.md",
+			Dimensions: []string{"audit", "simulate", "verify"}, FullPass: true,
+			Status: "continue", Budget: 3, RoundCap: 6,
+		})
+	}
+	root := newRecipeFixture(t, "r-b06", "draft", 0, 5, prior)
+	writeProjectFile(t, root, ".bts/config/settings.yaml",
+		"verify:\n  max_iterations: 3\n  max_rounds: 6\n")
+
+	runRecipeLog(t, root, "r-b06", "--iteration", "6", "--critical", "0",
+		"--major", "5", "--doc", "draft.md", "--scope", "full",
+		"--dimension", "verify,audit,simulate")
+
+	entries, err := state.ReadVerifyLog(root, "r-b06")
+	if err != nil {
+		t.Fatalf("read verify-log: %v", err)
+	}
+	last := entries[len(entries)-1]
+	if last.Status != "failed" {
+		t.Fatalf("status = %q, want failed — six rounds against max_rounds=6", last.Status)
+	}
+	if last.FailedBy != state.FailedByRoundCap {
+		t.Errorf("failed_by = %q, want %q — no round ever stagnated",
+			last.FailedBy, state.FailedByRoundCap)
+	}
+	if last.RoundCap != 6 {
+		t.Errorf("round_cap = %d, want 6", last.RoundCap)
+	}
+}

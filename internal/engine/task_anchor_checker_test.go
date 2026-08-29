@@ -355,3 +355,65 @@ func TestValidateTasksJSON_RunsForWireframeOnlyRecipe(t *testing.T) {
 		}
 	}
 }
+
+// cleanCell trimmed underscores from both edges, which renames the file:
+// `__init__.py` became `init__.py` and `_layout.tsx` became
+// `layout.tsx`. Each produced a CRITICAL missing_anchor against a
+// tasks.json that spells the name correctly, and — on a recipe whose
+// anchors come from the table — a CRITICAL orphan_anchor for the
+// corrupted key beside it. Italics wrap the WHOLE cell; a leading
+// underscore in a name does not.
+func TestParseWireframeFileTable_KeepsNameUnderscores(t *testing.T) {
+	got := ParseWireframeFileTable("# W\n\n## File Structure\n\n" +
+		"| File | Action |\n|---|---|\n" +
+		"| `pkg/__init__.py` | create |\n" +
+		"| `app/_layout.tsx` | _modify_ |\n")
+	want := []TaskAnchorKey{
+		{Path: "pkg/__init__.py", Action: "create"},
+		{Path: "app/_layout.tsx", Action: "modify"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("row %d = %v, want %v", i, got[i], want[i])
+		}
+	}
+}
+
+// task_anchor_orphan_rate divides the orphan and missing counts by
+// TaskAnchorTotal. Counting the final∪wireframe union there while the
+// orphan direction enforces final.md alone put rows in the denominator
+// that can never reach the numerator: the measured recipe's 31 rows
+// against 12 enforced anchors improved the indicator threefold with
+// nothing in the project having changed.
+func TestTaskAnchorPopulationCountsWhatIsJudged(t *testing.T) {
+	finalMd := `<!-- task-anchor: src/a.ts create -->`
+	tasksJSON := `{
+  "recipe_id": "r-1",
+  "tasks": [
+    {"id": "t-001", "file": "src/a.ts", "action": "create", "status": "done", "description": "x", "anchor": "src/a.ts create"}
+  ]
+}`
+	finalPath, tasksPath := writeFinalAndTasks(t, finalMd, tasksJSON)
+	writeSiblingWireframe(t, finalPath, "# Wireframe\n\n## File Structure\n\n"+
+		"| File | Action |\n|---|---|\n"+
+		"| `src/a.ts` | create |\n"+
+		"| `src/dropped.ts` | create |\n"+
+		"| `pkg/types.go` | modify |\n")
+	if got := TaskAnchorPopulation(finalPath, wireframePathFor(finalPath), tasksPath); got != 1 {
+		t.Errorf("population = %d, want 1 — unenforced wireframe rows are not in the denominator", got)
+	}
+
+	// With the table as the only source its rows ARE judged, so they
+	// belong in the denominator.
+	finalPath2, tasksPath2 := writeFinalAndTasks(t, "# Blueprint\n", tasksJSON)
+	writeSiblingWireframe(t, finalPath2, "# Wireframe\n\n## File Structure\n\n"+
+		"| File | Action |\n|---|---|\n"+
+		"| `src/a.ts` | create |\n"+
+		"| `src/b.ts` | create |\n")
+	if got := TaskAnchorPopulation(finalPath2, wireframePathFor(finalPath2), tasksPath2); got != 2 {
+		t.Errorf("population = %d, want 2 when the table is the enforced source", got)
+	}
+}

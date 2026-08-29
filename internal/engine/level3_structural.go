@@ -45,6 +45,20 @@ var (
 	artifactTokenRe = regexp.MustCompile(
 		`(?i)\b[\w.@-]+(?:/[\w.@-]+)*\.(?:[a-z]{2,10}|[ch])\b`)
 
+	// A backticked path with no extension — `internal/engine`,
+	// `src/components/`. Unbackticked, `read/write` and `client/server`
+	// are indistinguishable from one, which is why only the marked-up
+	// form counts: the backticks are the author saying "this is a path",
+	// and prose does not carry them.
+	backtickedPathRe = regexp.MustCompile("`/?[\\w.@-]+(?:/[\\w.@-]+)+/?`")
+
+	// A backticked command — what an `Opens-with:` line names, and one of
+	// the falsifier forms bts-level-criteria.md and falsifier_checker.go
+	// both accept. backtickedIdentRe stops at the first space, so
+	// `go test ./internal/engine` matched nothing and the artifact half
+	// of lineNamesFalsifier rejected the row.
+	backtickedCommandRe = regexp.MustCompile("`[A-Za-z_][\\w.-]*(?:\\s+\\S+)+`")
+
 	// A line that names an owner: it carries a named file.
 	ownerTokenRe = artifactTokenRe
 
@@ -61,8 +75,18 @@ var (
 	// The camelCase alternative is case-SENSITIVE on purpose: `CoverTests`
 	// has no word boundary before "Tests", and a case-insensitive
 	// `\w*tests?\b` would swallow "latest".
+	//
+	// The `_test` / `test_` / `_spec` alternatives are the file-naming
+	// conventions, and they are here because `\b` is defined against
+	// ASCII `\w` — of which `_` is one. So `\btests?\b` cannot match
+	// inside `foo_test.go`, the single most common way a Go recipe names
+	// the thing that would go red, and the same holds for `test_foo.py`
+	// and `user_spec.rb`. A row whose falsifier was the actual test file
+	// was reported as naming none, and falsifiers_assigned gates
+	// <bts>DONE</bts> — with no edit to the row that could clear it.
 	falsifierWordRe = regexp.MustCompile(
 		`(?i)\btests?\b|\bspec\b|assert|expect|probe|falsif|` +
+			`_tests?\b|_specs?\b|\btest_|` +
 			`테스트|반증|프로브|관측` +
 			`|(?-i:[a-z]Tests?\b)`)
 
@@ -83,8 +107,23 @@ var (
 	fenceRe    = regexp.MustCompile("(?m)^\\s*```")
 
 	// An ordered step: `S-1`, `Step 2`, `3.` at the start of a line or
-	// heading.
+	// heading. Used for the Level 1 question — is anything related to
+	// anything — where a numbered outline is an honest answer.
 	orderedStepRe = regexp.MustCompile(`(?im)^\s*#{0,6}\s*(?:S-\d+|step\s+\d+|\d+[.)])\s+\S`)
+
+	// An ordered step written in the BODY: a numbered or S-N list item, a
+	// numbered table row, or a numbered H3-or-deeper heading.
+	//
+	// A numbered H1/H2 is a table of contents, not a step. The shipped
+	// skeleton numbers all six of its H2 sections, so orderedStepRe found
+	// two steps in every document that started from it — and section 5 is
+	// titled "Irreversible order and rollback", which is also the only
+	// place rollbackRe had to match. irreversible_order was therefore
+	// satisfied by the template's own headings, before anyone wrote an
+	// order or said what undoes it.
+	stepInBodyRe = regexp.MustCompile(
+		`(?im)^\s*(?:#{3,6}\s*)?(?:S-\d+|step\s+\d+|\d+[.)])\s+\S` +
+			`|^\s*\|\s*(?:S-\d+|step\s+\d+|\d+)\s*\|`)
 
 	// Something that undoes a step.
 	rollbackRe = regexp.MustCompile(
@@ -115,15 +154,22 @@ const minNamedUnits = 3
 
 // hasNamedUnits reports whether the document names at least a few
 // distinct files or paths.
+//
+// It reads artifactTokenRe rather than pathTokenRe for the reason given
+// there: the dotless `a/b` alternative matches ordinary prose, and
+// `input/output`, `read/write` and `client/server` are three of them —
+// enough to satisfy file_paths_specified in a document that names no
+// file at all. A directory with no extension still counts when the
+// author marked it up as one; see backtickedPathRe.
 func hasNamedUnits(content string) bool {
 	seen := make(map[string]bool, minNamedUnits)
-	for _, m := range pathTokenRe.FindAllString(content, -1) {
+	for _, m := range artifactTokenRe.FindAllString(content, -1) {
 		seen[strings.ToLower(m)] = true
-		if len(seen) >= minNamedUnits {
-			return true
-		}
 	}
-	return false
+	for _, m := range backtickedPathRe.FindAllString(content, -1) {
+		seen[strings.ToLower(strings.Trim(m, "`"))] = true
+	}
+	return len(seen) >= minNamedUnits
 }
 
 // invariantsCarry reports whether every distinct invariant the document
@@ -153,25 +199,70 @@ func hasNamedUnits(content string) bool {
 // omission: a blueprint that says "see `domain.md`" and names no
 // invariant still fails, because Level 3 is the blueprint's own job.
 func invariantsCarry(content string, want func(string) bool) bool {
+	return invariantsCarryWithin(content, content, want)
+}
+
+// invariantsCarryWithin is invariantsCarry with the answer required to
+// come from `scope` — a substring of content — while what must be
+// answered is still read from the whole document.
+func invariantsCarryWithin(content, scope string, want func(string) bool) bool {
 	declared := make(map[string]bool)
-	satisfied := make(map[string]bool)
 	for _, line := range strings.Split(content, "\n") {
-		ids := invariantIDRe.FindAllStringSubmatch(line, -1)
-		if len(ids) == 0 {
-			continue
-		}
-		lineHasWant := want(line)
-		for _, id := range ids {
+		for _, id := range invariantIDRe.FindAllStringSubmatch(line, -1) {
 			declared[id[2]] = true
-			if lineHasWant {
-				satisfied[id[2]] = true
-			}
 		}
 	}
 	if len(declared) == 0 {
 		return invariantSectionRe.MatchString(content)
 	}
+	satisfied := make(map[string]bool, len(declared))
+	for _, line := range strings.Split(scope, "\n") {
+		ids := invariantIDRe.FindAllStringSubmatch(line, -1)
+		if len(ids) == 0 || !want(line) {
+			continue
+		}
+		for _, id := range ids {
+			satisfied[id[2]] = true
+		}
+	}
 	return len(satisfied) == len(declared)
+}
+
+// invariantSections returns the bodies of the headings that open an
+// invariants section, concatenated. A document with no such heading
+// returns whole, so a fragment or a differently titled document is
+// judged exactly as before rather than newly failing.
+func invariantSections(content string) string {
+	locs := invariantSectionRe.FindAllStringIndex(content, -1)
+	if len(locs) == 0 {
+		return content
+	}
+	var b strings.Builder
+	for _, loc := range locs {
+		section := content[loc[1]:]
+		if end := sectionEndRe(headingLevel(content[loc[0]:loc[1]])).
+			FindStringIndex(section); end != nil {
+			section = section[:end[0]]
+		}
+		b.WriteString(section)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// invariantsOwned is the invariants_owned criterion: every invariant is
+// answered by a line IN THE INVARIANTS SECTION that names a file.
+//
+// The scoping is the whole point. ownerTokenRe and the artifact half of
+// lineNamesFalsifier are the same regex — both ask "does this line name
+// a file" — so an unscoped owner check was satisfied by the falsifier
+// table. `| INV-001 | user email is unique | TBD |` under `## 2.
+// Invariants and owners` plus `| INV-001 | \`src/user.spec.ts\` |` under
+// `## 6. Falsifiers` reported invariants_owned as met: the criterion
+// that exists to catch an invariant nobody keeps was answered by the
+// row that says who would notice.
+func invariantsOwned(content string) bool {
+	return invariantsCarryWithin(content, invariantSections(content), lineNamesOwner)
 }
 
 // lineNamesOwner reports whether a line names the file that keeps an
@@ -187,7 +278,9 @@ func lineNamesFalsifier(line string) bool {
 	if !falsifierWordRe.MatchString(line) {
 		return false
 	}
-	return artifactTokenRe.MatchString(line) || backtickedIdentRe.MatchString(line)
+	return artifactTokenRe.MatchString(line) ||
+		backtickedIdentRe.MatchString(line) ||
+		backtickedCommandRe.MatchString(line)
 }
 
 // minPinnedShapeLines is how much pinned shape — table rows, fenced
@@ -215,7 +308,7 @@ func hasBoundaryContract(content string) bool {
 // a production incident with no rollback, which is why it belongs in a
 // blueprint and a function signature does not.
 func hasIrreversibleOrder(content string) bool {
-	return len(orderedStepRe.FindAllString(content, -1)) >= 2 &&
+	return len(stepInBodyRe.FindAllString(content, -1)) >= 2 &&
 		rollbackRe.MatchString(content)
 }
 
@@ -227,13 +320,35 @@ func hasIrreversibleOrder(content string) bool {
 // is open" is a claim the reader can act on; having no section at all is
 // silence, and silence is what lets an unopened question read as a
 // settled one.
+//
+// Every entry is checked in its own block. Comparing document-wide
+// counts — markers >= entries — passed a document where the surplus sat
+// on the wrong entry, and the shipped skeleton writes TWO markers per
+// entry (`Opens-with:` and `Why-deferred:`), so two complete entries
+// bought a third one silence.
 func hasDeclaredUncertainties(content string) bool {
-	if !uncertaintySectionRe.MatchString(content) {
+	loc := uncertaintySectionRe.FindStringIndex(content)
+	if loc == nil {
 		return false
 	}
-	entries := len(uncertaintyHeadingRe.FindAllString(content, -1))
-	markers := len(deferralMarkerRe.FindAllString(content, -1))
-	return markers >= entries
+	// Scope to the section body, the way CheckKnownUncertainties does, so
+	// a `### U-NNN` under some later heading is not counted here as an
+	// entry the implement hook will never read.
+	body := content[loc[1]:]
+	if i := strings.Index(body, "\n## "); i >= 0 {
+		body = body[:i]
+	}
+	heads := uncertaintyHeadingRe.FindAllStringIndex(body, -1)
+	for i, h := range heads {
+		end := len(body)
+		if i+1 < len(heads) {
+			end = heads[i+1][0]
+		}
+		if !deferralMarkerRe.MatchString(body[h[0]:end]) {
+			return false
+		}
+	}
+	return true
 }
 
 // ---------------------------------------------------------------------

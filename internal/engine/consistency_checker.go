@@ -116,7 +116,7 @@ var structuralCriteria = map[string]func(string) bool{
 
 	// Level 3 — is this a blueprint? See level3Criteria.
 	"file_paths_specified":   hasNamedUnits,
-	"invariants_owned":       func(c string) bool { return invariantsCarry(c, lineNamesOwner) },
+	"invariants_owned":       invariantsOwned,
 	"falsifiers_assigned":    func(c string) bool { return invariantsCarry(c, lineNamesFalsifier) },
 	"boundary_contracts":     hasBoundaryContract,
 	"irreversible_order":     hasIrreversibleOrder,

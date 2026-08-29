@@ -11,21 +11,21 @@ import (
 // Phase 17's 14-indicator report. One struct per recipe; aggregate
 // math stays in the TS layer where the report format lives.
 type RecipeStats struct {
-	TaskAnchorOrphans          int     `json:"task_anchor_orphans"`
-	TaskAnchorTotal            int     `json:"task_anchor_total"`
-	ModifyScopeViolations      int     `json:"modify_scope_violations"`
-	ModifyScopeTasks           int     `json:"modify_scope_tasks"`
-	StructureFindingsTotal     int     `json:"structure_findings_total"`
-	CompletedTasks             int     `json:"completed_tasks"`
-	MidrunInvocations          int     `json:"midrun_invocations"`
-	MidrunExpected             int     `json:"midrun_expected"`
-	DeviationRowsTotal         int     `json:"deviation_rows_total"`
-	DeviationRowsNonCodeDiff   int     `json:"deviation_rows_non_code_diff"`
-	TestScenariosTotal         int     `json:"test_scenarios_total"`
-	TestScenariosLinked        int     `json:"test_scenarios_linked"`
-	TestScenariosLegacy        int     `json:"test_scenarios_legacy"`
-	RetryLadderHistogram       [7]int  `json:"retry_ladder_histogram"` // index 0 unused, 1..6 tiers
-	LegacyModifyScopeTasks     int     `json:"legacy_modify_scope_tasks"`
+	TaskAnchorOrphans        int    `json:"task_anchor_orphans"`
+	TaskAnchorTotal          int    `json:"task_anchor_total"`
+	ModifyScopeViolations    int    `json:"modify_scope_violations"`
+	ModifyScopeTasks         int    `json:"modify_scope_tasks"`
+	StructureFindingsTotal   int    `json:"structure_findings_total"`
+	CompletedTasks           int    `json:"completed_tasks"`
+	MidrunInvocations        int    `json:"midrun_invocations"`
+	MidrunExpected           int    `json:"midrun_expected"`
+	DeviationRowsTotal       int    `json:"deviation_rows_total"`
+	DeviationRowsNonCodeDiff int    `json:"deviation_rows_non_code_diff"`
+	TestScenariosTotal       int    `json:"test_scenarios_total"`
+	TestScenariosLinked      int    `json:"test_scenarios_linked"`
+	TestScenariosLegacy      int    `json:"test_scenarios_legacy"`
+	RetryLadderHistogram     [7]int `json:"retry_ladder_histogram"` // index 0 unused, 1..6 tiers
+	LegacyModifyScopeTasks   int    `json:"legacy_modify_scope_tasks"`
 }
 
 // ComputeRecipeStats runs every Phase 9-16 checker once and records
@@ -38,15 +38,9 @@ func ComputeRecipeStats(projectRoot, recipeDir string) (*RecipeStats, error) {
 	finalPath := filepath.Join(recipeDir, "final.md")
 	tasksPath := filepath.Join(recipeDir, "tasks.json")
 	wireframePath := filepath.Join(recipeDir, "wireframe.md")
-	anchorSet := map[TaskAnchorKey]bool{}
-	finalAnchors, _ := parseFinalAnchors(readFileOrEmpty(finalPath))
-	for _, a := range finalAnchors {
-		anchorSet[a] = true
-	}
-	for _, a := range ParseWireframeFileTable(readFileOrEmpty(wireframePath)) {
-		anchorSet[a] = true
-	}
-	s.TaskAnchorTotal = len(anchorSet)
+	// The denominator has to be the set CheckTaskAnchors judges, not the
+	// union of both declaration sources — see TaskAnchorPopulation.
+	s.TaskAnchorTotal = TaskAnchorPopulation(finalPath, wireframePath, tasksPath)
 	if tasks, err := loadTasksForAnchor(tasksPath); err == nil {
 		// Orphans are anchors with no task. CheckTaskAnchors emits them;
 		// we count the issues of that category.
