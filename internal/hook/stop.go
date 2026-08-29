@@ -466,8 +466,16 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 				for _, u := range uncovered {
 					ids = append(ids, u.ID)
 				}
+				// Pinned to the document whose invariants were read, not to
+				// lastEntry.Doc — the DONE-path gates resolve that to
+				// draft.md, and an override pinned there would survive
+				// every later edit to final.md, which is the text it
+				// excused. Passing an empty hash makes overrideAllows hash
+				// the spec as it stands, which is the question the pin
+				// asks. (Step 2c has the same shape and the same gap; it
+				// is left alone here rather than changed unmeasured.)
 				if out, blocked := gateBlock(root, recipe.ID, "falsifier_assigned",
-					lastEntry.Doc, lastEntry.DocHash, fmt.Sprintf(
+					filepath.Base(specPath), "", fmt.Sprintf(
 						"%s declares %d invariant(s) with no falsifier: %s. Add a row naming the test, probe or observation that would go red for each — the name only, not what it asserts. Then re-verify (the edit is a modification — rule 3) and re-emit DONE.",
 						filepath.Base(specPath), len(uncovered), strings.Join(ids, ", "),
 					)); blocked {

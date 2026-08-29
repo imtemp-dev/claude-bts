@@ -146,6 +146,13 @@ var (
 	// not say" — see invariantsCarry.
 	invariantSectionRe = regexp.MustCompile(
 		`(?im)^#{1,6}[^\n]*(?:\binvariants?\b|불변식|불변 ?조건)`)
+
+	// A heading that opens the FALSIFIER section, which is where the
+	// answer to the other question lives. "## 6. Falsifiers for the
+	// invariants" matches invariantSectionRe too, and scoping owners to
+	// it would hand invariants_owned straight back to the table the
+	// scoping exists to exclude.
+	falsifierSectionRe = regexp.MustCompile(`(?i)falsifier|반증`)
 )
 
 // minNamedUnits is the point past which naming more files says nothing
@@ -233,19 +240,30 @@ func invariantsCarryWithin(content, scope string, want func(string) bool) bool {
 // returns whole, so a fragment or a differently titled document is
 // judged exactly as before rather than newly failing.
 func invariantSections(content string) string {
-	locs := invariantSectionRe.FindAllStringIndex(content, -1)
-	if len(locs) == 0 {
-		return content
-	}
 	var b strings.Builder
-	for _, loc := range locs {
-		section := content[loc[1]:]
-		if end := sectionEndRe(headingLevel(content[loc[0]:loc[1]])).
-			FindStringIndex(section); end != nil {
+	for _, loc := range invariantSectionRe.FindAllStringIndex(content, -1) {
+		// The match ends at the keyword, not at end of line — `[^\n]*` is
+		// greedy but backtracks — so the rest of the heading has to be
+		// recovered before it can be read or skipped.
+		heading, bodyStart := content[loc[0]:], len(content)
+		if nl := strings.IndexByte(heading, '\n'); nl >= 0 {
+			heading, bodyStart = heading[:nl], loc[0]+nl+1
+		}
+		if falsifierSectionRe.MatchString(heading) {
+			continue
+		}
+		section := content[bodyStart:]
+		if end := sectionEndRe(headingLevel(heading)).FindStringIndex(section); end != nil {
 			section = section[:end[0]]
 		}
 		b.WriteString(section)
 		b.WriteString("\n")
+	}
+	// No invariants section of its own: judge the whole document, so a
+	// fragment or a differently titled one is treated exactly as before
+	// rather than newly failing.
+	if b.Len() == 0 {
+		return content
 	}
 	return b.String()
 }

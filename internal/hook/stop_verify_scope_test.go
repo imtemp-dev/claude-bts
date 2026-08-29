@@ -504,3 +504,106 @@ func TestStopSpecDone_BlocksWhileTheLedgerStillOwesFindings(t *testing.T) {
 		t.Errorf("confirmed closures must clear the gate, blocked with: %s", out2.Reason)
 	}
 }
+
+// falsifierGateFixture reaches step 2c-bis: two independent clean rounds
+// on one revision of draft.md, and a final.md whose single invariant
+// names nothing that could go red.
+func falsifierGateFixture(t *testing.T) (root, recipeID string) {
+	t.Helper()
+	root, recipeID = setupStopRoot(t)
+	dir := state.RecipeDir(root, recipeID)
+	if err := os.WriteFile(filepath.Join(dir, "draft.md"), []byte("# draft\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "final.md"),
+		[]byte("## Invariants\n\n| INV-001 | a stored cover is https | `src/cover.ts` |\n"),
+		0644); err != nil {
+		t.Fatal(err)
+	}
+	h, ok, err := state.FileContentHash(filepath.Join(dir, "draft.md"))
+	if err != nil || !ok {
+		t.Fatalf("hash draft.md: %v ok=%v", err, ok)
+	}
+	round := func(i int) state.VerifyLogEntry {
+		return state.VerifyLogEntry{
+			Iteration: i, Doc: "draft.md", Critical: 0, Major: 0, FullPass: true,
+			Dimensions: []string{"audit", "simulate", "verify"},
+			DocHash:    h, VerificationHash: "sha256:v" + string(rune('0'+i)),
+			Status: "converged",
+		}
+	}
+	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{round(1), round(2)})
+	return root, recipeID
+}
+
+// falsifier_assigned blocks DONE and was not in overridableGates, so
+// overrideFooter returned "" and the message named no way forward, while
+// `override grant --gate falsifier_assigned` answered "unknown gate" —
+// the only DONE-blocking gate with no escape hatch.
+//
+// The pin is the other half. These gates are handed lastEntry.Doc, which
+// handleSpecDone resolves to draft.md, but the invariants were read from
+// final.md — an override pinned to draft.md would survive every later
+// edit to the text it excused. It is pinned to the document the gate
+// actually judged.
+func TestStopSpecDone_FalsifierGateOffersAWorkingOverride(t *testing.T) {
+	root, recipeID := falsifierGateFixture(t)
+	out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision != "block" || !strings.Contains(out.Reason, "no falsifier") {
+		t.Fatalf("expected the falsifier block, got decision=%q reason=%s", out.Decision, out.Reason)
+	}
+	if !strings.Contains(out.Reason, "--gate falsifier_assigned") {
+		t.Errorf("the block must name a grant invocation the CLI accepts, got: %s", out.Reason)
+	}
+	if !strings.Contains(out.Reason, "--doc final.md") {
+		t.Errorf("the override must name the document whose invariants were read, got: %s", out.Reason)
+	}
+	_ = recipeID
+}
+
+// Granted against the text the operator actually weighed, it applies;
+// granted against a revision that document no longer carries, it does
+// not. Pinning to draft.md instead would have made the first true and
+// the second impossible.
+func TestStopSpecDone_FalsifierOverrideIsPinnedToTheSpec(t *testing.T) {
+	grant := func(t *testing.T, doc, hash string) *HookOutput {
+		t.Helper()
+		root, recipeID := falsifierGateFixture(t)
+		if hash == "live" {
+			h, ok, err := state.FileContentHash(
+				filepath.Join(state.RecipeDir(root, recipeID), doc))
+			if err != nil || !ok {
+				t.Fatalf("hash %s: %v ok=%v", doc, err, ok)
+			}
+			hash = h
+		}
+		if err := state.AppendOverride(root, recipeID, &state.OverrideRecord{
+			Gate: "falsifier_assigned", Doc: doc, DocHash: hash,
+			Reason: "the invariant is domain.md's and its probe ships with the migration",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+		if err != nil {
+			t.Fatalf("handle: %v", err)
+		}
+		return out
+	}
+
+	if out := grant(t, "final.md", "live"); out.Decision == "block" {
+		t.Errorf("an override pinned to the spec as it stands must apply, blocked with: %s", out.Reason)
+	}
+	stale := grant(t, "final.md", "sha256:"+strings.Repeat("a", 64))
+	if stale.Decision != "block" || !strings.Contains(stale.Reason, "no falsifier") {
+		t.Errorf("an override pinned to a vanished revision must not apply, got %q", stale.Decision)
+	}
+	// draft.md is what lastEntry.Doc resolves to. An override recorded
+	// there is about another document and must not excuse this gate.
+	wrong := grant(t, "draft.md", "live")
+	if wrong.Decision != "block" || !strings.Contains(wrong.Reason, "no falsifier") {
+		t.Errorf("an override of another document must not excuse the spec's invariants, got %q", wrong.Decision)
+	}
+}

@@ -410,3 +410,26 @@ func TestShippedSkeletonOwnerExampleNamesAFile(t *testing.T) {
 		t.Fatal("no INV-001 example row found — the skeleton moved and this test went blind")
 	}
 }
+
+// invariantSectionRe matches any heading carrying the word, and a
+// falsifier section is often titled with it — "## 6. Falsifiers for the
+// invariants". Scoping owners to that section would hand invariants_owned
+// straight back to the table the scoping exists to exclude.
+func TestInvariantsOwnedSkipsAFalsifierSectionNamingInvariants(t *testing.T) {
+	const unowned = "## 2. Invariants and owners\n| INV-001 | s | TBD |\n\n" +
+		"## 6. Falsifiers for the invariants\n| INV-001 | `a/b.spec.ts` |\n"
+	if invariantsOwned(unowned) {
+		t.Error("a falsifier section must not answer for a missing owner, whatever it is titled")
+	}
+	owned := strings.Replace(unowned, "| INV-001 | s | TBD |",
+		"| INV-001 | s | `src/user.ts` |", 1)
+	if !invariantsOwned(owned) {
+		t.Error("the real owners section still answers")
+	}
+	// The scope starts at the body, not mid-heading: `[^\\n]*` is greedy
+	// but backtracks, so the match ends at the keyword and the rest of
+	// the heading line has to be recovered before it can be skipped.
+	if got := invariantSections("## 2. Invariants and owners\n| INV-001 | s | x |\n"); strings.HasPrefix(got, " and owners") {
+		t.Errorf("the section scope must start after the heading line, got %q", got)
+	}
+}

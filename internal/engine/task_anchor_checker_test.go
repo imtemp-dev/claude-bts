@@ -417,3 +417,42 @@ func TestTaskAnchorPopulationCountsWhatIsJudged(t *testing.T) {
 		t.Errorf("population = %d, want 2 when the table is the enforced source", got)
 	}
 }
+
+// The denominator has to move with the check, at the boundary too. With
+// no spec document, or no tasks.json, CheckTaskAnchors returns nil and
+// nothing was judged — so counting the tasks it could still see would
+// report a population the numerator can never reach, which is the defect
+// TaskAnchorPopulation exists to remove.
+func TestTaskAnchorPopulationIsZeroWhenNothingWasJudged(t *testing.T) {
+	tasksJSON := `{"recipe_id":"r","tasks":[
+	  {"id":"t-1","file":"a.ts","action":"create","status":"done","description":"x","anchor":"a.ts create"},
+	  {"id":"t-2","file":"b.ts","action":"create","status":"done","description":"x","anchor":"b.ts create"}]}`
+
+	// Tasks but no final.md and no wireframe.md.
+	dir := t.TempDir()
+	tasks := filepath.Join(dir, "tasks.json")
+	if err := os.WriteFile(tasks, []byte(tasksJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+	fin, wf := filepath.Join(dir, "final.md"), filepath.Join(dir, "wireframe.md")
+	if n := len(CheckTaskAnchors(fin, wf, tasks)); n != 0 {
+		t.Fatalf("precondition: the check must not run without a spec document, got %d issues", n)
+	}
+	if got := TaskAnchorPopulation(fin, wf, tasks); got != 0 {
+		t.Errorf("population = %d, want 0 — nothing was judged", got)
+	}
+
+	// A wireframe but no tasks.json: same answer, other side.
+	dir2 := t.TempDir()
+	wf2 := filepath.Join(dir2, "wireframe.md")
+	if err := os.WriteFile(wf2, []byte("## File Structure\n\n| File | Action |\n|---|---|\n| `a.ts` | create |\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	fin2, tasks2 := filepath.Join(dir2, "final.md"), filepath.Join(dir2, "tasks.json")
+	if n := len(CheckTaskAnchors(fin2, wf2, tasks2)); n != 0 {
+		t.Fatalf("precondition: the check must not run without tasks.json, got %d issues", n)
+	}
+	if got := TaskAnchorPopulation(fin2, wf2, tasks2); got != 0 {
+		t.Errorf("population = %d, want 0 — nothing was judged", got)
+	}
+}

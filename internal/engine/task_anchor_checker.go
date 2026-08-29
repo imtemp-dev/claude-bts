@@ -216,16 +216,28 @@ func enforcedAnchors(finalAnchors, wireframeAnchors []TaskAnchorKey) []TaskAncho
 // changed. Same artefact the fence-parity fix removed from
 // mean_findings_density, in the other direction.
 func TaskAnchorPopulation(finalPath, wireframePath, tasksPath string) int {
-	finalAnchors, _ := parseFinalAnchors(readFileOrEmpty(finalPath))
-	wireframeAnchors := ParseWireframeFileTable(readFileOrEmpty(wireframePath))
+	// The same three reads CheckTaskAnchors gates on, in the same order.
+	// A denominator counting keys the check never looked at is the defect
+	// this function exists to remove, and the boundary is where it comes
+	// back: with no spec document, or no tasks.json, the check returns nil
+	// and nothing was judged — so the population is zero, not "every task
+	// we could see".
+	finalData, ferr := os.ReadFile(finalPath)
+	wireframeData, werr := os.ReadFile(wireframePath)
+	if ferr != nil && werr != nil {
+		return 0
+	}
+	tasks, err := loadTasksForAnchor(tasksPath)
+	if err != nil {
+		return 0
+	}
+	finalAnchors, _ := parseFinalAnchors(string(finalData))
 	population := map[TaskAnchorKey]bool{}
-	for _, a := range enforcedAnchors(finalAnchors, wireframeAnchors) {
+	for _, a := range enforcedAnchors(finalAnchors, ParseWireframeFileTable(string(wireframeData))) {
 		population[a] = true
 	}
-	if tasks, err := loadTasksForAnchor(tasksPath); err == nil {
-		for _, t := range tasks {
-			population[taskAnchorKey(t)] = true
-		}
+	for _, t := range tasks {
+		population[taskAnchorKey(t)] = true
 	}
 	return len(population)
 }
