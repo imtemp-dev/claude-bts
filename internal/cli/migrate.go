@@ -1780,6 +1780,12 @@ type settingsInsertion struct {
 	Since   string // release tag for the trailing "Added in vX.Y.Z" hint
 }
 
+// Every key the template has grown since the first settings.yaml. The
+// list stood at one entry for eleven releases while ten keys shipped
+// past it, so a project that init'd early asked for its new defaults
+// and was told it already had them all. settings_migrate_test.go now
+// compares this table against the shipped template, which is the check
+// that was missing rather than the diligence.
 var settingsInsertions = []settingsInsertion{
 	{
 		Parent:  "implement",
@@ -1787,6 +1793,76 @@ var settingsInsertions = []settingsInsertion{
 		Value:   "5",
 		Comment: "Emit reviews/midrun-*.md every N completed tasks (0 disables).",
 		Since:   "v0.5.0",
+	},
+	{
+		Parent:  "verify",
+		Key:     "evidence_ttl_days",
+		Value:   "30",
+		Comment: "How long a cached framework-claim lookup stays usable (0 = never expire).",
+		Since:   "v0.12.0",
+	},
+	{
+		Parent:  "verify",
+		Key:     "max_section_lines",
+		Value:   "300",
+		Comment: "H2 section length at which `bts verify` reports span (0 disables).",
+		Since:   "v0.14.0",
+	},
+	{
+		Parent:  "verify",
+		Key:     "section_span_severity",
+		Value:   "major",
+		Comment: "Severity for the span reports. critical/major make `bts verify` exit non-zero.",
+		Since:   "v0.14.0",
+	},
+	{
+		Parent:  "verify",
+		Key:     "confirm_passes",
+		Value:   "2",
+		Comment: "Consecutive clean FULL passes over the SAME revision before DONE is allowed.",
+		Since:   "v0.14.0",
+	},
+	{
+		Parent:  "verify",
+		Key:     "max_rounds",
+		Value:   "6",
+		Comment: "Total verify rounds allowed on one document, whatever they measured (0 disables).",
+		Since:   "v0.15.0",
+	},
+	{
+		Parent:  "verify",
+		Key:     "max_document_lines",
+		Value:   "400",
+		Comment: "Whole-document length at which `bts verify` reports span (0 disables).",
+		Since:   "v0.15.0",
+	},
+	{
+		Parent:  "simulate",
+		Key:     "max_scenarios",
+		Value:   "12",
+		Comment: "Ceiling for one round; the surplus is reported as uncovered (0 = no ceiling).",
+		Since:   "v0.16.0",
+	},
+	{
+		Parent:  "simulate",
+		Key:     "scenario_batch",
+		Value:   "3",
+		Comment: "Scenarios per walking agent (0 = one agent for everything).",
+		Since:   "v0.16.0",
+	},
+	{
+		Parent:  "simulate",
+		Key:     "finding_batch",
+		Value:   "6",
+		Comment: "FINDINGS per adversarial agent — a different unit from scenario_batch.",
+		Since:   "v0.16.0",
+	},
+	{
+		Parent:  "simulate",
+		Key:     "cross_boundary_ratio",
+		Value:   "0.30",
+		Comment: "Minimum share of scenarios crossing two state axes or on an illegal cell.",
+		Since:   "v0.16.0",
 	},
 }
 
