@@ -493,6 +493,17 @@ var recipeLogCmd = &cobra.Command{
 					fmt.Printf("  not judged by this round's instruments (state unchanged): %d — %v\n",
 						len(sync.Unjudged), sync.Unjudged)
 				}
+				for _, rc := range sync.Reclassified {
+					fmt.Printf("  re-rated %s → %s: %s — the count moved, the document did not. "+
+						"Decide which rating is right before reading this round as progress.\n",
+						rc.From, rc.To, rc.ID)
+				}
+				for _, d := range sync.Duplicates {
+					fmt.Printf("  possible duplicate on %s: %s and %s both name %s — "+
+						"one defect counted twice inflates every gate downstream. "+
+						"Merge them under one title or say why they are separate.\n",
+						d.Anchor, d.A, d.B, strings.Join(d.Shared, ", "))
+				}
 			} else if docBase == "" {
 				fmt.Fprintln(os.Stderr,
 					"[bts] note: no --doc given — verify state stays unscoped and the findings ledger is skipped.")

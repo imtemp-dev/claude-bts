@@ -578,3 +578,112 @@ func TestDeltaRoundDemotesNothing(t *testing.T) {
 		t.Errorf("a delta round must not demote, got %v", r.Unreported)
 	}
 }
+
+// The two defects the r-026 ledger showed: a finding re-rated between
+// rounds, and one defect written twice in two languages.
+
+func TestSyncFindingsReportsReclassification(t *testing.T) {
+	root, id := findingsRoot(t)
+
+	// Round 1 (verify) rates it major.
+	if _, err := SyncFindings(root, id, legacyRound("draft.md", 1),
+		[]ReportedFinding{{Severity: "major", Title: "§4 row count disagrees with the wireframe", Anchor: "§4"}}, 3); err != nil {
+		t.Fatal(err)
+	}
+	// Round 2 (simulate) re-rates the SAME finding minor_resolvable over
+	// an untouched document.
+	res, err := SyncFindings(root, id, legacyRound("draft.md", 2),
+		[]ReportedFinding{{Severity: "minor_resolvable", Title: "§4 row count disagrees with the wireframe", Anchor: "§4"}}, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Reclassified) != 1 {
+		t.Fatalf("want 1 reclassification, got %d (%+v)", len(res.Reclassified), res.Reclassified)
+	}
+	if got := res.Reclassified[0]; got.From != "major" || got.To != "minor_resolvable" {
+		t.Fatalf("want major → minor_resolvable, got %s → %s", got.From, got.To)
+	}
+	// An unchanged severity is not movement.
+	res, err = SyncFindings(root, id, legacyRound("draft.md", 3),
+		[]ReportedFinding{{Severity: "minor_resolvable", Title: "§4 row count disagrees with the wireframe", Anchor: "§4"}}, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Reclassified) != 0 {
+		t.Fatalf("same severity must not be reported as movement: %+v", res.Reclassified)
+	}
+}
+
+func TestNominateDuplicatesAcrossLanguages(t *testing.T) {
+	// Verbatim from r-026: one defect, Korean and English, one anchor.
+	reported := []ReportedFinding{
+		{Severity: "minor_resolvable", Anchor: "§5.5",
+			Title: "verify.sql 호출 횟수가 '5회'로 적혀 있으나 실제는 11개 위치인자 10회 + 12개 1회"},
+		{Severity: "minor_resolvable", Anchor: "§5.5",
+			Title: "verify.sql call-site count in §5 is understated"},
+		// Same anchor, genuinely unrelated: no shared artefact or number.
+		{Severity: "major", Anchor: "§5.5",
+			Title: "the recreated grants are not stated as part of the contract"},
+		// Same artefact, different anchor: location must agree too.
+		{Severity: "major", Anchor: "§2",
+			Title: "verify.sql is not listed among the touched files"},
+		// Anchorless: too weak to nominate.
+		{Severity: "major", Title: "verify.sql ownership is unassigned"},
+	}
+	got := nominateDuplicates("draft.md", reported)
+	if len(got) != 1 {
+		t.Fatalf("want exactly the cross-language pair, got %d: %+v", len(got), got)
+	}
+	if got[0].Anchor != "§5.5" || !slices.Contains(got[0].Shared, "verify.sql") {
+		t.Fatalf("want §5.5 naming verify.sql, got %s/%v", got[0].Anchor, got[0].Shared)
+	}
+	if got[0].A == got[0].B {
+		t.Fatal("a finding must not be nominated against itself")
+	}
+}
+
+func TestNominateDuplicatesSharedDigitPair(t *testing.T) {
+	// Also from r-026: the §5.4 signature pair shares only the number 12,
+	// and both halves were rated differently.
+	reported := []ReportedFinding{
+		{Severity: "major", Anchor: "§3 / §5.4",
+			Title: "§3이 지명한 12인자 시그니처의 소유자(§5.4)가 그 시그니처를 담고 있지 않다"},
+		{Severity: "minor_resolvable", Anchor: "§3 / §5.4",
+			Title: "§3이 'drop할 12인자 시그니처는 §5.4가 소유한다'고 위임하지만 §5.4에 시그니처가 없다"},
+	}
+	got := nominateDuplicates("draft.md", reported)
+	if len(got) != 1 {
+		t.Fatalf("want 1 nomination, got %d: %+v", len(got), got)
+	}
+	if !slices.Contains(got[0].Shared, "12") {
+		t.Fatalf("want the shared quantity 12, got %v", got[0].Shared)
+	}
+}
+
+func TestInvariantTokensDropsSingleChars(t *testing.T) {
+	// A lone digit is a section number: shared by half the findings in
+	// any document, and worthless as identity.
+	toks := invariantTokens("§5 is wrong and §3 disagrees")
+	for tok := range toks {
+		if len(tok) < 2 {
+			t.Fatalf("single-character token survived: %q", tok)
+		}
+	}
+}
+
+// The known over-nomination, pinned so a future tightening has to face
+// it: two unrelated defects that both name ArtworkView on one anchor.
+// It is raised, and the operator dismisses it. See DuplicateCandidate
+// for why erring this way is deliberate.
+func TestNominateDuplicatesOverNominatesSharedSubject(t *testing.T) {
+	reported := []ReportedFinding{
+		{Severity: "major", Anchor: "§3.1",
+			Title: "U-006의 ArtworkView 회귀 표면이 10곳 중 3곳만 적혀 있다"},
+		{Severity: "minor_resolvable", Anchor: "§3.1",
+			Title: "ArtworkView의 file:// 소비자 둘이 RemoteImageStore 추출 시 조용히 빌 수 있다"},
+	}
+	got := nominateDuplicates("draft.md", reported)
+	if len(got) != 1 || !slices.Contains(got[0].Shared, "ArtworkView") {
+		t.Fatalf("want the ArtworkView pair raised for the operator, got %+v", got)
+	}
+}

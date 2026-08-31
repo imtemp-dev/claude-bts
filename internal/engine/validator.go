@@ -126,6 +126,16 @@ func ValidateRecipeDir(recipeDir string) ([]ValidationError, error) {
 
 	// 8. simulations/*.md — cross-boundary ratio + illegal-cell coverage
 	// (Phase 6.1 and 6.2).
+	//
+	// The thresholds come from the project's settings, not from the
+	// constants: a knob the checker ignores is not a knob. Until this
+	// call read them, simulate.cross_boundary_ratio was parsed into a
+	// struct nothing consulted, and it was not even shipped in the
+	// settings template — an operator could not have found it to turn.
+	simCfg := DefaultSettings().Simulate
+	if s, err := LoadSettings(projectRootFromRecipeDir(recipeDir)); err == nil {
+		simCfg = s.Simulate
+	}
 	simsDir := filepath.Join(recipeDir, "simulations")
 	if entries, err := os.ReadDir(simsDir); err == nil {
 		for _, entry := range entries {
@@ -133,7 +143,10 @@ func ValidateRecipeDir(recipeDir string) ([]ValidationError, error) {
 				continue
 			}
 			simPath := filepath.Join(simsDir, entry.Name())
-			for _, issue := range CheckSimulationScenarios(simPath, DefaultCrossBoundaryRatio) {
+			for _, issue := range CheckSimulationScenarios(simPath, simCfg.CrossBoundaryRatio) {
+				errors = append(errors, ValidationError{File: "simulations/" + entry.Name(), Field: issue.Category, Message: issue.Claim + " — " + issue.Detail})
+			}
+			for _, issue := range CheckScenarioBudget(simPath, simCfg.MinScenarios, simCfg.MaxScenarios) {
 				errors = append(errors, ValidationError{File: "simulations/" + entry.Name(), Field: issue.Category, Message: issue.Claim + " — " + issue.Detail})
 			}
 		}

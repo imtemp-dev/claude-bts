@@ -103,6 +103,63 @@ func CheckSimulationScenarios(simPath string, ratio float64) []Issue {
 	return issues
 }
 
+// CheckScenarioBudget reports a simulation file whose scenario count
+// falls outside simulate.min_scenarios .. simulate.max_scenarios.
+//
+// Both numbers were prose until this check existed: the skill told the
+// agent what the budget was, the agent read settings.yaml itself, and
+// nothing downstream could tell whether the budget had been honoured.
+// A ceiling nobody verifies is a suggestion — one measured round chose
+// its own batch size for the adversarial pass under exactly this
+// arrangement, and the setting could not have stopped it.
+//
+// Under the floor is a coverage gap and reads as major, the same weight
+// as an untagged scenario. Over the ceiling is a cost overrun rather
+// than a wrong document, so it reports as minor_resolvable: the round
+// still says something true, it just cost more than the operator
+// budgeted, and the fix is to move the surplus into the file's
+// Uncovered list rather than to delete findings.
+//
+// A zero for either bound disables that side, matching LoadSettings.
+func CheckScenarioBudget(simPath string, minScenarios, maxScenarios int) []Issue {
+	data, err := os.ReadFile(simPath)
+	if err != nil {
+		return nil
+	}
+	stats := countSimulationTags(string(data))
+	if stats.Total == 0 {
+		return nil // "no scenarios at all" is CheckSimulationScenarios' finding
+	}
+	fileName := filepath.Base(simPath)
+
+	var issues []Issue
+	if minScenarios > 0 && stats.Total < minScenarios {
+		issues = append(issues, Issue{
+			Category: "simulation",
+			Claim: fmt.Sprintf("scenario_floor_not_met: %s (%d of %d)",
+				fileName, stats.Total, minScenarios),
+			Severity: SeverityMajor,
+			Detail: fmt.Sprintf("simulate.min_scenarios is %d and this round walked %d. "+
+				"Below the floor a round is too easy to pass by picking the paths that "+
+				"already work. Add scenarios, starting with the illegal cells.",
+				minScenarios, stats.Total),
+		})
+	}
+	if maxScenarios > 0 && stats.Total > maxScenarios {
+		issues = append(issues, Issue{
+			Category: "simulation",
+			Claim: fmt.Sprintf("scenario_budget_exceeded: %s (%d of %d)",
+				fileName, stats.Total, maxScenarios),
+			Severity: SeverityMinor,
+			Detail: fmt.Sprintf("simulate.max_scenarios is %d and this round walked %d. "+
+				"The ceiling bounds what one round costs; the surplus belongs in the "+
+				"file's Uncovered section, named and prioritised, so the next round "+
+				"starts there instead of re-deciding.", maxScenarios, stats.Total),
+		})
+	}
+	return issues
+}
+
 // CheckIllegalCellCoverage compares the ILLEGAL cells declared in
 // domain.md § 4 with the `[illegal-cell: <label>]` tags in the
 // simulation file(s) of a recipe. Returns one critical issue per cell

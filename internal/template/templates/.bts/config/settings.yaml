@@ -83,6 +83,10 @@ simulate:
                                  # minutes on 132 tool calls, so the cost is reasoning, not reading.
                                  # Batches make the round cost the slowest batch, not the sum.
                                  # 0 = one agent for everything (pre-v0.16 behaviour).
+  cross_boundary_ratio: 0.30     # Minimum share of scenarios that must cross two state axes or
+                                 # sit on an illegal cell. Single-axis walks re-confirm what the
+                                 # document already says; interaction is where specs break. Read
+                                 # by `bts validate`, which raises a critical below the threshold.
   finding_batch: 6               # FINDINGS per adversarial agent (validator, rebuttal). A separate
                                  # number from scenario_batch because it is a separate unit — a walk
                                  # yields several findings per scenario. Sharing the scenario number

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -298,6 +299,89 @@ func LoadFindings(root, recipeID, docBase string) ([]*FindingState, error) {
 }
 
 // SyncResult reports what one round changed in the ledger.
+// Reclassification is one finding whose severity changed between the
+// round that raised it and this one.
+//
+// The completion gate counts (critical, major, minor_resolvable), and
+// the convergence budget judges progress by watching that triple fall.
+// A finding re-rated from major to minor moves the triple without an
+// edit, so a round that repaired nothing reads as a round that made
+// progress. Measured on one recipe: F-946af22c was raised `major` by a
+// verify round and re-raised `minor_resolvable` by a simulate round two
+// rounds later, over a document nobody had touched in between.
+//
+// Neither rating is presumed correct — instruments legitimately weigh
+// the same defect differently. What is reported is the movement, so the
+// count is not mistaken for the work.
+type Reclassification struct {
+	ID   string
+	From string
+	To   string
+}
+
+// DuplicateCandidate is two findings on one anchor that name the same
+// thing in different words.
+//
+// A finding's identity is the hash of its normalised title, so the same
+// defect written twice is two findings with two IDs, counted twice by
+// every gate downstream. Restating is not rare — it is what a second
+// instrument does when it reaches the same hole from another direction,
+// and in a project whose specs mix Korean and English the two
+// descriptions may not share a single word.
+//
+// What they do share is the vocabulary that survives translation:
+// filenames, identifiers, and numbers. `verify.sql` is `verify.sql` in
+// either language. So a pair is nominated when it sits on one anchor and
+// both titles name the same artefact or quantity. On the measured recipe
+// that flagged 2 pairs out of 36 open findings across 6 anchors carrying
+// more than one — both genuine, and both rated differently by the two
+// instruments that raised them.
+//
+// One shared token is the bar, and it over-nominates: on the measured
+// recipe three pairs were raised and two were genuine, the third being
+// two unrelated defects that both named `ArtworkView`. Requiring two
+// shared tokens was tried and is worse — it drops both real pairs,
+// because the other thing they share is a section number, and single
+// characters carry no identity so they are never tokens at all.
+//
+// Over-nominating is the right side to err on. Telling two findings
+// apart is a reading of what they mean, which no token test can do, and
+// the cost of the two outcomes is not symmetric: a nomination the
+// operator rejects costs one glance, while a duplicate nobody spots is
+// counted twice by every gate for the rest of the recipe.
+//
+// It is a nomination, never a merge. Deciding that two findings are one
+// is a reading of what they mean, and that is the operator's call.
+type DuplicateCandidate struct {
+	Anchor string
+	A, B   string   // finding IDs, in reported order
+	Shared []string // the tokens both titles carry, sorted
+}
+
+// invariantTokenRe matches the parts of a finding title that a
+// translation leaves alone: dotted artefacts (verify.sql, main.go),
+// camelCase, PascalCase and snake_case identifiers, and bare
+// numbers. Ordered
+// longest-form-first because Go alternation is leftmost-first.
+var invariantTokenRe = regexp.MustCompile(
+	`[A-Za-z_][\w.]*\.[A-Za-z]{1,10}` +
+		`|[A-Za-z][a-z0-9]*[A-Z][A-Za-z0-9_]*` +
+		`|[A-Za-z_]{3,}_\w+` +
+		`|\d+`)
+
+// invariantTokens extracts the language-invariant tokens of a title.
+// Single characters are dropped: a lone digit is a section number or a
+// count, shared by half the findings in any document.
+func invariantTokens(title string) map[string]bool {
+	out := map[string]bool{}
+	for _, m := range invariantTokenRe.FindAllString(title, -1) {
+		if len(m) > 1 {
+			out[m] = true
+		}
+	}
+	return out
+}
+
 type SyncResult struct {
 	New        []string // first time seen
 	Carried    []string // open in the previous round and still open
@@ -307,6 +391,13 @@ type SyncResult struct {
 	Reopened   []string // fixed before, open again — the edit regressed
 	Stagnant   []string // open for >= stagnantAfter consecutive rounds
 	Unjudged   []string // silent, but this round ran no instrument that could have found them
+	// Reclassified is severity movement without an edit: the count fell
+	// (or rose) because an instrument re-rated a finding, not because
+	// anyone fixed it.
+	Reclassified []Reclassification
+	// Duplicates are pairs this round reported on one anchor that name
+	// the same artefact — one defect being counted twice.
+	Duplicates []DuplicateCandidate
 }
 
 // SyncFindings reconciles one verification round against the ledger.
@@ -365,6 +456,62 @@ func roundCovers(round *VerifyLogEntry, st *FindingState) bool {
 	return true
 }
 
+// nominateDuplicates pairs findings reported on one anchor whose titles
+// share a language-invariant token. See DuplicateCandidate.
+//
+// Anchorless findings are skipped: without a shared location the token
+// alone is far too weak — two findings can both mention `main.go` and
+// have nothing to do with each other.
+func nominateDuplicates(docBase string, reported []ReportedFinding) []DuplicateCandidate {
+	type entry struct {
+		id     string
+		tokens map[string]bool
+	}
+	byAnchor := map[string][]entry{}
+	seen := map[string]bool{}
+	for _, rf := range reported {
+		if rf.Anchor == "" || rf.Severity == "minor_deferred" {
+			continue
+		}
+		id := FindingID(docBase, rf.Title)
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		byAnchor[rf.Anchor] = append(byAnchor[rf.Anchor],
+			entry{id: id, tokens: invariantTokens(rf.Title)})
+	}
+
+	var out []DuplicateCandidate
+	anchors := make([]string, 0, len(byAnchor))
+	for a := range byAnchor {
+		anchors = append(anchors, a)
+	}
+	sort.Strings(anchors)
+	for _, anchor := range anchors {
+		group := byAnchor[anchor]
+		for i := 0; i < len(group); i++ {
+			for j := i + 1; j < len(group); j++ {
+				var shared []string
+				for t := range group[i].tokens {
+					if group[j].tokens[t] {
+						shared = append(shared, t)
+					}
+				}
+				if len(shared) == 0 {
+					continue
+				}
+				sort.Strings(shared)
+				out = append(out, DuplicateCandidate{
+					Anchor: anchor, A: group[i].id, B: group[j].id,
+					Shared: shared,
+				})
+			}
+		}
+	}
+	return out
+}
+
 func SyncFindings(root, recipeID string, round *VerifyLogEntry, reported []ReportedFinding, stagnantAfter int) (*SyncResult, error) {
 	docBase := filepath.Base(round.Doc)
 	iteration := round.Iteration
@@ -411,6 +558,13 @@ func SyncFindings(root, recipeID string, round *VerifyLogEntry, reported []Repor
 			hotAnchor[rf.Anchor] = true
 		}
 
+		if st, ok := prior[id]; ok && st.Severity != "" && st.Severity != rf.Severity {
+			// Same finding, different weight. Report the movement so the
+			// falling count is not read as work done.
+			res.Reclassified = append(res.Reclassified,
+				Reclassification{ID: id, From: st.Severity, To: rf.Severity})
+		}
+
 		switch st, ok := prior[id]; {
 		case !ok:
 			res.New = append(res.New, id)
@@ -423,6 +577,12 @@ func SyncFindings(root, recipeID string, round *VerifyLogEntry, reported []Repor
 			}
 		}
 	}
+
+	// Nominate same-anchor pairs whose titles name the same artefact.
+	// Built from what THIS round reported, because that is the set the
+	// operator is about to act on, and because a pair only costs a double
+	// count while both halves are live.
+	res.Duplicates = nominateDuplicates(docBase, reported)
 
 	// hotAnchor was filled as the reported findings were classified
 	// above. A finding that vanished from an anchor which is still

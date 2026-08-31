@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -288,5 +289,51 @@ body prose
 	issues := CheckSimulationScenarios(path, DefaultCrossBoundaryRatio)
 	if len(issues) != 0 {
 		t.Fatalf("mixed forms should pass when ratio holds, got %v", issues)
+	}
+}
+
+func TestCheckScenarioBudget(t *testing.T) {
+	write := func(t *testing.T, n int) string {
+		t.Helper()
+		var b strings.Builder
+		b.WriteString("# Simulation\n\n")
+		for i := 1; i <= n; i++ {
+			fmt.Fprintf(&b, "### S%02d — case %d [single-axis: Auth]\n\nbody\n\n", i, i)
+		}
+		path := filepath.Join(t.TempDir(), "001-scenarios.md")
+		if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	has := func(issues []Issue, claim string) bool {
+		for _, i := range issues {
+			if strings.Contains(i.Claim, claim) {
+				return true
+			}
+		}
+		return false
+	}
+
+	if got := CheckScenarioBudget(write(t, 8), 5, 12); len(got) != 0 {
+		t.Fatalf("inside the budget must be silent, got %+v", got)
+	}
+	under := CheckScenarioBudget(write(t, 3), 5, 12)
+	if !has(under, "scenario_floor_not_met") {
+		t.Fatalf("below the floor must report, got %+v", under)
+	}
+	if under[0].Severity != SeverityMajor {
+		t.Errorf("floor breach is a coverage gap: want major, got %s", under[0].Severity)
+	}
+	over := CheckScenarioBudget(write(t, 20), 5, 12)
+	if !has(over, "scenario_budget_exceeded") {
+		t.Fatalf("above the ceiling must report, got %+v", over)
+	}
+	if over[0].Severity != SeverityMinor {
+		t.Errorf("ceiling breach is a cost overrun, not a wrong document: want minor, got %s", over[0].Severity)
+	}
+	// 0 disables either side, matching LoadSettings.
+	if got := CheckScenarioBudget(write(t, 40), 0, 0); len(got) != 0 {
+		t.Fatalf("zero bounds must disable the check, got %+v", got)
 	}
 }
