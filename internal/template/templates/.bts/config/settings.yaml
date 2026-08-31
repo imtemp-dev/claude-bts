@@ -70,6 +70,19 @@ debate:
 # Simulation
 simulate:
   min_scenarios: 5               # Below 5, too easy to miss an important path
+  max_scenarios: 12              # Ceiling for one round. The floor is a number; the ceiling used
+                                 # to be the wireframe — "every edge of the state diagram, plus one
+                                 # per illegal cell" scales with the diagram, and the diagram grows
+                                 # BECAUSE simulation found something. One measured recipe went
+                                 # 16→20 components and 12→19 paths in a single revision, so the
+                                 # next round cost more for having worked. Illegal cells come first,
+                                 # then the riskiest edges; whatever does not fit is reported as
+                                 # uncovered, never dropped in silence. 0 = no ceiling.
+  scenario_batch: 3              # Scenarios per walking agent. One agent walking all of them walks
+                                 # them one after another in one context: 15 scenarios took 23
+                                 # minutes on 132 tool calls, so the cost is reasoning, not reading.
+                                 # Batches make the round cost the slowest batch, not the sum.
+                                 # 0 = one agent for everything (pre-v0.16 behaviour).
 
 # Implementation
 implement:

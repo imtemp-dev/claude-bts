@@ -63,9 +63,17 @@ diagrams (state machines, flowcharts), read them first:
 - Every error/recovery path should have a dedicated scenario
 - Flag uncovered edges as missing scenarios before proceeding
 
-Design at least `simulate.min_scenarios` (default: 5) scenarios from the spec.
+Design between `simulate.min_scenarios` (default: 5) and
+`simulate.max_scenarios` (default: 12) scenarios from the spec.
 Cover the full risk surface — think about what could go wrong, what could be
 misused, and what happens at boundaries.
+
+The ceiling is a budget, spent in the order Document Mode § Protocol step 3
+gives: illegal cells first, then cross-boundary coverage, then the riskiest
+uncovered edges. Anything the budget does not reach goes in an `Uncovered`
+list in the report — never dropped in silence. Re-simulation is scoped to
+what changed (Document Mode § Protocol step 3.1); the same rule applies here
+with `bts recipe verify-focus`.
 
 **Cross-boundary requirement (Phase 6.1):** at least
 `simulate.cross_boundary_ratio` of scenarios (default: 0.30) MUST touch
@@ -148,31 +156,35 @@ first-cell ids.
 
 ### Step 4: Walk Through Code
 
-For each scenario, trace the actual code path:
+**Walk in agents, not here — and fan them out.** Split the scenarios into
+batches of `simulate.scenario_batch` (default: 3) and spawn one
+Agent(simulator) per batch **in a single concurrent message**:
+
 ```
-Scenario: [name]
-Entry: [function/handler]
-Step 1: [input] → code path: [function:line] → result: [X] ✓
-Step 2: [action] → code path: [function:line] → **GAP: no handling for [Y]**
-Step 3: [action] → code path: [function:line] → **ISSUE: spec says [A], code does [B]**
+Read the code files [list] and the spec at [final.md/fix-spec.md].
+Walk THESE scenarios: [batch]. For each, trace the actual code path:
+
+  Scenario: [name]
+  Entry: [function/handler]
+  Step 1: [input]  -> code path: [function:line] -> result [X], matches
+  Step 2: [action] -> code path: [function:line] -> **GAP: no handling for [Y]**
+  Step 3: [action] -> code path: [function:line] -> **ISSUE: spec says [A], code does [B]**
+
+At each step check: does the code handle this case; if handled, does it
+match the spec's expected behaviour; if not handled, that is a GAP.
+Then check whether a test exercises this path — if none, flag
+**COVERAGE GAP: "No test for scenario: [name]"**.
+Report every GAP, ISSUE and COVERAGE GAP with severity and file:line.
 ```
 
-Additionally, for each scenario:
-- Check if a test exists that exercises this code path
-- If no test found → flag as **COVERAGE GAP**: "No test for scenario: [name]"
-- Coverage gaps should be addressed by adding tests before re-running
+Do NOT trace the scenarios yourself first and then hand the same list to
+an agent. That is one walk done twice — the expensive half of a
+simulation is reasoning, not reading (measured: 15 scenarios, 23 minutes
+of wall clock, 132 tool calls), so doing it twice doubles the expensive
+half. The orchestrator designs the set and collects results; the walking
+happens once, in a context that did not write the spec.
 
-Spawn Agent(simulator) for deeper analysis:
-```
-Read the code files [list] and spec at [final.md/fix-spec.md].
-For each scenario [list], trace through the actual code paths.
-At each step, check:
-- Does the code handle this case?
-- If handled, does it match the spec's expected behavior?
-- If not handled, this is a GAP.
-- Is there a test that covers this scenario? If not, flag COVERAGE GAP.
-Report all GAPs, ISSUEs, and COVERAGE GAPs with severity and file:line references.
-```
+Coverage gaps should be addressed by adding tests before re-running.
 
 ### Step 4.5: Flow Comparison (if spec has mermaid)
 
@@ -208,7 +220,13 @@ adversarial step and proceed to Step 6 with raw findings. Tag all findings as
 
 #### Round 1 — Defense (Validator)
 
-Spawn **Agent(simulator-validator)** with a structured prompt:
+**Batch the findings.** Hand each agent at most `simulate.scenario_batch`
+(default: 3) findings and spawn the batches in ONE concurrent message. A
+single agent holding twenty findings works them one after another in one
+context, so the round costs the sum — the same reason the walk is batched.
+Each batch answers for its own findings only; the orchestrator concatenates.
+
+Spawn **Agent(simulator-validator)** per batch with a structured prompt:
 
 ```
 Review the following simulation findings against the actual source material.
@@ -243,7 +261,10 @@ The validator reads the actual source material for each finding and returns:
 
 Collect all CHALLENGED findings. If none, skip to Step 6.
 
-Spawn **Agent(simulator-rebuttal)** with a structured prompt:
+Batched the same way — at most `simulate.scenario_batch` challenged findings
+per agent, spawned concurrently.
+
+Spawn **Agent(simulator-rebuttal)** per batch with a structured prompt:
 
 ```
 The following simulation findings were challenged by a validator.
@@ -380,11 +401,45 @@ Run scenarios against the spec to find what's missing or wrong.
    and every state transition is covered by at least one scenario. Flag uncovered
    edges before designing additional scenarios.
 
-3. Design at least `simulate.min_scenarios` (default: 5) scenarios.
+3. Design between `simulate.min_scenarios` (default: 5) and
+   `simulate.max_scenarios` (default: 12) scenarios.
    Cover the full risk surface for this specific document — think about what could
    go wrong, what could be misused, what happens at boundaries, and what breaks
    under load. Adapt the scenario categories to what matters for this spec rather
    than following a fixed checklist.
+
+   **The ceiling is a budget, and it is spent in this order:**
+   1. One `[illegal-cell: ...]` scenario per ILLEGAL cell in `domain.md § 4`.
+      These are the cells the spec claims it prevents; an unprobed claim is
+      the whole point of simulating.
+   2. `simulate.cross_boundary_ratio` worth of cross-boundary scenarios —
+      the failures no single module's scenarios can surface.
+   3. The remaining budget on the riskiest uncovered edges: irreversible
+      steps, boundaries with an external system, and paths a recent
+      revision changed.
+
+   **Whatever the budget does not reach is REPORTED, not dropped.** End the
+   scenario section with an `Uncovered` list naming each edge or cell left
+   out and why it ranked below the line. A round that quietly covers 12 of
+   40 edges reads as "simulated" and is not; a round that says which 28 it
+   skipped is a measurement the next round can act on.
+
+   The ceiling exists because the floor is a number and the ceiling used to
+   be the wireframe. "Every edge, plus one per illegal cell" scales with the
+   diagram, and the diagram grows BECAUSE simulation found something — one
+   measured recipe went 16 → 20 components and 12 → 19 paths in a single
+   revision, so the next round cost more for having worked.
+
+3.1 **Re-simulation is scoped to what changed.** If `simulations/` already
+   holds a round for this document, do not re-walk everything. Run
+   `bts recipe verify-focus {doc}` and re-walk only:
+   - scenarios whose steps touch a changed section,
+   - scenarios covering an illegal cell that is new or was re-classified,
+   - anything previously reported `Uncovered` that now fits the budget.
+
+   Carry the rest forward by ID with their previous verdict, and say so in
+   the report. Re-deriving an unchanged scenario's walk costs a full
+   reasoning pass and cannot produce new information.
 
 3.5 **Canonical format + tags (REQUIRED — Code mode Step 3.5 applies to
    document simulations too).** `bts validate` parses EVERY
@@ -405,24 +460,32 @@ Run scenarios against the spec to find what's missing or wrong.
      `[illegal-cell: ...]` scenario probing whether the spec's
      enforcement mechanism actually prevents reaching it (Phase 6.2).
 
-4. For each scenario, walk through the spec step by step:
+4. **Walk the scenarios in agents, not here — and fan them out.**
+
+   Split the scenario list into batches of `simulate.scenario_batch`
+   (default: 3) and spawn one Agent(simulator) per batch **in a single
+   concurrent message**. Each gets only its own batch:
    ```
-   Scenario: [name]
-   Step 1: [action] → spec says [X] ✓ or → spec says nothing → GAP
-   Step 2: [action] → spec says [Y] but [problem] → ISSUE
-   ...
+   Read the document at $ARGUMENTS and walk THESE scenarios: [batch].
+   For each scenario, trace the document's described flow step by step:
+     Step N: [action] → the document says [X] ✓
+                      → the document says nothing        → GAP
+                      → the document says [Y] but [problem] → ISSUE
+   At each step check: is this step specified; if so, is it correct and
+   complete; if not, that is a GAP.
+   Report every GAP and ISSUE with severity and the section it lands in.
    ```
 
-5. Spawn Agent(simulator) for deeper scenario analysis:
-   ```
-   Read the document at $ARGUMENTS and these scenarios: [list].
-   For each scenario, trace through the document's described flow.
-   At each step, check:
-   - Is this step specified in the document?
-   - If specified, is it correct and complete?
-   - If not specified, this is a GAP.
-   Report all GAPs and ISSUEs with severity.
-   ```
+   Do NOT walk the scenarios yourself first. The orchestrator designs the
+   set and collects the results; the walking happens once, in a context
+   that did not write the document. Walking them here and then handing the
+   same list to an agent is the same reasoning done twice — measured at 23
+   minutes of wall clock on 132 tool calls, which is a cost paid in
+   thinking, not reading, and paid twice.
+
+   One agent for fifteen scenarios walks them one after another in one
+   context, so the round costs the SUM. Batches cost the slowest batch.
+   Set `simulate.scenario_batch: 0` to restore the single-agent form.
 
 6. Classify findings and assign stable IDs:
    - **GAP findings**: [GAP-001], [GAP-002], …
@@ -440,7 +503,13 @@ Run scenarios against the spec to find what's missing or wrong.
 
    #### Round 1 — Defense (Validator)
 
-   Spawn **Agent(simulator-validator)** with a structured prompt:
+   **Batch the findings.** Hand each agent at most `simulate.scenario_batch`
+   (default: 3) findings and spawn the batches in ONE concurrent message. A
+   single agent holding twenty findings works them one after another in one
+   context, so the round costs the sum — the same reason the walk is batched.
+   Each batch answers for its own findings only; the orchestrator concatenates.
+
+   Spawn **Agent(simulator-validator)** per batch with a structured prompt:
 
    ```
    Review the following simulation findings against the spec and external sources.
@@ -473,7 +542,10 @@ Run scenarios against the spec to find what's missing or wrong.
 
    Collect all CHALLENGED findings. If none, skip to step 8.
 
-   Spawn **Agent(simulator-rebuttal)** with a structured prompt:
+   Batched the same way — at most `simulate.scenario_batch` challenged
+   findings per agent, spawned concurrently.
+
+   Spawn **Agent(simulator-rebuttal)** per batch with a structured prompt:
 
    ```
    The following document simulation findings were challenged by a validator.

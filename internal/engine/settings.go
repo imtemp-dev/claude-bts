@@ -48,7 +48,30 @@ func (r RetryLadderSettings) LadderConfig() LadderConfig {
 
 // SimulateSettings captures the simulation checker thresholds.
 type SimulateSettings struct {
-	MinScenarios       int     `yaml:"min_scenarios"`
+	MinScenarios int `yaml:"min_scenarios"`
+	// MaxScenarios bounds one simulation round.
+	//
+	// The floor comes from a word list; the ceiling used to come from the
+	// wireframe. "Every edge of the state diagram, plus one per illegal
+	// cell" scales with the diagram, and the diagram grows because
+	// simulation found something — one measured recipe went 16 → 20
+	// components and 12 → 19 paths in a single revision, which makes the
+	// next round more expensive for having worked. A bound the document
+	// cannot move is the only kind that holds.
+	//
+	// It is a budget, not a quota: illegal cells come first, then the
+	// riskiest edges, and whatever is left over is REPORTED rather than
+	// dropped in silence. 0 disables.
+	MaxScenarios int `yaml:"max_scenarios"`
+	// ScenarioBatch is how many scenarios one walking agent takes.
+	//
+	// The protocol used to hand every scenario to a single agent, which
+	// walks them one after another in one context: 15 scenarios took 23
+	// minutes of wall clock on 132 tool calls, so the cost was reasoning,
+	// not reading. Batches fan out, and the round costs the slowest batch
+	// instead of the sum. 0 means one agent for everything (the old
+	// behaviour).
+	ScenarioBatch      int     `yaml:"scenario_batch"`
 	CrossBoundaryRatio float64 `yaml:"cross_boundary_ratio"`
 }
 
@@ -139,6 +162,8 @@ func DefaultSettings() *Settings {
 		},
 		Simulate: SimulateSettings{
 			MinScenarios:       5,
+			MaxScenarios:       12,
+			ScenarioBatch:      3,
 			CrossBoundaryRatio: DefaultCrossBoundaryRatio,
 		},
 		Verify: VerifySettings{
@@ -187,6 +212,14 @@ func LoadSettings(root string) (*Settings, error) {
 	}
 	if s.Simulate.MinScenarios <= 0 {
 		s.Simulate.MinScenarios = def.Simulate.MinScenarios
+	}
+	// 0 is meaningful for both (no ceiling; one agent for everything), so
+	// only a negative value falls back.
+	if s.Simulate.MaxScenarios < 0 {
+		s.Simulate.MaxScenarios = def.Simulate.MaxScenarios
+	}
+	if s.Simulate.ScenarioBatch < 0 {
+		s.Simulate.ScenarioBatch = def.Simulate.ScenarioBatch
 	}
 	if s.Simulate.CrossBoundaryRatio <= 0 {
 		s.Simulate.CrossBoundaryRatio = def.Simulate.CrossBoundaryRatio
