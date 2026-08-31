@@ -8,6 +8,10 @@
 #   (default)    ENFORCED. Go reads the value and acts on it — `bts` reports,
 #                refuses, or exits non-zero when a document or a round
 #                violates it. Turning the knob changes what the tool does.
+#                Some of it is a warning the agent can still ignore (the
+#                batch sizes, counted at spawn by the pre-tool-use hook);
+#                the difference from [advisory] is that something reads
+#                the number and says so, rather than nobody checking.
 #
 #   [advisory]   Only the skill reads it, by looking at this file. It is an
 #                instruction to an agent, and an agent can read it and do
@@ -97,23 +101,29 @@ simulate:
                                  # next round cost more for having worked. Illegal cells come first,
                                  # then the riskiest edges; whatever does not fit is reported as
                                  # uncovered, never dropped in silence. 0 = no ceiling.
-  scenario_batch: 3              # [advisory] Scenarios per walking agent. One agent walking all of them walks
+  scenario_batch: 3              # Scenarios per walking agent. One agent walking all of them walks
                                  # them one after another in one context: 15 scenarios took 23
                                  # minutes on 132 tool calls, so the cost is reasoning, not reading.
                                  # Batches make the round cost the slowest batch, not the sum.
+                                 # No artefact records a batch size, so this cannot be checked
+                                 # afterwards — the pre-tool-use hook counts the scenario ids in
+                                 # the spawn prompt instead and warns when a batch runs over.
                                  # 0 = one agent for everything (pre-v0.16 behaviour).
   cross_boundary_ratio: 0.30     # Minimum share of scenarios that must cross two state axes or
                                  # sit on an illegal cell. Single-axis walks re-confirm what the
                                  # document already says; interaction is where specs break. Read
                                  # by `bts validate`, which raises a critical below the threshold.
-  finding_batch: 6               # [advisory] FINDINGS per adversarial agent (validator, rebuttal). A separate
+  finding_batch: 6               # FINDINGS per adversarial agent (validator, rebuttal). A separate
                                  # number from scenario_batch because it is a separate unit — a walk
                                  # yields several findings per scenario. Sharing the scenario number
                                  # cost one measured round 19 minutes: 59 findings under "batch of
                                  # 3" were read as three groups of ~20, and all three validators hit
                                  # the 64K output-token limit and were abandoned. 6 keeps a batch's
                                  # verdicts inside one reply at the ~3K output tokens per finding
-                                 # those agents were spending. 0 = one agent for all findings.
+                                 # those agents were spending. Counted at spawn time by the
+                                 # pre-tool-use hook, which warns rather than refuses: an
+                                 # over-large batch makes a worse round, not a wrong one.
+                                 # 0 = one agent for all findings.
 
 # Implementation
 implement:
