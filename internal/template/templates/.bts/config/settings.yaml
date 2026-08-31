@@ -2,6 +2,25 @@
 # Project-level settings. Skills read this file at startup and use
 # these values instead of defaults. Delete a setting to use the default.
 
+# ─────────────────────────────────────────────────────────────────────
+# Two kinds of setting live in this file, and the difference matters.
+#
+#   (default)    ENFORCED. Go reads the value and acts on it — `bts` reports,
+#                refuses, or exits non-zero when a document or a round
+#                violates it. Turning the knob changes what the tool does.
+#
+#   [advisory]   Only the skill reads it, by looking at this file. It is an
+#                instruction to an agent, and an agent can read it and do
+#                something else: one measured round was told to batch
+#                findings at 6 and used 9, and nothing could have stopped it.
+#                Turning the knob changes what the agent is ASKED to do.
+#
+# An advisory key is not a broken key. Some values — how many agents to fan
+# out to, how many debate rounds to hold — leave no trace in any document,
+# so nothing downstream could check them even in principle. The tag exists
+# so a knob that only asks is never mistaken for a knob that binds.
+# ─────────────────────────────────────────────────────────────────────
+
 # Verification
 verify:
   max_iterations: 3              # Convergence budget: consecutive rounds allowed to make no
@@ -63,9 +82,9 @@ verify:
 
 # Debate
 debate:
-  rounds: 3                      # 3 rounds: positions → rebuttals → synthesis (covers full argument cycle)
-  max_extensions: 3              # After 3 extensions, new information is unlikely — force decision
-  expert_count: 3                # 3 perspectives: enough diversity without diluting focus
+  rounds: 3                      # [advisory] 3 rounds: positions → rebuttals → synthesis (covers full argument cycle)
+  max_extensions: 3              # [advisory] After 3 extensions, new information is unlikely — force decision
+  expert_count: 3                # [advisory] 3 perspectives: enough diversity without diluting focus
 
 # Simulation
 simulate:
@@ -78,7 +97,7 @@ simulate:
                                  # next round cost more for having worked. Illegal cells come first,
                                  # then the riskiest edges; whatever does not fit is reported as
                                  # uncovered, never dropped in silence. 0 = no ceiling.
-  scenario_batch: 3              # Scenarios per walking agent. One agent walking all of them walks
+  scenario_batch: 3              # [advisory] Scenarios per walking agent. One agent walking all of them walks
                                  # them one after another in one context: 15 scenarios took 23
                                  # minutes on 132 tool calls, so the cost is reasoning, not reading.
                                  # Batches make the round cost the slowest batch, not the sum.
@@ -87,7 +106,7 @@ simulate:
                                  # sit on an illegal cell. Single-axis walks re-confirm what the
                                  # document already says; interaction is where specs break. Read
                                  # by `bts validate`, which raises a critical below the threshold.
-  finding_batch: 6               # FINDINGS per adversarial agent (validator, rebuttal). A separate
+  finding_batch: 6               # [advisory] FINDINGS per adversarial agent (validator, rebuttal). A separate
                                  # number from scenario_batch because it is a separate unit — a walk
                                  # yields several findings per scenario. Sharing the scenario number
                                  # cost one measured round 19 minutes: 59 findings under "batch of
@@ -98,10 +117,10 @@ simulate:
 
 # Implementation
 implement:
-  max_build_retries: 8           # Hard cap on TOTAL attempts per task. 8 = full retry ladder
+  max_build_retries: 8           # [advisory] Hard cap on TOTAL attempts per task. 8 = full retry ladder
                                  # (3 syntactic + 2 semantic + 1 spec + 1 domain + 1 architect).
                                  # Below 8 the upper escalation tiers become unreachable.
-  max_test_iterations: 5         # If 5 fix cycles don't resolve it, human help needed
+  max_test_iterations: 5         # [advisory] If 5 fix cycles don't resolve it, human help needed
   midrun_review_every: 5         # Run a lightweight structural review every N tasks. 0 disables.
   retry_ladder:
     syntactic_max: 3             # In-place retries (tier 1) before moving to strategy switch
@@ -112,18 +131,18 @@ implement:
 
 # Fix recipe
 fix:
-  debate_rounds: 1               # Known bugs need quick resolution, not extended deliberation
+  debate_rounds: 1               # [advisory] Known bugs need quick resolution, not extended deliberation
 
 # Debug recipe
 debug:
-  debate_rounds: 1               # Quick analysis, not full debate
-  perspective_count: 6           # 6 lenses for root cause: data, deps, design, runtime, history, impact
+  debate_rounds: 1               # [advisory] Quick analysis, not full debate
+  perspective_count: 6           # [advisory] 6 lenses for root cause: data, deps, design, runtime, history, impact
 
 # Vision & Roadmap
 vision:
-  size_threshold: 15             # Above 15 files, a single recipe risks context overflow
-  max_roadmap_items: 8           # Beyond 8, the roadmap itself becomes hard to track
-  min_roadmap_items: 3           # Below 3, decomposition adds overhead without benefit
+  size_threshold: 15             # [advisory] Above 15 files, a single recipe risks context overflow
+  max_roadmap_items: 8           # [advisory] Beyond 8, the roadmap itself becomes hard to track
+  min_roadmap_items: 3           # [advisory] Below 3, decomposition adds overhead without benefit
 
 # Agent models — options: sonnet, opus, haiku
 # Core gates (verify, audit, simulate, review-quality, review-security, review-arch) use session model by default.
