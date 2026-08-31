@@ -272,3 +272,66 @@ func TestVerifyCountsRecordedWithoutModeFlags(t *testing.T) {
 		t.Fatalf("counts not recorded: %+v", entries[0])
 	}
 }
+
+// A recipe waiting on a person must not read as one still working.
+// `bts recipe status` printed the phase and nothing else while a
+// decision was held, so a blocked recipe looked like ordinary work —
+// the one surface that omitted what the session hook, statusline,
+// doctor and stop gate all report.
+func TestRecipeStatusShowsOpenDecisions(t *testing.T) {
+	root := newRecipeFixture(t, "r-d01", "draft", 0, 0, nil)
+	if _, err := state.HoldDecision(root, "r-d01", &state.DecisionEvent{
+		Key:      "cover-origin-discriminator",
+		Question: "persist the origin discriminator, or accept the hole?",
+		Options:  []string{"persist", "accept"},
+		Doc:      "draft.md",
+	}); err != nil {
+		t.Fatalf("hold: %v", err)
+	}
+
+	out := runRecipeStatus(t, root)
+	if !strings.Contains(out, "Blocked:") {
+		t.Fatalf("status must say the recipe is blocked, got:\n%s", out)
+	}
+	if !strings.Contains(out, "cover-origin-discriminator") {
+		t.Fatalf("status must name the open decision, got:\n%s", out)
+	}
+
+	if err := state.ResolveDecision(root, "r-d01", "cover-origin-discriminator", "persist"); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	out = runRecipeStatus(t, root)
+	if strings.Contains(out, "Blocked:") {
+		t.Fatalf("a resolved decision must not keep the recipe reading as blocked, got:\n%s", out)
+	}
+}
+
+// runRecipeStatus captures stdout from `bts recipe status`.
+func runRecipeStatus(t *testing.T, root string) string {
+	t.Helper()
+	t.Chdir(root)
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	origOut := os.Stdout
+	os.Stdout = w
+	rootCmd.SetArgs([]string{"recipe", "status"})
+	runErr := rootCmd.Execute()
+	_ = w.Close()
+	os.Stdout = origOut
+	var sb strings.Builder
+	buf := make([]byte, 4096)
+	for {
+		n, rerr := r.Read(buf)
+		sb.Write(buf[:n])
+		if rerr != nil {
+			break
+		}
+	}
+	_ = r.Close()
+	if runErr != nil {
+		t.Fatalf("recipe status: %v", runErr)
+	}
+	return sb.String()
+}

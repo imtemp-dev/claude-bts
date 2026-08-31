@@ -67,6 +67,22 @@ var recipeStatusCmd = &cobra.Command{
 		fmt.Printf("  Type:         %s\n", recipe.Type)
 		fmt.Printf("  Topic:        %s\n", recipe.Topic)
 		fmt.Printf("  Phase:        %s\n", recipe.Phase)
+		// A recipe waiting on a person must not read as one still
+		// working. Every other surface says so — the session-start hook,
+		// the statusline, doctor, and the stop gate, which refuses to
+		// finish while a decision is open — but the command a human types
+		// to ask where a recipe stands printed the phase and nothing
+		// else, so a held recipe looked like ordinary in-progress work.
+		if open, derr := state.OpenDecisions(root, recipe.ID); derr == nil && len(open) > 0 {
+			keys := make([]string, 0, len(open))
+			for _, d := range open {
+				keys = append(keys, d.Key)
+			}
+			fmt.Printf("  Blocked:      %d decision(s) awaiting you — %s\n",
+				len(open), strings.Join(keys, ", "))
+			fmt.Printf("                (answer with `bts recipe decision resolve %s <key> --answer \"...\"`; `decision list` shows the questions)\n",
+				recipe.ID)
+		}
 		fmt.Printf("  Iteration:    %d\n", recipe.Iteration)
 		if recipe.DraftVersion > 0 {
 			fmt.Printf("  Draft:        v%d\n", recipe.DraftVersion)
