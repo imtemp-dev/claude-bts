@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/spf13/pflag"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,18 +17,21 @@ func runRecipeLog(t *testing.T, root string, args ...string) string {
 	t.Helper()
 	t.Chdir(root)
 
-	// pflag's StringSlice APPENDS once the flag has been set, and every
-	// test in this package drives the same rootCmd in one process — so
-	// `--dimension verify` in one test arrived as verify+audit+simulate
-	// in the next, and a test asserting on a partial round passed alone
-	// and failed in the suite. Clear the slice and its changed bit so
-	// each invocation starts from nothing, the way a fresh process does.
-	if f := recipeLogCmd.Flags().Lookup("dimension"); f != nil {
+	// Every test in this package drives the same rootCmd in one process,
+	// so flag state survives between invocations where a fresh process
+	// would start clean. Two ways that bites: pflag's StringSlice
+	// APPENDS once set, so `--dimension verify` in one test arrived as
+	// verify+audit+simulate in the next; and `Changed` stays true, so a
+	// later call looked like it had passed --action when it had not.
+	// Reset every flag to its default, the way a new process does.
+	recipeLogCmd.Flags().VisitAll(func(f *pflag.Flag) {
 		if sv, ok := f.Value.(interface{ Replace([]string) error }); ok {
 			_ = sv.Replace(nil)
+		} else {
+			_ = f.Value.Set(f.DefValue)
 		}
 		f.Changed = false
-	}
+	})
 
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -223,5 +227,48 @@ func TestRecipeLog_PartialDimensionRoundReportsTheCost(t *testing.T) {
 		"--dimension", "verify,audit,simulate")
 	if strings.Contains(quiet, "of 3 dimensions") {
 		t.Errorf("a complete round must not be nagged, got: %s", quiet)
+	}
+}
+
+// bts-recipe-fix prescribed `--phase verify --action verify --result
+// "critical=N, major=N"` directly under the sentence "Enforced in code,
+// not by self-counting". Those flags select the changelog and
+// phase-change modes, so the round was never written: verify-log
+// unchanged, findings ledger untouched, exit 0. A fix recipe therefore
+// had no convergence budget at all.
+func TestVerifyCountsRefuseChangelogAndPhaseModes(t *testing.T) {
+	for _, mode := range [][]string{
+		{"--action", "verify"},
+		{"--phase", "verify"},
+		{"--action", "verify", "--phase", "verify"},
+	} {
+		root := newRecipeFixture(t, "r-f01", "draft", 0, 0, nil)
+		args := append([]string{"r-f01"}, mode...)
+		args = append(args, "--critical", "9", "--major", "99")
+		out := runRecipeLog(t, root, args...)
+		if !strings.Contains(out, "cannot be combined with --action/--phase") {
+			t.Fatalf("%v: want a refusal, got: %s", mode, out)
+		}
+		if entries, err := state.ReadVerifyLog(root, "r-f01"); err == nil && len(entries) > 0 {
+			t.Fatalf("%v: the round must not be recorded when the call is refused (%d entries)", mode, len(entries))
+		}
+	}
+}
+
+// The same flags without --action/--phase are the supported form.
+func TestVerifyCountsRecordedWithoutModeFlags(t *testing.T) {
+	root := newRecipeFixture(t, "r-f02", "draft", 0, 0, nil)
+
+	out := runRecipeLog(t, root, "r-f02", "--doc", "draft.md", "--dimension", "verify",
+		"--scope", "full", "--critical", "9", "--major", "99")
+	if strings.Contains(out, "cannot be combined") {
+		t.Fatalf("the supported form must not be refused: %s", out)
+	}
+	entries, err := state.ReadVerifyLog(root, "r-f02")
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("verify-log not written: %v (%d entries)", err, len(entries))
+	}
+	if entries[0].Critical != 9 {
+		t.Fatalf("counts not recorded: %+v", entries[0])
 	}
 }

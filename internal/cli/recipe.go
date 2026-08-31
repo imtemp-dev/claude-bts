@@ -160,6 +160,45 @@ var recipeLogCmd = &cobra.Command{
 			fmt.Printf("Phase → %s\n", phase)
 		}
 
+		// A verify round is recorded only when neither --action nor
+		// --phase is given, because those select the changelog and
+		// phase-change modes instead. Nothing used to say so: the count
+		// flags parse in every mode, and a caller that passed them
+		// alongside --action got exit 0, an empty verify-log, and an
+		// untouched findings ledger. `bts-recipe-fix` prescribed exactly
+		// that form under the sentence "Enforced in code, not by
+		// self-counting", so fix recipes had no convergence budget at
+		// all — `--result "critical=9, major=99"` landed in changelog
+		// prose and was read by nothing.
+		//
+		// Refusing is the whole point. Recording the round anyway would
+		// guess which mode was meant, and a guess here writes to the
+		// ledger every gate downstream trusts.
+		if action != "" || phase != "" {
+			var stray []string
+			for _, f := range []string{
+				"critical", "major", "minor", "minor-resolvable",
+				"minor-deferred", "info", "from-verification", "dimension",
+			} {
+				if cmd.Flags().Changed(f) {
+					stray = append(stray, "--"+f)
+				}
+			}
+			if len(stray) > 0 {
+				// The message names the fix; the flag list does not add to it.
+				cmd.SilenceUsage = true
+				return fmt.Errorf(
+					"%s cannot be combined with --action/--phase: those record a changelog "+
+						"entry or a phase change, and a verify round is neither — the counts "+
+						"would be accepted and dropped.\n"+
+						"Record the round on its own:\n"+
+						"  bts recipe log %s --doc <document> --dimension verify,audit,simulate "+
+						"--scope full --from-verification <verification.md>\n"+
+						"then log the action or phase separately if you still need one",
+					strings.Join(stray, ", "), recipeID)
+			}
+		}
+
 		if action != "" {
 			// Changelog mode: log an action
 			output, _ := cmd.Flags().GetString("output")

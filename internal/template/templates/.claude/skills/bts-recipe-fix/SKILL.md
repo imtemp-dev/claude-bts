@@ -270,8 +270,16 @@ stagnant finding IDs → stop and ask the user. Enforced in code, not by
 self-counting (`bts-verification-protocol.md § Convergence`).
 
 ```bash
-bts recipe log {id} --phase verify --action verify --result "critical=N, major=N"
+bts recipe log {id} --doc .bts/specs/recipes/{id}/fix-spec.md \
+  --dimension verify --scope full \
+  --critical N --major N --minor-resolvable N
 ```
+
+Neither `--action` nor `--phase` belongs on that call. They select the
+changelog and phase-change modes, where the counts are accepted and
+dropped — which is what this step used to do, so the convergence budget
+promised just above never ran for a fix recipe. `bts recipe log` now
+refuses the combination rather than exiting 0 on a round it discarded.
 
 ## Step 7: Implement
 
