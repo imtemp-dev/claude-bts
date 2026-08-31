@@ -71,7 +71,20 @@ type SimulateSettings struct {
 	// not reading. Batches fan out, and the round costs the slowest batch
 	// instead of the sum. 0 means one agent for everything (the old
 	// behaviour).
-	ScenarioBatch      int     `yaml:"scenario_batch"`
+	ScenarioBatch int `yaml:"scenario_batch"`
+	// FindingBatch is how many FINDINGS one adversarial agent takes.
+	//
+	// It is a separate number from ScenarioBatch because it is a
+	// separate unit, and reusing the scenario number cost a measured
+	// round nineteen minutes: 59 findings handed out under "batch of 3"
+	// were read as three groups, ~20 findings each, and all three
+	// validators hit the 64K output-token limit and were abandoned. A
+	// walk produces several findings per scenario, so the two counts
+	// cannot share a value. Sized so a batch's verdicts fit one reply
+	// with margin: the abandoned agents were spending ~3K output tokens
+	// per finding. 0 means one agent for every finding (the old
+	// behaviour, and the one that hit the limit).
+	FindingBatch       int     `yaml:"finding_batch"`
 	CrossBoundaryRatio float64 `yaml:"cross_boundary_ratio"`
 }
 
@@ -164,6 +177,7 @@ func DefaultSettings() *Settings {
 			MinScenarios:       5,
 			MaxScenarios:       12,
 			ScenarioBatch:      3,
+			FindingBatch:       6,
 			CrossBoundaryRatio: DefaultCrossBoundaryRatio,
 		},
 		Verify: VerifySettings{
@@ -220,6 +234,9 @@ func LoadSettings(root string) (*Settings, error) {
 	}
 	if s.Simulate.ScenarioBatch < 0 {
 		s.Simulate.ScenarioBatch = def.Simulate.ScenarioBatch
+	}
+	if s.Simulate.FindingBatch < 0 {
+		s.Simulate.FindingBatch = def.Simulate.FindingBatch
 	}
 	if s.Simulate.CrossBoundaryRatio <= 0 {
 		s.Simulate.CrossBoundaryRatio = def.Simulate.CrossBoundaryRatio

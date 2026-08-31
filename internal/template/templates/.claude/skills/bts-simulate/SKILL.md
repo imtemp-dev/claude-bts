@@ -25,6 +25,35 @@ defense round and `agents.simulator_rebuttal` (default: session model) for the
 rebuttal round. Override in `.bts/config/settings.yaml`. Rebuttal uses the session
 model because constructing concrete failure scenarios requires deeper reasoning.
 
+## Fanning Out (both modes)
+
+Two units, two numbers. They are not interchangeable:
+
+| What gets split | Setting | Default | Agent |
+|---|---|---|---|
+| Scenarios, at the walk | `simulate.scenario_batch` | 3 | simulator |
+| Findings, at adversarial validation | `simulate.finding_batch` | 6 | simulator-validator, simulator-rebuttal |
+
+**Count the items, not the groups.** A walk yields several findings per
+scenario, so a batch size read as "that many groups" hands one agent
+twenty findings. That is measured, not hypothetical: 59 findings split
+three ways put all three validators past the 64K output-token limit,
+they were abandoned mid-reply, and the round lost nineteen minutes
+re-running them in sixes. If `ceil(findings / finding_batch)` comes out
+above ten agents, raise `finding_batch` — never drop findings to fit.
+Every finding gets a verdict.
+
+**Spawn every batch in ONE message, then stop.** Several Agent calls in
+a single message run concurrently and their results come back on their
+own. There is nothing to wait for and nothing to poll.
+
+**Do NOT poll.** No `sleep`, no `echo`, no "is it done yet" loop, no
+re-reading an output directory. Each one is a model turn that buys
+nothing, and the turns dominate: one measured round spent 45 of its 72
+minutes on 800 `echo hold` calls at 2.2-second intervals — 62% of the
+wall clock. That is how a round that fans out ends up costing more than
+one that does not. Fan-out only pays while the orchestrator is idle.
+
 ## Mode Detection
 
 Parse $ARGUMENTS:
@@ -158,7 +187,8 @@ first-cell ids.
 
 **Walk in agents, not here — and fan them out.** Split the scenarios into
 batches of `simulate.scenario_batch` (default: 3) and spawn one
-Agent(simulator) per batch **in a single concurrent message**:
+Agent(simulator) per batch **in a single concurrent message**, then wait
+without polling (§ Fanning Out):
 
 ```
 Read the code files [list] and the spec at [final.md/fix-spec.md].
@@ -220,11 +250,13 @@ adversarial step and proceed to Step 6 with raw findings. Tag all findings as
 
 #### Round 1 — Defense (Validator)
 
-**Batch the findings.** Hand each agent at most `simulate.scenario_batch`
-(default: 3) findings and spawn the batches in ONE concurrent message. A
-single agent holding twenty findings works them one after another in one
-context, so the round costs the sum — the same reason the walk is batched.
-Each batch answers for its own findings only; the orchestrator concatenates.
+**Batch the findings by COUNT.** Hand each agent at most
+`simulate.finding_batch` (default: 6) *findings* — not that many groups,
+scenarios or severities — and spawn the batches in ONE concurrent message
+per § Fanning Out. A single agent holding twenty findings works them one
+after another in one context and runs out of output tokens before the last
+one; the walk is batched for the same reason. Each batch answers for its own
+findings only; the orchestrator concatenates.
 
 Spawn **Agent(simulator-validator)** per batch with a structured prompt:
 
@@ -261,8 +293,9 @@ The validator reads the actual source material for each finding and returns:
 
 Collect all CHALLENGED findings. If none, skip to Step 6.
 
-Batched the same way — at most `simulate.scenario_batch` challenged findings
-per agent, spawned concurrently.
+Batched the same way — at most `simulate.finding_batch` (default: 6)
+challenged findings per agent, counted as findings, spawned concurrently in
+one message.
 
 Spawn **Agent(simulator-rebuttal)** per batch with a structured prompt:
 
@@ -464,7 +497,8 @@ Run scenarios against the spec to find what's missing or wrong.
 
    Split the scenario list into batches of `simulate.scenario_batch`
    (default: 3) and spawn one Agent(simulator) per batch **in a single
-   concurrent message**. Each gets only its own batch:
+   concurrent message**, then wait without polling (§ Fanning Out). Each
+   gets only its own batch:
    ```
    Read the document at $ARGUMENTS and walk THESE scenarios: [batch].
    For each scenario, trace the document's described flow step by step:
@@ -484,7 +518,9 @@ Run scenarios against the spec to find what's missing or wrong.
    thinking, not reading, and paid twice.
 
    One agent for fifteen scenarios walks them one after another in one
-   context, so the round costs the SUM. Batches cost the slowest batch.
+   context, so the round costs the SUM. Batches cost the slowest batch —
+   but only if you stay idle while they run. Spawn them in one message and
+   wait for the results; do not poll (§ Fanning Out).
    Set `simulate.scenario_batch: 0` to restore the single-agent form.
 
 6. Classify findings and assign stable IDs:
@@ -503,11 +539,13 @@ Run scenarios against the spec to find what's missing or wrong.
 
    #### Round 1 — Defense (Validator)
 
-   **Batch the findings.** Hand each agent at most `simulate.scenario_batch`
-   (default: 3) findings and spawn the batches in ONE concurrent message. A
-   single agent holding twenty findings works them one after another in one
-   context, so the round costs the sum — the same reason the walk is batched.
-   Each batch answers for its own findings only; the orchestrator concatenates.
+   **Batch the findings by COUNT.** Hand each agent at most
+   `simulate.finding_batch` (default: 6) *findings* — not that many groups,
+   scenarios or severities — and spawn the batches in ONE concurrent message
+   per § Fanning Out. A single agent holding twenty findings works them one
+   after another in one context and runs out of output tokens before the
+   last one; the walk is batched for the same reason. Each batch answers for
+   its own findings only; the orchestrator concatenates.
 
    Spawn **Agent(simulator-validator)** per batch with a structured prompt:
 
@@ -542,8 +580,9 @@ Run scenarios against the spec to find what's missing or wrong.
 
    Collect all CHALLENGED findings. If none, skip to step 8.
 
-   Batched the same way — at most `simulate.scenario_batch` challenged
-   findings per agent, spawned concurrently.
+   Batched the same way — at most `simulate.finding_batch` (default: 6)
+   challenged findings per agent, counted as findings, spawned concurrently
+   in one message.
 
    Spawn **Agent(simulator-rebuttal)** per batch with a structured prompt:
 

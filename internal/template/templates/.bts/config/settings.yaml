@@ -83,6 +83,14 @@ simulate:
                                  # minutes on 132 tool calls, so the cost is reasoning, not reading.
                                  # Batches make the round cost the slowest batch, not the sum.
                                  # 0 = one agent for everything (pre-v0.16 behaviour).
+  finding_batch: 6               # FINDINGS per adversarial agent (validator, rebuttal). A separate
+                                 # number from scenario_batch because it is a separate unit — a walk
+                                 # yields several findings per scenario. Sharing the scenario number
+                                 # cost one measured round 19 minutes: 59 findings under "batch of
+                                 # 3" were read as three groups of ~20, and all three validators hit
+                                 # the 64K output-token limit and were abandoned. 6 keeps a batch's
+                                 # verdicts inside one reply at the ~3K output tokens per finding
+                                 # those agents were spending. 0 = one agent for all findings.
 
 # Implementation
 implement:
