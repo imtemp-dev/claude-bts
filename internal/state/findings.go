@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -82,7 +83,12 @@ type FindingEvent struct {
 	Anchor    string `json:"anchor,omitempty"`
 	Status    string `json:"status"`
 	Reason    string `json:"reason,omitempty"` // why dismissed, when applicable
-	Timestamp string `json:"timestamp"`
+	// Dimensions is the measurement class of the round that produced this
+	// event — which instruments read the document. See roundCovers: a
+	// round can only be silent ABOUT a finding an instrument it ran could
+	// have found. Empty means "written before this field existed".
+	Dimensions []string `json:"dimensions,omitempty"`
+	Timestamp  string   `json:"timestamp"`
 }
 
 // FindingState is the folded current state of one finding.
@@ -300,6 +306,7 @@ type SyncResult struct {
 	Restated   []string // silent, but their anchor is still producing findings
 	Reopened   []string // fixed before, open again — the edit regressed
 	Stagnant   []string // open for >= stagnantAfter consecutive rounds
+	Unjudged   []string // silent, but this round ran no instrument that could have found them
 }
 
 // SyncFindings reconciles one verification round against the ledger.
@@ -317,8 +324,50 @@ type SyncResult struct {
 // again, which is recorded as a reopen so the loop can see that an
 // adjudicated point is being re-litigated. A finding returning from
 // `unreported` is NOT a reopen: nothing ever claimed it was fixed.
-func SyncFindings(root, recipeID, docBase string, iteration int, reported []ReportedFinding, stagnantAfter int) (*SyncResult, error) {
-	docBase = filepath.Base(docBase)
+// roundCovers reports whether this round could have found st — the
+// precondition for reading its silence as anything at all.
+//
+// The convergence budget already refuses to compare rounds of different
+// measurement classes (NoProgressStreak, VerifyLogEntry.StrengthClass).
+// The ledger did not, and the two gates it feeds — absence_is_not_closure
+// and verification_not_passed — were defeated by that asymmetry. On one
+// measured recipe three consecutive rounds ran verify, then audit, then
+// simulate against a BYTE-IDENTICAL document (one doc_hash across all
+// three), and three findings the first round raised — one of them
+// CRITICAL — closed as `fixed` without anyone touching a line. An audit
+// has no reason to restate a logical inconsistency; its silence about
+// one is not evidence, and the ledger read it as a repair.
+//
+// Two conditions, both from StrengthClass:
+//
+//   - Dimensions. The round must have run every instrument that produced
+//     the finding. A verify+audit+simulate round may close a verify
+//     finding; a verify-only round may not close an audit one.
+//   - Scope. A delta round read part of the document, so its silence
+//     about the rest is the scope and not the finding's absence.
+//
+// A round declaring no dimensions is a legacy round: it cannot say what
+// it ran, so it keeps the old behaviour rather than stalling every
+// ledger written before the field existed. Same for a finding raised by
+// one.
+func roundCovers(round *VerifyLogEntry, st *FindingState) bool {
+	if len(round.Dimensions) == 0 {
+		return true
+	}
+	if !round.FullPass {
+		return false
+	}
+	for _, d := range st.Dimensions {
+		if !slices.Contains(round.Dimensions, d) {
+			return false
+		}
+	}
+	return true
+}
+
+func SyncFindings(root, recipeID string, round *VerifyLogEntry, reported []ReportedFinding, stagnantAfter int) (*SyncResult, error) {
+	docBase := filepath.Base(round.Doc)
+	iteration := round.Iteration
 	events, err := ReadFindingEvents(root, recipeID)
 	if err != nil {
 		return nil, err
@@ -344,7 +393,7 @@ func SyncFindings(root, recipeID, docBase string, iteration int, reported []Repo
 		ev := FindingEvent{
 			ID: id, Doc: docBase, Iteration: iteration,
 			Severity: rf.Severity, Title: rf.Title, Anchor: rf.Anchor,
-			Status: status,
+			Status: status, Dimensions: round.Dimensions,
 		}
 		toAppend = append(toAppend, ev)
 
@@ -389,6 +438,14 @@ func SyncFindings(root, recipeID, docBase string, iteration int, reported []Repo
 		if st.Doc != docBase || seen[id] {
 			continue
 		}
+		if !roundCovers(round, st) {
+			// This round ran no instrument that could have raised it. Its
+			// silence says nothing, so the finding keeps the state it had.
+			if st.Status == FindingOpen || st.Status == FindingUnreported {
+				res.Unjudged = append(res.Unjudged, id)
+			}
+			continue
+		}
 		switch {
 		case st.Status == FindingOpen:
 			// First silent round: record the absence, claim nothing.
@@ -418,6 +475,7 @@ func SyncFindings(root, recipeID, docBase string, iteration int, reported []Repo
 	sort.Strings(res.Unreported)
 	sort.Strings(res.Fixed)
 	sort.Strings(res.Restated)
+	sort.Strings(res.Unjudged)
 	sort.Strings(res.Reopened)
 	sort.Strings(res.Stagnant)
 

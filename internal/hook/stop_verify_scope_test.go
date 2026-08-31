@@ -464,13 +464,13 @@ func TestStopSpecDone_BlocksWhileTheLedgerStillOwesFindings(t *testing.T) {
 	all := []string{"audit", "simulate", "verify"}
 
 	// Round 1 reports two majors; rounds 2 and 3 report nothing at all.
-	if _, err := state.SyncFindings(root, recipeID, "draft.md", 1, []state.ReportedFinding{
+	if _, err := state.SyncFindings(root, recipeID, &state.VerifyLogEntry{Doc: "draft.md", Iteration: 1}, []state.ReportedFinding{
 		{Severity: "major", Title: "the retry ceiling contradicts the timeout", Anchor: "## One"},
 		{Severity: "major", Title: "the error path for a dropped connection is unspecified", Anchor: "## Two"},
 	}, 0); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := state.SyncFindings(root, recipeID, "draft.md", 2, nil, 0); err != nil {
+	if _, err := state.SyncFindings(root, recipeID, &state.VerifyLogEntry{Doc: "draft.md", Iteration: 2}, nil, 0); err != nil {
 		t.Fatal(err)
 	}
 	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
@@ -493,7 +493,7 @@ func TestStopSpecDone_BlocksWhileTheLedgerStillOwesFindings(t *testing.T) {
 
 	// The gate is satisfiable: one more silent round confirms the
 	// closures, because a clean round leaves every anchor quiet.
-	if _, err := state.SyncFindings(root, recipeID, "draft.md", 3, nil, 0); err != nil {
+	if _, err := state.SyncFindings(root, recipeID, &state.VerifyLogEntry{Doc: "draft.md", Iteration: 3}, nil, 0); err != nil {
 		t.Fatal(err)
 	}
 	out2, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})

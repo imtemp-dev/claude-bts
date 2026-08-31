@@ -42,7 +42,7 @@ func TestSyncFindingsLifecycle(t *testing.T) {
 	root, id := findingsRoot(t)
 
 	// Round 1: two findings appear.
-	r1, err := SyncFindings(root, id, "draft.md", 1, []ReportedFinding{
+	r1, err := SyncFindings(root, id, legacyRound("draft.md", 1), []ReportedFinding{
 		{Severity: "critical", Title: "contradictory retry policy"},
 		{Severity: "major", Title: "missing error path for timeout"},
 	}, 3)
@@ -55,7 +55,7 @@ func TestSyncFindingsLifecycle(t *testing.T) {
 
 	// Round 2: the critical goes silent. Absence alone is not a closure —
 	// it demotes to unreported and stays owed.
-	r2, err := SyncFindings(root, id, "draft.md", 2, []ReportedFinding{
+	r2, err := SyncFindings(root, id, legacyRound("draft.md", 2), []ReportedFinding{
 		{Severity: "major", Title: "missing error path for timeout"},
 	}, 3)
 	if err != nil {
@@ -73,7 +73,7 @@ func TestSyncFindingsLifecycle(t *testing.T) {
 
 	// Round 3: it comes back. It was never confirmed fixed, so this is
 	// the finding still being open — not a regression.
-	r3, err := SyncFindings(root, id, "draft.md", 3, []ReportedFinding{
+	r3, err := SyncFindings(root, id, legacyRound("draft.md", 3), []ReportedFinding{
 		{Severity: "critical", Title: "contradictory retry policy"},
 		{Severity: "major", Title: "missing error path for timeout"},
 	}, 3)
@@ -116,19 +116,19 @@ func TestSyncFindingsLifecycle(t *testing.T) {
 // only then when its anchor has gone quiet too.
 func TestAbsenceClosesOnlyAfterConfirmation(t *testing.T) {
 	root, id := findingsRoot(t)
-	if _, err := SyncFindings(root, id, "draft.md", 1, []ReportedFinding{
+	if _, err := SyncFindings(root, id, legacyRound("draft.md", 1), []ReportedFinding{
 		{Severity: "major", Title: "retry budget is never bounded", Anchor: "## Retry"},
 	}, 0); err != nil {
 		t.Fatal(err)
 	}
-	r2, err := SyncFindings(root, id, "draft.md", 2, nil, 0)
+	r2, err := SyncFindings(root, id, legacyRound("draft.md", 2), nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(r2.Unreported) != 1 || len(r2.Fixed) != 0 {
 		t.Fatalf("round 2: unreported=%v fixed=%v, want the finding held", r2.Unreported, r2.Fixed)
 	}
-	r3, err := SyncFindings(root, id, "draft.md", 3, nil, 0)
+	r3, err := SyncFindings(root, id, legacyRound("draft.md", 3), nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,14 +146,14 @@ func TestAbsenceClosesOnlyAfterConfirmation(t *testing.T) {
 // same defect produces, and it must not read as progress.
 func TestRestatementAtTheSameAnchorDoesNotClose(t *testing.T) {
 	root, id := findingsRoot(t)
-	if _, err := SyncFindings(root, id, "draft.md", 1, []ReportedFinding{
+	if _, err := SyncFindings(root, id, legacyRound("draft.md", 1), []ReportedFinding{
 		{Severity: "minor_resolvable", Title: "the example writes a misspelled extra_config key", Anchor: "## The association"},
 	}, 0); err != nil {
 		t.Fatal(err)
 	}
 	// Round 2: silent on the original, but the same anchor produces a
 	// differently-worded finding.
-	r2, err := SyncFindings(root, id, "draft.md", 2, []ReportedFinding{
+	r2, err := SyncFindings(root, id, legacyRound("draft.md", 2), []ReportedFinding{
 		{Severity: "minor_resolvable", Title: "the shallow-copy leak example misspells the reasoning_effort key", Anchor: "## The association"},
 	}, 0)
 	if err != nil {
@@ -163,7 +163,7 @@ func TestRestatementAtTheSameAnchorDoesNotClose(t *testing.T) {
 		t.Fatalf("round 2: unreported=%v fixed=%v", r2.Unreported, r2.Fixed)
 	}
 	// Round 3: the anchor keeps producing. The original is still held.
-	r3, err := SyncFindings(root, id, "draft.md", 3, []ReportedFinding{
+	r3, err := SyncFindings(root, id, legacyRound("draft.md", 3), []ReportedFinding{
 		{Severity: "minor_resolvable", Title: "the leak example names a key that no reader can resolve", Anchor: "## The association"},
 	}, 0)
 	if err != nil {
@@ -178,7 +178,7 @@ func TestRestatementAtTheSameAnchorDoesNotClose(t *testing.T) {
 	// Round 4: the anchor finally goes quiet. Now the held finding may
 	// close — as may the round-2 restatement, which has also had its two
 	// silent rounds by now. The round-3 one has had only its first.
-	r4, err := SyncFindings(root, id, "draft.md", 4, []ReportedFinding{
+	r4, err := SyncFindings(root, id, legacyRound("draft.md", 4), []ReportedFinding{
 		{Severity: "major", Title: "an unrelated defect elsewhere", Anchor: "## Files"},
 	}, 0)
 	if err != nil {
@@ -208,13 +208,13 @@ func TestRestatementHoldsWhileTheSameWordingPersists(t *testing.T) {
 	orig := "the example writes a misspelled extra_config key"
 	restated := "the shallow-copy leak example misspells the reasoning_effort key"
 
-	if _, err := SyncFindings(root, id, "draft.md", 1, []ReportedFinding{
+	if _, err := SyncFindings(root, id, legacyRound("draft.md", 1), []ReportedFinding{
 		{Severity: "minor_resolvable", Title: orig, Anchor: anchor},
 	}, 0); err != nil {
 		t.Fatal(err)
 	}
 	// Round 2: the original goes silent, a reworded one appears.
-	if _, err := SyncFindings(root, id, "draft.md", 2, []ReportedFinding{
+	if _, err := SyncFindings(root, id, legacyRound("draft.md", 2), []ReportedFinding{
 		{Severity: "minor_resolvable", Title: restated, Anchor: anchor},
 	}, 0); err != nil {
 		t.Fatal(err)
@@ -222,7 +222,7 @@ func TestRestatementHoldsWhileTheSameWordingPersists(t *testing.T) {
 	// Rounds 3-5: the SAME restatement is reported again each time, so
 	// it is carried, not new. The anchor is still producing findings.
 	for iter := 3; iter <= 5; iter++ {
-		r, err := SyncFindings(root, id, "draft.md", iter, []ReportedFinding{
+		r, err := SyncFindings(root, id, legacyRound("draft.md", iter), []ReportedFinding{
 			{Severity: "minor_resolvable", Title: restated, Anchor: anchor},
 		}, 0)
 		if err != nil {
@@ -237,7 +237,7 @@ func TestRestatementHoldsWhileTheSameWordingPersists(t *testing.T) {
 		}
 	}
 	// The anchor finally clears. Now the original may close.
-	r6, err := SyncFindings(root, id, "draft.md", 6, nil, 0)
+	r6, err := SyncFindings(root, id, legacyRound("draft.md", 6), nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +253,7 @@ func TestDeferredItemDoesNotKeepAnAnchorHot(t *testing.T) {
 	root, id := findingsRoot(t)
 	const anchor = "## Retry policy"
 	orig := "the backoff ceiling contradicts the timeout"
-	if _, err := SyncFindings(root, id, "draft.md", 1, []ReportedFinding{
+	if _, err := SyncFindings(root, id, legacyRound("draft.md", 1), []ReportedFinding{
 		{Severity: "major", Title: orig, Anchor: anchor},
 		{Severity: "minor_deferred", Title: "jitter strategy left to runtime", Anchor: anchor},
 	}, 0); err != nil {
@@ -262,10 +262,10 @@ func TestDeferredItemDoesNotKeepAnAnchorHot(t *testing.T) {
 	deferredOnly := []ReportedFinding{
 		{Severity: "minor_deferred", Title: "jitter strategy left to runtime", Anchor: anchor},
 	}
-	if _, err := SyncFindings(root, id, "draft.md", 2, deferredOnly, 0); err != nil {
+	if _, err := SyncFindings(root, id, legacyRound("draft.md", 2), deferredOnly, 0); err != nil {
 		t.Fatal(err)
 	}
-	r3, err := SyncFindings(root, id, "draft.md", 3, deferredOnly, 0)
+	r3, err := SyncFindings(root, id, legacyRound("draft.md", 3), deferredOnly, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,17 +279,17 @@ func TestDeferredItemDoesNotKeepAnAnchorHot(t *testing.T) {
 func TestConfirmedFixedThenRaisedAgainIsAReopen(t *testing.T) {
 	root, id := findingsRoot(t)
 	title := "contradictory retry policy"
-	if _, err := SyncFindings(root, id, "draft.md", 1, []ReportedFinding{
+	if _, err := SyncFindings(root, id, legacyRound("draft.md", 1), []ReportedFinding{
 		{Severity: "critical", Title: title},
 	}, 0); err != nil {
 		t.Fatal(err)
 	}
 	for _, it := range []int{2, 3} { // two silent rounds → confirmed fixed
-		if _, err := SyncFindings(root, id, "draft.md", it, nil, 0); err != nil {
+		if _, err := SyncFindings(root, id, legacyRound("draft.md", it), nil, 0); err != nil {
 			t.Fatal(err)
 		}
 	}
-	r4, err := SyncFindings(root, id, "draft.md", 4, []ReportedFinding{
+	r4, err := SyncFindings(root, id, legacyRound("draft.md", 4), []ReportedFinding{
 		{Severity: "critical", Title: title},
 	}, 0)
 	if err != nil {
@@ -306,13 +306,13 @@ func TestConfirmedFixedThenRaisedAgainIsAReopen(t *testing.T) {
 
 func TestSyncFindingsScopesByDocument(t *testing.T) {
 	root, id := findingsRoot(t)
-	if _, err := SyncFindings(root, id, "wireframe.md", 1, []ReportedFinding{
+	if _, err := SyncFindings(root, id, legacyRound("wireframe.md", 1), []ReportedFinding{
 		{Severity: "major", Title: "component boundary undefined"},
 	}, 3); err != nil {
 		t.Fatal(err)
 	}
 	// A draft round must not close the wireframe's open finding.
-	if _, err := SyncFindings(root, id, "draft.md", 2, []ReportedFinding{
+	if _, err := SyncFindings(root, id, legacyRound("draft.md", 2), []ReportedFinding{
 		{Severity: "minor_resolvable", Title: "stale level header"},
 	}, 3); err != nil {
 		t.Fatal(err)
@@ -328,14 +328,14 @@ func TestSyncFindingsScopesByDocument(t *testing.T) {
 
 func TestDeferredFindingsArePersistentNotFixed(t *testing.T) {
 	root, id := findingsRoot(t)
-	if _, err := SyncFindings(root, id, "draft.md", 1, []ReportedFinding{
+	if _, err := SyncFindings(root, id, legacyRound("draft.md", 1), []ReportedFinding{
 		{Severity: "minor_deferred", Title: "measured scroll threshold unknown until device test"},
 	}, 3); err != nil {
 		t.Fatal(err)
 	}
 	// A later round that does not repeat it must not mark it fixed —
 	// deferred items are runtime watch-items carried into implement.
-	r2, err := SyncFindings(root, id, "draft.md", 2, nil, 3)
+	r2, err := SyncFindings(root, id, legacyRound("draft.md", 2), nil, 3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +350,7 @@ func TestDeferredFindingsArePersistentNotFixed(t *testing.T) {
 
 func TestDismissSuppressesThenDetectsRelitigation(t *testing.T) {
 	root, id := findingsRoot(t)
-	if _, err := SyncFindings(root, id, "draft.md", 1, []ReportedFinding{
+	if _, err := SyncFindings(root, id, legacyRound("draft.md", 1), []ReportedFinding{
 		{Severity: "major", Title: "uses deprecated lifecycle hook"},
 	}, 3); err != nil {
 		t.Fatal(err)
@@ -370,7 +370,7 @@ func TestDismissSuppressesThenDetectsRelitigation(t *testing.T) {
 	}
 
 	// If a later verifier raises it anyway, that is re-litigation.
-	r, err := SyncFindings(root, id, "draft.md", 2, []ReportedFinding{
+	r, err := SyncFindings(root, id, legacyRound("draft.md", 2), []ReportedFinding{
 		{Severity: "major", Title: "uses deprecated lifecycle hook"},
 	}, 3)
 	if err != nil {
@@ -413,7 +413,7 @@ not json at all
 func TestDismissalIsStickyAcrossReRaises(t *testing.T) {
 	root, id := findingsRoot(t)
 	title := "uses deprecated lifecycle hook"
-	if _, err := SyncFindings(root, id, "draft.md", 1, []ReportedFinding{
+	if _, err := SyncFindings(root, id, legacyRound("draft.md", 1), []ReportedFinding{
 		{Severity: "major", Title: title},
 	}, 3); err != nil {
 		t.Fatal(err)
@@ -423,7 +423,7 @@ func TestDismissalIsStickyAcrossReRaises(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Round 2: a fresh verifier raises it again.
-	if _, err := SyncFindings(root, id, "draft.md", 2, []ReportedFinding{
+	if _, err := SyncFindings(root, id, legacyRound("draft.md", 2), []ReportedFinding{
 		{Severity: "major", Title: title},
 	}, 3); err != nil {
 		t.Fatal(err)
@@ -459,13 +459,13 @@ func TestReopenCountersAgreeBetweenFoldAndSync(t *testing.T) {
 	title := "retry policy contradicts timeout"
 	report := []ReportedFinding{{Severity: "critical", Title: title}}
 
-	if _, err := SyncFindings(root, id, "draft.md", 1, report, 3); err != nil {
+	if _, err := SyncFindings(root, id, legacyRound("draft.md", 1), report, 3); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := SyncFindings(root, id, "draft.md", 2, nil, 3); err != nil { // fixed
+	if _, err := SyncFindings(root, id, legacyRound("draft.md", 2), nil, 3); err != nil { // fixed
 		t.Fatal(err)
 	}
-	sync, err := SyncFindings(root, id, "draft.md", 3, report, 3) // back again
+	sync, err := SyncFindings(root, id, legacyRound("draft.md", 3), report, 3) // back again
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -473,5 +473,108 @@ func TestReopenCountersAgreeBetweenFoldAndSync(t *testing.T) {
 	if len(sync.Reopened) != states[0].Reopened {
 		t.Errorf("SyncResult.Reopened=%d but FindingState.Reopened=%d — the two views disagree",
 			len(sync.Reopened), states[0].Reopened)
+	}
+}
+
+// legacyRound is a round that does not say which instruments it ran —
+// the shape every ledger written before VerifyLogEntry.Dimensions has.
+// The tests above are the legacy contract, so they keep it: roundCovers
+// only tightens on rounds that DO declare a class.
+func legacyRound(doc string, iteration int) *VerifyLogEntry {
+	return &VerifyLogEntry{Doc: doc, Iteration: iteration}
+}
+
+// The measured failure this gate exists to remove. Three consecutive
+// rounds ran verify, then audit, then simulate against a BYTE-IDENTICAL
+// document, and three findings the first round raised — one CRITICAL —
+// closed as `fixed` without anyone touching a line. An audit has no
+// reason to restate a logical inconsistency; its silence about one is
+// not evidence.
+func TestSilenceFromAnotherInstrumentClosesNothing(t *testing.T) {
+	root, id := findingsRoot(t)
+	round := func(n int, dims ...string) *VerifyLogEntry {
+		return &VerifyLogEntry{Doc: "draft.md", Iteration: n, FullPass: true, Dimensions: dims}
+	}
+	const claim = "contradictory retry policy"
+
+	if _, err := SyncFindings(root, id, round(1, "verify"),
+		[]ReportedFinding{{Severity: "critical", Title: claim, Anchor: "§5"}}, 0); err != nil {
+		t.Fatal(err)
+	}
+	// The audit finds its own thing and says nothing about the critical.
+	r2, err := SyncFindings(root, id, round(2, "audit"),
+		[]ReportedFinding{{Severity: "major", Title: "no rollback for step 2", Anchor: "§5"}}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r2.Unreported) != 0 {
+		t.Errorf("an audit must not demote a verify finding, got unreported=%v", r2.Unreported)
+	}
+	if len(r2.Unjudged) != 1 {
+		t.Errorf("the verify finding should be reported as unjudged, got %v", r2.Unjudged)
+	}
+	// And a third round on yet another instrument still closes nothing.
+	r3, err := SyncFindings(root, id, round(3, "simulate"),
+		[]ReportedFinding{{Severity: "major", Title: "cell reuse races", Anchor: "§3"}}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r3.Fixed) != 0 {
+		t.Fatalf("nothing was fixed on an unchanged document, got %v", r3.Fixed)
+	}
+	states, err := LoadFindings(root, id, "draft.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, st := range states {
+		if st.Title == claim && st.Status != FindingOpen {
+			t.Errorf("the critical must still be open, got %q", st.Status)
+		}
+	}
+}
+
+// The gate is one-directional: a round that ran the instrument may still
+// close what that instrument raised, or the ledger would never close
+// anything once dimensions are recorded.
+func TestARoundThatRanTheInstrumentStillCloses(t *testing.T) {
+	root, id := findingsRoot(t)
+	all := []string{"verify", "audit", "simulate"}
+	const claim = "contradictory retry policy"
+
+	if _, err := SyncFindings(root, id,
+		&VerifyLogEntry{Doc: "draft.md", Iteration: 1, FullPass: true, Dimensions: []string{"verify"}},
+		[]ReportedFinding{{Severity: "critical", Title: claim}}, 0); err != nil {
+		t.Fatal(err)
+	}
+	for i, want := range []int{0, 1} { // demoted, then closed
+		r, err := SyncFindings(root, id,
+			&VerifyLogEntry{Doc: "draft.md", Iteration: i + 2, FullPass: true, Dimensions: all},
+			nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(r.Fixed) != want {
+			t.Errorf("round %d: fixed=%v, want %d", i+2, r.Fixed, want)
+		}
+	}
+}
+
+// A delta round read part of the document. Its silence about the rest is
+// the scope, not the finding's absence.
+func TestDeltaRoundDemotesNothing(t *testing.T) {
+	root, id := findingsRoot(t)
+	if _, err := SyncFindings(root, id,
+		&VerifyLogEntry{Doc: "draft.md", Iteration: 1, FullPass: true, Dimensions: []string{"verify"}},
+		[]ReportedFinding{{Severity: "major", Title: "missing timeout path"}}, 0); err != nil {
+		t.Fatal(err)
+	}
+	r, err := SyncFindings(root, id,
+		&VerifyLogEntry{Doc: "draft.md", Iteration: 2, FullPass: false, Dimensions: []string{"verify"}},
+		nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Unreported) != 0 {
+		t.Errorf("a delta round must not demote, got %v", r.Unreported)
 	}
 }

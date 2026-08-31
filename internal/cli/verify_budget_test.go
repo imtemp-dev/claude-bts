@@ -16,6 +16,19 @@ func runRecipeLog(t *testing.T, root string, args ...string) string {
 	t.Helper()
 	t.Chdir(root)
 
+	// pflag's StringSlice APPENDS once the flag has been set, and every
+	// test in this package drives the same rootCmd in one process — so
+	// `--dimension verify` in one test arrived as verify+audit+simulate
+	// in the next, and a test asserting on a partial round passed alone
+	// and failed in the suite. Clear the slice and its changed bit so
+	// each invocation starts from nothing, the way a fresh process does.
+	if f := recipeLogCmd.Flags().Lookup("dimension"); f != nil {
+		if sv, ok := f.Value.(interface{ Replace([]string) error }); ok {
+			_ = sv.Replace(nil)
+		}
+		f.Changed = false
+	}
+
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatalf("pipe: %v", err)
@@ -180,5 +193,35 @@ func TestRecipeLog_StampsRoundCapAsTheCause(t *testing.T) {
 	}
 	if last.RoundCap != 6 {
 		t.Errorf("round_cap = %d, want 6", last.RoundCap)
+	}
+}
+
+// The blueprint skill says "All three instruments, every round" in bold,
+// and the first recipe to run under that rule spent three of six rounds
+// on one instrument each — a pattern that can never satisfy completion
+// and costs the same budget as a full round. Prose the model is expected
+// to honour is the failure this project keeps rediscovering, so the
+// accounting is printed where the cost is paid.
+func TestRecipeLog_PartialDimensionRoundReportsTheCost(t *testing.T) {
+	root := newRecipeFixture(t, "r-b07", "draft", 0, 0, nil)
+	writeProjectFile(t, root, ".bts/config/settings.yaml",
+		"verify:\n  max_iterations: 3\n  max_rounds: 6\n")
+
+	out := runRecipeLog(t, root, "r-b07", "--iteration", "1", "--critical", "1",
+		"--doc", "draft.md", "--scope", "full", "--dimension", "verify")
+
+	if !strings.Contains(out, "1 of 3 dimensions") {
+		t.Errorf("the note must name how much of the measurement ran, got: %s", out)
+	}
+	if !strings.Contains(out, "0 of them qualifying") {
+		t.Errorf("the note must say how many rounds so far can count, got: %s", out)
+	}
+
+	// A round that ran everything is not nagged.
+	quiet := runRecipeLog(t, root, "r-b07", "--iteration", "2", "--critical", "1",
+		"--doc", "draft.md", "--scope", "full",
+		"--dimension", "verify,audit,simulate")
+	if strings.Contains(quiet, "of 3 dimensions") {
+		t.Errorf("a complete round must not be nagged, got: %s", quiet)
 	}
 }

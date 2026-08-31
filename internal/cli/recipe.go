@@ -422,7 +422,7 @@ var recipeLogCmd = &cobra.Command{
 			// what makes the stagnation half of the rule computable.
 			var sync *state.SyncResult
 			if haveFindingsArray && docBase != "" {
-				s, serr := state.SyncFindings(root, recipeID, docBase, iteration, reported, settings.Verify.MaxIterations)
+				s, serr := state.SyncFindings(root, recipeID, entry, reported, settings.Verify.MaxIterations)
 				if serr != nil {
 					fmt.Fprintf(os.Stderr, "warning: findings ledger sync: %v\n", serr)
 				} else {
@@ -489,6 +489,10 @@ var recipeLogCmd = &cobra.Command{
 				if len(sync.Reopened) > 0 {
 					fmt.Printf("  reopened (previously fixed or dismissed): %v\n", sync.Reopened)
 				}
+				if len(sync.Unjudged) > 0 {
+					fmt.Printf("  not judged by this round's instruments (state unchanged): %d — %v\n",
+						len(sync.Unjudged), sync.Unjudged)
+				}
 			} else if docBase == "" {
 				fmt.Fprintln(os.Stderr,
 					"[bts] note: no --doc given — verify state stays unscoped and the findings ledger is skipped.")
@@ -523,6 +527,35 @@ var recipeLogCmd = &cobra.Command{
 			}
 			if verdict.RoundCap > 0 {
 				fmt.Printf("Rounds: %d/%d on %s\n", verdict.Rounds, verdict.RoundCap, label)
+			}
+
+			// A partial round costs the budget exactly what a full one
+			// costs and can never satisfy completion. The blueprint skill
+			// says so in bold — "All three instruments, every round …
+			// spending three of them on one instrument each buys nothing
+			// and costs half the budget" — and the first recipe to run
+			// under that rule spent three of six rounds on one instrument
+			// each anyway. Prose the model is expected to honour is the
+			// failure mode this project keeps rediscovering, so the
+			// accounting is printed where the cost is actually paid.
+			//
+			// A note, not a refusal: a single-dimension delta re-check is
+			// a legitimate use, and blocking it would remove a cheap way
+			// to look at one thing.
+			if len(dims) > 0 && !entry.HasAllDimensions() {
+				qualifying := 0
+				for i := range scopedHistory {
+					if scopedHistory[i].HasAllDimensions() && scopedHistory[i].FullPass {
+						qualifying++
+					}
+				}
+				fmt.Fprintf(os.Stderr,
+					"[bts] note: this round declared %d of %d dimensions (%s). It cannot count toward "+
+						"completion, and verify.max_rounds counts it the same as a full one — %d round(s) "+
+						"recorded on %s, %d of them qualifying. Run verify, audit and simulate in one "+
+						"batch and record them as a single round.\n",
+					len(dims), len(state.VerifyDimensions), strings.Join(dims, "+"),
+					verdict.Rounds, label, qualifying)
 			}
 		}
 
