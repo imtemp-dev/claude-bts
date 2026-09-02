@@ -17,7 +17,11 @@ func init() {
 	recipeCmd.AddCommand(recipeFindingsCmd, recipeAssessPrecheckCmd)
 	recipeFindingsCmd.AddCommand(
 		recipeFindingsListCmd, recipeFindingsCarryCmd, recipeFindingsDismissCmd,
+		recipeFindingsDefendBatchCmd,
 	)
+	recipeFindingsDefendBatchCmd.Flags().String("doc", "draft.md", "Document whose open findings to defend (basename)")
+	recipeFindingsDefendBatchCmd.Flags().Int("limit", -1, "Findings per pass; default 2 x simulate.finding_batch, 0 = no cap")
+	recipeFindingsDefendBatchCmd.Flags().Bool("json", false, "Emit JSON")
 	recipeFindingsListCmd.Flags().String("doc", "", "Narrow to one document (basename)")
 	recipeFindingsListCmd.Flags().Bool("open", false, "Only findings currently open")
 	recipeFindingsListCmd.Flags().Bool("json", false, "Emit JSON")
@@ -143,6 +147,79 @@ Prints nothing when the ledger is empty (first round).`,
 			return nil
 		}
 		fmt.Print(block)
+		return nil
+	},
+}
+
+// recipeFindingsDefendBatchCmd prints what /bts-defend argues against in
+// one pass. The selection and the cap live in state.DefendBatch, in Go,
+// because the defender is a Skill fork that reads the ledger itself: no
+// spawn prompt carries its batch, so the pre-tool-use hook that refuses
+// over-large Agent-tool batches never sees it. The measured failure this
+// bounds — validators handed 10–28 findings writing 80–110K output tokens
+// and three abandoned at the 64K limit — is one the agent's own reading
+// of a limit cannot prevent; what the command prints can.
+var recipeFindingsDefendBatchCmd = &cobra.Command{
+	Use:   "defend-batch [recipe-id]",
+	Short: "Print the open critical/major findings for one /bts-defend pass, capped by simulate.finding_batch",
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cwd, _ := os.Getwd()
+		root, err := state.FindRoot(cwd)
+		if err != nil {
+			return fmt.Errorf("not a bts project: %w", err)
+		}
+		recipeID, err := resolveRecipeID(args, root)
+		if err != nil {
+			return err
+		}
+		doc, _ := cmd.Flags().GetString("doc")
+		limit, _ := cmd.Flags().GetInt("limit")
+		asJSON, _ := cmd.Flags().GetBool("json")
+		if limit < 0 {
+			limit = 12
+			if s, serr := engine.LoadSettings(root); serr == nil && s.Simulate.FindingBatch > 0 {
+				limit = 2 * s.Simulate.FindingBatch
+			}
+		}
+
+		states, err := state.LoadFindings(root, recipeID, doc)
+		if err != nil {
+			return fmt.Errorf("load findings: %w", err)
+		}
+		batch, rest := state.DefendBatch(states, limit)
+
+		if asJSON {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(map[string]any{
+				"doc": doc, "limit": limit, "batch": batch, "undefended": rest,
+			})
+		}
+		if len(batch) == 0 {
+			fmt.Printf("No open critical or major findings on %s — nothing to defend.\n", doc)
+			return nil
+		}
+		fmt.Printf("Defend batch for %s (%d of %d open critical/major; limit %d):\n", doc, len(batch), len(batch)+len(rest), limit)
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "ID\tSEVERITY\tSTATUS\tROUNDS\tANCHOR\tTITLE")
+		for _, st := range batch {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\t%s\n",
+				st.ID, st.Severity, st.Status, st.OpenRounds, st.Anchor, st.Title)
+		}
+		if err := w.Flush(); err != nil {
+			return err
+		}
+		if len(rest) == 0 {
+			fmt.Println("Undefended: none")
+			return nil
+		}
+		undefended := make([]string, 0, len(rest))
+		for _, st := range rest {
+			undefended = append(undefended, st.ID)
+		}
+		fmt.Printf("Undefended (%d, over the batch): %s — run /bts-defend again after recording this pass\n",
+			len(rest), strings.Join(undefended, " "))
 		return nil
 	},
 }

@@ -194,7 +194,7 @@ var recipeLogCmd = &cobra.Command{
 			var stray []string
 			for _, f := range []string{
 				"critical", "major", "minor", "minor-resolvable",
-				"minor-deferred", "info", "from-verification", "dimension",
+				"minor-deferred", "info", "from-verification", "merge", "dimension",
 			} {
 				if cmd.Flags().Changed(f) {
 					stray = append(stray, "--"+f)
@@ -305,10 +305,45 @@ var recipeLogCmd = &cobra.Command{
 			var reported []state.ReportedFinding
 			haveFindingsArray := false
 
-			if fromVerification, _ := cmd.Flags().GetString("from-verification"); fromVerification != "" {
+			fromVerification, _ := cmd.Flags().GetString("from-verification")
+			mergePaths, _ := cmd.Flags().GetStringSlice("merge")
+			if len(mergePaths) > 0 && fromVerification == "" {
+				return fmt.Errorf("--merge needs --from-verification: the merged block is written into that file")
+			}
+			if fromVerification != "" {
 				data, err := os.ReadFile(fromVerification)
 				if err != nil {
 					return fmt.Errorf("--from-verification: read %s: %w", fromVerification, err)
+				}
+				// One round, one entry. The three instruments are three
+				// forks and return three findings blocks in three files;
+				// joining them by hand is what produced three
+				// single-dimension rounds from one concurrent batch on a
+				// measured recipe. --merge does the join mechanically and
+				// rewrites verification.md so `bts validate`'s cross-check
+				// and the verification_hash both see the merged block.
+				if len(mergePaths) > 0 {
+					extras := make([][]byte, 0, len(mergePaths))
+					names := make([]string, 0, len(mergePaths))
+					for _, p := range mergePaths {
+						b, rerr := os.ReadFile(p)
+						if rerr != nil {
+							return fmt.Errorf("--merge: read %s: %w", p, rerr)
+						}
+						extras = append(extras, b)
+						names = append(names, filepath.ToSlash(p))
+					}
+					merged, mc, merr := engine.MergeFindingsBlocks(data, extras, names)
+					if merr != nil {
+						return fmt.Errorf("--merge: %w", merr)
+					}
+					if werr := os.WriteFile(fromVerification, merged, 0o644); werr != nil {
+						return fmt.Errorf("--merge: write %s: %w", fromVerification, werr)
+					}
+					data = merged
+					fmt.Fprintf(os.Stderr,
+						"[bts] merged %d block(s) into %s: critical=%d major=%d minor_resolvable=%d minor_deferred=%d info=%d (%d findings)\n",
+						len(mergePaths), fromVerification, mc.Critical, mc.Major, mc.MinorResolvable, mc.MinorDeferred, mc.Info, len(mc.Findings))
 				}
 				counts, err := engine.ParseFindingsBlock(data)
 				if err != nil {
@@ -761,6 +796,7 @@ func init() {
 	recipeLogCmd.Flags().Int("minor-deferred", 0, "Minor [deferred] count — runtime-observable, does not block")
 	recipeLogCmd.Flags().Int("info", 0, "Info suggestion count")
 	recipeLogCmd.Flags().String("from-verification", "", "Parse counts from a verification.md <bts-findings> block (atomic; iteration auto-increments unless --iteration given)")
+	recipeLogCmd.Flags().StringSlice("merge", nil, "Other instrument outputs (audit.md, simulations/NNN.md) whose <bts-findings> blocks are joined into the --from-verification file before it is parsed, so one concurrent verify+audit+simulate batch is recorded as ONE round. Repeatable or comma-separated.")
 	// No backticks in flag usage strings: cobra reads the first
 	// backtick-quoted word as the value placeholder name.
 	recipeLogCmd.Flags().String("doc", "", "Path of the verified document — scopes the verify state and findings ledger to it, and snapshots the revision for the next verify-focus diff")

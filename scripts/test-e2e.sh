@@ -227,7 +227,14 @@ printf '# Draft\n\nVerified content v1.\n' > .bts/specs/recipes/ad-001/draft.md
 echo "# Verification findings" > .bts/specs/recipes/ad-001/verification.md
 $BTS recipe log ad-001 --action improve --output draft.md > /dev/null
 $BTS recipe log ad-001 --action simulate --output simulations/sim-001.md --gaps 0 --result "5 scenarios, 0 gaps" > /dev/null
-$BTS recipe log ad-001 --iteration 1 --critical 0 --major 0 --doc .bts/specs/recipes/ad-001/draft.md > /dev/null
+# Completion evidence: verify.confirm_passes (2) consecutive clean FULL rounds,
+# every dimension, each citing its own verification.md, on one revision.
+clean_round() {  # $1 = recipe, $2 = round label
+  printf '# Verification %s\n\n<bts-findings>\n{"critical": 0, "major": 0, "minor_resolvable": 0, "minor_deferred": 0, "info": 0, "findings": []}\n</bts-findings>\n' "$2" > .bts/specs/recipes/$1/verification.md
+  $BTS recipe log $1 --from-verification .bts/specs/recipes/$1/verification.md --doc .bts/specs/recipes/$1/draft.md --scope full --dimension verify,audit,simulate > /dev/null
+}
+clean_round ad-001 r1
+clean_round ad-001 r2
 python3 -c "
 import json
 p = '.bts/specs/recipes/ad-001/manifest.json'
@@ -254,7 +261,8 @@ RESULT=$(echo '{"session_id":"t","cwd":"'"$TEST_DIR"'","hook_event_name":"stop",
 echo "$RESULT" | grep -q "EXIT:2" && echo "$RESULT" | grep -q "modified after last verification" && echo "✓ 35. dirty doc blocks DONE" || { echo "✗ 35. dirty block: $RESULT"; exit 1; }
 
 # 36. Re-verifying (log --doc re-snapshots) unblocks DONE
-$BTS recipe log ad-001 --iteration 2 --critical 0 --major 0 --doc .bts/specs/recipes/ad-001/draft.md > /dev/null
+clean_round ad-001 r3
+clean_round ad-001 r4
 RESULT=$(echo '{"session_id":"t","cwd":"'"$TEST_DIR"'","hook_event_name":"stop","content":"<bts>DONE</bts>"}' | $BTS hook stop 2>&1; echo "EXIT:$?")
 echo "$RESULT" | grep -q "EXIT:0" && echo "✓ 36. re-verify unblocks DONE" || { echo "✗ 36. re-verify allow: $RESULT"; exit 1; }
 
@@ -302,7 +310,11 @@ cat > .bts/specs/recipes/fl-001/verification.md <<'VEOF'
 {"critical": 0, "major": 0, "minor_resolvable": 0, "minor_deferred": 0, "info": 0, "findings": []}
 </bts-findings>
 VEOF
-$BTS recipe log fl-001 --from-verification .bts/specs/recipes/fl-001/verification.md --doc .bts/specs/recipes/fl-001/draft.md | grep -q "1 fixed" || { echo "✗ 41. fixed"; exit 1; }
+# Absence is not closure: the first silent round parks the finding as
+# unreported; only a second silent round confirms it fixed.
+$BTS recipe log fl-001 --from-verification .bts/specs/recipes/fl-001/verification.md --doc .bts/specs/recipes/fl-001/draft.md | grep -q "1 unreported" || { echo "✗ 41. unreported"; exit 1; }
+echo "second silent round" >> .bts/specs/recipes/fl-001/verification.md
+$BTS recipe log fl-001 --from-verification .bts/specs/recipes/fl-001/verification.md --doc .bts/specs/recipes/fl-001/draft.md | grep -q "1 confirmed fixed" || { echo "✗ 41. fixed"; exit 1; }
 cat > .bts/specs/recipes/fl-001/verification.md <<'VEOF'
 <bts-findings>
 {"critical": 1, "major": 0, "minor_resolvable": 0, "minor_deferred": 0, "info": 0,
@@ -352,8 +364,12 @@ VEOF
 # A clean DELTA round must not finalize — untouched sections were never re-checked.
 $BTS recipe log pc-001 --from-verification .bts/specs/recipes/pc-001/verification.md --doc .bts/specs/recipes/pc-001/draft.md --scope delta > /dev/null
 $BTS recipe assess-precheck pc-001 --doc .bts/specs/recipes/pc-001/draft.md | grep -q '"action": "VERIFY"' || { echo "✗ 44. delta finalized"; exit 1; }
-# A clean FULL round on an unchanged doc does.
-$BTS recipe log pc-001 --from-verification .bts/specs/recipes/pc-001/verification.md --doc .bts/specs/recipes/pc-001/draft.md --scope full > /dev/null
+# Clean FULL rounds on an unchanged doc do — every dimension declared, and
+# verify.confirm_passes (2) of them, each citing its own verification.md.
+$BTS recipe log pc-001 --from-verification .bts/specs/recipes/pc-001/verification.md --doc .bts/specs/recipes/pc-001/draft.md --scope full --dimension verify,audit,simulate > /dev/null
+$BTS recipe assess-precheck pc-001 --doc .bts/specs/recipes/pc-001/draft.md | grep -q '"action": "VERIFY"' || { echo "✗ 44. one clean round finalized (confirm_passes=2)"; exit 1; }
+echo "round two" >> .bts/specs/recipes/pc-001/verification.md
+$BTS recipe log pc-001 --from-verification .bts/specs/recipes/pc-001/verification.md --doc .bts/specs/recipes/pc-001/draft.md --scope full --dimension verify,audit,simulate > /dev/null
 $BTS recipe assess-precheck pc-001 --doc .bts/specs/recipes/pc-001/draft.md | grep -q '"action": "FINALIZE"' || { echo "✗ 44. full pass did not finalize"; exit 1; }
 # Editing the doc reopens the obligation to re-verify.
 echo "edited after verification" >> .bts/specs/recipes/pc-001/draft.md
@@ -375,5 +391,31 @@ if $BTS evidence put --library go --claim "maps are ordered" --verdict confirms 
 fi
 echo "✓ 46. evidence cache (miss/put/hit, citation required)"
 
+# 47. One batch, one round — --merge joins the audit and simulate blocks into
+#     verification.md and records a single entry carrying all three dimensions.
+mkdir -p .bts/specs/recipes/mg-001/simulations
+echo '{"id":"mg-001","type":"blueprint","topic":"Merge","phase":"verify","iteration":0,"level":2.0,"started_at":"2026-03-18T00:00:00Z","updated_at":"2026-03-18T00:00:00Z"}' > .bts/specs/recipes/mg-001/recipe.json
+printf '# Draft\n\nA thing.\n' > .bts/specs/recipes/mg-001/draft.md
+printf '<bts-findings>\n{"critical": 1, "major": 0, "minor_resolvable": 0, "minor_deferred": 0, "info": 0, "findings": [{"severity": "critical", "title": "INV-001 has two owners", "anchor": "§2"}]}\n</bts-findings>\n' > .bts/specs/recipes/mg-001/verification.md
+printf '<bts-findings>\n{"critical": 0, "major": 1, "minor_resolvable": 0, "minor_deferred": 0, "info": 0, "findings": [{"severity": "major", "title": "rollback path unaddressed", "anchor": "§5"}]}\n</bts-findings>\n' > .bts/specs/recipes/mg-001/audit.md
+printf '| ID | Title | Tag | Result | Findings |\n| --- | --- | --- | --- | --- |\n| S01 | Happy path | [single-axis: A] | PASS | — |\n\n<bts-findings>\n{"critical": 0, "major": 0, "minor_resolvable": 1, "minor_deferred": 0, "info": 0, "findings": [{"severity": "minor_resolvable", "title": "S01 copy not localized", "anchor": "S01"}]}\n</bts-findings>\n' > .bts/specs/recipes/mg-001/simulations/001-scenarios.md
+$BTS recipe log mg-001 --from-verification .bts/specs/recipes/mg-001/verification.md --merge .bts/specs/recipes/mg-001/audit.md --merge .bts/specs/recipes/mg-001/simulations/001-scenarios.md --doc .bts/specs/recipes/mg-001/draft.md --scope full --dimension verify,audit,simulate > /dev/null
+[ "$(wc -l < .bts/specs/recipes/mg-001/verify-log.jsonl | tr -d ' ')" = "1" ] || { echo "✗ 47. merge must record one round"; exit 1; }
+tail -1 .bts/specs/recipes/mg-001/verify-log.jsonl | grep -q '"critical":1' && tail -1 .bts/specs/recipes/mg-001/verify-log.jsonl | grep -q '"major":1' && tail -1 .bts/specs/recipes/mg-001/verify-log.jsonl | grep -q '"minor_resolvable":1' || { echo "✗ 47. merged counts"; exit 1; }
+grep -q "bts-merged: " .bts/specs/recipes/mg-001/verification.md || { echo "✗ 47. merge marker"; exit 1; }
+if $BTS recipe log mg-001 --from-verification .bts/specs/recipes/mg-001/verification.md --merge .bts/specs/recipes/mg-001/audit.md --doc .bts/specs/recipes/mg-001/draft.md --scope full --dimension verify,audit,simulate > /dev/null 2>&1; then
+  echo "✗ 47. second merge accepted"; exit 1
+fi
+echo "✓ 47. recipe log --merge (one batch, one round; re-merge refused)"
+
+# 48. defend-batch draws the open critical/major findings for /bts-defend,
+#     capped in Go, and never the minor.
+OUT=$($BTS recipe findings defend-batch mg-001 --doc draft.md)
+echo "$OUT" | grep -q "INV-001 has two owners" && echo "$OUT" | grep -q "rollback path unaddressed" || { echo "✗ 48. batch rows: $OUT"; exit 1; }
+echo "$OUT" | grep -q "copy not localized" && { echo "✗ 48. minor in batch"; exit 1; }
+echo "$OUT" | grep -q "Undefended: none" || { echo "✗ 48. undefended line: $OUT"; exit 1; }
+OUT=$($BTS recipe findings defend-batch mg-001 --doc draft.md --limit 1)
+echo "$OUT" | grep -q "Undefended (1, over the batch)" && echo "✓ 48. findings defend-batch (critical/major only, capped)" || { echo "✗ 48. cap: $OUT"; exit 1; }
+
 echo ""
-echo "=== All 46 tests passed ==="
+echo "=== All 48 tests passed ==="
