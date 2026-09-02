@@ -58,8 +58,15 @@ type HookOutput struct {
 // Requires hookEventName matching the event: SessionStart, PreToolUse, UserPromptSubmit, PostToolUse.
 // PreCompact and SessionEnd do NOT use this — they save state via other means.
 type HookSpecificOutput struct {
-	HookEventName string `json:"hookEventName,omitempty"`
+	HookEventName     string `json:"hookEventName,omitempty"`
 	AdditionalContext string `json:"additionalContext,omitempty"`
+
+	// PreToolUse only. "deny" refuses the call and hands the model
+	// PermissionDecisionReason instead of the tool result; "allow" and
+	// "ask" are accepted by the harness but unused here. Empty means the
+	// hook expresses no opinion and the call proceeds.
+	PermissionDecision       string `json:"permissionDecision,omitempty"`
+	PermissionDecisionReason string `json:"permissionDecisionReason,omitempty"`
 }
 
 // Handler processes a hook event and returns output.
