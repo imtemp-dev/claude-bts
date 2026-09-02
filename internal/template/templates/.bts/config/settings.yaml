@@ -101,29 +101,30 @@ simulate:
                                  # next round cost more for having worked. Illegal cells come first,
                                  # then the riskiest edges; whatever does not fit is reported as
                                  # uncovered, never dropped in silence. 0 = no ceiling.
-  scenario_batch: 3              # Scenarios per walking agent. One agent walking all of them walks
-                                 # them one after another in one context: 15 scenarios took 23
-                                 # minutes on 132 tool calls, so the cost is reasoning, not reading.
-                                 # Batches make the round cost the slowest batch, not the sum.
-                                 # No artefact records a batch size, so this cannot be checked
-                                 # afterwards — the pre-tool-use hook counts the scenario ids in
-                                 # the spawn prompt instead and warns when a batch runs over.
-                                 # 0 = one agent for everything (pre-v0.16 behaviour).
+  scenario_batch: 3              # LEGACY. /bts-simulate no longer spawns walker agents — the fork
+                                 # runs AS the simulator agent and walks every scenario itself
+                                 # (measured: the walker cost $2.5 / 5 min; the fork around it
+                                 # $12–30 / 40–56 min). Still read by the pre-tool-use hook,
+                                 # which refuses a `simulator` spawn carrying more scenario ids
+                                 # than this, so a skill that reintroduces the layer is caught.
+                                 # 0 = no check.
   cross_boundary_ratio: 0.30     # Minimum share of scenarios that must cross two state axes or
                                  # sit on an illegal cell. Single-axis walks re-confirm what the
                                  # document already says; interaction is where specs break. Read
                                  # by `bts validate`, which raises a critical below the threshold.
-  finding_batch: 6               # FINDINGS per adversarial agent (validator, rebuttal). A separate
-                                 # number from scenario_batch because it is a separate unit — a walk
-                                 # yields several findings per scenario. Sharing the scenario number
-                                 # cost one measured round 19 minutes: 59 findings under "batch of
-                                 # 3" were read as three groups of ~20, and all three validators hit
-                                 # the 64K output-token limit and were abandoned. 6 keeps a batch's
-                                 # verdicts inside one reply at the ~3K output tokens per finding
-                                 # those agents were spending. Counted at spawn time by the
-                                 # pre-tool-use hook, which warns rather than refuses: an
-                                 # over-large batch makes a worse round, not a wrong one.
-                                 # 0 = one agent for all findings.
+  finding_batch: 6               # FINDINGS per defense pass. `bts recipe findings defend-batch`
+                                 # prints at most 2× this many open critical/major findings —
+                                 # highest severity first, then most rounds open — and names the
+                                 # rest as Undefended; /bts-defend (defender agent, sonnet) argues
+                                 # against exactly what it prints. The cap is in the command, not
+                                 # in the agent's reading of a number, because the measured failure
+                                 # (validators handed 10–28 findings, 80–110K output tokens each,
+                                 # three abandoned at the 64K limit) happened under a prose limit.
+                                 # The pre-tool-use hook additionally REFUSES any Agent-tool spawn of
+                                 # a defender/validator whose prompt carries more finding ids than
+                                 # this — a refusal, not a warning, because the warning it replaced
+                                 # matched a tool name the harness had stopped using and never fired.
+                                 # 0 = no cap in either place.
 
 # Implementation
 implement:
@@ -158,20 +159,21 @@ vision:
 # Core gates (verify, audit, simulate, review-quality, review-security, review-arch) use session model by default.
 #   review-security is recall-bound: semantic flaws (authz bypass, state-dependent privilege
 #   escalation) missed by the initial sweep can never be rescued by the rebuttal step.
-# Deep reasoning (review-rebuttal, simulator-rebuttal, diagnosis-validator, diagnosis-rebuttal) uses session model — needs concrete scenario construction and code path tracing.
-# Pattern-based checks (review-validator, simulator-validator) default to sonnet via agent
+# Deep reasoning (review-rebuttal, diagnosis-validator, diagnosis-rebuttal) uses session model — needs concrete scenario construction and code path tracing.
+# Pattern-based checks (review-validator, defender) default to sonnet via agent
 # frontmatter; cross-check and sync-check run on sonnet via their SKILL.md `model:` field.
+# verify/audit/simulate/defend forks run AS their agent (skill `agent:`), so the agent
+# file's `model:` is what these keys override.
 agents:
   # verifier: sonnet
   # auditor: sonnet
   # simulator: sonnet
+  # defender: sonnet
   # reviewer_quality: sonnet
   # reviewer_security: sonnet
   # reviewer_arch: sonnet
   # reviewer_validator: sonnet
   # reviewer_rebuttal: sonnet
-  # simulator_validator: sonnet
-  # simulator_rebuttal: sonnet
   # diagnosis_validator: sonnet
   # diagnosis_rebuttal: sonnet
 
@@ -181,6 +183,9 @@ agents:
 # domain-model/architect/verify/simulate/audit = max (deep-reasoning gates;
 # domain-model's invariant ownership and state-cell enumeration cascade into
 # everything downstream), wireframe = xhigh (path-enumeration design),
-# discover/research/debate/adjudicate/review = high (structure carries the
-# quality; conversational or multi-round stages), status = low.
+# discover/research/debate/adjudicate/review/defend = high (structure carries
+# the quality; conversational or multi-round stages), recipe-blueprint = high
+# (the orchestrator moves text between files and runs commands; one measured
+# session's orchestrator wrote 443K output tokens at xhigh and re-read them on
+# every call), status = low.
 # Unset skills (assess, implement, test, …) inherit the session effort.

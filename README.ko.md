@@ -99,13 +99,13 @@ bts는 작업을 **스펙**과 **구현** 두 단계로 나눕니다. 각 레시
 
 ## 기능
 
-### 24개 스킬
+### 25개 스킬
 
 | 카테고리 | 스킬 |
 |----------|------|
 | **레시피** | blueprint, design, analyze, fix, debug |
 | **탐색** | discover, wireframe |
-| **검증** | verify, cross-check, audit, assess, sync-check |
+| **검증** | verify, cross-check, audit, assess, sync-check, defend |
 | **분석** | research, simulate, debate, adjudicate |
 | **구현** | implement, test, sync, status |
 | **품질** | review (basic / security / performance / patterns) |
@@ -214,7 +214,7 @@ flowchart LR
 
 **Go 바이너리** — 단일 정적 링크 바이너리 (~5ms 시작). 상태 관리, 완료 검증, 템플릿 배포, 메트릭스 추적. Go 외에 런타임 의존성이 없습니다.
 
-**Claude Code 통합** — 24개 스킬이 레시피 프로토콜을, 8개 라이프사이클 훅이 세션 이벤트(재개, 완료 게이트, 메트릭스)를, 7개 규칙이 제약 조건을 처리합니다. 검증은 항상 별도 에이전트 컨텍스트에서 실행됩니다.
+**Claude Code 통합** — 25개 스킬이 레시피 프로토콜을, 8개 라이프사이클 훅이 세션 이벤트(재개, 완료 게이트, 메트릭스)를, 7개 규칙이 제약 조건을 처리합니다. 검증은 항상 별도 에이전트 컨텍스트에서 실행됩니다.
 
 ## 모델 & 설정
 
@@ -247,6 +247,7 @@ agents:
 | **감사** | audit | **fork** | 세션 모델 (빠진 것 찾기) |
 | **시뮬레이션** | simulate | **fork** | 세션 모델 (깊은 추론) |
 | **교차검증, 동기화검증** | cross-check, sync-check | **fork** | Sonnet (패턴 기반) |
+| **방어** (critical/major finding 반론) | defend | **fork** | Sonnet (증거 기반 기각) |
 | 구현, 테스트, 동기화 | implement, test, sync | main | 세션 모델 |
 | **리뷰** (품질, 아키텍처) | review | **fork** | 세션 모델 |
 | **리뷰** (보안) | review | **fork** | Sonnet (패턴 기반) |

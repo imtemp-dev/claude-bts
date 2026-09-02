@@ -18,10 +18,19 @@ authoritative_for:
 
 Never verify your own output in the same context.
 
-- **Internal consistency**: Checked by `bts verify` (deterministic) + Agent(verifier) (separate context)
-- **Completeness**: Checked by Agent(auditor) (separate context)
-- **Scenario coverage**: Checked by Agent(simulator) or /simulate (separate context)
+- **Internal consistency**: `bts verify` (deterministic) + `/bts-verify`, a fork that runs AS Agent(verifier)
+- **Completeness**: `/bts-audit`, a fork that runs as Agent(auditor)
+- **Scenario coverage**: `/bts-simulate`, a fork that runs as Agent(simulator)
+- **Defense**: `/bts-defend`, a fork that runs as Agent(defender) over the ledger's open critical/major findings after the round is logged — the finder never adjudicates its own finding, and the orchestrator dismisses only on the defender's cited evidence
 - **Code references**: Checked by `bts verify` when code exists (deterministic, optional)
+
+Each gate is ONE context: the fork is the agent (skill frontmatter
+`agent:`). The earlier shape — a general-purpose fork that spawned the
+agent and waited — was measured at $12–30 and 40–56 minutes per
+simulate round against $2.5 and 5 minutes for the walk itself, most of
+it the fork re-reading its own context while polling a background
+child. A gate that spawns a second gate is the failure mode, not the
+principle.
 
 ## Mandatory Verification Rule
 
@@ -181,6 +190,20 @@ Each round declares what produced its counts:
   flag per pass actually run. Declare only what ran; declaring nothing
   is not a claim that everything ran, and a round with no dimensions
   cannot count toward completion.
+
+**One batch, one entry.** The three instruments are three forks and
+return three findings blocks in three files. Record them as one round:
+
+```bash
+bts recipe log {id} --from-verification verification.md \
+    --merge audit.md --merge simulations/NNN.md \
+    --doc draft.md --scope full --dimension verify,audit,simulate
+```
+
+The CLI joins the blocks into verification.md and parses the result. A
+measured recipe ran all three concurrently and logged them by hand as
+three single-dimension rounds — three of its six cap slots, and no two
+rounds of one class to judge convergence by.
 
 Together these are the round's **measurement class**. Two rounds are
 comparable — one can be said to have improved on the other — only when

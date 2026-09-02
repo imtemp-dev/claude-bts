@@ -102,7 +102,7 @@ Code is generated from a spec that has survived multiple rounds of independent v
 
 ## Models
 
-Core quality gates (verify, audit, simulate, review) use your **session model** in a **fork context** — a separate AI instance that doesn't share the conversation history. Pattern-based checks (cross-check, sync-check, security review) use Sonnet.
+Core quality gates (verify, audit, simulate, review) use your **session model** in a **fork context** — a separate AI instance that doesn't share the conversation history. Pattern-based checks (cross-check, sync-check, security review, and the defend step that argues against a round's findings) use Sonnet.
 
 Override any agent model in `.bts/config/settings.yaml`:
 
@@ -144,7 +144,7 @@ bts version                 Show versions
 
 **Go binary** — single statically-linked binary (~5ms startup), zero runtime dependencies. Manages state, validates completion, deploys templates, tracks metrics.
 
-**Claude Code integration** — 24 skills, 8 lifecycle hooks, 7 rules. Verification always runs in separate agent contexts.
+**Claude Code integration** — 25 skills, 8 lifecycle hooks, 7 rules. Verification always runs in separate agent contexts.
 
 **File structure:**
 

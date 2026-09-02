@@ -57,6 +57,7 @@ var updateCmd = &cobra.Command{
 
 		// Clean up legacy forge-* template files and settings
 		cleanupLegacyForge(root)
+		removeRetiredTemplates(root)
 		migrateHookSettings(root)
 		pruneDeadSettings(root)
 
@@ -123,6 +124,46 @@ func cleanupLegacyForge(root string) {
 
 	if removed > 0 {
 		fmt.Printf("Cleaned up %d legacy forge files\n", removed)
+	}
+}
+
+// retiredTemplateFiles are template files bts once shipped and no longer
+// does. `bts update` deletes them from the project.
+//
+// DeployForce writes what the current binary embeds and never looks at
+// what an earlier one left behind, so a file removed from the template
+// stayed in every project that had it. That was harmless for the command
+// stubs removed in bc45f51, which merely duplicated a skill. It is not
+// harmless for an agent: a retired agent file keeps describing the role
+// it had ("used by /bts-simulate") to a harness that still lists it, and
+// an orchestrator reading the list can spawn it in good faith.
+//
+// Paths are relative to the project root. A test refuses any entry the
+// template still ships, so the list cannot delete a live file.
+var retiredTemplateFiles = []string{
+	// /bts-simulate runs as the simulator agent and no longer
+	// spawns a validator/rebuttal pair per finding; /bts-defend argues
+	// against the round's open findings on the ledger instead.
+	".claude/agents/bts-simulator-validator.md",
+	".claude/agents/bts-simulator-rebuttal.md",
+}
+
+// removeRetiredTemplates deletes retiredTemplateFiles from the project.
+func removeRetiredTemplates(root string) {
+	removed := 0
+	for _, rel := range retiredTemplateFiles {
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if _, err := os.Stat(path); err != nil {
+			continue
+		}
+		if err := os.Remove(path); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: remove retired template %s: %v\n", rel, err)
+			continue
+		}
+		removed++
+	}
+	if removed > 0 {
+		fmt.Printf("Removed %d retired template file(s)\n", removed)
 	}
 }
 

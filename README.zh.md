@@ -99,13 +99,13 @@ bts 将工作分为**规范**和**实现**两个阶段。每种配方类型有�
 
 ## 功能
 
-### 24 个技能
+### 25 个技能
 
 | 类别 | 技能 |
 |------|------|
 | **配方** | blueprint, design, analyze, fix, debug |
 | **发现** | discover, wireframe |
-| **验证** | verify, cross-check, audit, assess, sync-check |
+| **验证** | verify, cross-check, audit, assess, sync-check, defend |
 | **分析** | research, simulate, debate, adjudicate |
 | **实现** | implement, test, sync, status |
 | **质量** | review (basic / security / performance / patterns) |
@@ -214,7 +214,7 @@ flowchart LR
 
 **Go 二进制文件** — 单一静态链接二进制文件（约 5ms 启动）。管理状态、验证完成、部署模板、追踪指标。除 Go 之外零运行时依赖。
 
-**Claude Code 集成** — 24 个技能提供配方协议，8 个生命周期钩子处理会话事件（恢复、完成门控、指标），7 个规则强制约束。验证始终在独立的代理上下文中运行。
+**Claude Code 集成** — 25 个技能提供配方协议，8 个生命周期钩子处理会话事件（恢复、完成门控、指标），7 个规则强制约束。验证始终在独立的代理上下文中运行。
 
 ## 模型与配置
 
@@ -247,6 +247,7 @@ agents:
 | **审计** | audit | **fork** | 会话模型（查找缺失） |
 | **模拟** | simulate | **fork** | 会话模型（深度推理） |
 | **交叉检查、同步检查** | cross-check, sync-check | **fork** | Sonnet（基于模式） |
+| **辩护**（对 critical/major 发现提出反证） | defend | **fork** | Sonnet（基于证据的驳回） |
 | 实现、测试、同步 | implement, test, sync | 主会话 | 会话模型 |
 | **审查**（质量、架构） | review | **fork** | 会话模型 |
 | **审查**（安全） | review | **fork** | Sonnet（基于模式） |

@@ -3,11 +3,12 @@ name: bts-audit
 description: >
   Audit a document for completeness. Find missing scenarios, unconsidered
   edge cases, and hidden assumptions. Includes mermaid branch completeness
-  analysis. Use after verify and cross-check.
+  analysis. Runs as the auditor agent itself — one context, no nested agent.
 user-invocable: true
-allowed-tools: Read Grep Glob Bash Agent WebSearch WebFetch mcp__context7__resolve-library-id mcp__context7__get-library-docs
+allowed-tools: Read Grep Glob Bash WebSearch WebFetch mcp__context7__resolve-library-id mcp__context7__get-library-docs
 argument-hint: "[file-path]"
 context: fork
+agent: auditor
 effort: max
 ---
 
@@ -15,18 +16,25 @@ effort: max
 
 Audit the specified document for missing items.
 
+## Who runs this
+
+This skill runs **inside the `auditor` agent** (frontmatter
+`agent: auditor`). You are the auditor: run the two read-only commands
+below, then read and audit the document yourself. Do not spawn
+`Agent(auditor)` — the fork-that-spawns-a-fork shape cost $1–4 and a
+polling loop per round for no second opinion.
+
+Bash is ONLY for the read-only commands in steps 1–1b and for
+`bts evidence get/put`. Never run state-mutating bts commands or write
+files from this fork — the orchestrator records the round.
+
 ## Settings
 
 Audit requires finding what's missing — it uses the main session model by default.
-If `agents.auditor` is explicitly set in `.bts/config/settings.yaml`, use that model instead.
-
-Bash in this fork is ONLY for the read-only command in step 1. Never run
-state-mutating bts commands or write files from this fork.
+If `agents.auditor` is explicitly set in `.bts/config/settings.yaml`, that
+model applies via the agent's frontmatter.
 
 ## Steps
-
-Do NOT read the target document in this fork — the auditor agent reads
-it independently (single-read discipline; a copy here would be unused).
 
 1. Run the deterministic graph analysis:
    ```bash
@@ -39,18 +47,12 @@ it independently (single-read discipline; a copy here would be unused).
    bts recipe findings carry-forward {id} --doc $ARGUMENTS
    ```
    Capture the output as CARRY_FORWARD (empty on the first round).
-
-2. Spawn Agent(auditor) with the following prompt, appending
-   GRAPH_ANALYSIS and CARRY_FORWARD verbatim at the end:
-
-   ```
-   You are a completeness audit specialist. Read the document at $ARGUMENTS.
-
-   An "Adjudicated findings from previous rounds" block may be appended.
    Those gaps were already raised on this document: do not re-derive
    them, never re-raise a DISMISSED one, and when reporting a gap that
    already has an ID there, reuse its exact title so the ledger tracks
    it as the same finding rather than opening a duplicate.
+
+2. Read the document at $ARGUMENTS and audit it.
 
    Your goal: find everything the document fails to address that could cause
    problems at runtime, during deployment, or under adversarial conditions.
@@ -62,10 +64,10 @@ it independently (single-read discipline; a copy here would be unused).
    system needs and what the document leaves unanswered.
 
    **Flow completeness (mermaid diagrams):**
-   A deterministic "Mermaid Graph Analysis" block is appended to this
-   prompt — its path/cycle/dead-end/orphan enumeration is AUTHORITATIVE;
-   do not re-enumerate (fall back to manual enumeration only for diagrams
-   it flags as unparsed, truncated, or unsupported). Using it:
+   GRAPH_ANALYSIS's path/cycle/dead-end/orphan enumeration is
+   AUTHORITATIVE; do not re-enumerate (fall back to manual enumeration
+   only for diagrams it flags as unparsed, truncated, or unsupported).
+   Using it:
    - At EVERY decision node: are ALL branches specified? (yes/no/error/timeout)
    - At EVERY state: what happens on timeout? invalid input? resource exhaustion?
      concurrent access? If unspecified, flag as a completeness gap.
@@ -146,10 +148,9 @@ it independently (single-read discipline; a copy here would be unused).
    Every `[deferred]` minor MUST include a `Why-deferred:` line naming the
    specific runtime observation that would resolve it.
 
-   **Structured findings block (REQUIRED, exact format):**
+3. Output — your final message, in this order:
 
-   Emit this block verbatim at the TOP of the audit output file, with
-   valid JSON inside. `bts validate` parses this block.
+   **Structured findings block (REQUIRED, exact format), FIRST:**
 
    ```
    <bts-findings>
@@ -181,16 +182,19 @@ it independently (single-read discipline; a copy here would be unused).
    reuse the carry-forward block's title verbatim when it already lists
    the gap.
 
-   Output findings as a numbered list with severity tags AFTER the block.
-   For each finding also include (when applicable):
+   **Then** the findings as a numbered list with severity tags. For each
+   finding also include (when applicable):
      Source: <URL> | <URL>
      Gathered: <Context7|WebFetch|WebSearch summary>
      Why-deferred: <runtime observation that would resolve it>   (deferred only)
 
-   Include: "Branch coverage: N/M decision branches specified (N%).
+   **Then**: "Branch coverage: N/M decision branches specified (N%).
    Evidence-resolved: X (removed Y, downgraded Z). Framework-claim findings: W.
    Minors: R resolvable, D deferred."
-   ```
 
-3. Collect the auditor's findings
-4. Report results with severity counts
+## Division of labor
+
+This fork has no Write tool and must not log. The ORCHESTRATOR writes
+your output verbatim to `.bts/specs/recipes/{id}/audit.md` and joins its
+block into the round with `bts recipe log … --merge audit.md` (see
+`bts-verify` § Count consistency). One batch, one round.

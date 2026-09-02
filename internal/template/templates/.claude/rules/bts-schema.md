@@ -124,7 +124,7 @@ Each line is a JSON object:
 
 Required fields:
 - `time` (string): ISO 8601 timestamp. **Key name is "time", not "timestamp".**
-- `action` (string): one of "discover", "research", "domain-model", "architect", "wireframe", "draft", "improve", "verify", "debate", "simulate", "audit", "assess", "sync-check", "finalize", "implement", "test", "sync", "status", "adjudicate", "review", "comment-apply", "resolve-uncertainties", "midrun-review" (must match `validActions` in engine/validator.go)
+- `action` (string): one of "discover", "research", "domain-model", "architect", "wireframe", "draft", "improve", "verify", "debate", "simulate", "audit", "assess", "sync-check", "finalize", "implement", "test", "sync", "status", "adjudicate", "review", "comment-apply", "resolve-uncertainties", "midrun-review", "defend" (must match `validActions` in engine/validator.go)
 
 Optional fields:
 - `input` (string): what was acted on

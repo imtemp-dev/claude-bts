@@ -41,7 +41,7 @@ Recipes are structured workflows. Start one inside Claude Code:
 
 | Type | Purpose | Lifecycle |
 |------|---------|-----------|
-| blueprint | New feature (full spec → code) | discover → scope → research → wireframe → draft ←→ (assess/improve/verify/debate/simulate/audit) → finalize → implement ←→ test → simulate(code) → review → sync → complete |
+| blueprint | New feature (full spec → code) | discover → scope → research → wireframe → draft ←→ (assess/improve/verify+audit+simulate/defend/debate) → finalize → implement ←→ test → simulate(code) → review → sync → complete |
 | fix | Known bug | diagnose → fix-spec → implement ←→ test → complete |
 | debug | Unknown bug | 6-perspective analysis → cross-reference → fix-spec → implement ←→ test → complete |
 | design | Feature design (spec only) | research → draft ←→ verify → finalize |
@@ -116,7 +116,7 @@ bts update                  Update templates to match binary version
 bts version                 Show versions
 ```
 
-## Skills (24)
+## Skills (25)
 
 Inside Claude Code, invoke skills with `/skill-name`:
 
@@ -139,7 +139,8 @@ Inside Claude Code, invoke skills with `/skill-name`:
 | /bts-sync-check | Document synchronization check (fork context) |
 | /bts-debate | Structured 3-expert debate |
 | /bts-adjudicate | Evaluate debate conclusions |
-| /bts-simulate | Scenario walkthrough — document or code (fork context) |
+| /bts-simulate | Scenario walkthrough — document or code (fork context, runs as the simulator agent) |
+| /bts-defend | Adversarial defense of a round's open critical/major findings on the ledger (fork context, sonnet) |
 | /bts-implement | Code generation from finalized spec |
 | /bts-test | Test generation and execution |
 | /bts-review | Multi-perspective code review (fork context, 3 parallel agents) |
@@ -164,8 +165,7 @@ Core gates use session model for maximum quality. Pattern-based checks use sonne
 | reviewer_arch | session model | agents.reviewer_arch |
 | reviewer_validator | sonnet | agents.reviewer_validator |
 | reviewer_rebuttal | session model | agents.reviewer_rebuttal |
-| simulator_validator | sonnet | agents.simulator_validator |
-| simulator_rebuttal | session model | agents.simulator_rebuttal |
+| defender | sonnet | agents.defender |
 | diagnosis_validator | session model | agents.diagnosis_validator |
 | diagnosis_rebuttal | session model | agents.diagnosis_rebuttal |
 
@@ -196,9 +196,9 @@ Fix completes when: fix-spec.md exists, tests pass. Output `<bts>FIX DONE</bts>`
 3. Edit draft.md in place (Edit tool), don't rewrite.
 4. Log every action: `bts recipe log {id} --action [type] --output [path]`.
 5. Every verify round runs all three instruments — verify, audit and simulate —
-   in one batch. A round's counts are comparable only against rounds of the same
-   measurement class, and a held-back instrument does not find less, it finds the
-   same things later.
+   in one batch, recorded as ONE round with `bts recipe log --merge`. A round's
+   counts are comparable only against rounds of the same measurement class, and a
+   held-back instrument does not find less, it finds the same things later.
 6. Run /bts-adjudicate after every debate.
 7. Run /bts-sync-check before finalizing.
 8. Deviations are reports, not gates — they don't block completion.

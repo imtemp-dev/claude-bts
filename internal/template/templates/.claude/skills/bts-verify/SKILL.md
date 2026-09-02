@@ -3,10 +3,12 @@ name: bts-verify
 description: >
   Verify a document for logical errors, contradictions, and unsupported claims.
   Includes mermaid flow path enumeration to find unspecified execution paths.
+  Runs as the verifier agent itself — one context, no nested agent.
 user-invocable: true
-allowed-tools: Read Grep Glob Bash Agent WebSearch WebFetch mcp__context7__resolve-library-id mcp__context7__get-library-docs
+allowed-tools: Read Grep Glob Bash WebSearch WebFetch mcp__context7__resolve-library-id mcp__context7__get-library-docs
 argument-hint: "[file-path]"
 context: fork
+agent: verifier
 effort: max
 ---
 
@@ -14,34 +16,44 @@ effort: max
 
 Verify the specified document for logical correctness.
 
+## Who runs this
+
+This skill runs **inside the `verifier` agent** (frontmatter
+`agent: verifier`). You are the verifier: run the three read-only
+commands below, then read and verify the document yourself. Do not
+spawn `Agent(verifier)` — that was the previous shape, a fork whose
+only job was to paste three command outputs into a prompt for a second
+context, and it cost $2–5 and a polling loop per round (one measured
+fork spent 22 minutes and $35 on 512 `echo idle` calls waiting for the
+agent it had spawned).
+
+Bash is ONLY for the read-only commands in steps 1–2 and for
+`bts evidence get/put`. Never run state-mutating bts commands (log,
+create, finalize, …) or write files from this fork — the orchestrator
+records the round.
+
 ## Settings
 
 Verification is the core quality gate — it uses the main session model by default.
-If `agents.verifier` is explicitly set in `.bts/config/settings.yaml`, use that model instead.
-
-Bash in this fork is ONLY for the two read-only commands in steps 1-2.
-Never run state-mutating bts commands (log, create, finalize, …) or
-write files from this fork.
+If `agents.verifier` is explicitly set in `.bts/config/settings.yaml`, that
+model applies via the agent's frontmatter.
 
 ## Steps
-
-Do NOT read the target document in this fork — the verifier agent reads
-it independently (single-read discipline; a copy here would be unused).
 
 1. Run the deterministic graph analysis:
    ```bash
    bts graph paths $ARGUMENTS
    ```
    Capture the full output as GRAPH_ANALYSIS. It enumerates every
-   mermaid diagram's paths, cycles, dead-ends, and orphans so the
-   verifier does not have to enumerate paths itself.
+   mermaid diagram's paths, cycles, dead-ends, and orphans so you do not
+   have to enumerate paths yourself.
 
 2. Get focus hints from changes since the last verified revision:
    ```bash
    bts recipe verify-focus $ARGUMENTS
    ```
    Capture the output as FOCUS_DIFF. (On first verification it reports
-   that no snapshot exists — pass that through as-is.)
+   that no snapshot exists — that is a full round.)
 
 2b. Get the adjudicated findings from previous rounds:
    ```bash
@@ -56,31 +68,26 @@ it independently (single-read discipline; a copy here would be unused).
    - FOCUS_DIFF reports no snapshot (first round) → **full**
    - The orchestrator is about to finalize → **full**
    - FOCUS_DIFF shows changed hunks → **delta** is allowed
-   Remember the choice — the orchestrator passes it as `--scope` when
-   recording the round, and a delta round can never satisfy completion.
+   State the choice in your summary — the orchestrator passes it as
+   `--scope` when recording the round, and a delta round can never
+   satisfy completion.
 
-3. Spawn Agent(verifier) with the following prompt, appending
-   GRAPH_ANALYSIS, FOCUS_DIFF and CARRY_FORWARD verbatim at the end:
-
-   ```
-   You are a logical verification specialist. Read the document at $ARGUMENTS and check for:
+3. Read the document at $ARGUMENTS and verify it:
 
    **Scope of this round: {full | delta}** (from step 2c)
 
    - **full** — verify the ENTIRE document. Every section, including
      ones no edit touched: an edit elsewhere can contradict them.
-   - **delta** — verify the sections listed in the appended "Changes
-     since last verified revision" block, PLUS their reference closure:
-     every section that cites a term, anchor, interface, invariant or
-     flow that the changed sections redefine. Follow those references
-     out until they stop leading anywhere new. Do not re-derive sections
-     outside that closure — a previous full pass already cleared them
-     and re-litigating them is what makes this loop oscillate. If you
-     cannot determine the closure with confidence, verify the whole
-     document and say so.
+   - **delta** — verify the sections listed in FOCUS_DIFF, PLUS their
+     reference closure: every section that cites a term, anchor,
+     interface, invariant or flow that the changed sections redefine.
+     Follow those references out until they stop leading anywhere new.
+     Do not re-derive sections outside that closure — a previous full
+     pass already cleared them and re-litigating them is what makes this
+     loop oscillate. If you cannot determine the closure with
+     confidence, verify the whole document and say so.
 
-   An "Adjudicated findings from previous rounds" block may be appended.
-   Those points are already settled:
+   CARRY_FORWARD lists points that are already settled:
    - STILL OPEN — expect them unless the fix landed; reuse the given ID.
    - FIXED — report again ONLY if the fix was reverted or is wrong.
    - DISMISSED — adjudicated as not-a-defect. Do NOT re-raise.
@@ -97,9 +104,8 @@ it independently (single-read discipline; a copy here would be unused).
    - Circular reasoning: Does any argument reference itself?
 
    **Flow-level verification (mermaid diagrams):**
-   A deterministic "Mermaid Graph Analysis" block is appended to this
-   prompt — bts computed it; its path enumeration is AUTHORITATIVE.
-   Do not re-enumerate paths yourself. For each listed path/cycle:
+   GRAPH_ANALYSIS is AUTHORITATIVE for path enumeration. Do not
+   re-enumerate paths yourself. For each listed path/cycle:
    - Is the behavior along this path fully specified in the document text?
    - Flag paths where behavior is unspecified as GAPs
    - Every listed cycle needs a specified exit condition
@@ -178,11 +184,9 @@ it independently (single-read discipline; a copy here would be unused).
    minor [deferred], and info. Tag every finding with exactly one of
    these severity levels.
 
-   **Structured findings block (REQUIRED, exact format):**
+4. Output — your final message, in this order:
 
-   Emit this block verbatim at the TOP of verification.md, with valid JSON
-   inside. `bts validate` and the stop hook parse this block; numbers in
-   the free-text summary below are informational only.
+   **Structured findings block (REQUIRED, exact format), FIRST:**
 
    ```
    <bts-findings>
@@ -214,33 +218,27 @@ it independently (single-read discipline; a copy here would be unused).
      the block if the array and the counts disagree, so do not
      hand-adjust one without the other.
    - `title` is the finding's identity. Keep it a stable, specific
-     one-line statement of the defect. When the carry-forward block
-     already lists this finding, reuse ITS title exactly — a reworded
-     title opens a duplicate finding and hides the fact that the issue
-     has persisted for several rounds.
+     one-line statement of the defect. When CARRY_FORWARD already lists
+     this finding, reuse ITS title exactly — a reworded title opens a
+     duplicate finding and hides the fact that the issue has persisted
+     for several rounds.
    - `anchor` is the section the finding is about (optional but useful).
 
-   `paths_total` MUST equal the paths_total from the appended Mermaid
-   Graph Analysis block (plus any paths you enumerated manually for
-   fallback diagrams only). `paths_unspecified` is your judgment of how
-   many of those paths lack specified behavior.
+   `paths_total` MUST equal the paths_total from GRAPH_ANALYSIS (plus any
+   paths you enumerated manually for fallback diagrams only).
+   `paths_unspecified` is your judgment of how many of those paths lack
+   specified behavior.
 
-   Output your findings as a numbered list with severity tags AFTER the
-   block. For each finding also include (when applicable):
+   **Then** the findings as a numbered list with severity tags. For each
+   finding also include (when applicable):
      Source: <URL> | <URL>
      Gathered: <Context7|WebFetch|WebSearch summary>
      Why-deferred: <runtime observation that would resolve it>   (deferred only)
 
-   Summary line:
-     Text issues: N. Flow path issues: N. Total paths analyzed: N.
+   **Then** the summary line:
+     Scope: full | delta. Text issues: N. Flow path issues: N. Total paths analyzed: N.
      Evidence-resolved: X (removed Y, downgraded Z). Framework-claim findings: W.
      Minors: R resolvable, D deferred.
-   ```
-
-4. Collect the verifier's findings
-5. Report results to the user with severity counts, and state which
-   scope the round used (`full` or `delta`) so the orchestrator records
-   it correctly.
 
 ## Count consistency (Phase 22)
 
@@ -249,50 +247,41 @@ recent `verify-log.jsonl` entry. `bts validate` cross-checks the two —
 drift between them surfaces as `verification_log_mismatch` (major)
 per-field.
 
-Division of labor — this skill runs in a fork WITHOUT Write/Bash, so it
-cannot save files or run the CLI itself:
-1. The verifier agent returns its findings, `<bts-findings>` block first.
+Division of labor — this fork has no Write tool and must not log:
+1. You return your findings, `<bts-findings>` block first.
 2. The ORCHESTRATOR (main loop, after the fork returns) writes that
    output to verification.md VERBATIM — the block must land
    byte-identical, no re-summarizing.
-3. The orchestrator records the verify-log entry atomically, passing
-   the verified document via `--doc` and this round's scope:
+3. The orchestrator records ONE round for the whole batch, joining the
+   audit and simulate blocks into verification.md mechanically:
    ```bash
    bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md \
-     --doc {verified-doc-path} --scope {full|delta} --dimension {verify|audit|simulate ...}
+     --merge .bts/specs/recipes/{id}/audit.md \
+     --merge .bts/specs/recipes/{id}/simulations/NNN-{category}.md \
+     --doc {verified-doc-path} --scope {full|delta} \
+     --dimension verify --dimension audit --dimension simulate
    ```
-   The CLI parses the block itself, so the two sources cannot drift.
-   Explicit `--critical/--major/--minor-resolvable/--minor-deferred`
-   flags remain as a fallback; NEVER use legacy `--minor` (it maps all
-   minors to blocking [resolvable]).
+   The CLI parses and merges the blocks itself, so the three sources
+   cannot drift and the batch is one entry — not three single-dimension
+   rounds against the cap. Explicit `--critical/--major/...` flags
+   remain as a fallback; NEVER use legacy `--minor` (it maps all minors
+   to blocking [resolvable]).
 
-   `--doc` is not optional any more. It scopes convergence to this
-   document, feeds the findings ledger, and snapshots the revision.
-   Without it the round is recorded as unscoped, no findings are
-   tracked, and stagnation detection is unavailable.
-
-   **The `--doc` path must resolve.** A bare `draft.md` is resolved
-   against the recipe directory and a path containing a separator
-   against the project root; anything else hashes nothing, and a round
-   with no `doc_hash` cannot be replicated against and cannot complete.
-   `bts recipe log` warns on stderr when it could not read the file —
-   that warning is a failed round, not a note.
+   `--doc` is not optional. It scopes convergence to this document,
+   feeds the findings ledger, and snapshots the revision. **The path
+   must resolve** — a bare `draft.md` against the recipe directory, a
+   path with a separator against the project root; anything else hashes
+   nothing, and a round with no `doc_hash` cannot be replicated against
+   and cannot complete. `bts recipe log` warns on stderr when it could
+   not read the file — that warning is a failed round, not a note.
 
    `--dimension` is not optional either. Name every semantic pass whose
-   findings are in this block and no others — `--dimension verify` alone
-   when only this skill ran, plus `--dimension audit` and/or
-   `--dimension simulate` when their findings were merged into the same
-   verification.md. The budget compares a round only against rounds of
-   the same dimensions and scope, so an inflated claim here reintroduces
-   exactly the apples-to-oranges verdict the flag removes.
-
-   Declaring nothing is NOT a shortcut. A round with no dimensions is
-   comparable with nothing and counts toward completion not at all —
-   the honest `--dimension verify` and the silent round fail the same
-   gate, so there is no version of this where omitting the flag helps.
-   The rounds that finish a document must run all three, because that
-   is what `<bts>DONE</bts>` asks for; see
-   `bts-verification-protocol.md § Completion Evidence`.
+   findings are in the merged block and no others. The budget compares a
+   round only against rounds of the same dimensions and scope, so an
+   inflated claim here reintroduces exactly the apples-to-oranges verdict
+   the flag removes. Declaring nothing is NOT a shortcut: a round with no
+   dimensions is comparable with nothing and counts toward completion
+   not at all. See `bts-verification-protocol.md § Completion Evidence`.
 
    **This command can fail on purpose.** A non-zero exit with
    `[CONVERGENCE FAILED]` means the convergence budget is exhausted:
