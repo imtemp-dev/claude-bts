@@ -107,6 +107,12 @@ var HardGates = []HardGate{
 		Summary:     "IMPLEMENT DONE blocked for a build recipe unless every invariant's falsifier failed in its own test on a copy of the current code with the invariant's guard broken (bts falsifier mutate), or the invariant is recorded as not mutable",
 	},
 	{
+		ID:          "interrogate_clean",
+		Rule:        "bts-implement SKILL.md, Step 5.4 Interrogate",
+		Enforcement: "internal/hook/stop_build.go:interrogateClean (handleImplementDone)",
+		Summary:     "IMPLEMENT DONE blocked unless a verified interrogate run exists and every finding that failed again on a fresh copy is fixed on the current code or waived with the user's reason",
+	},
+	{
 		ID:          "tests_cover_current_code",
 		Rule:        "bts-implement-protocol.md §Execution Rules rule 4",
 		Enforcement: "internal/hook/stop.go:testsCoverCurrentCode (handleImplementDone, handleFixDone)",

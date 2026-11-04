@@ -155,3 +155,22 @@ func buildFalsifiersAbleToFail(root, recipeID string) *HookOutput {
 	}
 	return nil
 }
+
+// interrogateClean is gate interrogate_clean at IMPLEMENT DONE, for every
+// recipe type: adversaries tried to break the change, bts reran each
+// finding on a fresh copy, and every finding that failed again is fixed on
+// the current code or waived with the user's reason (prove stage, P3).
+func interrogateClean(root, recipeID string) *HookOutput {
+	run, err := state.LoadInterrogateRun(root, recipeID)
+	if err != nil {
+		return blockOutput(fmt.Sprintf("interrogate.json is unreadable (%v).", err))
+	}
+	hash, herr := engine.CodeHash(root, recipeID)
+	if herr != nil {
+		fmt.Fprintf(os.Stderr, "[bts] warning: code fingerprint: %v (freshness not checked)\n", herr)
+	}
+	if reason := engine.CheckInterrogateClean(run, hash, recipeID); reason != "" {
+		return blockOutput(reason)
+	}
+	return nil
+}

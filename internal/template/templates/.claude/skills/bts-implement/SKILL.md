@@ -56,7 +56,8 @@ Use settings values if present, otherwise use defaults noted in each step.
      document-mode simulations from the blueprint phase always live
      there, so directory existence proves nothing:
      - test-results.json (pass) + simulations/*-code.md + review.md exists → Step 6 (sync)
-     - test-results.json (pass) + simulations/*-code.md → Step 5.5 (review)
+     - test-results.json (pass) + simulations/*-code.md + interrogate.json verified → Step 5.5 (review)
+     - test-results.json (pass) + simulations/*-code.md → Step 5.4 (interrogate)
      - build recipe, test-results.json (pass), and an invariant in
        build-evidence.json with neither `mutation` nor `not_mutable` → Step 5.2 (able to fail)
      - test-results.json (pass) → Step 5.3 (simulate)
@@ -453,6 +454,18 @@ If no gaps → proceed to Step 5.5 (Review).
 bts recipe log {id} --action simulate --result "N scenarios, N gaps"
 ```
 
+## Step 5.4: Interrogate
+
+Adversaries try to break the change, each in a private copy of the
+project, and only findings a rerun proves survive (prove stage P3):
+
+Use Skill("bts-interrogate") with arguments: {id}
+
+It prepares the seats, spawns the adversaries, verifies their findings on
+a fresh copy, and has you fix what reproduced (with a regression test) and
+recheck.  Continue when `bts interrogate verify {id} --recheck` reports no
+open finding.
+
 ## Step 5.5: Review
 
 Update phase:
@@ -554,6 +567,9 @@ When all steps are done:
   `bts falsifier mutate {id} --rerun`: every mutation from Step 5.2 must
   still make its falsifier fail on the current code
   (`falsifiers_able_to_fail`).
+- Every recipe: run `bts interrogate verify {id} --recheck`.  No finding
+  may be open on the current code; a waived one carries the user's reason
+  (`interrogate_clean`).
 - Output `<bts>IMPLEMENT DONE</bts>`
 - Tell the user (plaintext, after the marker):
   > **Implementation complete** — `{id}` done.

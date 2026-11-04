@@ -394,6 +394,8 @@ func setupImplementRoot(t *testing.T) (root, recipeID string) {
 	// review.md + deviation.md — presence only (content not inspected).
 	_ = os.WriteFile(filepath.Join(recipeDir, "review.md"), []byte("stub"), 0644)
 	_ = os.WriteFile(filepath.Join(recipeDir, "deviation.md"), []byte("stub"), 0644)
+	// interrogate.json — a verified run with nothing open (prove stage P3).
+	_ = state.SaveInterrogateRun(root, recipeID, &state.InterrogateRun{PreparedAt: "t", VerifiedAt: "t"})
 	return root, recipeID
 }
 

@@ -1078,4 +1078,6 @@ var ChangelogActions = map[string]bool{
 	"mutate":          true,
 	// written by the PostToolUse hook when a session creates or claims a recipe
 	"claim": true,
+	// prove stage P3: written by `bts interrogate prepare|verify|waive`
+	"interrogate": true,
 }
