@@ -77,6 +77,12 @@ var HardGates = []HardGate{
 		Summary:     "IMPLEMENT DONE blocked unless test-results.json exists with status=pass",
 	},
 	{
+		ID:          "tests_cover_current_code",
+		Rule:        "bts-implement-protocol.md §Execution Rules rule 4",
+		Enforcement: "internal/hook/stop.go:testsCoverCurrentCode (handleImplementDone, handleFixDone)",
+		Summary:     "IMPLEMENT and FIX DONE blocked when test-results.json records an impl_hash that the task files no longer match",
+	},
+	{
 		ID:          "sync_after_test",
 		Rule:        "bts-implement-protocol.md §Execution Rules rule 5",
 		Enforcement: "internal/hook/stop.go:handleImplementDone",

@@ -1,6 +1,6 @@
 # Design: verdicts that name what they judged
 
-Status: design proposal, nothing implemented.  Written 2026-11-04.  It covers two items from [`pstack-lessons.md`](pstack-lessons.md): "Tree hash" and "Falsifier for code-phase criticals".  Code facts below were mapped on branch `feat/architect-runners`.
+Status: A1 implemented on `feat/architect-runners`; B is a proposal.  Written 2026-11-04.  It covers two items from [`pstack-lessons.md`](pstack-lessons.md): "Tree hash" and "Falsifier for code-phase criticals".  Code facts below were mapped on branch `feat/architect-runners`.
 
 ## Where bts stands
 
@@ -14,10 +14,10 @@ Status: design proposal, nothing implemented.  Written 2026-11-04.  It covers tw
 
 ### Proposal
 
-1. **Implementation hash.**  A new `state.ImplHash(root, recipeID)`: sha256 over the sorted list of `path NUL ContentHash(file)` for every file a task anchor names (`create`, `modify`; a `delete` anchor contributes `path NUL absent`), plus the test files in `test-results.json`.  It reuses `ContentHash`, needs no git and no commit (some recipes run in repositories with no commits yet), and ignores churn outside the recipe, such as `.bts/local/`.
+1. **Implementation hash.**  `state.ImplHash` (`internal/state/impl_hash.go`): `ContentHash` over the sorted lines `path NUL content-hash` for every distinct file tasks.json names, with `absent` for a file that does not exist.  It needs no git and no commit (some recipes run in repositories with no commits yet), and ignores churn outside the recipe, such as `.bts/local/`.  Test files are left out: `bts test run` records the hash before the orchestrator fills in `test_files`, so a hash that included them would never match at the gate.
 2. **Recorded by Go, never by the model.**  `bts test run` writes `impl_hash` into `test-results.json`.  `bts recipe log --action review` computes it and stores it on that changelog entry, the same way `--doc` stores `doc_hash`.
 3. **Gate.**  `handleImplementDone` recomputes the hash after the existing checks.  If the test result's `impl_hash` differs, it blocks with "tests ran on different code: rerun `bts test run`".  A missing field (a recipe started before this change) passes, and `bts doctor` warns about it.  `handleFixDone` gets the same test check.
-4. **Override.**  Register the check in `gate_registry.go` as an overridable gate, like the other findings gates, so an operator can record a deliberate exception.
+4. **No override.**  Registered in `gate_registry.go` as `tests_cover_current_code`, not overridable.  The remedy is always to re-run the tests, which is cheap, so an override could only mean "skip testing this code".  Its sibling `test_after_implement` is not overridable either.
 
 ### The open choice: does the review need the same stamp?
 
@@ -28,7 +28,7 @@ Status: design proposal, nothing implemented.  Written 2026-11-04.  It covers tw
 
 ### Tests
 
-The hash is order-independent and CRLF-insensitive, it changes when an anchored file or a test file changes, and a deleted file differs from an empty one.  The gate blocks on a mismatch, passes on a missing field, and honours an override.
+The hash is order-independent and CRLF-insensitive, it changes when a task file changes and not when an unrelated file does, and a deleted file differs from an empty one.  The gate blocks on a mismatch, offers no override, and passes on a missing field, which doctor reports.
 
 ## B. A code-review critical needs a run
 

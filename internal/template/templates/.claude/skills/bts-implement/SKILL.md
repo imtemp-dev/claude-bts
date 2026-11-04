@@ -423,7 +423,9 @@ After review.md is generated, read it and fix all [ACTIONABLE] critical
 and major items:
 - For each [ACTIONABLE] finding, modify the code to address it
 - After all fixes, re-run tests: use Skill("bts-test") with arguments: {id}
-  (bts-test skips generation, re-runs tests, updates test-results.json)
+  (bts-test skips generation, re-runs tests, updates test-results.json).
+  This is not optional: the stop hook refuses a pass recorded before the
+  last code change (`impl_hash`).
 - If tests fail → fix and let bts-test retry loop handle it
 - Do NOT re-run /review after fixes (review runs once per implementation)
 

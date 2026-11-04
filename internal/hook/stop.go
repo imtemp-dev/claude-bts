@@ -624,6 +624,9 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 			testResults.Failed, testResults.Total, implCmd,
 		)), nil
 	}
+	if out := testsCoverCurrentCode(root, recipe.ID, testResults); out != nil {
+		return out, nil
+	}
 
 	// 3. Check that review has run (review.md exists)
 	reviewPath := filepath.Join(state.RecipeDir(root, recipe.ID), "review.md")
@@ -705,6 +708,42 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 	return roadmapHint(root, "Implementation complete."), nil
 }
 
+// testsCoverCurrentCode is gate tests_cover_current_code: a passing test
+// run counts only for the code it ran on. `bts test run` records
+// state.ImplHash over the task files; when the files hash differently now,
+// the pass describes code that no longer exists — typically a fix made
+// after the review, which re-running the tests is cheap enough to cover.
+//
+// It is deliberately not overridable: the remedy is always to re-run the
+// tests, so an override could only ever mean "skip testing this code".
+//
+// A result with no recorded hash (written before the field existed, or a
+// recipe with no tasks.json) passes; `bts doctor` reports it. A hash that
+// cannot be computed now passes with a warning, so a read failure degrades
+// coverage instead of manufacturing a block.
+func testsCoverCurrentCode(root, recipeID string, tr *state.TestResults) *HookOutput {
+	if tr.ImplHash == "" {
+		return nil
+	}
+	current, err := state.RecipeImplHash(root, recipeID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr,
+			"[bts] warning: code fingerprint check failed: %v (proceeding without check)\n", err)
+		return nil
+	}
+	if current == tr.ImplHash {
+		return nil
+	}
+	rerun := fmt.Sprintf("bts test run %s --cmd \"<test command>\"", recipeID)
+	if tr.Command != "" {
+		rerun = fmt.Sprintf("bts test run %s --cmd %q", recipeID, tr.Command)
+	}
+	return blockOutput(fmt.Sprintf(
+		"Tests passed on different code: a file named in tasks.json changed after "+
+			"the last `bts test run` recorded its result. Re-run the tests on the code "+
+			"as it is now:\n  %s\nthen complete again.", rerun))
+}
+
 // handleFixDone validates fix recipe completion via fix-spec.md + test-results.json.
 func (h *stopHandler) handleFixDone(root string, recipe *state.RecipeState) (*HookOutput, error) {
 	// 1. Check fix-spec.md exists
@@ -737,6 +776,9 @@ func (h *stopHandler) handleFixDone(root string, recipe *state.RecipeState) (*Ho
 			"Tests not passing: %d failed out of %d. Fix and re-test.",
 			testResults.Failed, testResults.Total,
 		)), nil
+	}
+	if out := testsCoverCurrentCode(root, recipe.ID, testResults); out != nil {
+		return out, nil
 	}
 
 	// All clear — mark as complete

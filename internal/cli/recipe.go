@@ -234,6 +234,15 @@ var recipeLogCmd = &cobra.Command{
 			if gaps > 0 {
 				entry.Result = fmt.Sprintf("%d gaps found", gaps)
 			}
+			// A review names the code it judged, so it can later be
+			// matched to the test run on the same code.
+			if action == "review" {
+				h, herr := state.RecipeImplHash(root, recipeID)
+				if herr != nil {
+					fmt.Fprintf(os.Stderr, "[bts] warning: code fingerprint: %v (this review records none)\n", herr)
+				}
+				entry.ImplHash = h
+			}
 
 			if err := state.AppendChangelog(root, recipeID, entry); err != nil {
 				return fmt.Errorf("changelog: %w", err)

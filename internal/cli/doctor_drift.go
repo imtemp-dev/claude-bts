@@ -80,6 +80,19 @@ func checkTestResultsProvenance(root, recipeID string) []doctorIssue {
 		return nil // no test results yet — nothing to check
 	}
 	if tr.RecordedBy == "bts" {
+		// A machine-written result with no code fingerprint predates
+		// impl_hash. The tests_cover_current_code gate lets it through, so
+		// say so here rather than nowhere.
+		if tr.ImplHash == "" {
+			if current, err := state.RecipeImplHash(root, recipeID); err == nil && current != "" {
+				return []doctorIssue{{
+					level:   "warning",
+					section: "tests",
+					message: "test-results.json records no code fingerprint (impl_hash), so the completion gate cannot tell whether the tests ran on the current code",
+					fix:     fmt.Sprintf("re-run `bts test run %s --cmd \"<test command>\"` to record one", recipeID),
+				}}
+			}
+		}
 		return nil
 	}
 	return []doctorIssue{{

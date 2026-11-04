@@ -123,6 +123,23 @@ func TestCheckTestResultsProvenance(t *testing.T) {
 	if issues := checkTestResultsProvenance(root, id); len(issues) != 0 {
 		t.Fatalf("bts-recorded must be clean: %v", issues)
 	}
+
+	// Machine-recorded but no impl_hash while tasks name files → the
+	// completion gate is blind to code changes, so doctor says so.
+	writeProjectFile(t, root, "src/a.go", "package a\n")
+	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/tasks.json",
+		`{"recipe_id":"`+id+`","tasks":[{"id":"t-001","file":"src/a.go","action":"create","status":"done"}]}`)
+	issues = checkTestResultsProvenance(root, id)
+	if len(issues) != 1 || !strings.Contains(issues[0].message, "impl_hash") {
+		t.Fatalf("expected missing-fingerprint warning, got %v", issues)
+	}
+
+	// With a fingerprint → clean.
+	writeProjectFile(t, root, ".bts/specs/recipes/"+id+"/test-results.json",
+		`{"recipe_id":"`+id+`","status":"pass","recorded_by":"bts","exit_code":0,"impl_hash":"sha256:x"}`)
+	if issues := checkTestResultsProvenance(root, id); len(issues) != 0 {
+		t.Fatalf("a fingerprinted result must be clean: %v", issues)
+	}
 }
 
 func TestCheckDirtyVerifiedDocsDoctor(t *testing.T) {

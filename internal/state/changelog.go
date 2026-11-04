@@ -20,6 +20,10 @@ type ChangelogEntry struct {
 	Resolves     []string `json:"resolves,omitempty"`     // gaps resolved
 	Result       string   `json:"result,omitempty"`       // summary (e.g., "0 critical, 2 major")
 	Level        float64  `json:"level,omitempty"`        // level after this action
+	// ImplHash is ImplHash over the task files when the action ran. Set
+	// on test and review entries, so a review can be matched to the code
+	// it judged and the tests that ran on it.
+	ImplHash string `json:"impl_hash,omitempty"`
 }
 
 // ChangelogPath returns the changelog file path for a recipe.

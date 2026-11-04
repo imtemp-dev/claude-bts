@@ -367,6 +367,7 @@ Located at `.bts/specs/recipes/{id}/test-results.json`:
   "exit_code": 0,
   "command": "npx jest",
   "recorded_by": "bts",
+  "impl_hash": "sha256:4f1c…",
   "total": 15,
   "passed": 15,
   "failed": 0,
@@ -383,10 +384,16 @@ Located at `.bts/specs/recipes/{id}/test-results.json`:
 The core is written by `bts test run {id} --cmd "..."` — it executes
 the command and derives `status` from the ACTUAL exit code
 (`recorded_by: "bts"`). `status`, `exit_code`, `iterations`,
-`recorded_by` MUST NOT be hand-edited; supplement only the descriptive
-fields (counts, test_files, scenario_coverage, failures, notes) after
-the final run. `bts doctor` flags hand-recorded files (missing
-`recorded_by`).
+`recorded_by`, `impl_hash` MUST NOT be hand-edited; supplement only the
+descriptive fields (counts, test_files, scenario_coverage, failures,
+notes) after the final run. `bts doctor` flags hand-recorded files
+(missing `recorded_by`).
+
+`impl_hash` fingerprints the files tasks.json names, as they were when
+the command ran. The implement and fix stop gates refuse a pass whose
+`impl_hash` no longer matches those files: any code change after the
+run, a review fix included, needs another `bts test run`. Test files
+are not part of it, because `test_files` is filled in after the run.
 
 Required fields:
 - `recipe_id` (string): recipe this test run belongs to

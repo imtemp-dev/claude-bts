@@ -152,6 +152,14 @@ func executeTestRun(root, recipeID, cmdStr, framework string, timeoutSec int, co
 		iterations = prev.Iterations + 1
 	}
 
+	// Fingerprint the code this run judged. A failure to hash degrades to
+	// no fingerprint (the gate then lets the result through) rather than
+	// failing a test run that already happened.
+	implHash, herr := state.RecipeImplHash(root, recipeID)
+	if herr != nil {
+		fmt.Fprintf(os.Stderr, "[bts] warning: code fingerprint: %v (this run records none)\n", herr)
+	}
+
 	tr := &state.TestResults{
 		RecipeID:   recipeID,
 		RunAt:      time.Now().UTC().Format(time.RFC3339),
@@ -165,14 +173,16 @@ func executeTestRun(root, recipeID, cmdStr, framework string, timeoutSec int, co
 		ExitCode:   exitCode,
 		Command:    cmdStr,
 		RecordedBy: "bts",
+		ImplHash:   implHash,
 	}
 	if err := state.SaveTestResults(root, recipeID, tr); err != nil {
 		return nil, fmt.Errorf("save test results: %w", err)
 	}
 
 	if err := state.AppendChangelog(root, recipeID, &state.ChangelogEntry{
-		Action: "test",
-		Result: fmt.Sprintf("exit=%d status=%s iteration=%d", exitCode, status, iterations),
+		Action:   "test",
+		Result:   fmt.Sprintf("exit=%d status=%s iteration=%d", exitCode, status, iterations),
+		ImplHash: implHash,
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: append changelog: %v\n", err)
 	}

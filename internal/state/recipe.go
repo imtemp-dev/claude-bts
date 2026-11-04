@@ -97,6 +97,12 @@ type TestResults struct {
 	ExitCode   int    `json:"exit_code"`
 	Command    string `json:"command,omitempty"`
 	RecordedBy string `json:"recorded_by,omitempty"`
+	// ImplHash is ImplHash over the task files at the moment `bts test
+	// run` ran. The implement and fix stop gates refuse a pass recorded
+	// on code that has changed since. Empty on files written before the
+	// field existed and on recipes with no tasks.json; the gates let
+	// those through and `bts doctor` reports them.
+	ImplHash string `json:"impl_hash,omitempty"`
 }
 
 // SaveTestResults persists test-results.json for a recipe.

@@ -397,6 +397,82 @@ func setupImplementRoot(t *testing.T) (root, recipeID string) {
 	return root, recipeID
 }
 
+// recordImplHash stamps the fixture's test result with the hash of its
+// task files as they are now, as `bts test run` would.
+func recordImplHash(t *testing.T, root, recipeID string) {
+	t.Helper()
+	h, err := state.RecipeImplHash(root, recipeID)
+	if err != nil || h == "" {
+		t.Fatalf("fixture hash: %q, %v", h, err)
+	}
+	tr, err := state.LoadTestResults(root, recipeID)
+	if err != nil {
+		t.Fatalf("load test results: %v", err)
+	}
+	tr.ImplHash = h
+	if err := state.SaveTestResults(root, recipeID, tr); err != nil {
+		t.Fatalf("save test results: %v", err)
+	}
+}
+
+func writeTaskFile(t *testing.T, root, content string) {
+	t.Helper()
+	p := filepath.Join(root, "src", "a.go")
+	_ = os.MkdirAll(filepath.Dir(p), 0755)
+	if err := os.WriteFile(p, []byte(content), 0644); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+}
+
+// tests_cover_current_code: a pass recorded on code that changed since
+// must not complete the recipe.
+func TestStopImplementDone_BlocksWhenCodeChangedAfterTests(t *testing.T) {
+	root, recipeID := setupImplementRoot(t)
+	writeTaskFile(t, root, "package a\n")
+	recordImplHash(t, root, recipeID)
+	writeTaskFile(t, root, "package a\n\nfunc FixedAfterReview() {}\n")
+
+	out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>IMPLEMENT DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision != "block" || !strings.Contains(out.Reason, "Tests passed on different code") {
+		t.Fatalf("expected tests_cover_current_code block, got decision=%q reason=%q", out.Decision, out.Reason)
+	}
+	if strings.Contains(out.Reason, "override grant") {
+		t.Errorf("the remedy is re-running tests; the gate must not offer an override: %q", out.Reason)
+	}
+}
+
+func TestStopImplementDone_PassesWhenCodeUnchangedSinceTests(t *testing.T) {
+	root, recipeID := setupImplementRoot(t)
+	writeTaskFile(t, root, "package a\n")
+	recordImplHash(t, root, recipeID)
+
+	out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>IMPLEMENT DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision == "block" {
+		t.Fatalf("unchanged code must pass: %s", out.Reason)
+	}
+}
+
+// A result written before impl_hash existed carries none; the gate lets
+// it through (doctor reports it) instead of blocking every legacy recipe.
+func TestStopImplementDone_LegacyResultWithoutHashPasses(t *testing.T) {
+	root, _ := setupImplementRoot(t)
+	writeTaskFile(t, root, "package a\n\nfunc ChangedAnyway() {}\n")
+
+	out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>IMPLEMENT DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision == "block" {
+		t.Fatalf("a result with no impl_hash must not block: %s", out.Reason)
+	}
+}
+
 // Phase 8 gate: missing resolution marker on a Known Uncertainty entry
 // must block IMPLEMENT DONE and cite the offending U-NNN id.
 func TestStopImplementDone_BlocksOnUnresolvedUncertainty(t *testing.T) {

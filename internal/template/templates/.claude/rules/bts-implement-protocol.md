@@ -18,7 +18,7 @@ See `bts-recipe-protocol.md § Mandatory Rules` for the taxonomy
 1. **Spec before code**: Never start implementing without a finalized `final.md`. Run `/recipe blueprint` first. {gate: hard}
 2. **Build verification is mandatory**: After writing each file, run the build. Do not proceed to the next file if the build fails. {gate: hard}
 3. **Fix code, not spec**: During implementation, fix the code to match the spec. Only update the spec during the `/sync` step. {gate: practice}
-4. **Test after implement**: Always run `/test` after implementation completes. {gate: hard}
+4. **Test after implement**: Always run `/test` after implementation completes, on the code being completed: `bts test run` records `impl_hash`, and the stop hook refuses a pass the task files no longer match. {gate: hard}
 5. **Sync after test**: Always run `/sync` after tests pass to keep spec and code aligned. {gate: hard}
 6. **Status tracking**: Update `tasks.json` after every file completion. Run `/status` at the end. {gate: hard}
 7. **Phase transitions**: Update recipe.json phase at each lifecycle step via `bts recipe log {id} --phase <phase>`. {gate: hard}

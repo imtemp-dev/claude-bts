@@ -46,6 +46,37 @@ func TestExecuteTestRun_PassFromExitZero(t *testing.T) {
 	}
 }
 
+// The run records which code it judged, so the stop gate can refuse a
+// pass once a task file changes. The hash is taken by the CLI, never
+// transcribed by the orchestrator.
+func TestExecuteTestRun_RecordsImplHash(t *testing.T) {
+	root, id := newTestRunFixture(t)
+	if err := os.MkdirAll(filepath.Join(root, "src"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "a.go"), []byte("package a\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.WriteJSON(filepath.Join(state.RecipeDir(root, id), "tasks.json"), &state.TaskState{
+		RecipeID: id,
+		Tasks:    []state.Task{{ID: "t-001", File: "src/a.go", Action: "create", Status: "done"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	tr, err := executeTestRun(root, id, "exit 0", "go", 30, testCounts{}, io.Discard)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	want, _ := state.RecipeImplHash(root, id)
+	if want == "" || tr.ImplHash != want {
+		t.Fatalf("impl_hash = %q, want %q", tr.ImplHash, want)
+	}
+	if loaded, err := state.LoadTestResults(root, id); err != nil || loaded.ImplHash != want {
+		t.Fatalf("persisted impl_hash wrong: %+v err=%v", loaded, err)
+	}
+}
+
 func TestExecuteTestRun_FailFromNonzeroExit(t *testing.T) {
 	root, id := newTestRunFixture(t)
 	tr, err := executeTestRun(root, id, "echo boom >&2; exit 3", "", 30, testCounts{}, io.Discard)
