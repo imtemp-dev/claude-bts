@@ -90,6 +90,7 @@ bts 将工作分为**规范**和**实现**两个阶段。每种配方类型有�
 | 配方 | 用途 | 输出 |
 |------|------|------|
 | `/bts-recipe-blueprint` | 完整实现规范 | Level 3 规范 → 代码 → 测试 |
+| `/bts-recipe-build` | 代码先行的实现（以可编译的骨架和失败的测试验证） | 构建规范 + 骨架 → 代码 → 测试 |
 | `/bts-recipe-design` | 设计功能 | Level 2 设计文档 |
 | `/bts-recipe-analyze` | 理解现有系统 | Level 1 分析文档 |
 | `/bts-recipe-fix` | 已知漏洞修复 | 修复规范 → 代码 → 测试 |
@@ -99,15 +100,15 @@ bts 将工作分为**规范**和**实现**两个阶段。每种配方类型有�
 
 ## 功能
 
-### 25 个技能
+### 28 个技能
 
 | 类别 | 技能 |
 |------|------|
-| **配方** | blueprint, design, analyze, fix, debug |
+| **配方** | blueprint, build, design, analyze, fix, debug |
 | **发现** | discover, wireframe |
 | **验证** | verify, cross-check, audit, assess, sync-check, defend |
 | **分析** | research, simulate, debate, adjudicate |
-| **实现** | implement, test, sync, status |
+| **实现** | skeleton, falsify, implement, test, sync, status |
 | **质量** | review (basic / security / performance / patterns) |
 
 ### 生命周期钩子
@@ -214,7 +215,7 @@ flowchart LR
 
 **Go 二进制文件** — 单一静态链接二进制文件（约 5ms 启动）。管理状态、验证完成、部署模板、追踪指标。除 Go 之外零运行时依赖。
 
-**Claude Code 集成** — 25 个技能提供配方协议，8 个生命周期钩子处理会话事件（恢复、完成门控、指标），7 个规则强制约束。验证始终在独立的代理上下文中运行。
+**Claude Code 集成** — 28 个技能提供配方协议，8 个生命周期钩子处理会话事件（恢复、完成门控、指标），7 个规则强制约束。验证始终在独立的代理上下文中运行。
 
 ## 模型与配置
 

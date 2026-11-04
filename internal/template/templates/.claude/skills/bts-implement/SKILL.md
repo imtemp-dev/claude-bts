@@ -499,6 +499,9 @@ When all steps are done:
 - Verify deviation.md exists (sync has run)
 - If final.md has a "## Known Uncertainties" section, confirm every entry
   carries a `Resolved:`, `Diverged:`, or `Still-unknown:` line from Step 5.7.
+- A build recipe (`bts recipe status` shows type `build`): run
+  `bts falsifier check {id}`. Every invariant's test must pass on the code
+  as it is now; the stop hook checks it (`falsifiers_green`).
 - Output `<bts>IMPLEMENT DONE</bts>`
 - Tell the user (plaintext, after the marker):
   > **Implementation complete** — `{id}` done.

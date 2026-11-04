@@ -411,6 +411,34 @@ Optional fields:
 - `failures` (array of objects): failure details `{"test": "name", "error": "message"}`
 - `notes` (array of strings): observations for sync step
 
+## build-evidence.json
+
+A build recipe's runs, at `.bts/specs/recipes/{id}/build-evidence.json`.
+Only the CLI writes it; never edit it by hand.
+
+```json
+{
+  "skeleton": {"command": "mypy relay", "exit_code": 0, "code_hash": "sha256:…", "run_at": "…"},
+  "falsifiers": {
+    "INV-001": {
+      "command": "pytest -q tests/test_relay.py -k inv_001",
+      "red":   {"command": "…", "exit_code": 1, "code_hash": "sha256:…", "run_at": "…"},
+      "green": {"command": "…", "exit_code": 0, "code_hash": "sha256:…", "run_at": "…"}
+    }
+  }
+}
+```
+
+- `bts check build {id} --cmd "<typecheck>"` writes `skeleton`.
+- `bts falsifier run {id} --inv INV-NNN --cmd "<test>"` writes a falsifier
+  and its `red` run, and refuses a test that passes on the skeleton.
+- `bts falsifier check {id}` reruns every falsifier and writes `green`;
+  with `--red` it writes `red` again after the skeleton changed.
+- `code_hash` is the recipe's code files when the command ran (tasks.json's
+  files, or the wireframe's File Structure rows before tasks.json exists).
+  The gates `skeleton_builds`, `falsifiers_red` and `falsifiers_green`
+  count a run only while the files still hash the same.
+
 ## deviation.md
 
 Located at `.bts/specs/recipes/{id}/deviation.md`. Markdown format:

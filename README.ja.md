@@ -90,6 +90,7 @@ btsは作業を**仕様**と**実装**の2フェーズに分けます。各レ�
 | レシピ | 用途 | 出力 |
 |--------|------|------|
 | `/bts-recipe-blueprint` | 完全な実装仕様 | Level 3 仕様 → コード → テスト |
+| `/bts-recipe-build` | コード先行の実装（コンパイルするスケルトンと失敗するテストで検証） | ビルド仕様 + スケルトン → コード → テスト |
 | `/bts-recipe-design` | 機能設計 | Level 2 設計ドキュメント |
 | `/bts-recipe-analyze` | 既存システムの理解 | Level 1 分析ドキュメント |
 | `/bts-recipe-fix` | 既知のバグ修正 | 修正仕様 → コード → テスト |
@@ -99,15 +100,15 @@ btsは作業を**仕様**と**実装**の2フェーズに分けます。各レ�
 
 ## 機能
 
-### 25スキル
+### 28スキル
 
 | カテゴリ | スキル |
 |----------|--------|
-| **レシピ** | blueprint, design, analyze, fix, debug |
+| **レシピ** | blueprint, build, design, analyze, fix, debug |
 | **発見** | discover, wireframe |
 | **検証** | verify, cross-check, audit, assess, sync-check, defend |
 | **分析** | research, simulate, debate, adjudicate |
-| **実装** | implement, test, sync, status |
+| **実装** | skeleton, falsify, implement, test, sync, status |
 | **品質** | review (basic / security / performance / patterns) |
 
 ### ライフサイクルフック
@@ -214,7 +215,7 @@ flowchart LR
 
 **Goバイナリ** — 単一の静的リンクバイナリ（約5ms起動）。状態管理、完了検証、テンプレートデプロイ、メトリクス追跡。Go以外のランタイム依存はゼロです。
 
-**Claude Code統合** — 25スキルがレシピプロトコルを、8ライフサイクルフックがセッションイベント（再開、完了ゲート、メトリクス）を、7ルールが制約を処理します。検証は常に独立したエージェントコンテキストで実行されます。
+**Claude Code統合** — 28スキルがレシピプロトコルを、8ライフサイクルフックがセッションイベント（再開、完了ゲート、メトリクス）を、7ルールが制約を処理します。検証は常に独立したエージェントコンテキストで実行されます。
 
 ## モデルと設定
 

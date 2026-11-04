@@ -119,6 +119,7 @@ The fork gates (verify, audit, simulate, defend) run on their agent file's model
 | Recipe | Lifecycle | Output |
 |--------|-----------|--------|
 | `/bts-recipe-blueprint` | discover → scope → wireframe → adaptive loop → implement → test → review → sync | Level 3 spec → code → tests |
+| `/bts-recipe-build` | discover → scope → domain → architect → wireframe → skeleton → falsify → one review → implement until the falsifiers pass | build spec + skeleton → code → tests |
 | `/bts-recipe-fix` | diagnose → fix-spec → implement → test | Fix spec → code → tests |
 | `/bts-recipe-debug` | 6-perspective analysis → cross-reference → fix-spec → implement → test | Root cause → fix |
 | `/bts-recipe-design` | research → draft ←→ verify → finalize | Level 2 design doc |
@@ -145,7 +146,7 @@ bts version                 Show versions
 
 **Go binary** — single statically-linked binary (~5ms startup), zero runtime dependencies. Manages state, validates completion, deploys templates, tracks metrics.
 
-**Claude Code integration** — 25 skills, 8 lifecycle hooks, 7 rules. Verification always runs in separate agent contexts.
+**Claude Code integration** — 28 skills, 8 lifecycle hooks, 7 rules. Verification always runs in separate agent contexts.
 
 **File structure:**
 
