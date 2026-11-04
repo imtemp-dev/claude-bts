@@ -173,3 +173,38 @@ func TestCheckInterrogateClean_NoRunOrUnverified(t *testing.T) {
 		t.Fatalf("got %q", reason)
 	}
 }
+
+// The code-hash file set lists the recipe's tests too (tasks.json names
+// them). A repro that adds a case to an existing test file is a repro, not
+// a change to the code under test (trial log #26).
+func TestInterrogateVerify_ARepoTestFileIsNotCodeUnderTest(t *testing.T) {
+	root, id := newBuildFixture(t)
+	dir := state.RecipeDir(root, id)
+	_ = os.WriteFile(filepath.Join(dir, "wireframe.md"), []byte("## File Structure\n\n| # | File | Action | Depends On | Responsibility |\n"+
+		"|---|---|---|---|---|\n| 1 | `src/relay.py` | create | — | the relay |\n| 2 | `tests/test_relay.py` | create | — | its tests |\n"), 0644)
+	_ = os.WriteFile(filepath.Join(root, "src", "relay.py"), []byte(buggyCode), 0644)
+	_ = os.MkdirAll(filepath.Join(root, "tests"), 0755)
+	_ = os.WriteFile(filepath.Join(root, "tests", "test_relay.py"), []byte("# existing tests\n"), 0644)
+	run, err := executeInterrogatePrepare(root, id, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		for _, a := range run.Adversaries {
+			_ = os.RemoveAll(a.Copy)
+		}
+	})
+	a1 := run.Adversaries[0]
+	_ = os.WriteFile(filepath.Join(a1.Copy, "tests", "test_relay.py"), []byte("# existing tests\n"+reproScript), 0644)
+	writeReport(t, root, id, a1, []map[string]any{
+		{"title": "allow(0) is true", "command": "sh tests/test_relay.py", "repro_files": []string{"tests/test_relay.py"}},
+	})
+	writeReport(t, root, id, run.Adversaries[1], nil)
+	verified, err := executeInterrogateVerify(root, id, 30, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f := verified.Findings[0]; f.Status != state.InterrogateReproduced {
+		t.Fatalf("a repro added to an existing test file must be rerun, got %s (%s)", f.Status, f.DropReason)
+	}
+}

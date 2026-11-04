@@ -66,9 +66,13 @@ var interrogatePrepareCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("[bts] interrogate prepared for %s. Scope (the recipe's code files):\n", args[0])
+		fmt.Printf("[bts] interrogate prepared for %s. Scope (the recipe's code files; tests marked):\n", args[0])
 		for _, f := range engine.CodeFiles(root, args[0]) {
-			fmt.Printf("  %s\n", f)
+			if isTestPath(f) {
+				fmt.Printf("  %s (test)\n", f)
+			} else {
+				fmt.Printf("  %s\n", f)
+			}
 		}
 		fmt.Println("[bts] seats:")
 		for _, a := range run.Adversaries {
@@ -192,9 +196,13 @@ func executeInterrogateVerify(root, recipeID string, timeoutSec int, sink io.Wri
 		return nil, fmt.Errorf("already verified at %s; after fixes run `bts interrogate verify %s --recheck`", run.VerifiedAt, recipeID)
 	}
 	recipeDir := state.RecipeDir(root, recipeID)
+	// The code under test: the recipe's code files without its tests, which
+	// tasks.json lists too. A repro may add a case to a test file.
 	code := map[string]bool{}
 	for _, f := range engine.CodeFiles(root, recipeID) {
-		code[f] = true
+		if !isTestPath(f) {
+			code[f] = true
+		}
 	}
 	var reports []*adversaryReport
 	for _, a := range run.Adversaries {
