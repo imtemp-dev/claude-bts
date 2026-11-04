@@ -48,9 +48,12 @@ For each row whose action is `create` or `modify`:
 Each public symbol gets one line of doc comment: its contract, and the
 invariant it owns (`Owns INV-003.`).
 
-No logic, no private helpers, no tests here. Every symbol traces to a row
-and to an entity or invariant; anything that does not is speculative and
-stays out (the architect's YAGNI check applies here too).
+No logic, no private helpers, no test cases here. A row for test support
+(a fake at a boundary, a fixture loader) is written like any other row:
+its public surface, with bodies that fail loudly; the falsify step fills
+what the tests need. Every symbol traces to a row and to an entity or
+invariant; anything that does not is speculative and stays out (the
+architect's YAGNI check applies here too).
 
 ## Usage
 
@@ -78,13 +81,10 @@ bts check build {id} --cmd "<command>"
 ```
 
 Fix the skeleton until it passes. Never narrow the command (excluding
-files, loosening the checker) to make it pass.
-
-## Log
-
-```bash
-bts recipe log {id} --action skeleton --output wireframe.md --result "N files, build passes"
-```
+files, loosening the checker) to make it pass. `bts check build` records
+the run in the changelog itself; log nothing else for this step (an
+`--output` on `bts recipe log` would retype that document in the
+manifest).
 
 The signatures decided here bind implementation. Changing one later is a
 deviation that sync records, and the falsifiers that call it must be
