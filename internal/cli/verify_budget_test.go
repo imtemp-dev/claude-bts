@@ -335,3 +335,23 @@ func runRecipeStatus(t *testing.T, root string) string {
 	}
 	return sb.String()
 }
+
+// The build recipe reviews final.md once with a verify-only round; the
+// blueprint note that such a round "cannot count toward completion" is
+// wrong there (its gate, build_review_clean, counts exactly that round).
+func TestRecipeLog_BuildRecipeIsNotToldItsReviewCannotCount(t *testing.T) {
+	root := newRecipeFixture(t, "r-b08", "verify", 0, 0, nil)
+	rs, err := state.LoadRecipeState(root, "r-b08")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs.Type = "build"
+	if err := state.SaveRecipeState(root, rs); err != nil {
+		t.Fatal(err)
+	}
+	out := runRecipeLog(t, root, "r-b08", "--iteration", "1", "--critical", "0",
+		"--doc", "final.md", "--scope", "full", "--dimension", "verify")
+	if strings.Contains(out, "cannot count toward completion") {
+		t.Errorf("a build recipe's review round must not get the blueprint note, got: %s", out)
+	}
+}

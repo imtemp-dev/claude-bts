@@ -673,7 +673,14 @@ var recipeLogCmd = &cobra.Command{
 			// A note, not a refusal: a single-dimension delta re-check is
 			// a legitimate use, and blocking it would remove a cheap way
 			// to look at one thing.
-			if len(dims) > 0 && !entry.HasAllDimensions() {
+			//
+			// Not for a build recipe: its one review of final.md is a
+			// verify round, and its gate (build_review_clean) counts it.
+			isBuild := false
+			if rs, err := state.LoadRecipeState(root, recipeID); err == nil && rs.Type == "build" {
+				isBuild = true
+			}
+			if len(dims) > 0 && !entry.HasAllDimensions() && !isBuild {
 				qualifying := 0
 				for i := range scopedHistory {
 					if scopedHistory[i].HasAllDimensions() && scopedHistory[i].FullPass {
