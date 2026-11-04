@@ -29,12 +29,6 @@ var HardGates = []HardGate{
 		Summary:     "Validator flags changelog gaps; log subcommand is the only way to append canonical entries",
 	},
 	{
-		ID:          "simulate_at_least_once",
-		Rule:        "bts-recipe-protocol.md §Mandatory Rules rule 5",
-		Enforcement: "internal/hook/stop.go:handleSpecDone (blueprint: changelog must contain a simulate action) + internal/cli/recipe.go:checkPhasePreConditions(review) warn",
-		Summary:     "Block <bts>DONE</bts> for blueprint recipes whose changelog has no simulate action",
-	},
-	{
 		ID:          "adjudicate_every_debate",
 		Rule:        "bts-recipe-protocol.md §Mandatory Rules rule 7",
 		Enforcement: "internal/engine/validator.go:validateDebates + internal/cli/doctor_drift.go:checkOrphanedProjectDebates",
@@ -242,7 +236,7 @@ var HardGates = []HardGate{
 		ID:          "all_dimensions_before_final",
 		Rule:        "bts-verification-protocol.md §Completion Evidence",
 		Enforcement: "internal/engine/completion_evidence.go:qualifies + internal/cli/recipe.go:recipeLogCmd",
-		Summary:     "A clean triple counts toward completion only when the round ran verify, audit and simulate; a clean result from one instrument is not evidence the others agree",
+		Summary:     "A clean triple counts toward completion only when the round ran verify and audit; a clean result from one instrument is not evidence the others agree",
 	},
 	{
 		ID:          "replicated_clean_pass",
@@ -330,7 +324,6 @@ var overridableGates = map[string]bool{
 	"replicated_clean_pass":          true,
 	"revision_recorded_before_final": true,
 	"deferred_minors_declared":       true,
-	"simulate_at_least_once":         true,
 	// falsifier_assigned is a judgement about the document, exactly like
 	// its sibling at stop.go step 2c. Leaving it out made it the only
 	// DONE-blocking gate with no escape hatch: overrideFooter returns ""
@@ -368,9 +361,8 @@ func GateExcusesFindings(gate string) bool { return findingGates[gate] }
 
 // recipeScopedGates are the overridable gates that are not about any one
 // document, so `override grant` cannot ask for --doc.
-var recipeScopedGates = map[string]bool{
-	"simulate_at_least_once": true,
-}
+// simulate_at_least_once was the only one; it went with simulation itself.
+var recipeScopedGates = map[string]bool{}
 
 // GateIsDocumentScoped reports whether an override of gate must name the
 // document it applies to. Everything about a verify round is

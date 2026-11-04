@@ -212,7 +212,7 @@ var recipeLogCmd = &cobra.Command{
 						"entry or a phase change, and a verify round is neither — the counts "+
 						"would be accepted and dropped.\n"+
 						"Record the round on its own:\n"+
-						"  bts recipe log %s --doc <document> --dimension verify,audit,simulate "+
+						"  bts recipe log %s --doc <document> --dimension verify,audit "+
 						"--scope full --from-verification <verification.md>\n"+
 						"then log the action or phase separately if you still need one",
 					strings.Join(stray, ", "), recipeID)
@@ -693,7 +693,7 @@ var recipeLogCmd = &cobra.Command{
 				fmt.Fprintf(os.Stderr,
 					"[bts] note: this round declared %d of %d dimensions (%s). It cannot count toward "+
 						"completion, and verify.max_rounds counts it the same as a full one — %d round(s) "+
-						"recorded on %s, %d of them qualifying. Run verify, audit and simulate in one "+
+						"recorded on %s, %d of them qualifying. Run verify and audit in one "+
 						"batch and record them as a single round.\n",
 					len(dims), len(state.VerifyDimensions), strings.Join(dims, "+"),
 					verdict.Rounds, label, qualifying)
@@ -841,9 +841,9 @@ func init() {
 	// backtick-quoted word as the value placeholder name.
 	recipeLogCmd.Flags().String("doc", "", "Path of the verified document — scopes the verify state and findings ledger to it, and snapshots the revision for the next verify-focus diff")
 	recipeLogCmd.Flags().String("scope", "full", "Verification scope of this round: full (whole document) or delta (changed sections + reference closure). Only a full pass may satisfy the completion gate.")
-	recipeLogCmd.Flags().StringSlice("dimension", nil, "Semantic pass(es) that produced this round's counts: verify, audit, simulate. Repeatable or comma-separated. Rounds are only compared against rounds of the same dimensions+scope, and completion needs all three.")
+	recipeLogCmd.Flags().StringSlice("dimension", nil, "Semantic pass(es) that produced this round's counts: verify, audit (simulate is a legacy name, accepted and ignored). Repeatable or comma-separated. Rounds are only compared against rounds of the same dimensions+scope, and completion needs all three.")
 	// Changelog flags
-	recipeLogCmd.Flags().String("action", "", "Action type (research, improve, verify, debate, simulate, audit, assess, implement, test, sync, status)")
+	recipeLogCmd.Flags().String("action", "", "Action type (research, improve, verify, debate, audit, assess, implement, test, sync, status)")
 	recipeLogCmd.Flags().String("output", "", "Output file path")
 	recipeLogCmd.Flags().String("based-on", "", "Dependency document path")
 	recipeLogCmd.Flags().String("doc-type", "", "Manifest document type (overrides auto-detection from action)")

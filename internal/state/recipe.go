@@ -421,7 +421,24 @@ func (e *VerifyLogEntry) EffectiveResolvable() int {
 // bts-verification-protocol.md § Core Principle; the deterministic
 // `bts verify` pass is not one of them because it is not a sample — it
 // returns the same answer on the same bytes every time.
-var VerifyDimensions = []string{"verify", "audit", "simulate"}
+var VerifyDimensions = []string{"verify", "audit"}
+
+// LegacyDimensions are instruments bts no longer runs. Simulation was
+// removed (docs/research/prove-stage-design.md, decision 6): a recorded
+// "simulate" stays readable in old logs and is ignored wherever a
+// dimension set is compared, so old recipes neither stall nor change class.
+var LegacyDimensions = []string{"simulate"}
+
+// currentDimensions drops legacy names from a recorded dimension list.
+func currentDimensions(dims []string) []string {
+	var out []string
+	for _, d := range dims {
+		if !slices.Contains(LegacyDimensions, d) {
+			out = append(out, d)
+		}
+	}
+	return out
+}
 
 // NormalizeDimensions lowercases, de-duplicates and sorts a dimension
 // list into its canonical form, rejecting names outside
@@ -432,7 +449,7 @@ func NormalizeDimensions(dims []string) ([]string, error) {
 	var out []string
 	for _, d := range dims {
 		d = strings.ToLower(strings.TrimSpace(d))
-		if d == "" {
+		if d == "" || slices.Contains(LegacyDimensions, d) {
 			continue
 		}
 		if !slices.Contains(VerifyDimensions, d) {
@@ -459,8 +476,8 @@ func NormalizeDimensions(dims []string) ([]string, error) {
 // in it is comparable with every other, bucketed only by scope.
 func (e *VerifyLogEntry) StrengthClass() string {
 	dims := "?"
-	if len(e.Dimensions) > 0 {
-		dims = strings.Join(e.Dimensions, "+")
+	if cur := currentDimensions(e.Dimensions); len(cur) > 0 {
+		dims = strings.Join(cur, "+")
 	}
 	scope := "delta"
 	if e.FullPass {

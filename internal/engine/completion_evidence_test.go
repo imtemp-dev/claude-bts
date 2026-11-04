@@ -8,7 +8,7 @@ import (
 	"github.com/imtemp-dev/claude-bts/internal/state"
 )
 
-var allDims = []string{"audit", "simulate", "verify"}
+var allDims = []string{"audit", "verify"}
 
 // cleanRound builds a qualifying round. Each one carries its own
 // verification hash, which is the normal case: a round writes a

@@ -169,9 +169,9 @@ func TestStopSpecDone_BlocksWhenDeferredMinorsUndeclared(t *testing.T) {
 	}
 }
 
-// Sprint 10 gate 2c: blueprint recipes with no simulate action in the
-// changelog must block (rule 5 is now machine-enforced).
-func TestStopSpecDone_BlocksWithoutSimulate(t *testing.T) {
+// Simulation is removed from bts (prove stage decision 6): a blueprint's
+// DONE no longer asks for a simulate action. The rest of its gates hold.
+func TestStopSpecDone_NeedsNoSimulate(t *testing.T) {
 	root, recipeID := setupStopRoot(t)
 	writeVerifyLog(t, root, recipeID, []state.VerifyLogEntry{
 		{Iteration: 1, Critical: 0, Major: 0, Status: "converged"},
@@ -181,16 +181,12 @@ func TestStopSpecDone_BlocksWithoutSimulate(t *testing.T) {
 		state.ChangelogEntry{Action: "sync-check", Result: "pass"},
 	)
 
-	h := NewStopHandler()
-	out, err := h.Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
+	out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>DONE</bts>"})
 	if err != nil {
 		t.Fatalf("handle: %v", err)
 	}
-	if out.Decision != "block" {
-		t.Fatalf("expected block, got decision=%q", out.Decision)
-	}
-	if !strings.Contains(out.Reason, "simulate") {
-		t.Errorf("reason should cite simulate, got %q", out.Reason)
+	if strings.Contains(out.Reason, "simulate") {
+		t.Fatalf("DONE must not ask for a simulate action any more, got %q", out.Reason)
 	}
 }
 

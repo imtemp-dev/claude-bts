@@ -86,8 +86,7 @@ func TestNoProgressStreak_AlternatingClassesStillAccumulate(t *testing.T) {
 // measurement had repeated.
 func TestNoProgressStreak_RotatingInstrumentsDelayButDoNotPreventTheBudget(t *testing.T) {
 	classes := [][]string{
-		{"verify"}, {"audit"}, {"simulate"},
-		{"audit", "verify"}, {"simulate", "verify"}, {"audit", "simulate"},
+		{"verify"}, {"audit"},
 		allDims,
 	}
 	// One pass through every class, then a second pass. Every round is
@@ -163,7 +162,7 @@ func TestConvergenceMessageNamesTheMeasurementClass(t *testing.T) {
 		t.Fatalf("want exceeded, got %+v", v)
 	}
 	msg := v.Message("draft.md")
-	if !strings.Contains(msg, "audit+simulate+verify/full") {
+	if !strings.Contains(msg, "audit+verify/full") {
 		t.Errorf("message should name the measurement class, got:\n%s", msg)
 	}
 	if !strings.Contains(msg, "same measurement") {
@@ -172,23 +171,24 @@ func TestConvergenceMessageNamesTheMeasurementClass(t *testing.T) {
 }
 
 func TestStrengthClassAndDimensionNormalisation(t *testing.T) {
+	// "simulate" is a legacy instrument: accepted and dropped.
 	dims, err := state.NormalizeDimensions([]string{"Simulate", "verify", "verify"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(dims, ",") != "simulate,verify" {
-		t.Errorf("normalised = %v, want [simulate verify]", dims)
+	if strings.Join(dims, ",") != "verify" {
+		t.Errorf("normalised = %v, want [verify]", dims)
 	}
 	if _, err := state.NormalizeDimensions([]string{"lint"}); err == nil {
 		t.Error("an unknown dimension must be rejected rather than silently recorded")
 	}
 
 	e := state.VerifyLogEntry{Dimensions: dims, FullPass: true}
-	if got := e.StrengthClass(); got != "simulate+verify/full" {
+	if got := e.StrengthClass(); got != "verify/full" {
 		t.Errorf("class = %q", got)
 	}
 	if e.HasAllDimensions() {
-		t.Error("simulate+verify is not all dimensions")
+		t.Error("verify alone is not all dimensions")
 	}
 	legacy := state.VerifyLogEntry{FullPass: false}
 	if got := legacy.StrengthClass(); got != "?/delta" {

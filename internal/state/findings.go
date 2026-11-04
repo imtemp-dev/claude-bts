@@ -448,7 +448,7 @@ func roundCovers(round *VerifyLogEntry, st *FindingState) bool {
 	if !round.FullPass {
 		return false
 	}
-	for _, d := range st.Dimensions {
+	for _, d := range currentDimensions(st.Dimensions) {
 		if !slices.Contains(round.Dimensions, d) {
 			return false
 		}

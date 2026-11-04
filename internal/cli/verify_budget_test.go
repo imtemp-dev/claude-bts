@@ -214,7 +214,7 @@ func TestRecipeLog_PartialDimensionRoundReportsTheCost(t *testing.T) {
 	out := runRecipeLog(t, root, "r-b07", "--iteration", "1", "--critical", "1",
 		"--doc", "draft.md", "--scope", "full", "--dimension", "verify")
 
-	if !strings.Contains(out, "1 of 3 dimensions") {
+	if !strings.Contains(out, "1 of 2 dimensions") {
 		t.Errorf("the note must name how much of the measurement ran, got: %s", out)
 	}
 	if !strings.Contains(out, "0 of them qualifying") {
@@ -224,8 +224,8 @@ func TestRecipeLog_PartialDimensionRoundReportsTheCost(t *testing.T) {
 	// A round that ran everything is not nagged.
 	quiet := runRecipeLog(t, root, "r-b07", "--iteration", "2", "--critical", "1",
 		"--doc", "draft.md", "--scope", "full",
-		"--dimension", "verify,audit,simulate")
-	if strings.Contains(quiet, "of 3 dimensions") {
+		"--dimension", "verify,audit")
+	if strings.Contains(quiet, "of 2 dimensions") {
 		t.Errorf("a complete round must not be nagged, got: %s", quiet)
 	}
 }

@@ -506,39 +506,27 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		}
 	}
 
-	// 2d. Blueprint-only changelog gates: simulate-at-least-once (rule 5)
-	// and sync-check-after-last-modification (rule 8). Both rules are
-	// tagged {gate: hard} — before Sprint 10 neither was actually
-	// machine-enforced (sync-check never touched verify-log; simulate
-	// only produced a warn on the implement-side phase transition).
+	// 2d. Blueprint-only changelog gate: sync-check-after-last-modification
+	// (rule 8, {gate: hard}). The simulate-at-least-once gate (old rule 5)
+	// is gone with simulation itself (prove-stage-design.md, decision 6).
 	if recipe.Type == "blueprint" {
 		entries, cerr := state.ReadChangelog(root, recipe.ID)
 		if cerr != nil {
 			return blockOutput(fmt.Sprintf(
-				"Cannot read changelog.jsonl (%v). Rule 4 requires every action logged; the simulate and sync-check completion gates need the log.",
+				"Cannot read changelog.jsonl (%v). Rule 4 requires every action logged; the sync-check completion gate needs the log.",
 				cerr,
 			)), nil
 		}
-		simulated := false
 		lastModify := -1
 		lastSyncCheckPass := -1
 		for i, e := range entries {
 			switch e.Action {
-			case "simulate":
-				simulated = true
 			case "draft", "improve", "comment-apply":
 				lastModify = i
 			case "sync-check":
 				if strings.HasPrefix(e.Result, "pass") {
 					lastSyncCheckPass = i
 				}
-			}
-		}
-		if !simulated {
-			if out, blocked := gateBlock(root, recipe.ID, "simulate_at_least_once",
-				lastEntry.Doc, lastEntry.DocHash,
-				"No simulate action in changelog. Rule 5: run /bts-simulate (5+ scenarios) at least once before declaring Level 3, then /bts-sync-check, then re-emit DONE."); blocked {
-				return out, nil
 			}
 		}
 		if lastSyncCheckPass == -1 || lastSyncCheckPass < lastModify {
