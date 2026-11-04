@@ -85,6 +85,10 @@ echo '{"id":"impl-001","type":"blueprint","topic":"Auth","phase":"status","itera
 echo '{"recipe_id":"impl-001","started_at":"2026-03-18T00:00:00Z","updated_at":"2026-03-18T00:00:00Z","tasks":[{"id":"t-001","file":"src/auth.ts","action":"create","status":"done","description":"auth","depends_on":[],"retry_count":0,"last_error":""}]}' > .bts/specs/recipes/impl-001/tasks.json
 echo '{"recipe_id":"impl-001","run_at":"2026-03-18T00:00:00Z","framework":"jest","iterations":1,"status":"pass","total":5,"passed":5,"failed":0,"skipped":0}' > .bts/specs/recipes/impl-001/test-results.json
 echo "# Deviation Report" > .bts/specs/recipes/impl-001/deviation.md
+# Prove stage records: a verified interrogate run with nothing open, and no
+# user-facing surface to drive (gates interrogate_clean and app_proven).
+echo '{"adversaries":[],"prepared_at":"2026-03-18T00:00:00Z","verified_at":"2026-03-18T00:00:00Z"}' > .bts/specs/recipes/impl-001/interrogate.json
+echo '{"no_surface":"e2e fixture: nothing a user drives"}' > .bts/specs/recipes/impl-001/prove.json
 
 # 13. IMPLEMENT DONE — BLOCK (no review.md)
 RESULT=$(echo '{"session_id":"t","cwd":"'"$TEST_DIR"'","hook_event_name":"stop","content":"<bts>IMPLEMENT DONE</bts>"}' | $BTS hook stop 2>&1; echo "EXIT:$?")
@@ -106,6 +110,8 @@ echo "$RESULT" | grep -q "EXIT:2" && echo "✓ 15. FIX DONE blocks (no fix-spec.
 
 # 16. FIX DONE — ALLOW (add fix-spec.md)
 echo "# Fix Spec" > .bts/specs/recipes/fix-001/fix-spec.md
+echo '{"adversaries":[],"prepared_at":"2026-03-18T00:00:00Z","verified_at":"2026-03-18T00:00:00Z"}' > .bts/specs/recipes/fix-001/interrogate.json
+echo '{"no_surface":"e2e fixture: nothing a user drives"}' > .bts/specs/recipes/fix-001/prove.json
 RESULT=$(echo '{"session_id":"t","cwd":"'"$TEST_DIR"'","hook_event_name":"stop","content":"<bts>FIX DONE</bts>"}' | $BTS hook stop 2>&1; echo "EXIT:$?")
 echo "$RESULT" | grep -q "EXIT:0" && echo "✓ 16. FIX DONE allows (spec + tests pass)" || { echo "✗ 16. FIX DONE allow"; exit 1; }
 
@@ -152,6 +158,8 @@ echo '{"recipe_id":"rm-001","started_at":"2026-03-18T00:00:00Z","updated_at":"20
 echo '{"recipe_id":"rm-001","run_at":"2026-03-18T00:00:00Z","framework":"jest","iterations":1,"status":"pass","total":3,"passed":3,"failed":0,"skipped":0}' > .bts/specs/recipes/rm-001/test-results.json
 echo "# Code Review" > .bts/specs/recipes/rm-001/review.md
 echo "# Deviation Report" > .bts/specs/recipes/rm-001/deviation.md
+echo '{"adversaries":[],"prepared_at":"2026-03-18T00:00:00Z","verified_at":"2026-03-18T00:00:00Z"}' > .bts/specs/recipes/rm-001/interrogate.json
+echo '{"no_surface":"e2e fixture: nothing a user drives"}' > .bts/specs/recipes/rm-001/prove.json
 RESULT=$(echo '{"session_id":"t","cwd":"'"$TEST_DIR"'","hook_event_name":"stop","content":"<bts>IMPLEMENT DONE</bts>"}' | $BTS hook stop 2>&1; echo "EXIT:$?")
 echo "$RESULT" | grep -q "EXIT:0" && echo "$RESULT" | grep -q "Roadmap" && echo "✓ 23. IMPLEMENT DONE roadmap hint" || { echo "✗ 23. impl done roadmap"; exit 1; }
 
