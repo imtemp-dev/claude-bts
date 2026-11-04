@@ -1,6 +1,6 @@
 # Design: prove the change by running it
 
-Status: decided 2026-11-05 (six decisions below), nothing implemented; implementation starts after r-002's completion marker is accepted.  Direction decided by the operator on 2026-11-05: after implementation, take truth from runs, as pstack does, instead of from a reasoning walk over the code.  That means checking the real artifact, adversaries who must run what they find, a confidence level on every claim, and driving the app the way a user does.
+Status: built 2026-11-05 (six decisions below; slices 1-6 done), nothing implemented; implementation starts after r-002's completion marker is accepted.  Direction decided by the operator on 2026-11-05: after implementation, take truth from runs, as pstack does, instead of from a reasoning walk over the code.  That means checking the real artifact, adversaries who must run what they find, a confidence level on every claim, and driving the app the way a user does.
 
 Sources: pstack from `cursor/plugins` at `bb68f23` (2026-11-04), bts on `feat/code-first-recipe` at `d23a572`, and the AGEN-35 trial (`r-002-agen-35-slack-pr` in `slack-pr-relay`).
 
@@ -167,6 +167,8 @@ What each removed step did, and what takes its place:
 | Fix recipe Step 4 | three scenarios on the fix spec: the fix, a regression, a side effect | pstack's `tdd` and `blast-radius`: the reproduction becomes a test that fails before the fix, and the one fact the fix's safety rests on is shown by a run; the prove stage covers the rest after implementation |
 
 The `bts-simulate` skill and the `bts-simulator` agent retire.  Records from past recipes stay readable.
+
+Done 2026-11-05 (slices 5-6), along the map: verify and audit are the instruments (a recorded `simulate` is read and ignored); the `simulate_at_least_once` gate is gone; illegal cells are covered by tagged rows in final.md for every recipe type; validator checks 7c, 7d and 8, `bts sim-deviations`, `bts check test-coverage`, the simulation migrations, scenario stats and sync-check gaps are removed; deviation drivers gained `interrogate:` and `prove:`; `defend.finding_batch` replaces `simulate.finding_batch` (the old key is still read); `bts-implement` Step 5.3 is gone and its resume keys on the prove records; the blueprint loop is verify and audit; fix Step 4 reproduces first and Step 9 runs the prove stage, and FIX DONE checks interrogate_clean and app_proven; debug Step 5 runs the leading hypothesis; the skill and agent are retired (`bts update` removes them from projects).  The end-to-end script passes its 49 cases.
 
 The full map is [`simulation-removal-map.md`](simulation-removal-map.md): 12 gate or check rows, 29 non-test Go files, 25 template files, 29 Go test files and 10 consumers of simulation output.  It found two more simulate steps, both inside decision 6: the fix recipe's Step 9, a code simulate (`bts-recipe-fix/SKILL.md:319`), and the debug recipe's Step 5 (`bts-recipe-debug/SKILL.md:284`).
 
