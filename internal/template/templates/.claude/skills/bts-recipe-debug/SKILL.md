@@ -135,10 +135,10 @@ the perspectives — confirmation bias risk. Before committing to a draft
 based on #1, an independent agent challenges the ranking by reading the
 actual code.
 
-Configure the validator model via `agents.diagnosis_validator` (default:
-session model) and the rebuttal model via `agents.diagnosis_rebuttal`
-(default: session model) in settings.yaml. Both default to session model
-because code path tracing requires deeper reasoning than pattern-based checks.
+The validator and the rebuttal run on the session model, because code path
+tracing requires deeper reasoning than pattern-based checks. When
+settings.yaml sets `agents.diagnosis_validator` or `agents.diagnosis_rebuttal`,
+pass that value as the spawn's `model`.
 
 **Fallback**: If a validator or rebuttal agent fails (error, timeout), tag
 the top hypothesis as `[UNVALIDATED]` in perspectives.md and proceed to Step 4.

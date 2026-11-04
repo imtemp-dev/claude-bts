@@ -30,9 +30,10 @@ files from this fork — the orchestrator records the round.
 
 ## Settings
 
-Audit requires finding what's missing — it uses the main session model by default.
-If `agents.auditor` is explicitly set in `.bts/config/settings.yaml`, that
-model applies via the agent's frontmatter.
+Audit requires finding what's missing — it runs as the `auditor` agent, on
+that agent file's `model:` (none: the main session model). `settings.yaml`
+cannot change it: a fork takes the agent file as it is, and `bts update`
+rewrites agent files.
 
 ## Steps
 

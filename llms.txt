@@ -157,20 +157,20 @@ Core gates use session model for maximum quality. Pattern-based checks use sonne
 
 | Agent | Default | Setting |
 |-------|---------|---------|
-| verifier | session model | agents.verifier |
-| auditor | session model | agents.auditor |
-| simulator | session model | agents.simulator |
+| verifier | session model | none: fork, agent file |
+| auditor | session model | none: fork, agent file |
+| simulator | session model | none: fork, agent file |
 | reviewer_quality | session model | agents.reviewer_quality |
-| reviewer_security | sonnet | agents.reviewer_security |
+| reviewer_security | session model | agents.reviewer_security |
 | reviewer_arch | session model | agents.reviewer_arch |
 | reviewer_validator | sonnet | agents.reviewer_validator |
 | reviewer_rebuttal | session model | agents.reviewer_rebuttal |
-| defender | sonnet | agents.defender |
+| defender | sonnet | none: fork, agent file |
 | diagnosis_validator | session model | agents.diagnosis_validator |
 | diagnosis_rebuttal | session model | agents.diagnosis_rebuttal |
 | architect_runner | opus | agent file only (two run in parallel in /bts-architect) |
 
-Override in `.bts/config/settings.yaml`. Options: sonnet, opus, haiku.
+A setting in `.bts/config/settings.yaml` is advisory: the skill passes it as the spawn's `model`. Fork roles run on their agent file's `model:`, which settings cannot change (`bts update` rewrites agent files). Options: sonnet, opus, haiku.
 
 ## Completion Gates
 

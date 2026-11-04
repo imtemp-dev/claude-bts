@@ -155,20 +155,26 @@ vision:
   max_roadmap_items: 8           # [advisory] Beyond 8, the roadmap itself becomes hard to track
   min_roadmap_items: 3           # [advisory] Below 3, decomposition adds overhead without benefit
 
-# Agent models — options: sonnet, opus, haiku
-# Core gates (verify, audit, simulate, review-quality, review-security, review-arch) use session model by default.
-#   review-security is recall-bound: semantic flaws (authz bypass, state-dependent privilege
-#   escalation) missed by the initial sweep can never be rescued by the rebuttal step.
-# Deep reasoning (review-rebuttal, diagnosis-validator, diagnosis-rebuttal) uses session model — needs concrete scenario construction and code path tracing.
-# Pattern-based checks (review-validator, defender) default to sonnet via agent
-# frontmatter; cross-check and sync-check run on sonnet via their SKILL.md `model:` field.
-# verify/audit/simulate/defend forks run AS their agent (skill `agent:`), so the agent
-# file's `model:` is what these keys override.
+# Agent models — options: sonnet, opus, haiku.  [advisory]
+# These keys reach only the agents a skill spawns with the Agent tool: the
+# skill reads the key and passes it as the spawn's `model`, which takes
+# precedence over the agent file. No Go code reads or checks them.
+#   reviewer_quality, reviewer_security, reviewer_arch — session model by default.
+#     review-security is recall-bound: semantic flaws (authz bypass, state-dependent
+#     privilege escalation) missed by the initial sweep can never be rescued by the
+#     rebuttal step.
+#   reviewer_rebuttal, diagnosis_validator, diagnosis_rebuttal — session model:
+#     concrete scenario construction and code path tracing need it.
+#   reviewer_validator — sonnet via its agent file; pattern-based.
+#
+# Fork roles are NOT configurable here. verify, audit, simulate and defend run
+# AS their agent (skill `agent:`) on that agent file's `model:` — none means the
+# session model; defender is sonnet. A fork takes the agent file as it is and
+# `bts update` rewrites agent files, so earlier versions' verifier / auditor /
+# simulator / defender keys never did anything; `bts doctor` warns about an
+# active one. cross-check and sync-check run on sonnet via their SKILL.md
+# `model:` field; architect-runner runs on opus via its agent file.
 agents:
-  # verifier: sonnet
-  # auditor: sonnet
-  # simulator: sonnet
-  # defender: sonnet
   # reviewer_quality: sonnet
   # reviewer_security: sonnet
   # reviewer_arch: sonnet

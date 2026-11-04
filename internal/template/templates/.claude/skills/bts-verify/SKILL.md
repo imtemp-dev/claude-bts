@@ -34,9 +34,10 @@ records the round.
 
 ## Settings
 
-Verification is the core quality gate — it uses the main session model by default.
-If `agents.verifier` is explicitly set in `.bts/config/settings.yaml`, that
-model applies via the agent's frontmatter.
+Verification is the core quality gate — it runs as the `verifier` agent, on
+that agent file's `model:` (none: the main session model). `settings.yaml`
+cannot change it: a fork takes the agent file as it is, and `bts update`
+rewrites agent files.
 
 ## Steps
 

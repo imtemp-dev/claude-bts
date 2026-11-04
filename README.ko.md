@@ -222,16 +222,14 @@ bts는 두 계층의 AI 모델을 사용합니다:
 
 **메인 세션 모델** — Claude Code에서 실행 중인 모델(Opus, Sonnet 등)이 모든 주요 작업을 처리합니다: 스펙 작성, 코드 구현, 토론 진행, 라이프사이클 오케스트레이션.
 
-**전문가 에이전트** — 검증, 감사, 시뮬레이션, 리뷰는 **별도 에이전트 컨텍스트**(fork)에서 실행되어 메인 세션과 맹점을 공유하지 않습니다. 기본 Sonnet이며 `.bts/config/settings.yaml`에서 설정 가능:
+**전문가 에이전트** — 검증, 감사, 시뮬레이션, 리뷰는 **별도 에이전트 컨텍스트**에서 실행되어 메인 세션과 맹점을 공유하지 않습니다. 기본은 세션 모델입니다. skill이 Agent 도구로 띄우는 에이전트(리뷰, 진단)의 모델은 `.bts/config/settings.yaml`에서 지정할 수 있고, skill이 그 값을 spawn의 `model`로 넘깁니다. fork로 실행되는 검증·감사·시뮬레이션·방어(defend)는 agent 파일의 모델을 쓰며 settings로 바꿀 수 없습니다:
 
 ```yaml
 agents:
-  # verifier: sonnet         # 기본: 세션 모델
-  # auditor: sonnet          # 기본: 세션 모델
-  # simulator: sonnet        # 기본: 세션 모델
-  # reviewer_quality: sonnet # 기본: 세션 모델
-  reviewer_security: sonnet  # 패턴 기반, sonnet 충분
-  # reviewer_arch: sonnet    # 기본: 세션 모델
+  # reviewer_quality: sonnet   # 기본: 세션 모델
+  # reviewer_security: sonnet  # 기본: 세션 모델 (recall이 중요해 강한 모델 권장)
+  # reviewer_arch: sonnet      # 기본: 세션 모델
+  # reviewer_validator: opus   # 기본: sonnet
 ```
 
 옵션: `sonnet` (균형), `opus` (깊은 분석, 높은 비용), `haiku` (빠름, 미묘한 이슈 놓칠 수 있음). 주석 해제하면 override.

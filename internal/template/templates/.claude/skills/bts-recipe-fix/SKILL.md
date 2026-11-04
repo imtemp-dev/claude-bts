@@ -81,10 +81,10 @@ A wrong diagnosis wastes the entire downstream fix flow. Before committing to
 a fix spec, an independent agent challenges the root cause by reading the
 actual code and tracing execution paths.
 
-Configure the validator model via `agents.diagnosis_validator` (default:
-session model) and the rebuttal model via `agents.diagnosis_rebuttal`
-(default: session model) in settings.yaml. Both default to session model
-because code path tracing requires deeper reasoning than pattern-based checks.
+The validator and the rebuttal run on the session model, because code path
+tracing requires deeper reasoning than pattern-based checks. When
+settings.yaml sets `agents.diagnosis_validator` or `agents.diagnosis_rebuttal`,
+pass that value as the spawn's `model`.
 
 **Fallback**: If a validator or rebuttal agent fails (error, timeout), tag
 the diagnosis as `[UNVALIDATED]` in diagnosis.md and proceed to Step 3.

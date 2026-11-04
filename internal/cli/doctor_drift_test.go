@@ -48,6 +48,28 @@ agents:
 	}
 }
 
+func TestCheckConfigDrift_ActiveForkModelKeys(t *testing.T) {
+	root := t.TempDir()
+	writeProjectFile(t, root, ".bts/config/settings.yaml", `
+agents:
+  verifier: sonnet
+  # auditor: sonnet
+  defender: opus
+  reviewer_quality: sonnet
+`)
+	issues := checkConfigDrift(root)
+	if len(issues) != 1 {
+		t.Fatalf("expected one fork-key warning, got %v", issues)
+	}
+	msg := issues[0].message
+	if !strings.Contains(msg, "verifier, defender") || strings.Contains(msg, "auditor") || strings.Contains(msg, "reviewer_quality") {
+		t.Errorf("warning must name exactly the active fork keys, got %q", msg)
+	}
+	if issues[0].level != "warning" {
+		t.Errorf("must be warning, got %s", issues[0].level)
+	}
+}
+
 func TestCheckConfigDrift_McpWithoutKeyPassthrough(t *testing.T) {
 	root := t.TempDir()
 	writeProjectFile(t, root, ".mcp.json",

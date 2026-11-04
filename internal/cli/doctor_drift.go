@@ -20,6 +20,11 @@ import (
 // override inside the agents block (two-space indent per template).
 var activeReviewerSecurityRe = regexp.MustCompile(`(?m)^\s+reviewer_security\s*:\s*\S`)
 
+// activeForkModelRe matches an UNCOMMENTED model key for an agent that runs
+// as a skill fork (skill `agent:`). Those keys never did anything: the fork
+// runs on the agent file's `model:`, and `bts update` rewrites agent files.
+var activeForkModelRe = regexp.MustCompile(`(?m)^\s+(verifier|auditor|simulator|defender)\s*:\s*\S`)
+
 // checkConfigDrift inspects user-owned config files for stale defaults.
 // All findings are warnings — the user may have set them intentionally.
 func checkConfigDrift(root string) []doctorIssue {
@@ -33,6 +38,18 @@ func checkConfigDrift(root string) []doctorIssue {
 				section: "config",
 				message: "settings.yaml has an active `reviewer_security:` override — the default moved to the session model in v0.9.x (security review is recall-bound; sonnet misses semantic flaws the rebuttal can't rescue)",
 				fix:     "comment the line out to adopt the session-model default, or keep it if the override is intentional",
+			})
+		}
+		if matches := activeForkModelRe.FindAllSubmatch(data, -1); len(matches) > 0 {
+			names := make([]string, 0, len(matches))
+			for _, m := range matches {
+				names = append(names, string(m[1]))
+			}
+			issues = append(issues, doctorIssue{
+				level:   "warning",
+				section: "config",
+				message: fmt.Sprintf("settings.yaml sets a model for %s, which runs as a skill fork on its agent file's `model:` — the key has no effect", strings.Join(names, ", ")),
+				fix:     "delete the line; a fork's model is the agent file's `model:` (.claude/agents/bts-<name>.md), and bts update rewrites that file",
 			})
 		}
 	}

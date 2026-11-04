@@ -222,16 +222,14 @@ btsは2層のAIモデルを使用します：
 
 **メインセッションモデル** — Claude Codeで実行中のモデル（Opus、Sonnetなど）がすべての主要作業を処理します：仕様のドラフト、コード実装、ディベート進行、ライフサイクルのオーケストレーション。
 
-**スペシャリストエージェント** — 検証、監査、シミュレーション、レビューは**独立したエージェントコンテキスト**（fork）で実行され、メインセッションとブラインドスポットを共有しません。デフォルトはSonnetで、`.bts/config/settings.yaml`で設定可能：
+**スペシャリストエージェント** — 検証、監査、シミュレーション、レビューは**独立したエージェントコンテキスト**で実行され、メインセッションとブラインドスポットを共有しません。デフォルトはセッションモデルです。スキルがAgentツールで起動するエージェント（レビュー、診断）のモデルは`.bts/config/settings.yaml`で指定でき、スキルがその値をspawnの`model`として渡します。forkで実行される検証・監査・シミュレーション・防御（defend）はエージェントファイルのモデルを使い、settingsでは変更できません：
 
 ```yaml
 agents:
-  # verifier: sonnet         # デフォルト：セッションモデル
-  # auditor: sonnet          # デフォルト：セッションモデル
-  # simulator: sonnet        # デフォルト：セッションモデル
-  # reviewer_quality: sonnet # デフォルト：セッションモデル
-  reviewer_security: sonnet  # パターンベース、sonnetで十分
-  # reviewer_arch: sonnet    # デフォルト：セッションモデル
+  # reviewer_quality: sonnet   # デフォルト：セッションモデル
+  # reviewer_security: sonnet  # デフォルト：セッションモデル（再現率重視のため強いモデルを推奨）
+  # reviewer_arch: sonnet      # デフォルト：セッションモデル
+  # reviewer_validator: opus   # デフォルト：sonnet
 ```
 
 オプション：`sonnet`（バランス）、`opus`（深い分析、高コスト）、`haiku`（高速、微妙な問題を見逃す可能性）。コメント解除でオーバーライド。

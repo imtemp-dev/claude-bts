@@ -20,9 +20,10 @@ Quality, security, and architecture review require deep reasoning — all
 three use the main session model by default. Security is recall-bound:
 semantic flaws (authz bypass, state-dependent privilege escalation) that
 the initial sweep misses can never be rescued by the rebuttal step, so
-the sweep itself needs the strong model. Override any agent model via
-`.bts/config/settings.yaml`:
-`agents.reviewer_quality`, `agents.reviewer_security`, `agents.reviewer_arch`.
+the sweep itself needs the strong model. When `.bts/config/settings.yaml`
+sets `agents.reviewer_quality`, `agents.reviewer_security` or
+`agents.reviewer_arch`, pass that value as the spawn's `model`; the Agent
+tool's `model` takes precedence over the agent file. Unset, omit `model`.
 
 ## Step 1: Determine Review Mode
 
@@ -131,10 +132,11 @@ This is the raw input for adversarial validation. Do NOT assess practicality her
 ## Step 4.5: Adversarial Validation
 
 The review agents find problems (prosecution). Now the code gets a defense.
-Configure the validator model via `agents.reviewer_validator` (default: sonnet)
-and the rebuttal model via `agents.reviewer_rebuttal` (default: session model)
-in settings.yaml. Rebuttal uses the session model because constructing concrete
-failure scenarios requires deeper reasoning than pattern-based validation.
+The validator runs on sonnet (its agent file) and the rebuttal on the session
+model. When settings.yaml sets `agents.reviewer_validator` or
+`agents.reviewer_rebuttal`, pass that value as the spawn's `model`. Rebuttal
+uses the session model because constructing concrete failure scenarios
+requires deeper reasoning than pattern-based validation.
 
 **Fallback**: If a validator or rebuttal agent fails (error, timeout), skip the
 adversarial step and proceed to Step 5 with raw findings. Tag all findings as

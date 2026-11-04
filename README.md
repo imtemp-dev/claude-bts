@@ -102,16 +102,17 @@ Code is generated from a spec that has survived multiple rounds of independent v
 
 ## Models
 
-Core quality gates (verify, audit, simulate, review) use your **session model** in a **fork context** — a separate AI instance that doesn't share the conversation history. Pattern-based checks (cross-check, sync-check, security review, and the defend step that argues against a round's findings) use Sonnet.
+Core quality gates (verify, audit, simulate) use your **session model** in a **fork context** — a separate AI instance that doesn't share the conversation history — and so do the three review agents. Pattern-based checks (cross-check, sync-check, the review validator, and the defend step that argues against a round's findings) use Sonnet. The architect step's two runners use Opus.
 
-Override any agent model in `.bts/config/settings.yaml`:
+The model of an agent a skill spawns can be set in `.bts/config/settings.yaml`; the skill passes the value as the spawn's `model`:
 
 ```yaml
 agents:
-  # verifier: sonnet         # default: session model
-  # auditor: sonnet          # default: session model
-  reviewer_security: sonnet  # pattern-based
+  # reviewer_quality: sonnet    # default: session model
+  # reviewer_validator: opus    # default: sonnet
 ```
+
+The fork gates (verify, audit, simulate, defend) run on their agent file's model, which settings cannot change.
 
 ## Recipes
 

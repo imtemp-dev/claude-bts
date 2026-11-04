@@ -222,16 +222,14 @@ bts 使用两层 AI 模型：
 
 **主会话模型** — 你在 Claude Code 中运行的模型（Opus、Sonnet 等）处理所有主要工作：起草规范、实现代码、进行辩论、编排生命周期。
 
-**专家代理** — 验证、审计、模拟和审查在**独立代理上下文**（fork）中运行，不与主会话共享盲点。默认为 Sonnet，可在 `.bts/config/settings.yaml` 中配置：
+**专家代理** — 验证、审计、模拟和审查在**独立代理上下文**中运行，不与主会话共享盲点。默认使用会话模型。技能通过 Agent 工具启动的代理（审查、诊断）可在 `.bts/config/settings.yaml` 中指定模型，技能会把该值作为 spawn 的 `model` 传入。以 fork 运行的验证、审计、模拟和防御（defend）使用代理文件中的模型，无法通过 settings 修改：
 
 ```yaml
 agents:
-  # verifier: sonnet         # 默认：会话模型
-  # auditor: sonnet          # 默认：会话模型
-  # simulator: sonnet        # 默认：会话模型
-  # reviewer_quality: sonnet # 默认：会话模型
-  reviewer_security: sonnet  # 基于模式，sonnet 足够
-  # reviewer_arch: sonnet    # 默认：会话模型
+  # reviewer_quality: sonnet   # 默认：会话模型
+  # reviewer_security: sonnet  # 默认：会话模型（召回率优先，建议使用强模型）
+  # reviewer_arch: sonnet      # 默认：会话模型
+  # reviewer_validator: opus   # 默认：sonnet
 ```
 
 选项：`sonnet`（均衡）、`opus`（更深分析，更高成本）、`haiku`（快速，可能遗漏细微问题）。取消注释即可覆盖。
