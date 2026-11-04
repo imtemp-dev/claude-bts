@@ -388,6 +388,10 @@ bts recipe decision hold {id} --key <stable-key> \
     [--option A --option B] [--doc draft.md] [--blocks <finding-id>]
 ```
 
+- Hold only what no run can answer. If running something would settle the
+  question (behaviour, timing, output, whether a library does X), it is not
+  the user's to decide: run it now, or record it as `[deferred]` with
+  `Opens-with:` (see "Opening the box").
 - The key is the decision's identity across rounds. Reuse it when the same
   question comes back; never reuse it for a different question (rejected).
 - While any decision is open the recipe is BLOCKED: the completion gate

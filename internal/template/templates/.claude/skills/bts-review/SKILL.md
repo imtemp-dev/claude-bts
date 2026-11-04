@@ -279,24 +279,40 @@ When invoked as `/bts-review --mid-run {window}`:
    - Any per-task `structure_findings` already recorded by Phase 10's
      MINI-CHECK — include them verbatim as pre-existing findings so the
      reviewer can corroborate or dismiss.
-3. Skip the security + quality agents (architecture only).
-4. Skip the adversarial rebuttal round — mid-run is cheap on purpose.
+3. Run `bts refactor-signal {id} --json`. It reads the recipe's own
+   history for a patch-of-patches pattern (`test_fix_cascade`,
+   `cross_module_churn`), deterministically. Each signal is a major
+   structural finding: put it in the report under `## Refactor signals`
+   and pass it to the reviewer with the pre-existing findings. The
+   validator in step 5 does not get to dismiss it — it is a count, not a
+   claim.
+4. Skip the security + quality agents (architecture only). Add two checks
+   to the architecture reviewer's prompt, for the patterns the detector
+   in step 3 cannot see:
+   - a type escape hatch added to make the planned shape work: `any` or
+     an equivalent, a cast, an optional field that is always set;
+   - a lock, mutex or serialised queue around state that `domain.md` or
+     `wireframe.md` says is not shared.
+   Each is major in one task, and critical when the same pattern shows
+   up in two or more tasks of the window: one is an edge case, a
+   repeated one says the decomposition is wrong.
+5. Skip the adversarial rebuttal round — mid-run is cheap on purpose.
    Adversarial validator round 1 (defense) still runs to dismiss
    obviously-wrong findings.
-5. Write the output to:
+6. Write the output to:
    `.bts/specs/recipes/{id}/reviews/midrun-{ISO8601}.md`
    NOT to `review.md`. The terminal review at /bts-implement Step 5.5
    still runs once at the end with all perspectives + full adversarial.
-6. Interpret findings severity for the implement loop:
+7. Interpret findings severity for the implement loop:
    - critical → flip the offending task(s) back to `pending` with
      `last_error: "midrun_critical: {short}"` so the loop retries with
      this context.
    - major   → append to the task's `structure_findings`. Surface in
      the final review later.
    - minor   → log only.
-7. Log the invocation:
+8. Log the invocation:
    ```bash
-   bts recipe log {id} --action midrun-review --output reviews/midrun-<ts>.md --result "N critical, N major, N dismissed"
+   bts recipe log {id} --action midrun-review --output reviews/midrun-<ts>.md --result "N critical, N major, N dismissed, N refactor signals"
    ```
 
 The mid-run review exists to catch structural drift before it spreads
