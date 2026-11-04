@@ -2,7 +2,7 @@
 name: bts-sync-check
 description: >
   Verify all documents within a recipe are in sync — debate conclusions
-  reflected, simulation gaps resolved, drafts verified.
+  reflected, drafts verified.
 user-invocable: true
 allowed-tools: Read Bash
 argument-hint: "[recipe-id]"
@@ -24,7 +24,6 @@ Verify all documents are consistent with each other.
 
 2. Additionally, read `draft.md` and manually check:
    - Do debate conclusions match what's written in the draft?
-   - Are simulation-found gaps actually addressed (not just mentioned)?
    - If code exists, does the spec match the code?
    - Are version references consistent (e.g., "see research v1" → does v1 exist?)
 
@@ -35,10 +34,6 @@ Verify all documents are consistent with each other.
    ### Debates
    - debate-001 "OAuth2 vs JWT": ✓ reflected in draft.md
    - debate-002 "Session store": ✗ NOT in draft.md
-
-   ### Simulations
-   - simulation-001 gap #1: ✓ resolved in draft.md
-   - simulation-001 gap #3: ✗ STILL OPEN
 
    ### Verifications
    - draft.md: ✗ NOT VERIFIED (verify was not run after last change)

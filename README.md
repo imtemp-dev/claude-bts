@@ -52,7 +52,7 @@ cd your-project && bts init . && claude
 Then inside Claude Code:
 
 ```bash
-/bts-recipe-blueprint add OAuth2 authentication    # spec → implement → test → simulate → review → sync → complete
+/bts-recipe-blueprint add OAuth2 authentication    # spec → implement → test → prove → review → sync → complete
 /bts-recipe-fix login bcrypt hash comparison fails  # diagnose → fix-spec → implement → test → complete
 /bts-recipe-debug session drops after 5 minutes     # 6-perspective → fix-spec → implement → test → complete
 ```
@@ -78,7 +78,6 @@ flowchart LR
     V -->|"issues"| A["Assess"]
     A -->|"improve"| D
     A -->|"debate"| DB["Debate"] --> D
-    A -->|"simulate"| SM["Simulate ↗"] --> D
     A -->|"audit"| AU["Audit ↗"] --> D
     V -->|"pass"| F["Finalize"]
 ```
@@ -95,14 +94,14 @@ The loop ends when verification passes with zero critical and zero major issues,
 flowchart LR
     F["Level 3 Spec"] --> IMP["Implement"] --> T["Test"]
     T -->|"fail"| IMP
-    T -->|"pass"| SIM["Simulate ↗"] --> RV["Review ↗"] --> SY["Sync"] --> DONE["Complete"]
+    T -->|"pass"| PR["Prove ↗"] --> RV["Review ↗"] --> SY["Sync"] --> DONE["Complete"]
 ```
 
-Code is generated from a spec that has survived multiple rounds of independent verification. Test failures loop back to implementation. Simulate and review run in fork context. Sync documents any spec-code deviations.
+Code is generated from a spec that has survived multiple rounds of independent verification. Test failures loop back to implementation. The prove stage then shows the change works by runs: each falsifier fails with its guard broken, adversaries must reproduce what they find, and user journeys are driven through the real app. Review runs in fork context. Sync documents any spec-code deviations.
 
 ## Models
 
-Core quality gates (verify, audit, simulate) use your **session model** in a **fork context** — a separate AI instance that doesn't share the conversation history — and so do the three review agents. Pattern-based checks (cross-check, sync-check, the review validator, and the defend step that argues against a round's findings) use Sonnet. The architect step's two runners use Opus.
+Core quality gates (verify, audit) use your **session model** in a **fork context** — a separate AI instance that doesn't share the conversation history — and so do the three review agents. Pattern-based checks (cross-check, sync-check, the review validator, and the defend step that argues against a round's findings) use Sonnet. The architect step's two runners use Opus.
 
 The model of an agent a skill spawns can be set in `.bts/config/settings.yaml`; the skill passes the value as the spawn's `model`:
 
@@ -112,7 +111,7 @@ agents:
   # reviewer_validator: opus    # default: sonnet
 ```
 
-The fork gates (verify, audit, simulate, defend) run on their agent file's model, which settings cannot change.
+The fork gates (verify, audit, defend) run on their agent file's model, which settings cannot change.
 
 ## Recipes
 
@@ -146,7 +145,7 @@ bts version                 Show versions
 
 **Go binary** — single statically-linked binary (~5ms startup), zero runtime dependencies. Manages state, validates completion, deploys templates, tracks metrics.
 
-**Claude Code integration** — 31 skills, 9 lifecycle hooks, 7 rules. Verification always runs in separate agent contexts.
+**Claude Code integration** — 30 skills, 9 lifecycle hooks, 7 rules. Verification always runs in separate agent contexts.
 
 **File structure:**
 

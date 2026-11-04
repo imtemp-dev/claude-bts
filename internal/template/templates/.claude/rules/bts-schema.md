@@ -38,11 +38,6 @@ After creating or modifying any JSON file, run `bts validate` to verify complian
       "type": "debate",
       "created_at": "2026-03-18T11:00:00Z",
       "based_on": ["draft.md"]
-    },
-    "simulations/001-scenarios.md": {
-      "type": "simulation",
-      "created_at": "2026-03-18T12:00:00Z",
-      "based_on": ["draft.md"]
     }
   }
 }
@@ -118,7 +113,6 @@ Each line is a JSON object:
 {"time":"2026-03-18T10:35:00Z","action":"verify","input":"draft.md","result":"2 critical, 3 major"}
 {"time":"2026-03-18T11:00:00Z","action":"improve","output":"draft.md","incorporates":["debates/001"]}
 {"time":"2026-03-18T11:30:00Z","action":"debate","output":"debates/001-auth","result":"concluded: OAuth2"}
-{"time":"2026-03-18T12:00:00Z","action":"simulate","output":"simulations/001.md","result":"4 gaps found"}
 {"time":"2026-03-18T12:30:00Z","action":"assess","result":"Level 2.5","level":2.5}
 ```
 

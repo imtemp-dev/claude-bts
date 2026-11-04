@@ -41,7 +41,7 @@ Recipes are structured workflows. Start one inside Claude Code:
 
 | Type | Purpose | Lifecycle |
 |------|---------|-----------|
-| blueprint | New feature (full spec → code) | discover → scope → research → wireframe → draft ←→ (assess/improve/verify+audit+simulate/defend/debate) → finalize → implement ←→ test → simulate(code) → review → sync → complete |
+| blueprint | New feature (full spec → code) | discover → scope → research → wireframe → draft ←→ (assess/improve/verify+audit/defend/debate) → finalize → implement ←→ test → prove (able to fail, interrogate, drive the app) → review → sync → complete |
 | fix | Known bug | diagnose → fix-spec → implement ←→ test → complete |
 | debug | Unknown bug | 6-perspective analysis → cross-reference → fix-spec → implement ←→ test → complete |
 | design | Feature design (spec only) | research → draft ←→ verify → finalize |
@@ -50,10 +50,10 @@ Recipes are structured workflows. Start one inside Claude Code:
 ## Phases
 
 Blueprint phases in order:
-`discovery` → `scoping` → `research` → `wireframe` → `draft` → `assess` → `improve` → `verify` → `debate` → `simulate` → `audit` → `finalize` → `implement` → `test` → `review` → `sync` → `status` → `complete`
+`discovery` → `scoping` → `research` → `wireframe` → `draft` → `assess` → `improve` → `verify` → `debate` → `audit` → `finalize` → `implement` → `test` → `review` → `sync` → `status` → `complete`
 
 Implementation phases (shared across blueprint, fix, debug):
-`implement` → `test` → `simulate`(code) → `review` → `sync` → `status` → `complete`
+`implement` → `test` → `review` → `sync` → `status` → `complete`
 
 ## File Structure
 
@@ -85,7 +85,6 @@ Implementation phases (shared across blueprint, fix, debug):
 │       ├── diagnosis.md        # fix/debug: root cause
 │       ├── fix-spec.md         # fix/debug: change spec
 │       ├── debates/{id}/       # recipe-level debates
-│       └── simulations/        # simulation results
 └── local/               # gitignored — runtime data
     ├── metrics.jsonl
     ├── work-state.json
@@ -140,7 +139,9 @@ Inside Claude Code, invoke skills with `/skill-name`:
 | /bts-sync-check | Document synchronization check (fork context) |
 | /bts-debate | Structured 3-expert debate |
 | /bts-adjudicate | Evaluate debate conclusions |
-| /bts-simulate | Scenario walkthrough — document or code (fork context, runs as the simulator agent) |
+| /bts-interrogate | Adversaries try to break the change; only findings a rerun proves survive |
+| /bts-prove | Drive the user journeys a change touches through the real app, with evidence |
+| /bts-verification-skill | Generate the project's verify-<app> skill (launch, drive, evidence, feature map) |
 | /bts-defend | Adversarial defense of a round's open critical/major findings on the ledger (fork context, sonnet) |
 | /bts-implement | Code generation from finalized spec |
 | /bts-test | Test generation and execution |
@@ -160,7 +161,7 @@ Core gates use session model for maximum quality. Pattern-based checks use sonne
 |-------|---------|---------|
 | verifier | session model | none: fork, agent file |
 | auditor | session model | none: fork, agent file |
-| simulator | session model | none: fork, agent file |
+| adversary | opus | agent file |
 | reviewer_quality | session model | agents.reviewer_quality |
 | reviewer_security | session model | agents.reviewer_security |
 | reviewer_arch | session model | agents.reviewer_arch |
@@ -183,13 +184,12 @@ Specs complete when ALL of these hold for the gated document:
 - every finding in the ledger is confirmed fixed or explicitly dismissed — an unrepeated finding is not a resolved one
 - every declared `INV-NNN` names a falsifier
 - remaining `MINOR [deferred]` items are declared under `## Known Uncertainties`
-- /bts-simulate has run at least once
 
 Output `<bts>DONE</bts>`. This sets phase to `finalize`.
 
-Implementation completes when: all tasks done, tests pass, review.md exists, deviation.md exists. Output `<bts>IMPLEMENT DONE</bts>`.
+Implementation completes when: all tasks done, tests pass, a verified interrogate run has nothing open, every planned journey is driven or deferred, review.md exists, deviation.md exists. Output `<bts>IMPLEMENT DONE</bts>`.
 
-Fix completes when: fix-spec.md exists, tests pass. Output `<bts>FIX DONE</bts>`.
+Fix completes when: fix-spec.md exists, tests pass, and the same prove-stage records are clean. Output `<bts>FIX DONE</bts>`.
 
 ## Key Rules
 
@@ -197,7 +197,7 @@ Fix completes when: fix-spec.md exists, tests pass. Output `<bts>FIX DONE</bts>`
 2. Verification runs in separate agent context (never self-review).
 3. Edit draft.md in place (Edit tool), don't rewrite.
 4. Log every action: `bts recipe log {id} --action [type] --output [path]`.
-5. Every verify round runs all three instruments — verify, audit and simulate —
+5. Every verify round runs both instruments — verify and audit —
    in one batch, recorded as ONE round with `bts recipe log --merge`. A round's
    counts are comparable only against rounds of the same measurement class, and a
    held-back instrument does not find less, it finds the same things later.

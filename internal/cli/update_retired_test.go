@@ -28,7 +28,7 @@ func TestRemoveRetiredTemplates_DeletesOnlyTheRetiredFiles(t *testing.T) {
 	for _, rel := range retiredTemplateFiles {
 		write(rel)
 	}
-	keep := ".claude/agents/bts-simulator.md"
+	keep := ".claude/agents/bts-defender.md" // a live agent: must not be touched
 	write(keep)
 
 	removeRetiredTemplates(root)

@@ -28,7 +28,7 @@ spawn agents.
 ## Where this sits in the loop
 
 ```
-verify + audit + simulate (one batch) → bts recipe log --merge (ONE round)
+verify + audit (one batch) → bts recipe log --merge (ONE round)
         → /bts-defend on the round's open critical/major → orchestrator dismisses accepted challenges
         → IMPROVE the findings that stand → verify again
 ```
@@ -51,7 +51,7 @@ argues in eight lines or fewer.
    ```
    The command prints the open **critical** and **major** findings for
    this pass — highest severity first, then most rounds open — capped at
-   `2 × simulate.finding_batch` (default 12), and names the rest as
+   `2 × defend.finding_batch` (default 12), and names the rest as
    `Undefended`. Defend exactly what it prints. Do not run
    `findings list` to widen the set: minor findings are not defended (a
    `[resolvable]` minor is cheaper to fix than to argue, a `[deferred]`

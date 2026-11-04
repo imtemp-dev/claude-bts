@@ -254,13 +254,12 @@ Division of labor — this fork has no Write tool and must not log:
    output to verification.md VERBATIM — the block must land
    byte-identical, no re-summarizing.
 3. The orchestrator records ONE round for the whole batch, joining the
-   audit and simulate blocks into verification.md mechanically:
+   audit block into verification.md mechanically:
    ```bash
    bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md \
      --merge .bts/specs/recipes/{id}/audit.md \
-     --merge .bts/specs/recipes/{id}/simulations/NNN-{category}.md \
      --doc {verified-doc-path} --scope {full|delta} \
-     --dimension verify --dimension audit --dimension simulate
+     --dimension verify --dimension audit
    ```
    The CLI parses and merges the blocks itself, so the three sources
    cannot drift and the batch is one entry — not three single-dimension

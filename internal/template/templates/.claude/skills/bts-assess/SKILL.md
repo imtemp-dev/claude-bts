@@ -50,7 +50,6 @@ judgement is genuinely required.
 
 2. Build situational awareness:
    - Read changelog.jsonl (last 5 entries) to know what was just done
-   - Check if simulation has run (look for "simulate" action in changelog)
    - Check if debates exist and whether conclusions are reflected in the draft
    - Read scope.md to keep boundaries in mind
    - Run `bts recipe findings list {id} --open` for the findings that
@@ -86,8 +85,9 @@ judgement is genuinely required.
    **If technical decision is uncertain** → recommend `/debate`
    "The choice between [A] and [B] needs expert discussion."
 
-   **If gaps may exist** → recommend `/simulate`
-   "Walk through [specific scenarios] to find blind spots."
+   **If behavioural gaps may exist** → do not simulate: name them as Known
+   Uncertainties with what a run would show (`Opens-with:`); the prove stage
+   settles them after implementation by runs.
 
    **If a level criterion is unmet** → recommend IMPROVE
    Name the criterion and what would satisfy it, from
@@ -134,7 +134,7 @@ judgement is genuinely required.
    in the draft's "## Known Uncertainties" section (per blueprint rule 3b).
    Recommendation: "Level 3 achieved with N runtime-deferred watch items.
    Run /bts-sync-check, then finalize. Deferred items will be validated
-   during /bts-implement's test/simulate loop."
+   during /bts-implement's test and prove stage."
 
 5. Output your assessment in TWO parts:
 
@@ -157,7 +157,7 @@ judgement is genuinely required.
    ```
 
    `action` MUST be one of (case-sensitive):
-   `RESEARCH`, `DEBATE`, `ADJUDICATE`, `SIMULATE`, `AUDIT`, `IMPROVE`,
+   `RESEARCH`, `DEBATE`, `ADJUDICATE`, `AUDIT`, `IMPROVE`,
    `VERIFY`, `SYNC_CHECK`, `FINALIZE`, `SCOPE_REOPEN`, `WIREFRAME`,
    `DOMAIN_MODEL`, `ARCHITECT`, `HALT_DECISION_REQUIRED`,
    `HALT_CONVERGENCE_FAILED`, `HALT_DEBATE_DEADLOCK`.
@@ -182,10 +182,9 @@ judgement is genuinely required.
 
 ## Measurement Timing
 
-**Priority rule**: every verify round runs all three instruments —
-verify, audit and simulate — in one concurrent batch. If the last round
-recorded fewer than three dimensions, recommend VERIFY and say which
-instrument was missing.
+**Priority rule**: every verify round runs both instruments — verify and
+audit — in one concurrent batch. If the last round recorded only one,
+recommend VERIFY and say which instrument was missing.
 
 Rationale: a round's counts are comparable only against rounds of the
 same measurement class, so a loop that changes class each round is a
@@ -207,5 +206,5 @@ buys nothing and costs half the budget.
   module" — that is elaboration, which no criterion asks for. Name the
   unmet criterion and the smallest structure that satisfies it: "INV-006
   has no falsifier — add a row naming the test that would go red."
-- Consider what has already been done (check .bts/specs/recipes/{id}/ for previous research, debates, simulations).
+- Consider what has already been done (check .bts/specs/recipes/{id}/ for previous research and debates).
 - If previous debates exist, check if their conclusions are reflected in the current draft.

@@ -146,6 +146,10 @@ var retiredTemplateFiles = []string{
 	// against the round's open findings on the ledger instead.
 	".claude/agents/bts-simulator-validator.md",
 	".claude/agents/bts-simulator-rebuttal.md",
+	// Simulation was removed (docs/research/prove-stage-design.md,
+	// decision 6); the prove stage proves behaviour by runs instead.
+	".claude/agents/bts-simulator.md",
+	".claude/skills/bts-simulate/SKILL.md",
 }
 
 // removeRetiredTemplates deletes retiredTemplateFiles from the project.

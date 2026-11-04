@@ -20,7 +20,7 @@ Never verify your own output in the same context.
 
 - **Internal consistency**: `bts verify` (deterministic) + `/bts-verify`, a fork that runs AS Agent(verifier)
 - **Completeness**: `/bts-audit`, a fork that runs as Agent(auditor)
-- **Scenario coverage**: `/bts-simulate`, a fork that runs as Agent(simulator)
+- **Behaviour**: not in the spec loop.  Simulation was removed; behaviour is proven after implementation by the prove stage (falsifiers able to fail, interrogate, driven journeys)
 - **Defense**: `/bts-defend`, a fork that runs as Agent(defender) over the ledger's open critical/major findings after the round is logged — the finder never adjudicates its own finding, and the orchestrator dismisses only on the defender's cited evidence
 - **Code references**: Checked by `bts verify` when code exists (deterministic, optional)
 
@@ -186,7 +186,7 @@ Every rule below follows from that.
 Each round declares what produced its counts:
 
 - `--scope full|delta` — how much of the document was read.
-- `--dimension verify|audit|simulate` — which instruments read it, one
+- `--dimension verify|audit` — which instruments read it (`simulate` is a legacy name, accepted and ignored), one
   flag per pass actually run. Declare only what ran; declaring nothing
   is not a claim that everything ran, and a round with no dimensions
   cannot count toward completion.
@@ -196,8 +196,8 @@ return three findings blocks in three files. Record them as one round:
 
 ```bash
 bts recipe log {id} --from-verification verification.md \
-    --merge audit.md --merge simulations/NNN.md \
-    --doc draft.md --scope full --dimension verify,audit,simulate
+    --merge audit.md \
+    --doc draft.md --scope full --dimension verify,audit
 ```
 
 The CLI joins the blocks into verification.md and parses the result. A
@@ -250,7 +250,7 @@ clean triple:
 1. **Clean** — critical=0, major=0, minor_resolvable=0.
 2. **Whole** — `--scope full`. A delta pass never re-read the untouched
    sections against the edits.
-3. **Every instrument** — all of `verify`, `audit`, `simulate`, declared
+3. **Every instrument** — both `verify` and `audit`, declared
    on the round. A clean result from one is not evidence the others
    agree, and recording no dimensions at all is not a declaration that
    every pass ran.

@@ -324,15 +324,7 @@ func loadSubStateForRecipe(root string, recipe *RecipeState) *SubStateInfo {
 			return &SubStateInfo{Kind: "debate", ID: ds.DebateID, Position: pos}
 		}
 	}
-	if recipe.Phase == "simulate" {
-		if ss, _ := LoadSimulateProgress(root, recipe.ID); ss != nil {
-			pos := fmt.Sprintf("scenario %d/%d", ss.ScenarioIdx, ss.TotalScenarios)
-			if ss.FoundGaps > 0 {
-				pos += fmt.Sprintf(", gaps: %d", ss.FoundGaps)
-			}
-			return &SubStateInfo{Kind: "simulate", ID: ss.SimulateID, Position: pos}
-		}
-	}
+
 	return nil
 }
 

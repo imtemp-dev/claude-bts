@@ -19,26 +19,23 @@ is written once (Write), then edited in place (Edit) for each improvement cycle.
 **Every document modification triggers /verify.** No exceptions.
 - After IMPROVE → /verify
 - After incorporating debate conclusion → /verify
-- After resolving simulation gaps → /verify
 
 ## Changelog
 Every action is logged to `changelog.jsonl`:
 ```
 bts recipe log {id} --action [type] --output [path]
 ```
-Actions: research, draft, improve, verify, debate, simulate, audit, assess, sync-check, finalize, implement, test, sync, status, adjudicate, review
+Actions: research, draft, improve, verify, debate, audit, assess, sync-check, finalize, implement, test, sync, status, adjudicate, review
 
 ## Manifest
 `manifest.json` tracks document relationships:
 - `based_on`: which documents this was derived from
 - `incorporates`: which debate conclusions are included
-- `resolves`: which simulation gaps are addressed
 - `verified_by`: verification document path (always `verification.md`)
 
 ## Sync Rule
 Before finalizing, run `/sync-check` to verify:
 - All debate conclusions reflected in current draft
-- All simulation gaps resolved
 - Current draft has been verified
 - Code (if exists) matches spec
 
@@ -92,7 +89,6 @@ draft.md                          # Single draft, Edit-based
 verification.md                   # Single verification, overwritten each cycle
 debates/001-topic-name/           # Debate by sequence + topic
   round-1.md, round-2.md, ...
-simulations/001-category.md       # Simulation by sequence + category
 final.md                          # Final verified document
 final.pre-sync.md                 # Original final.md before sync
 tasks.json                        # Implementation tasks

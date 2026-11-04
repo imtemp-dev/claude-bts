@@ -47,10 +47,9 @@ If test-results.json does not exist → start from Step 1
    - Error path scenarios
    - Edge cases
    - Integration scenarios
-3. **Read simulations/*.md (Phase 13)**: collect every scenario id
-   referenced in simulation files. These are the ids that tests MUST
-   link via `bts:scenario` tags. `bts check test-coverage` enforces
-   this after Step 2.5 runs.
+3. **Name the invariants**: list the `INV-NNN` ids from domain.md (and the
+   falsifier rows in final.md); each test that checks one names it in its
+   test name or docstring.
 4. Read existing test files in the project to understand:
    - Test framework (Jest, Go testing, pytest, etc.)
    - Test file naming convention
@@ -63,40 +62,6 @@ For each test scenario from final.md:
 2. Write test cases that verify the behavior described in the spec
 3. Use existing test utilities where available
 4. Include setup/teardown as needed
-5. **Tag every test with `bts:scenario {id}` (Phase 13 — required).**
-   Use the `Edit` tool to insert the comment directly above the test
-   declaration the moment you write the test — do not defer it. The
-   parser pairs a tag with the very next test declaration; other
-   placements (inside function body, after decorator, blank line
-   between) are silently ignored.
-
-   Worked example (Swift XCTest):
-   ```swift
-   // bts:scenario sim-002.s1
-   func testAzureNeuralPronunciation_HappyPath() throws {
-       let result = try AzureNeuralClient.pronounce("hello")
-       XCTAssertEqual(result.phonemes.count, 5)
-   }
-   ```
-   Go equivalent uses the same comment form, directly above
-   `func TestXxx(t *testing.T)`. Python / pytest uses `# bts:scenario`
-   directly above `def test_xxx():`. JS / TS uses `// bts:scenario`
-   directly above the `it(...)` or `test(...)` call.
-
-   Supported comment forms:
-     - `// bts:scenario sim-002.s1`
-     - `# bts:scenario sim-002.s1`
-     - `/* bts:scenario sim-002.s1 */`
-
-   The tag must cite a scenario id that exists in `simulations/*.md`.
-   Orphan ids and missing tags both surface as findings from
-   `bts validate` (critical for cross-boundary / illegal-cell
-   scenarios, major for single-axis). A test-results.json
-   scenario_coverage entry of `["legacy"]` means migration was
-   applied but no real test has claimed the scenario yet — the goal
-   of this step is to REPLACE every `legacy` placeholder with a real
-   test name.
-
 Test files go in the project's test directory (not in `.bts/`).
 
 ## Step 2.5: Test Coverage Check
@@ -147,12 +112,10 @@ If tests fail:
 - Classify each failure by setting its `category` field in
   `test-results.json → failures[]` (Phase 13 — validator enforces
   presence of `category` when `status=="fail"`):
-  - `implementation`: test tag matches a known scenario and the
-    scenario/test intent are consistent; the code fails. → fix impl.
-  - `test`: the test tags an orphan scenario id or asserts the wrong
-    thing. → fix test.
-  - `spec`: simulations/*.md scenarios contradict each other or the
-    spec is silent on the case. → note for sync.
+  - `implementation`: the test matches the spec's intent and the code
+    fails. → fix impl.
+  - `test`: the test asserts the wrong thing. → fix test.
+  - `spec`: final.md contradicts itself, or is silent on the case. → note for sync.
 
 **Oscillation check**: Compare current failing tests with previous iterations.
 If a test that was fixed in iteration N is failing again in iteration N+2 →
@@ -200,21 +163,13 @@ If max iterations reached with failures:
        "src/__tests__/auth.test.ts",
        "src/__tests__/session.test.ts"
      ],
-     "scenario_coverage": {
-       "sim-001.s1": ["src/__tests__/auth.test.ts::authenticates"],
-       "sim-001.s2": []
-     },
      "failures": [
        { "test": "x", "error": "...", "category": "implementation" }
      ],
      "notes": []
    }
    ```
-   `scenario_coverage` is optional today but recommended — it lets the
-   gate avoid re-parsing test files on each run. When present, the
-   keys match simulation scenario ids; values are the test identifiers
-   that cover them. `failures[].category` is REQUIRED whenever
-   `status=="fail"`.
+   `failures[].category` is REQUIRED whenever `status=="fail"`.
 
 2. Log to changelog and manifest:
    ```bash

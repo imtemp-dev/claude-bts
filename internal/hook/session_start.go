@@ -269,14 +269,9 @@ func buildHint(root string, recipe *state.RecipeState, ws *state.WorkState) stri
 		return ws.NextAction
 	}
 
-	// 2. Sub-state guidance (debate/simulate in progress)
-	if ws != nil && ws.SubState != nil {
-		switch ws.SubState.Kind {
-		case "debate":
-			return fmt.Sprintf("Resume debate (%s). Run /bts-debate to continue.", ws.SubState.Position)
-		case "simulate":
-			return fmt.Sprintf("Resume simulation (%s). Run /bts-simulate to continue.", ws.SubState.Position)
-		}
+	// 2. Sub-state guidance (a debate in progress)
+	if ws != nil && ws.SubState != nil && ws.SubState.Kind == "debate" {
+		return fmt.Sprintf("Resume debate (%s). Run /bts-debate to continue.", ws.SubState.Position)
 	}
 
 	// 3. Phase-specific hints (existing logic)
@@ -449,18 +444,16 @@ func nextStepHint(root string, recipe *state.RecipeState) string {
 			detail = "continue task implementation"
 		}
 	case "test":
-		simsDir := filepath.Join(recipeDir, "simulations")
-		simsExist := false
-		if entries, err := os.ReadDir(simsDir); err == nil && len(entries) > 0 {
-			simsExist = true
-		}
-		if exists("test-results.json") && simsExist && exists("review.md") {
+		switch {
+		case exists("test-results.json") && exists("prove.json") && exists("review.md"):
 			detail = "sync spec with implementation"
-		} else if exists("test-results.json") && simsExist {
+		case exists("test-results.json") && exists("prove.json"):
 			detail = "run code review"
-		} else if exists("test-results.json") {
-			detail = "run code simulation"
-		} else {
+		case exists("test-results.json") && exists("interrogate.json"):
+			detail = "drive the app (/bts-prove)"
+		case exists("test-results.json"):
+			detail = "run the prove stage: /bts-interrogate, then /bts-prove"
+		default:
 			detail = "run tests"
 		}
 	case "review":

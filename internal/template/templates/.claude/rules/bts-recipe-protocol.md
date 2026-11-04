@@ -17,7 +17,7 @@ bts maps to a standard development process:
 Requirements → Planning → Design → Implementation → Verification → Release
      ↓            ↓         ↓           ↓                ↓           ↓
   discover     vision    blueprint   implement        test+review   sync+status
-  (intent)    roadmap    (spec)      (code)          simulate      (complete)
+  (intent)    roadmap    (spec)      (code)          prove         (complete)
                scope
 ```
 
@@ -26,7 +26,7 @@ Requirements → Planning → Design → Implementation → Verification → Rel
 ```
 discovery → scoping → research → wireframe → draft ←→ adaptive loop → finalize
                                                           ↓
-                                              implement → test → simulate → review → sync → status → complete
+                                              implement → test → prove (able to fail, interrogate, drive the app) → review → sync → status → complete
 ```
 
 ### Recipe Types and Their Lifecycle
@@ -76,15 +76,15 @@ When context or time is tight, `hard` gates MUST be upheld first;
 
 1. **Check for resume first**: `bts recipe status` before starting any recipe. {gate: practice}
 2. **Edit draft.md in place**: Use Edit tool for incremental modifications, not full rewrites. {gate: practice}
-3. **VERIFY after every modification** of a spec document during the spec phases: no exceptions there.  This includes post-debate and post-simulation fixes.  After implementation starts, sync's edits to final.md record what the tested code does and get `bts validate`, not another review round. {gate: hard}
+3. **VERIFY after every modification** of a spec document during the spec phases: no exceptions there.  This includes post-debate fixes.  After implementation starts, sync's edits to final.md record what the tested code does and get `bts validate`, not another review round. {gate: hard}
 4. **Log every action**: `bts recipe log {id}` after every step. {gate: hard}
-5. **Simulate at least once**: Before declaring Level 3, run /simulate with 5+ scenarios. {gate: hard}
+5. **Prove by runs, not by simulation**: simulation was removed.  Behaviour is shown after implementation by the prove stage: every falsifier fails with its guard broken (`falsifiers_able_to_fail`), adversaries must reproduce what they find (`interrogate_clean`), and user journeys are driven through the real app (`app_proven`). {gate: hard}
 6. **Debate uncertain choices**: Don't guess. Use /debate for technology decisions. {gate: practice}
 7. **Adjudicate every debate**: After /debate, ALWAYS run /adjudicate to evaluate the conclusion. Never accept a debate result without adjudication. {gate: hard}
 8. **Sync-check before finalizing**: All debates reflected, all gaps resolved, all drafts verified. {gate: hard}
 9. **Run /bts-status at finalization**: Every recipe calls bts-status before completion to update roadmap, project-status, and project-map. {gate: hard}
 10. **Domain model precedes wireframe** (blueprint/design types): `domain.md` must exist and pass the invariant-owner check before `/bts-wireframe` runs. {gate: invariant}
-11. **One batch, one round**: verify, audit and simulate run in one concurrent batch and are recorded as ONE verify-log entry with `bts recipe log --merge`. {gate: practice — `bts recipe log` notes a partial-dimension round, and completion refuses it}
+11. **One batch, one round**: verify and audit run in one concurrent batch and are recorded as ONE verify-log entry with `bts recipe log --merge`. {gate: practice — `bts recipe log` notes a partial-dimension round, and completion refuses it}
 12. **Defend before IMPROVE** (blueprint type): when a round records critical or major findings, run `/bts-defend` on the ledger and dismiss only on its cited evidence before improving. {gate: practice}
 
 ## Human Intervention

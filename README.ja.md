@@ -100,14 +100,14 @@ btsは作業を**仕様**と**実装**の2フェーズに分けます。各レ�
 
 ## 機能
 
-### 31スキル
+### 30スキル
 
 | カテゴリ | スキル |
 |----------|--------|
 | **レシピ** | blueprint, build, design, analyze, fix, debug |
 | **発見** | discover, wireframe |
 | **検証** | verify, cross-check, audit, assess, sync-check, defend |
-| **分析** | research, simulate, debate, adjudicate |
+| **分析** | research, debate, adjudicate |
 | **実装** | skeleton, falsify, implement, test, sync, status |
 | **品質** | review (basic / security / performance / patterns) |
 
@@ -215,7 +215,7 @@ flowchart LR
 
 **Goバイナリ** — 単一の静的リンクバイナリ（約5ms起動）。状態管理、完了検証、テンプレートデプロイ、メトリクス追跡。Go以外のランタイム依存はゼロです。
 
-**Claude Code統合** — 31スキルがレシピプロトコルを、9ライフサイクルフックがセッションイベント（再開、完了ゲート、メトリクス）を、7ルールが制約を処理します。検証は常に独立したエージェントコンテキストで実行されます。
+**Claude Code統合** — 30スキルがレシピプロトコルを、9ライフサイクルフックがセッションイベント（再開、完了ゲート、メトリクス）を、7ルールが制約を処理します。検証は常に独立したエージェントコンテキストで実行されます。
 
 ## モデルと設定
 
@@ -244,7 +244,6 @@ agents:
 | ディベート、裁定 | debate, adjudicate | メイン | セッションモデル |
 | **検証** | verify | **fork** | セッションモデル（コアゲート） |
 | **監査** | audit | **fork** | セッションモデル（欠落を探す） |
-| **シミュレーション** | simulate | **fork** | セッションモデル（深い推論） |
 | **クロスチェック、同期チェック** | cross-check, sync-check | **fork** | Sonnet（パターンベース） |
 | **防御**（critical/major所見への反論） | defend | **fork** | Sonnet（証拠に基づく棄却） |
 | 実装、テスト、同期 | implement, test, sync | メイン | セッションモデル |

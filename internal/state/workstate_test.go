@@ -325,33 +325,6 @@ func TestBuildWorkState_SubStateIgnoredOutsidePhase(t *testing.T) {
 	}
 }
 
-func TestBuildWorkState_SubStateSimulate(t *testing.T) {
-	root := setupWorkStateRoot(t)
-	recipeID := "r-5220"
-	saveTestRecipe(t, root, recipeID, "simulate")
-
-	_ = SaveSimulateProgress(root, recipeID, &SimulateProgressState{
-		SimulateID: "s-1", ScenarioIdx: 3, TotalScenarios: 8, FoundGaps: 2,
-	})
-
-	ws, err := BuildWorkState(root)
-	if err != nil {
-		t.Fatalf("build: %v", err)
-	}
-	if ws.SubState == nil {
-		t.Fatal("expected simulate SubState")
-	}
-	if ws.SubState.Kind != "simulate" {
-		t.Errorf("Kind: %s", ws.SubState.Kind)
-	}
-	if !strings.Contains(ws.SubState.Position, "scenario 3/8") {
-		t.Errorf("Position: %q", ws.SubState.Position)
-	}
-	if !strings.Contains(ws.SubState.Position, "gaps: 2") {
-		t.Errorf("gaps missing: %q", ws.SubState.Position)
-	}
-}
-
 func TestBuildWorkState_RecentTools(t *testing.T) {
 	root := setupWorkStateRoot(t)
 	recipeID := "r-5300"

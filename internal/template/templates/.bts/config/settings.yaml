@@ -141,7 +141,7 @@ vision:
 #     concrete scenario construction and code path tracing need it.
 #   reviewer_validator — sonnet via its agent file; pattern-based.
 #
-# Fork roles are NOT configurable here. verify, audit, simulate and defend run
+# Fork roles are NOT configurable here. verify, audit and defend run
 # AS their agent (skill `agent:`) on that agent file's `model:` — none means the
 # session model; defender is sonnet. A fork takes the agent file as it is and
 # `bts update` rewrites agent files, so earlier versions' verifier / auditor /
@@ -160,7 +160,7 @@ agents:
 # Skill effort levels are configured in each skill's frontmatter
 # (.claude/skills/<name>/SKILL.md, `effort:` field — low/medium/high/xhigh/max).
 # Nothing reads an effort section from this file; current assignments:
-# domain-model/architect/verify/simulate/audit = max (deep-reasoning gates;
+# domain-model/architect/verify/audit = max (deep-reasoning gates;
 # domain-model's invariant ownership and state-cell enumeration cascade into
 # everything downstream), wireframe = xhigh (path-enumeration design),
 # discover/research/debate/adjudicate/review/defend = high (structure carries

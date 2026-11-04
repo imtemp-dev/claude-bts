@@ -64,37 +64,3 @@ func TestDebateRound_LoadMissing(t *testing.T) {
 		t.Errorf("expected nil, got %+v", got)
 	}
 }
-
-func TestSimulateProgress_SaveAndLoad(t *testing.T) {
-	recipeID := "r-002-sim"
-	root := setupSubphaseRoot(t, recipeID)
-
-	s := &SimulateProgressState{
-		SimulateID:     "s-42",
-		ScenarioIdx:    3,
-		TotalScenarios: 8,
-		FoundGaps:      2,
-	}
-	if err := SaveSimulateProgress(root, recipeID, s); err != nil {
-		t.Fatalf("save: %v", err)
-	}
-	got, err := LoadSimulateProgress(root, recipeID)
-	if err != nil {
-		t.Fatalf("load: %v", err)
-	}
-	if got.SimulateID != "s-42" || got.ScenarioIdx != 3 || got.TotalScenarios != 8 || got.FoundGaps != 2 {
-		t.Errorf("unexpected: %+v", got)
-	}
-}
-
-func TestSimulateProgress_LoadMissing(t *testing.T) {
-	recipeID := "r-002-missing"
-	root := setupSubphaseRoot(t, recipeID)
-	got, err := LoadSimulateProgress(root, recipeID)
-	if err != nil {
-		t.Fatalf("unexpected: %v", err)
-	}
-	if got != nil {
-		t.Errorf("expected nil, got %+v", got)
-	}
-}
