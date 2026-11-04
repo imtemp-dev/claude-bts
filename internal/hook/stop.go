@@ -73,19 +73,19 @@ func (h *stopHandler) decide(root string, input *HookInput) (*HookOutput, error)
 	}
 
 	// Check for fix completion marker
-	if strings.Contains(input.StopHookContent, "<bts>FIX DONE</bts>") ||
-		strings.Contains(input.StopHookContent, "FIX DONE") {
+	if strings.Contains(input.StopText(), "<bts>FIX DONE</bts>") ||
+		strings.Contains(input.StopText(), "FIX DONE") {
 		return h.handleFixDone(root, recipe)
 	}
 
 	// Check for implementation completion marker
-	if strings.Contains(input.StopHookContent, "<bts>IMPLEMENT DONE</bts>") ||
-		strings.Contains(input.StopHookContent, "IMPLEMENT DONE") {
+	if strings.Contains(input.StopText(), "<bts>IMPLEMENT DONE</bts>") ||
+		strings.Contains(input.StopText(), "IMPLEMENT DONE") {
 		return h.handleImplementDone(root, recipe)
 	}
 
 	// Check for spec completion marker (tagged only — "DONE" alone is too common)
-	if strings.Contains(input.StopHookContent, "<bts>DONE</bts>") {
+	if strings.Contains(input.StopText(), "<bts>DONE</bts>") {
 		if recipe.Type == "build" {
 			return h.handleBuildSpecDone(root, recipe)
 		}

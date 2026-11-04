@@ -14,6 +14,13 @@ func ReadInput() (*HookInput, error) {
 		return nil, fmt.Errorf("read stdin: %w", err)
 	}
 
+	return parseInput(data)
+}
+
+// parseInput decodes the stdin payload. Tests feed it Claude Code's own
+// payload shapes, so a field Claude Code renames or never sends shows up as
+// a failing test rather than as a hook that silently sees nothing.
+func parseInput(data []byte) (*HookInput, error) {
 	if len(data) == 0 {
 		return &HookInput{}, nil
 	}

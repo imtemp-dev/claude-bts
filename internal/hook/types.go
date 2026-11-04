@@ -23,8 +23,11 @@ type HookInput struct {
 	// Session source (if Claude Code sends it)
 	Source string `json:"source,omitempty"` // "startup", "resume", "clear", "compact"
 
-	// Stop hook fields
-	StopHookContent string `json:"content,omitempty"`
+	// Stop hook fields. Claude Code sends the turn's final assistant text as
+	// last_assistant_message; "content" is kept only as a fallback for
+	// callers that pipe a payload by hand. Read both through StopText.
+	LastAssistantMessage string `json:"last_assistant_message,omitempty"`
+	StopHookContent      string `json:"content,omitempty"`
 	// StopHookActive is set by Claude Code on every stop that follows a
 	// stop-hook continuation. It cannot distinguish the second block from
 	// the tenth, so it is recorded for diagnostics but the actual loop
@@ -42,6 +45,15 @@ type HookInput struct {
 	// Extended fields (sent by Claude Code, previously ignored)
 	Model          string `json:"model,omitempty"`
 	TranscriptPath string `json:"transcript_path,omitempty"`
+}
+
+// StopText is the final assistant text of the turn that is stopping, where
+// the completion markers (<bts>DONE</bts> and the others) are looked for.
+func (in *HookInput) StopText() string {
+	if in.LastAssistantMessage != "" {
+		return in.LastAssistantMessage
+	}
+	return in.StopHookContent
 }
 
 // HookOutput is the JSON written to stdout for Claude Code.
