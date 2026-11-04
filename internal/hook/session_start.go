@@ -403,6 +403,12 @@ func nextStepHint(root string, recipe *state.RecipeState) string {
 		return "Run /bts-wireframe to design system structure."
 	case recipe.Phase == "finalize":
 		return fmt.Sprintf("Spec finalized. Run /bts-implement %s to start implementation.", recipe.ID)
+	case recipe.Phase == "skeleton":
+		return fmt.Sprintf("Run /bts-skeleton %s: write the decomposition as code that compiles, then `bts check build`.", recipe.ID)
+	case recipe.Phase == "falsify":
+		return fmt.Sprintf("Run /bts-falsify %s: one failing test per invariant, recorded with `bts falsifier run`.", recipe.ID)
+	case recipe.Type == "build" && !state.IsImplementPhase(recipe.Phase):
+		return fmt.Sprintf("Resume /bts-recipe-build %s from its phase.", recipe.ID)
 	case !state.IsImplementPhase(recipe.Phase):
 		return "Run /bts-assess on draft.md to determine next action."
 	}

@@ -1,0 +1,55 @@
+package engine
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/imtemp-dev/claude-bts/internal/state"
+)
+
+// CodeHash fingerprints a recipe's code files for evidence that must name
+// the code it ran on. It is state.ImplHash over tasks.json when the recipe
+// has one, and otherwise over the files the wireframe's File Structure rows
+// will create, modify or delete.
+//
+// The fallback exists for the build recipe: its skeleton is compiled and its
+// falsifiers are run before implementation writes tasks.json, and those runs
+// still have to say which code they judged. Implementation derives its tasks
+// from the same rows, so both sources name the same files.
+//
+// It returns "" when neither source names a file.
+func CodeHash(root, recipeID string) (string, error) {
+	if ts, err := state.LoadTaskState(root, recipeID); err == nil && len(ts.Tasks) > 0 {
+		return state.ImplHash(root, ts.Tasks)
+	}
+	data, err := os.ReadFile(filepath.Join(state.RecipeDir(root, recipeID), "wireframe.md"))
+	if err != nil {
+		return "", nil
+	}
+	var tasks []state.Task
+	for _, k := range ParseWireframeFileTable(string(data)) {
+		switch strings.ToLower(strings.TrimSpace(k.Action)) {
+		case "create", "modify", "delete":
+			tasks = append(tasks, state.Task{File: k.Path, Action: k.Action})
+		}
+	}
+	return state.ImplHash(root, tasks)
+}
+
+// DomainInvariantIDs lists the invariant ids declared in domain.md § 2, in
+// document order. A missing file is an error; a file with no invariants
+// returns an empty list.
+func DomainInvariantIDs(domainPath string) ([]string, error) {
+	invs, err := parseInvariantsTable(domainPath)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(invs))
+	for _, inv := range invs {
+		if id := strings.TrimSpace(inv.ID); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}

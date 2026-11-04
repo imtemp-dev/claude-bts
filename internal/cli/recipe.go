@@ -22,7 +22,7 @@ func init() {
 		recipeCancelCmd, recipeCreateCmd, recipeReconcileCmd,
 		recipeVerifyFocusCmd,
 	)
-	recipeCreateCmd.Flags().String("type", "blueprint", "Recipe type (blueprint, design, analyze, fix, debug)")
+	recipeCreateCmd.Flags().String("type", "blueprint", "Recipe type (blueprint, build, design, analyze, fix, debug)")
 	recipeCreateCmd.Flags().String("topic", "", "Recipe topic description")
 	_ = recipeCreateCmd.MarkFlagRequired("topic")
 	recipeReconcileCmd.Flags().Bool("dry-run", false, "Print the plan without writing")

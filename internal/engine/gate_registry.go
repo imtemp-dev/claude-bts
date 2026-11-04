@@ -77,6 +77,30 @@ var HardGates = []HardGate{
 		Summary:     "IMPLEMENT DONE blocked unless test-results.json exists with status=pass",
 	},
 	{
+		ID:          "skeleton_builds",
+		Rule:        "bts-recipe-build SKILL.md, Skeleton",
+		Enforcement: "internal/hook/stop_build.go:handleBuildSpecDone via engine.CheckSkeletonBuilds",
+		Summary:     "Build recipe DONE blocked unless the last `bts check build` passed on the current code hash",
+	},
+	{
+		ID:          "falsifiers_red",
+		Rule:        "bts-recipe-build SKILL.md, Falsify",
+		Enforcement: "internal/hook/stop_build.go:handleBuildSpecDone via engine.CheckFalsifiersRed",
+		Summary:     "Build recipe DONE blocked unless every domain.md invariant has a falsifier recorded failing on the current skeleton",
+	},
+	{
+		ID:          "build_review_clean",
+		Rule:        "bts-recipe-build SKILL.md, One review",
+		Enforcement: "internal/hook/stop_build.go:buildReviewClean",
+		Summary:     "Build recipe DONE blocked unless the last full verify pass on final.md has no critical or major and final.md is unchanged since",
+	},
+	{
+		ID:          "falsifiers_green",
+		Rule:        "bts-recipe-build SKILL.md, Implement",
+		Enforcement: "internal/hook/stop_build.go:buildFalsifiersGreen (handleImplementDone, build recipes)",
+		Summary:     "IMPLEMENT DONE blocked for a build recipe unless every invariant's falsifier passed on the current code hash",
+	},
+	{
 		ID:          "tests_cover_current_code",
 		Rule:        "bts-implement-protocol.md §Execution Rules rule 4",
 		Enforcement: "internal/hook/stop.go:testsCoverCurrentCode (handleImplementDone, handleFixDone)",

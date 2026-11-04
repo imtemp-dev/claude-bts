@@ -86,6 +86,9 @@ func (h *stopHandler) decide(root string, input *HookInput) (*HookOutput, error)
 
 	// Check for spec completion marker (tagged only — "DONE" alone is too common)
 	if strings.Contains(input.StopHookContent, "<bts>DONE</bts>") {
+		if recipe.Type == "build" {
+			return h.handleBuildSpecDone(root, recipe)
+		}
 		return h.handleSpecDone(root, recipe)
 	}
 
@@ -627,6 +630,11 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 	}
 	if out := testsCoverCurrentCode(root, recipe.ID, testResults); out != nil {
 		return out, nil
+	}
+	if recipe.Type == "build" {
+		if out := buildFalsifiersGreen(root, recipe.ID); out != nil {
+			return out, nil
+		}
 	}
 
 	// 3. Check that review has run (review.md exists)

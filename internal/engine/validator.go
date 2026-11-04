@@ -550,9 +550,9 @@ func validateRecipeJSON(path string) []ValidationError {
 
 	// Validate type enum
 	if t, ok := raw["type"].(string); ok {
-		valid := map[string]bool{"analyze": true, "design": true, "blueprint": true, "fix": true, "debug": true}
+		valid := map[string]bool{"analyze": true, "design": true, "blueprint": true, "build": true, "fix": true, "debug": true}
 		if !valid[t] {
-			errs = append(errs, ValidationError{File: "recipe.json", Field: "type", Message: fmt.Sprintf("invalid value '%s', must be analyze/design/blueprint", t)})
+			errs = append(errs, ValidationError{File: "recipe.json", Field: "type", Message: fmt.Sprintf("invalid value '%s', must be analyze/design/blueprint/build/fix/debug", t)})
 		}
 	}
 
@@ -563,6 +563,7 @@ func validateRecipeJSON(path string) []ValidationError {
 			"domain-model": true, "architect": true, "wireframe": true,
 			"research": true, "draft": true, "assess": true, "improve": true,
 			"verify": true, "debate": true, "simulate": true, "audit": true,
+			"skeleton": true, "falsify": true,
 			"finalize": true, "cancelled": true,
 			"implement": true, "test": true, "review": true, "sync": true, "status": true,
 			"complete": true,
@@ -697,6 +698,10 @@ func validateChangelogJSONL(path string) []ValidationError {
 				"midrun-review":         true,
 				"comment-apply":         true,
 				"defend":                true,
+				// build recipe: written by `bts check build`, `bts falsifier run|check`
+				"skeleton":        true,
+				"falsify":         true,
+				"falsifier-check": true,
 			}
 			if !validActions[action] {
 				errs = append(errs, ValidationError{File: "changelog.jsonl", Field: fmt.Sprintf("line %d.action", lineNum), Message: fmt.Sprintf("invalid action '%s'", action)})

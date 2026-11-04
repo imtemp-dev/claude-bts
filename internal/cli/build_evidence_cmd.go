@@ -1,0 +1,279 @@
+package cli
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/imtemp-dev/claude-bts/internal/engine"
+	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/spf13/cobra"
+)
+
+// The build recipe's evidence commands. Each runs a command itself and
+// records the exit code with the code hash it ran on, so the stop hook
+// judges runs rather than an agent's reading of them.
+//
+//   bts check build <id> --cmd "<typecheck>"              skeleton compiles
+//   bts falsifier run <id> --inv INV-NNN --cmd "<test>"   fails on the skeleton
+//   bts falsifier check <id> [--red]                      reruns every falsifier
+
+func init() {
+	checkCmd.AddCommand(checkBuildCmd)
+	checkBuildCmd.Flags().String("cmd", "", "Typecheck or build command, run via sh -c at the project root (required)")
+	_ = checkBuildCmd.MarkFlagRequired("cmd")
+	checkBuildCmd.Flags().Int("timeout", 600, "Seconds before the run is killed")
+
+	rootCmd.AddCommand(falsifierCmd)
+	falsifierCmd.AddCommand(falsifierRunCmd, falsifierCheckCmd)
+	falsifierRunCmd.Flags().String("inv", "", "Invariant id from domain.md § 2, e.g. INV-003 (required)")
+	_ = falsifierRunCmd.MarkFlagRequired("inv")
+	falsifierRunCmd.Flags().String("cmd", "", "Command that runs this invariant's test only (required)")
+	_ = falsifierRunCmd.MarkFlagRequired("cmd")
+	falsifierRunCmd.Flags().Int("timeout", 600, "Seconds before the run is killed")
+	falsifierCheckCmd.Flags().Bool("red", false, "Expect every falsifier to fail (the skeleton), instead of to pass")
+	falsifierCheckCmd.Flags().Int("timeout", 600, "Seconds before each run is killed")
+}
+
+var checkBuildCmd = &cobra.Command{
+	Use:   "build <recipe-id>",
+	Short: "Run the skeleton's typecheck or build and record the result (build recipe)",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		root, err := projectRoot()
+		if err != nil {
+			return err
+		}
+		cmdStr, _ := cmd.Flags().GetString("cmd")
+		timeout, _ := cmd.Flags().GetInt("timeout")
+		run, err := executeBuildCheck(root, args[0], cmdStr, timeout, os.Stdout)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("\n[bts] skeleton build recorded: exit=%d → build-evidence.json\n", run.ExitCode)
+		if !run.Passed() {
+			os.Exit(1)
+		}
+		return nil
+	},
+}
+
+var falsifierCmd = &cobra.Command{
+	Use:     "falsifier",
+	Short:   "Record and rerun the tests that would prove each invariant false (build recipe)",
+	GroupID: "tools",
+}
+
+var falsifierRunCmd = &cobra.Command{
+	Use:   "run <recipe-id>",
+	Short: "Run one invariant's test on the skeleton; it must fail, and the run is recorded",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		root, err := projectRoot()
+		if err != nil {
+			return err
+		}
+		inv, _ := cmd.Flags().GetString("inv")
+		cmdStr, _ := cmd.Flags().GetString("cmd")
+		timeout, _ := cmd.Flags().GetInt("timeout")
+		run, err := executeFalsifierRed(root, args[0], inv, cmdStr, timeout, os.Stdout)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("\n[bts] %s red on the skeleton (exit=%d) → build-evidence.json\n", inv, run.ExitCode)
+		return nil
+	},
+}
+
+var falsifierCheckCmd = &cobra.Command{
+	Use:   "check <recipe-id>",
+	Short: "Rerun every recorded falsifier: expect green (or red with --red) and record the runs",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		root, err := projectRoot()
+		if err != nil {
+			return err
+		}
+		red, _ := cmd.Flags().GetBool("red")
+		timeout, _ := cmd.Flags().GetInt("timeout")
+		results, err := executeFalsifierCheck(root, args[0], red, timeout, os.Stdout)
+		if err != nil {
+			return err
+		}
+		want := "green"
+		if red {
+			want = "red"
+		}
+		bad := 0
+		fmt.Printf("\n[bts] falsifiers, expecting %s:\n", want)
+		for _, id := range sortedKeys(results) {
+			r := results[id]
+			ok := r.Passed() != red
+			mark := "ok"
+			if !ok {
+				mark = "WRONG"
+				bad++
+			}
+			fmt.Printf("  %-10s exit=%-3d %s\n", id, r.ExitCode, mark)
+		}
+		if bad > 0 {
+			fmt.Printf("[bts] %d of %d not %s\n", bad, len(results), want)
+			os.Exit(1)
+		}
+		return nil
+	},
+}
+
+// runRecorded runs cmdStr at the project root, keeps its output in
+// .bts/local/recipes/<id>/<logName>, and returns the run stamped with the
+// code hash at the time.
+func runRecorded(root, recipeID, cmdStr string, timeoutSec int, logName string, sink io.Writer) (*state.CommandRun, error) {
+	if cmdStr == "" {
+		return nil, errors.New("--cmd is required")
+	}
+	run, err := runShellCommand(root, cmdStr, timeoutSec, sink)
+	if err != nil {
+		return nil, fmt.Errorf("run %q: %w", cmdStr, err)
+	}
+	logDir := filepath.Join(state.LocalPath(root), "recipes", recipeID)
+	if err := os.MkdirAll(logDir, 0755); err == nil {
+		_ = os.WriteFile(filepath.Join(logDir, logName), run.Output, 0644)
+	}
+	hash, herr := engine.CodeHash(root, recipeID)
+	if herr != nil {
+		fmt.Fprintf(os.Stderr, "[bts] warning: code fingerprint: %v (this run records none)\n", herr)
+	}
+	return &state.CommandRun{
+		Command:  cmdStr,
+		ExitCode: run.ExitCode,
+		TimedOut: run.TimedOut,
+		CodeHash: hash,
+		RunAt:    time.Now().UTC().Format(time.RFC3339),
+	}, nil
+}
+
+func executeBuildCheck(root, recipeID, cmdStr string, timeoutSec int, sink io.Writer) (*state.CommandRun, error) {
+	if _, err := state.LoadRecipeState(root, recipeID); err != nil {
+		return nil, fmt.Errorf("load recipe %s: %w", recipeID, err)
+	}
+	run, err := runRecorded(root, recipeID, cmdStr, timeoutSec, "skeleton-build.log", sink)
+	if err != nil {
+		return nil, err
+	}
+	ev, err := state.LoadBuildEvidence(root, recipeID)
+	if err != nil {
+		return nil, fmt.Errorf("load build evidence: %w", err)
+	}
+	ev.Skeleton = run
+	if err := state.SaveBuildEvidence(root, recipeID, ev); err != nil {
+		return nil, fmt.Errorf("save build evidence: %w", err)
+	}
+	appendEvidenceChangelog(root, recipeID, "skeleton", fmt.Sprintf("build exit=%d", run.ExitCode), run.CodeHash)
+	return run, nil
+}
+
+// errFalsifierPassed is returned, and nothing recorded, when a falsifier
+// passes on the skeleton: a test that cannot fail before the code exists
+// does not test the invariant.
+var errFalsifierPassed = errors.New("the test passed on the skeleton, so it does not test the invariant yet; make it assert the invariant's outcome")
+
+func executeFalsifierRed(root, recipeID, inv, cmdStr string, timeoutSec int, sink io.Writer) (*state.CommandRun, error) {
+	if _, err := state.LoadRecipeState(root, recipeID); err != nil {
+		return nil, fmt.Errorf("load recipe %s: %w", recipeID, err)
+	}
+	ids, err := engine.DomainInvariantIDs(filepath.Join(state.RecipeDir(root, recipeID), "domain.md"))
+	if err != nil {
+		return nil, fmt.Errorf("read domain.md invariants: %w", err)
+	}
+	if !containsString(ids, inv) {
+		return nil, fmt.Errorf("%s is not an invariant in domain.md § 2 (declared: %v)", inv, ids)
+	}
+	run, err := runRecorded(root, recipeID, cmdStr, timeoutSec, "falsifier-"+inv+".log", sink)
+	if err != nil {
+		return nil, err
+	}
+	if run.Passed() {
+		return nil, fmt.Errorf("%s: %w", inv, errFalsifierPassed)
+	}
+	ev, err := state.LoadBuildEvidence(root, recipeID)
+	if err != nil {
+		return nil, fmt.Errorf("load build evidence: %w", err)
+	}
+	ev.Falsifiers[inv] = &state.Falsifier{Command: cmdStr, Red: run}
+	if err := state.SaveBuildEvidence(root, recipeID, ev); err != nil {
+		return nil, fmt.Errorf("save build evidence: %w", err)
+	}
+	appendEvidenceChangelog(root, recipeID, "falsify", fmt.Sprintf("%s red exit=%d", inv, run.ExitCode), run.CodeHash)
+	return run, nil
+}
+
+func executeFalsifierCheck(root, recipeID string, red bool, timeoutSec int, sink io.Writer) (map[string]*state.CommandRun, error) {
+	if _, err := state.LoadRecipeState(root, recipeID); err != nil {
+		return nil, fmt.Errorf("load recipe %s: %w", recipeID, err)
+	}
+	ev, err := state.LoadBuildEvidence(root, recipeID)
+	if err != nil {
+		return nil, fmt.Errorf("load build evidence: %w", err)
+	}
+	if len(ev.Falsifiers) == 0 {
+		return nil, fmt.Errorf("no falsifiers recorded; record each with `bts falsifier run %s --inv <id> --cmd \"<test>\"`", recipeID)
+	}
+	results := map[string]*state.CommandRun{}
+	passed := 0
+	for _, id := range engine.FalsifierIDs(ev) {
+		f := ev.Falsifiers[id]
+		fmt.Fprintf(sink, "\n[bts] %s: %s\n", id, f.Command)
+		run, err := runRecorded(root, recipeID, f.Command, timeoutSec, "falsifier-"+id+".log", sink)
+		if err != nil {
+			return nil, err
+		}
+		if red {
+			f.Red = run
+		} else {
+			f.Green = run
+		}
+		results[id] = run
+		if run.Passed() {
+			passed++
+		}
+	}
+	if err := state.SaveBuildEvidence(root, recipeID, ev); err != nil {
+		return nil, fmt.Errorf("save build evidence: %w", err)
+	}
+	want := "green"
+	if red {
+		want = "red"
+	}
+	hash, _ := engine.CodeHash(root, recipeID)
+	appendEvidenceChangelog(root, recipeID, "falsifier-check",
+		fmt.Sprintf("expect %s: %d of %d passed", want, passed, len(results)), hash)
+	return results, nil
+}
+
+func appendEvidenceChangelog(root, recipeID, action, result, hash string) {
+	if err := state.AppendChangelog(root, recipeID, &state.ChangelogEntry{
+		Action: action, Result: result, ImplHash: hash,
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: append changelog: %v\n", err)
+	}
+}
+
+func containsString(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+func sortedKeys(m map[string]*state.CommandRun) []string {
+	ev := &state.BuildEvidence{Falsifiers: map[string]*state.Falsifier{}}
+	for k := range m {
+		ev.Falsifiers[k] = nil
+	}
+	return engine.FalsifierIDs(ev)
+}
