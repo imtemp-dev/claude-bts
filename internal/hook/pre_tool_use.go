@@ -54,10 +54,12 @@ func (h *preToolUseHandler) Handle(input *HookInput) (*HookOutput, error) {
 	}
 
 	// Only protect during spec phases (not implement/finalize/complete).
-	// The build recipe's skeleton and falsify phases write code on purpose:
-	// the skeleton and its failing tests are how that recipe states the spec.
+	// The build recipe writes code on purpose in every phase from the
+	// skeleton on: the skeleton and its failing tests are how it states the
+	// spec, and its single review fixes the skeleton (phase verify).
 	if state.IsImplementPhase(recipe.Phase) || recipe.Phase == "finalize" || recipe.Phase == "complete" || recipe.Phase == "cancelled" ||
-		recipe.Phase == "skeleton" || recipe.Phase == "falsify" {
+		recipe.Phase == "skeleton" || recipe.Phase == "falsify" ||
+		(recipe.Type == "build" && recipe.Phase == "verify") {
 		return &HookOutput{}, nil
 	}
 
