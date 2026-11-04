@@ -496,6 +496,12 @@ run. For each Uncertainty entry:
      (e.g., requires a specific device, network condition, or user action
      that the test suite does not simulate). Keep in the watch-list for
      post-deploy validation.
+   - When the outcome differs by part, write one line per part with the
+     part as a qualifier: `Resolved (reads): <observation>` and
+     `Still-unknown (writes): <reason>`.  The entry counts as its least
+     settled part.  A qualifier goes in parentheses or after "for"
+     (`Resolved for reads: …`); anything else before the colon is not a
+     classification and the completion gate will not count it.
 3. Do NOT delete entries. The Known Uncertainties section is a persistent
    audit trail showing which runtime concerns were raised and how they
    were addressed.

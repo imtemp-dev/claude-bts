@@ -23,8 +23,10 @@ var (
 	// other ### subsections inside the Known Uncertainties section).
 	uncertaintyHeadingRe = regexp.MustCompile(`(?mi)^###\s+(U-\d+)\b[^\n]*`)
 	// Resolution marker: Resolved / Diverged / Still-unknown at line start
-	// of the entry body. We match the literal keyword followed by a colon.
-	uncertaintyResolRe = regexp.MustCompile(`(?mi)^(Resolved|Diverged|Still-unknown):\s*\S`)
+	// of the entry body, then a colon. A qualifier for the part it covers
+	// may sit before the colon, in parentheses ("Resolved (reads):") or
+	// after "for" ("Resolved for reads (§ 3):").
+	uncertaintyResolRe = regexp.MustCompile(`(?mi)^(Resolved|Diverged|Still-unknown)(?:[ \t]*\([^)\n]{1,80}\)|[ \t]+for[ \t][^:\n]{1,80})?:\s*\S`)
 )
 
 // CheckKnownUncertainties reads final.md and returns all Known
@@ -93,13 +95,18 @@ func CheckKnownUncertainties(finalPath string) (all []UncertaintyEntry, unresolv
 
 // classifyResolution returns the lower-cased marker ("resolved" |
 // "diverged" | "still-unknown") or "" if none of the three keywords
-// appears at the start of a line inside the entry block.
+// appears at the start of a line inside the entry block. A mixed outcome
+// (one line per part) takes the least settled part: still-unknown, then
+// diverged, then resolved.
 func classifyResolution(block string) string {
-	m := uncertaintyResolRe.FindStringSubmatch(block)
-	if len(m) < 2 {
-		return ""
+	rank := map[string]int{"resolved": 1, "diverged": 2, "still-unknown": 3}
+	status := ""
+	for _, m := range uncertaintyResolRe.FindAllStringSubmatch(block, -1) {
+		if s := strings.ToLower(m[1]); rank[s] > rank[status] {
+			status = s
+		}
 	}
-	return strings.ToLower(m[1])
+	return status
 }
 
 // nextH2Indices yields the byte offsets (within the input) of every

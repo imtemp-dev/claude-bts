@@ -142,3 +142,39 @@ func TestCheckKnownUncertainties_MissingFile(t *testing.T) {
 		t.Errorf("missing file should return no entries")
 	}
 }
+
+// An outcome that holds for part of an uncertainty is written with a
+// qualifier, and a mixed outcome as one line per part. AGEN-35's r-002 was
+// blocked at completion on "Resolved for reads (§ 3):", which the old
+// pattern did not accept. When parts differ, the least settled one is the
+// entry's status: still-unknown, then diverged, then resolved.
+func TestCheckKnownUncertainties_QualifiedAndMixedOutcomes(t *testing.T) {
+	path := writeFinal(t, `## Known Uncertainties
+
+### U-001: qualifier with "for"
+Resolved for reads (§ 3): issue search returns an object with issues.
+
+### U-002: qualifier in parentheses
+Diverged (writes): the CLI prints its notice on stderr.
+
+### U-003: mixed outcome, one line per part
+Resolved (reads): shapes recorded.
+Still-unknown (writes): no observation yet.
+
+### U-004: a sentence that only starts with the word
+Resolved questions are listed elsewhere.
+`)
+	all, unresolved, err := CheckKnownUncertainties(path)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	want := map[string]string{"U-001": "resolved", "U-002": "diverged", "U-003": "still-unknown", "U-004": ""}
+	for _, e := range all {
+		if e.Status != want[e.ID] {
+			t.Errorf("%s: status %q, want %q", e.ID, e.Status, want[e.ID])
+		}
+	}
+	if len(unresolved) != 1 || unresolved[0].ID != "U-004" {
+		t.Fatalf("only U-004 has no outcome line, unresolved=%v", unresolved)
+	}
+}
