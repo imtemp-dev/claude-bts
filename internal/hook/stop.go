@@ -72,20 +72,22 @@ func (h *stopHandler) decide(root string, input *HookInput) (*HookOutput, error)
 		return &HookOutput{}, nil
 	}
 
+	// Completion markers count only with their <bts> tags. Prose that names
+	// a marker (a report, an explanation of a block) is not a completion.
+	text := input.StopText()
+
 	// Check for fix completion marker
-	if strings.Contains(input.StopText(), "<bts>FIX DONE</bts>") ||
-		strings.Contains(input.StopText(), "FIX DONE") {
+	if strings.Contains(text, "<bts>FIX DONE</bts>") {
 		return h.handleFixDone(root, recipe)
 	}
 
 	// Check for implementation completion marker
-	if strings.Contains(input.StopText(), "<bts>IMPLEMENT DONE</bts>") ||
-		strings.Contains(input.StopText(), "IMPLEMENT DONE") {
+	if strings.Contains(text, "<bts>IMPLEMENT DONE</bts>") {
 		return h.handleImplementDone(root, recipe)
 	}
 
-	// Check for spec completion marker (tagged only — "DONE" alone is too common)
-	if strings.Contains(input.StopText(), "<bts>DONE</bts>") {
+	// Check for spec completion marker
+	if strings.Contains(text, "<bts>DONE</bts>") {
 		if recipe.Type == "build" {
 			return h.handleBuildSpecDone(root, recipe)
 		}

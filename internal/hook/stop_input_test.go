@@ -53,6 +53,38 @@ func TestStopInput_DoneInLastAssistantMessageFinalizesABuildRecipe(t *testing.T)
 	}
 }
 
+// A completion marker counts only with its <bts> tags. Prose that names a
+// marker (a report, an explanation of a block) must not run the handler:
+// seen twice on the AGEN-35 trial, once in an owner session and once in
+// the worker's, each time blocking a turn that completed nothing.
+func TestStopInput_UntaggedMarkerNamesInProseDoNotRunTheHandlers(t *testing.T) {
+	for _, prose := range []string{
+		"The gate refused IMPLEMENT DONE because U-003 is unclassified.",
+		"Waiting on the owner before FIX DONE.",
+	} {
+		root, id := setupImplementRoot(t)
+		input, err := parseInput(claudeCodeStopPayload(t, root, prose))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NewStopHandler().Handle(input); err != nil {
+			t.Fatalf("handle: %v", err)
+		}
+		if r, _ := state.LoadRecipeState(root, id); r.Phase != "implement" {
+			t.Fatalf("%q must not complete anything; phase is %q", prose, r.Phase)
+		}
+	}
+
+	root, id := setupImplementRoot(t)
+	input, _ := parseInput(claudeCodeStopPayload(t, root, "All gates met.\n\n<bts>IMPLEMENT DONE</bts>"))
+	if out, err := NewStopHandler().Handle(input); err != nil || out.Decision == "block" {
+		t.Fatalf("the tagged marker must still complete: %v %+v", err, out)
+	}
+	if r, _ := state.LoadRecipeState(root, id); r.Phase != "complete" {
+		t.Fatalf("the tagged marker must complete the recipe, phase is %q", r.Phase)
+	}
+}
+
 func TestStopInput_StopTextPrefersLastAssistantMessage(t *testing.T) {
 	cases := []struct {
 		name    string
