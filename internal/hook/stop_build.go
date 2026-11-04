@@ -132,3 +132,26 @@ func buildFalsifiersGreen(root, recipeID string) *HookOutput {
 	}
 	return nil
 }
+
+// buildFalsifiersAbleToFail is gate falsifiers_able_to_fail at IMPLEMENT
+// DONE: every invariant's falsifier has been seen failing, in its own test,
+// on a copy of the current code with the invariant's guard broken, or the
+// invariant is recorded as having no code guard (pstack's "able to fail").
+func buildFalsifiersAbleToFail(root, recipeID string) *HookOutput {
+	ev, err := state.LoadBuildEvidence(root, recipeID)
+	if err != nil {
+		return blockOutput(fmt.Sprintf("build-evidence.json is unreadable (%v). Run `bts falsifier mutate %s --rerun`.", err, recipeID))
+	}
+	ids, derr := engine.DomainInvariantIDs(filepath.Join(state.RecipeDir(root, recipeID), "domain.md"))
+	if derr != nil {
+		return blockOutput(fmt.Sprintf("domain.md invariants are unreadable (%v).", derr))
+	}
+	hash, herr := engine.CodeHash(root, recipeID)
+	if herr != nil {
+		fmt.Fprintf(os.Stderr, "[bts] warning: code fingerprint: %v (freshness not checked)\n", herr)
+	}
+	if reason := engine.CheckFalsifiersAbleToFail(ev, ids, hash, recipeID); reason != "" {
+		return blockOutput(reason)
+	}
+	return nil
+}

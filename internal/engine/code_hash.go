@@ -20,12 +20,32 @@ import (
 //
 // It returns "" when neither source names a file.
 func CodeHash(root, recipeID string) (string, error) {
+	return state.ImplHash(root, codeTasks(root, recipeID))
+}
+
+// CodeFiles lists the files CodeHash covers, as written in tasks.json or
+// the wireframe (relative to the project root, slash-separated).
+func CodeFiles(root, recipeID string) []string {
+	var files []string
+	seen := map[string]bool{}
+	for _, t := range codeTasks(root, recipeID) {
+		f := filepath.ToSlash(filepath.Clean(strings.TrimSpace(t.File)))
+		if f == "" || f == "." || seen[f] {
+			continue
+		}
+		seen[f] = true
+		files = append(files, f)
+	}
+	return files
+}
+
+func codeTasks(root, recipeID string) []state.Task {
 	if ts, err := state.LoadTaskState(root, recipeID); err == nil && len(ts.Tasks) > 0 {
-		return state.ImplHash(root, ts.Tasks)
+		return ts.Tasks
 	}
 	data, err := os.ReadFile(filepath.Join(state.RecipeDir(root, recipeID), "wireframe.md"))
 	if err != nil {
-		return "", nil
+		return nil
 	}
 	var tasks []state.Task
 	for _, k := range ParseWireframeFileTable(string(data)) {
@@ -34,7 +54,7 @@ func CodeHash(root, recipeID string) (string, error) {
 			tasks = append(tasks, state.Task{File: k.Path, Action: k.Action})
 		}
 	}
-	return state.ImplHash(root, tasks)
+	return tasks
 }
 
 // DomainInvariantIDs lists the invariant ids declared in domain.md § 2, in

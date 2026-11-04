@@ -726,10 +726,11 @@ func validateChangelogJSONL(path string) []ValidationError {
 				"midrun-review":         true,
 				"comment-apply":         true,
 				"defend":                true,
-				// build recipe: written by `bts check build`, `bts falsifier run|check`
+				// build recipe: written by `bts check build`, `bts falsifier run|check|mutate`
 				"skeleton":        true,
 				"falsify":         true,
 				"falsifier-check": true,
+				"mutate":          true,
 			}
 			if !validActions[action] {
 				errs = append(errs, ValidationError{File: "changelog.jsonl", Field: fmt.Sprintf("line %d.action", lineNum), Message: fmt.Sprintf("invalid action '%s'", action)})

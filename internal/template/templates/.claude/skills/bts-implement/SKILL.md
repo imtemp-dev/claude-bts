@@ -57,6 +57,8 @@ Use settings values if present, otherwise use defaults noted in each step.
      there, so directory existence proves nothing:
      - test-results.json (pass) + simulations/*-code.md + review.md exists → Step 6 (sync)
      - test-results.json (pass) + simulations/*-code.md → Step 5.5 (review)
+     - build recipe, test-results.json (pass), and an invariant in
+       build-evidence.json with neither `mutation` nor `not_mutable` → Step 5.2 (able to fail)
      - test-results.json (pass) → Step 5.3 (simulate)
      - otherwise → Step 5 (test)
    - If phase is "review" → check review.md and Known Uncertainties:
@@ -396,6 +398,40 @@ for the list of implemented files.
 - Report: "Tests failed. Fix implementation and re-run /implement {id} to retry from Step 5."
 - The recipe stays in phase "test" for resume.
 
+## Step 5.2: Able to fail (build recipe)
+
+Skip this step unless `bts recipe status` shows type `build`.
+
+A falsifier that has only failed on the skeleton (at "not implemented")
+and passed on the code has never been seen failing for its invariant's
+reason.  For each `INV-NNN` in domain.md:
+
+1. Find the guard: the line or step in the code that enforces the
+   invariant (a check, an order, an effect done exactly once).
+2. Write a mutation that breaks only that guard (remove the check,
+   reorder the step, skip the effect or do it twice), as a git-style
+   patch.  Edit a scratch copy of the file, never the file itself:
+   ```bash
+   cp src/relay.py "$TMPDIR/relay.py"   # edit the copy
+   diff -u --label a/src/relay.py --label b/src/relay.py src/relay.py "$TMPDIR/relay.py" > "$TMPDIR/INV-NNN.patch"
+   ```
+3. Run it in a copy of the project:
+   ```bash
+   bts falsifier mutate {id} --inv INV-NNN --patch "$TMPDIR/INV-NNN.patch" --expect "<the falsifier's test id>" [--setup "<dependency install>"]
+   ```
+   - Killed (the falsifier failed and printed the test id): next invariant.
+   - "the falsifier passed with the guard broken": the test does not
+     assert the invariant's outcome.  Strengthen the test, rerun
+     `bts falsifier check {id}`, and mutate again.  Never weaken the
+     mutation to make it pass.
+   - "the --expect text was not in its output": the run failed somewhere
+     else (import, another test).  Break only the guard.
+   - An invariant held by a type or a configuration, with no code guard:
+     `bts falsifier mutate {id} --inv INV-NNN --not-mutable "<reason>"`.
+
+A later code change (review fixes) makes the runs stale; the Completion
+step reruns them.
+
 ## Step 5.3: Simulate
 
 Use Skill("bts-simulate") with arguments: "code" to verify all code paths are covered.
@@ -508,7 +544,10 @@ When all steps are done:
   carries a `Resolved:`, `Diverged:`, or `Still-unknown:` line from Step 5.7.
 - A build recipe (`bts recipe status` shows type `build`): run
   `bts falsifier check {id}`. Every invariant's test must pass on the code
-  as it is now; the stop hook checks it (`falsifiers_green`).
+  as it is now; the stop hook checks it (`falsifiers_green`).  Then run
+  `bts falsifier mutate {id} --rerun`: every mutation from Step 5.2 must
+  still make its falsifier fail on the current code
+  (`falsifiers_able_to_fail`).
 - Output `<bts>IMPLEMENT DONE</bts>`
 - Tell the user (plaintext, after the marker):
   > **Implementation complete** — `{id}` done.

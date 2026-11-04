@@ -157,9 +157,62 @@ func TestImplementDone_BuildRecipeNeedsGreenFalsifiers(t *testing.T) {
 	}
 
 	ev.Falsifiers["INV-001"].Green = &state.CommandRun{ExitCode: 0, CodeHash: hash}
+	ev.Falsifiers["INV-001"].Mutation = &state.MutationRun{ExitCode: 1, Matched: true, BaseHash: hash}
 	_ = state.SaveBuildEvidence(root, id, ev)
 	out, _ = NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>IMPLEMENT DONE</bts>"})
 	if out.Decision == "block" {
 		t.Fatalf("green falsifiers on the current code must pass: %s", out.Reason)
+	}
+}
+
+func TestImplementDone_BuildRecipeNeedsFalsifiersAbleToFail(t *testing.T) {
+	root, id := setupImplementRoot(t)
+	recipe, _ := state.LoadRecipeState(root, id)
+	recipe.Type = "build"
+	_ = state.SaveRecipeState(root, recipe)
+	dir := state.RecipeDir(root, id)
+	_ = os.WriteFile(filepath.Join(dir, "domain.md"), []byte("## 2. Invariants\n\n| ID | Statement | Owner |\n|---|---|---|\n"+
+		"| INV-001 | x | a |\n| INV-002 | y | a |\n"), 0644)
+	_ = os.MkdirAll(filepath.Join(root, "src"), 0755)
+	_ = os.WriteFile(filepath.Join(root, "src", "a.go"), []byte("package a\n"), 0644)
+	hash, _ := engine.CodeHash(root, id)
+	green := func() *state.CommandRun { return &state.CommandRun{ExitCode: 0, CodeHash: hash} }
+	ev := &state.BuildEvidence{Falsifiers: map[string]*state.Falsifier{
+		"INV-001": {Command: "t1", Green: green()},
+		"INV-002": {Command: "t2", Green: green()},
+	}}
+	done := func() *HookOutput {
+		t.Helper()
+		_ = state.SaveBuildEvidence(root, id, ev)
+		out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>IMPLEMENT DONE</bts>"})
+		if err != nil {
+			t.Fatalf("handle: %v", err)
+		}
+		return out
+	}
+
+	if out := done(); out.Decision != "block" || !strings.Contains(out.Reason, "no mutation run for INV-001, INV-002") {
+		t.Fatalf("green alone must not finish: %q %q", out.Decision, out.Reason)
+	}
+
+	// A mutation the falsifier survived, or one that failed somewhere other
+	// than the expected test, shows nothing about the invariant.
+	ev.Falsifiers["INV-001"].Mutation = &state.MutationRun{ExitCode: 0, BaseHash: hash}
+	ev.Falsifiers["INV-002"].Mutation = &state.MutationRun{ExitCode: 2, Matched: false, BaseHash: hash}
+	if out := done(); out.Decision != "block" || !strings.Contains(out.Reason, "with the guard broken for INV-001, INV-002") {
+		t.Fatalf("survived and unmatched mutations must block: %q", out.Reason)
+	}
+
+	// A killed mutation run on older code is stale.
+	ev.Falsifiers["INV-001"].Mutation = &state.MutationRun{ExitCode: 1, Matched: true, BaseHash: "sha256:older"}
+	ev.Falsifiers["INV-002"].Mutation = nil
+	ev.Falsifiers["INV-002"].NotMutable = "held by the type system"
+	if out := done(); out.Decision != "block" || !strings.Contains(out.Reason, "code changed after the mutation runs for INV-001") {
+		t.Fatalf("a mutation run on older code must block: %q", out.Reason)
+	}
+
+	ev.Falsifiers["INV-001"].Mutation.BaseHash = hash
+	if out := done(); out.Decision == "block" {
+		t.Fatalf("a killed mutation and a recorded not-mutable reason must pass: %s", out.Reason)
 	}
 }

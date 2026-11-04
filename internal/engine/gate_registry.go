@@ -101,6 +101,12 @@ var HardGates = []HardGate{
 		Summary:     "IMPLEMENT DONE blocked for a build recipe unless every invariant's falsifier passed on the current code hash",
 	},
 	{
+		ID:          "falsifiers_able_to_fail",
+		Rule:        "bts-implement SKILL.md, Step 5.2 Able to fail",
+		Enforcement: "internal/hook/stop_build.go:buildFalsifiersAbleToFail (handleImplementDone, build recipes)",
+		Summary:     "IMPLEMENT DONE blocked for a build recipe unless every invariant's falsifier failed in its own test on a copy of the current code with the invariant's guard broken (bts falsifier mutate), or the invariant is recorded as not mutable",
+	},
+	{
 		ID:          "tests_cover_current_code",
 		Rule:        "bts-implement-protocol.md §Execution Rules rule 4",
 		Enforcement: "internal/hook/stop.go:testsCoverCurrentCode (handleImplementDone, handleFixDone)",

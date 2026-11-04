@@ -91,6 +91,45 @@ func CheckFalsifiersGreen(ev *state.BuildEvidence, invariants []string, currentH
 	return fmt.Sprintf("Falsifiers are not all green on the current code: %s. Run `bts falsifier check %s`.", strings.Join(parts, "; "), recipeID)
 }
 
+// CheckFalsifiersAbleToFail is gate falsifiers_able_to_fail: every
+// invariant's falsifier has been seen failing, for the invariant's own
+// reason, on a copy of the current code with the invariant's guard broken
+// (`bts falsifier mutate`), or the invariant is recorded as having no code
+// guard to break. It returns "" when the gate is met.
+func CheckFalsifiersAbleToFail(ev *state.BuildEvidence, invariants []string, currentHash, recipeID string) string {
+	var unproven, survived, stale []string
+	for _, id := range invariants {
+		f := ev.Falsifiers[id]
+		switch {
+		case f != nil && strings.TrimSpace(f.NotMutable) != "":
+			continue
+		case f == nil || f.Mutation == nil:
+			unproven = append(unproven, id)
+		case !f.Mutation.Killed():
+			survived = append(survived, id)
+		case currentHash != "" && f.Mutation.BaseHash != currentHash:
+			stale = append(stale, id)
+		}
+	}
+	var parts []string
+	if len(unproven) > 0 {
+		parts = append(parts, fmt.Sprintf("no mutation run for %s", strings.Join(unproven, ", ")))
+	}
+	if len(survived) > 0 {
+		parts = append(parts, fmt.Sprintf("the falsifier did not fail in its own test with the guard broken for %s, so it does not test that invariant yet", strings.Join(survived, ", ")))
+	}
+	if len(stale) > 0 {
+		parts = append(parts, fmt.Sprintf("the code changed after the mutation runs for %s", strings.Join(stale, ", ")))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("Falsifiers are not shown able to fail: %s. Break each invariant's guard in a patch and run "+
+		"`bts falsifier mutate %s --inv <id> --patch <file> --expect \"<its test id>\"`; after a code change run "+
+		"`bts falsifier mutate %s --rerun`; an invariant with no code guard is recorded with --not-mutable \"<reason>\".",
+		strings.Join(parts, "; "), recipeID, recipeID)
+}
+
 // FalsifierIDs returns the recorded invariant ids in sorted order.
 func FalsifierIDs(ev *state.BuildEvidence) []string {
 	ids := make([]string, 0, len(ev.Falsifiers))

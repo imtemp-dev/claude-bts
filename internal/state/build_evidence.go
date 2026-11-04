@@ -42,6 +42,45 @@ type Falsifier struct {
 	Command string      `json:"command"`
 	Red     *CommandRun `json:"red,omitempty"`
 	Green   *CommandRun `json:"green,omitempty"`
+	// Mutation is the falsifier run on a copy of the code with the
+	// invariant's guard broken on purpose (`bts falsifier mutate`). A green
+	// falsifier proves nothing until it has been seen failing for the
+	// invariant's own reason; the red run on the skeleton fails at "not
+	// implemented" and so cannot show that.
+	Mutation *MutationRun `json:"mutation,omitempty"`
+	// NotMutable is the reason an invariant has no code guard to break (a
+	// type or a configuration holds it). It stands in for a mutation.
+	NotMutable string `json:"not_mutable,omitempty"`
+}
+
+// MutationRun is one falsifier run against a broken variant of the code.
+type MutationRun struct {
+	// Patch is the stored mutation, relative to the recipe directory, so
+	// `bts falsifier mutate --rerun` can apply it to later code.
+	Patch     string   `json:"patch"`
+	PatchHash string   `json:"patch_hash"`
+	Files     []string `json:"files"` // the files the patch changes
+	// Setup runs in the copy before the falsifier (e.g. dependency install).
+	Setup    string `json:"setup,omitempty"`
+	Command  string `json:"command"`
+	ExitCode int    `json:"exit_code"`
+	TimedOut bool   `json:"timed_out,omitempty"`
+	// Expect is the text the failing run must print (the invariant's own
+	// test id), so a run that failed at import or in another test does not
+	// count. Matched records whether it did.
+	Expect  string `json:"expect"`
+	Matched bool   `json:"matched"`
+	// BaseHash is the code hash of the unmutated tree the copy was taken
+	// from: the gate compares it with the code on disk.
+	BaseHash  string `json:"base_hash"`
+	Isolation string `json:"isolation"` // "git-ls-files" or "walk"
+	RunAt     string `json:"run_at"`
+}
+
+// Killed reports whether the broken variant made the falsifier fail in the
+// expected test: a non-zero exit, no timeout, and the expected text printed.
+func (m *MutationRun) Killed() bool {
+	return m != nil && m.ExitCode != 0 && !m.TimedOut && m.Matched
 }
 
 // BuildEvidencePath is the evidence file for a recipe.

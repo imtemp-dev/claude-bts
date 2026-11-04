@@ -423,8 +423,12 @@ Only the CLI writes it; never edit it by hand.
     "INV-001": {
       "command": "pytest -q tests/test_relay.py -k inv_001",
       "red":   {"command": "…", "exit_code": 1, "code_hash": "sha256:…", "run_at": "…"},
-      "green": {"command": "…", "exit_code": 0, "code_hash": "sha256:…", "run_at": "…"}
-    }
+      "green": {"command": "…", "exit_code": 0, "code_hash": "sha256:…", "run_at": "…"},
+      "mutation": {"patch": "mutations/INV-001.patch", "patch_hash": "sha256:…", "files": ["relay/main.py"],
+                   "command": "…", "exit_code": 1, "expect": "tests/test_relay.py::test_inv_001", "matched": true,
+                   "base_hash": "sha256:…", "isolation": "git-ls-files", "run_at": "…"}
+    },
+    "INV-002": {"command": "…", "not_mutable": "held by the type of Decision; no code guard to break"}
   }
 }
 ```
@@ -438,6 +442,16 @@ Only the CLI writes it; never edit it by hand.
   files, or the wireframe's File Structure rows before tasks.json exists).
   The gates `skeleton_builds`, `falsifiers_red` and `falsifiers_green`
   count a run only while the files still hash the same.
+- `bts falsifier mutate {id} --inv INV-NNN --patch <file> --expect "<test id>"`
+  applies a patch that breaks the invariant's guard to a copy of the project
+  (what `git ls-files -co --exclude-standard` lists, or a walk outside git;
+  never `.git` or `.bts`), runs the falsifier there and writes `mutation`.
+  It counts as killed only when the run fails and prints the `--expect`
+  text.  The patch is stored under `mutations/`, may change only the
+  recipe's code files, and never a test.  `--not-mutable "<reason>"` writes
+  `not_mutable`; `--rerun` reapplies every stored patch to the current code.
+  Gate `falsifiers_able_to_fail` counts a mutation only while `base_hash`
+  matches the code on disk.
 
 ## deviation.md
 
