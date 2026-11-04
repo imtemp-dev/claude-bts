@@ -76,7 +76,7 @@ When context or time is tight, `hard` gates MUST be upheld first;
 
 1. **Check for resume first**: `bts recipe status` before starting any recipe. {gate: practice}
 2. **Edit draft.md in place**: Use Edit tool for incremental modifications, not full rewrites. {gate: practice}
-3. **VERIFY after every modification**: No exceptions. This includes post-debate and post-simulation fixes. {gate: hard}
+3. **VERIFY after every modification** of a spec document during the spec phases: no exceptions there.  This includes post-debate and post-simulation fixes.  After implementation starts, sync's edits to final.md record what the tested code does and get `bts validate`, not another review round. {gate: hard}
 4. **Log every action**: `bts recipe log {id}` after every step. {gate: hard}
 5. **Simulate at least once**: Before declaring Level 3, run /simulate with 5+ scenarios. {gate: hard}
 6. **Debate uncertain choices**: Don't guess. Use /debate for technology decisions. {gate: practice}

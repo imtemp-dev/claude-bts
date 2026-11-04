@@ -131,7 +131,7 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 		}
 
 		msg += openDecisionNotice(root, recipe.ID)
-		msg += dirtyDocWarning(root, recipe.ID)
+		msg += dirtyDocWarning(root, recipe)
 
 		if updated {
 			msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)
@@ -185,7 +185,7 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 	}
 
 	msg += openDecisionNotice(root, recipe.ID)
-	msg += dirtyDocWarning(root, recipe.ID)
+	msg += dirtyDocWarning(root, recipe)
 
 	if updated {
 		msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)
@@ -225,8 +225,17 @@ func openDecisionNotice(root, recipeID string) string {
 // modified after their last verification (per verify snapshots), ""
 // otherwise. Best-effort: errors and legacy recipes (no snapshots)
 // produce no warning.
-func dirtyDocWarning(root, recipeID string) string {
-	dirty, err := state.DirtyVerifiedDocs(root, recipeID)
+//
+// Rule 3 is a spec-phase rule. After implementation starts, sync edits
+// final.md to record what the tested code does; the code and its runs are
+// the truth then, and the stop hook's blind-stop backstop already lets
+// these phases end (handleBlindStop). Asking for /bts-verify there sends
+// the session back into model review rounds on a record of tested code.
+func dirtyDocWarning(root string, recipe *state.RecipeState) string {
+	if state.IsImplementPhase(recipe.Phase) {
+		return ""
+	}
+	dirty, err := state.DirtyVerifiedDocs(root, recipe.ID)
 	if err != nil || len(dirty) == 0 {
 		return ""
 	}

@@ -217,7 +217,9 @@ the vocabulary; missing or invalid Driver / Severity / ID blocks
    ```
 
 3. If final.md was modified (any Spec Addition or Deviation resolved by updating spec),
-   run /verify on the updated final.md to ensure no contradictions were introduced.
-   This satisfies the "every modification → /verify" rule.
+   the `bts validate` run in step 2 is the check.  Do not run /verify or
+   another review round on it: final.md now records what the tested code
+   does, and the code, its tests and its falsifiers are the truth.  Rule 3
+   ("every modification → /verify") applies to spec phases only.
 
 Output `<bts>SYNC DONE</bts>` when complete.
