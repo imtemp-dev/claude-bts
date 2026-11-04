@@ -2,14 +2,11 @@ package cli
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/imtemp-dev/claude-bts/internal/state"
@@ -94,47 +91,12 @@ func executeTestRun(root, recipeID, cmdStr, framework string, timeoutSec int, co
 		timeoutSec = 600
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
-	defer cancel()
-
-	var buf bytes.Buffer
-	out := io.MultiWriter(sink, &buf)
-
-	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr)
-	cmd.Dir = root
-	cmd.Stdout = out
-	cmd.Stderr = out
-	// Run in its own process group so a timeout kills the whole tree,
-	// not just the shell.
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error {
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	run, err := runShellCommand(root, cmdStr, timeoutSec, sink)
+	if err != nil {
+		return nil, fmt.Errorf("run test command: %w", err)
 	}
-	cmd.WaitDelay = 5 * time.Second
-
-	runErr := cmd.Run()
-	timedOut := ctx.Err() == context.DeadlineExceeded
-
-	exitCode := 0
-	if runErr != nil {
-		var exitErr *exec.ExitError
-		if errors.As(runErr, &exitErr) {
-			exitCode = exitErr.ExitCode()
-			if exitCode < 0 {
-				// Killed by signal (e.g. our timeout SIGKILL).
-				exitCode = 137
-			}
-		} else if timedOut {
-			exitCode = 137
-		} else {
-			// Failed to even start (sh missing etc.) — surface as error.
-			return nil, fmt.Errorf("run test command: %w", runErr)
-		}
-	}
-	if timedOut {
-		fmt.Fprintf(&buf, "\n[bts] TIMEOUT: killed after %ds\n", timeoutSec)
-		fmt.Fprintf(sink, "\n[bts] TIMEOUT: killed after %ds\n", timeoutSec)
-	}
+	buf := bytes.NewBuffer(run.Output)
+	exitCode, timedOut := run.ExitCode, run.TimedOut
 
 	status := "fail"
 	if exitCode == 0 && !timedOut {
