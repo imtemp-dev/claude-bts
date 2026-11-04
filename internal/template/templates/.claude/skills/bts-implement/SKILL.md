@@ -29,12 +29,19 @@ Use settings values if present, otherwise use defaults noted in each step.
    ```
    If not found → "Run /recipe blueprint first."
 
-2. Verify spec quality gate:
-   - Check `verify-log.jsonl` exists and last entry has critical=0,
-     major=0, minor_resolvable=0 (status "converged" — same bar the
-     stop hook applied at `<bts>DONE</bts>`; minor_deferred may be > 0)
+2. Verify spec quality gate. The bar is the one the stop hook applied at
+   `<bts>DONE</bts>`, and it depends on the recipe type (`Type:` in
+   `bts recipe status`):
+   - **blueprint** (and any type other than build): `verify-log.jsonl`
+     exists and its last entry has critical=0, major=0,
+     minor_resolvable=0 (status "converged"; minor_deferred may be > 0).
+   - **build**: the gate is `build_review_clean`: the last full review of
+     `final.md` in `verify-log.jsonl` has critical=0 and major=0, and
+     `final.md` is unchanged since. Minors do not hold a build recipe;
+     they are fixed or carried to `/bts-sync`. Do not ask a build recipe
+     for "converged".
    - If verify-log is missing or the bar is not met →
-     "Spec not verified. Run /recipe blueprint to complete verification before implementing."
+     "Spec not verified. Finish the recipe's review before implementing."
    - This prevents implementing from unverified or manually-created specs.
 
 3. Check recipe phase:
