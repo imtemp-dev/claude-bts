@@ -21,7 +21,7 @@ func init() {
 	recipeCmd.AddCommand(
 		recipeStatusCmd, recipeListCmd, recipeLogCmd,
 		recipeCancelCmd, recipeCreateCmd, recipeReconcileCmd,
-		recipeVerifyFocusCmd,
+		recipeVerifyFocusCmd, recipeClaimCmd,
 	)
 	recipeCreateCmd.Flags().String("type", "blueprint", "Recipe type (blueprint, build, design, analyze, fix, debug)")
 	recipeCreateCmd.Flags().String("topic", "", "Recipe topic description")
@@ -68,6 +68,9 @@ var recipeStatusCmd = &cobra.Command{
 		fmt.Printf("  Type:         %s\n", recipe.Type)
 		fmt.Printf("  Topic:        %s\n", recipe.Topic)
 		fmt.Printf("  Phase:        %s\n", recipe.Phase)
+		if recipe.OwnerSession != "" {
+			fmt.Printf("  Owner:        session %.8s\n", recipe.OwnerSession)
+		}
 		// A recipe waiting on a person must not read as one still
 		// working. Every other surface says so — the session-start hook,
 		// the statusline, doctor, and the stop gate, which refuses to

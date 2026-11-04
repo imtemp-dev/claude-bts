@@ -76,6 +76,21 @@ func (h *stopHandler) decide(root string, input *HookInput) (*HookOutput, error)
 	// a marker (a report, an explanation of a block) is not a completion.
 	text := input.StopText()
 
+	// Another session in the project is not held by this recipe's rules,
+	// and cannot complete it: its tagged marker is refused once, with the
+	// owner named, so it does not believe it finished the recipe.
+	if isObserver(recipe, input.SessionID) {
+		for _, m := range []string{"<bts>DONE</bts>", "<bts>IMPLEMENT DONE</bts>", "<bts>FIX DONE</bts>"} {
+			if strings.Contains(text, m) {
+				return blockOutput(fmt.Sprintf(
+					"This session does not own recipe %s; session %s works it, so %s was not applied and nothing was completed. "+
+						"Leave completion to that session, or run `bts recipe claim %s` here first to take the recipe over.",
+					recipe.ID, shortSession(recipe.OwnerSession), m, recipe.ID)), nil
+			}
+		}
+		return &HookOutput{}, nil
+	}
+
 	// Check for fix completion marker
 	if strings.Contains(text, "<bts>FIX DONE</bts>") {
 		return h.handleFixDone(root, recipe)

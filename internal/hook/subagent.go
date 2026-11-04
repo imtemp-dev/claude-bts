@@ -85,7 +85,9 @@ func subagentEvent(root string, kind metrics.EventKind, input *HookInput) *metri
 		SessionID: input.SessionID,
 		AgentID:   input.AgentID,
 	}
-	if recipe, _ := state.GetActiveRecipe(root); recipe != nil {
+	if recipe, _ := state.GetActiveRecipe(root); isObserver(recipe, input.SessionID) {
+		ev.Observer = true
+	} else if recipe != nil {
 		ev.RecipeID = recipe.ID
 		ev.Phase = recipe.Phase
 	}

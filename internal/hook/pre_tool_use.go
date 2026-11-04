@@ -26,6 +26,12 @@ func (h *preToolUseHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return &HookOutput{}, nil
 	}
 
+	// Another session in the project gets nothing from the recipe: no
+	// breadcrumbs in its recovery trail, no budget, no phase warnings.
+	if recipe, _ := state.GetActiveRecipe(root); isObserver(recipe, input.SessionID) {
+		return &HookOutput{}, nil
+	}
+
 	// Record a breadcrumb for any tracked tool — helps post-compact recovery.
 	appendToolTraceBreadcrumb(root, "pre", input)
 

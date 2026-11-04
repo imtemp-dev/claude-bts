@@ -28,6 +28,9 @@ func (h *preCompactHandler) Handle(input *HookInput) (*HookOutput, error) {
 
 	// Save recipe state if active recipe exists
 	recipe, _ := state.GetActiveRecipe(root)
+	if isObserver(recipe, input.SessionID) {
+		return &HookOutput{}, nil
+	}
 	if recipe != nil {
 		marker.RecipeID = recipe.ID
 		marker.Phase = recipe.Phase

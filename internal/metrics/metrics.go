@@ -28,6 +28,10 @@ type MetricsEvent struct {
 	SessionID string    `json:"session_id,omitempty"`
 	RecipeID  string    `json:"recipe_id,omitempty"`
 	Phase     string    `json:"phase,omitempty"`
+	// Observer marks an event from a session that does not own the active
+	// recipe: it stays in the project metrics and is kept out of the
+	// recipe's (RecipeID empty).
+	Observer bool `json:"observer,omitempty"`
 
 	// Session fields
 	Model  string `json:"model,omitempty"`

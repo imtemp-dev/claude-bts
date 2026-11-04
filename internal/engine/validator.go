@@ -1076,4 +1076,6 @@ var ChangelogActions = map[string]bool{
 	"falsify":         true,
 	"falsifier-check": true,
 	"mutate":          true,
+	// written by the PostToolUse hook when a session creates or claims a recipe
+	"claim": true,
 }

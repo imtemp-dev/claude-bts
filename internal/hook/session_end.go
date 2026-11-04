@@ -26,7 +26,7 @@ func (h *sessionEndHandler) Handle(input *HookInput) (*HookOutput, error) {
 
 	// Save recipe state
 	recipe, err := state.GetActiveRecipe(root)
-	if err != nil || recipe == nil {
+	if err != nil || recipe == nil || isObserver(recipe, input.SessionID) {
 		return &HookOutput{}, nil
 	}
 	if err := state.SaveRecipeState(root, recipe); err != nil {

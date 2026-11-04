@@ -24,6 +24,12 @@ type RecipeState struct {
 	StartedAt    string  `json:"started_at"`
 	UpdatedAt    string  `json:"updated_at"`
 	RefRecipe    string  `json:"ref_recipe,omitempty"` // referenced recipe ID (for fix recipes)
+	// OwnerSession is the Claude Code session that works the recipe: the
+	// one that ran `bts recipe create`, or later `bts recipe claim`. Only a
+	// hook knows a session id, so the PostToolUse hook records it. Other
+	// sessions in the project get no gates and are metered as observers.
+	// Empty (every recipe made before this field) means any session.
+	OwnerSession string `json:"owner_session,omitempty"`
 }
 
 // TaskState represents the tasks.json file for implementation tracking.

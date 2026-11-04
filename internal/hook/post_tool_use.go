@@ -24,6 +24,9 @@ func (h *postToolUseHandler) EventType() EventType {
 }
 
 func (h *postToolUseHandler) Handle(input *HookInput) (*HookOutput, error) {
+	if root, err := state.FindRoot(input.CWD); err == nil {
+		bindOwnership(root, input)
+	}
 	recordToolUse(input, true, nil)
 	return &HookOutput{}, nil
 }
@@ -68,9 +71,14 @@ func recordToolUse(input *HookInput, success bool, exitCode *int) {
 		ExitCode:  exitCode,
 	}
 
-	// Attach recipe context if available
+	// Attach recipe context if available; another session's events stay
+	// out of the recipe's metrics.
 	recipe, _ := state.GetActiveRecipe(root)
-	if recipe != nil {
+	observer := isObserver(recipe, input.SessionID)
+	switch {
+	case observer:
+		event.Observer = true
+	case recipe != nil:
 		event.RecipeID = recipe.ID
 		event.Phase = recipe.Phase
 	}
@@ -89,7 +97,7 @@ func recordToolUse(input *HookInput, success bool, exitCode *int) {
 
 	_ = metrics.Append(root, event)
 
-	if isTrackedTool(input.ToolName) {
+	if isTrackedTool(input.ToolName) && !observer {
 		_ = state.AppendToolTrace(root, &state.ToolTraceEntry{
 			Phase:    "post",
 			ToolName: input.ToolName,

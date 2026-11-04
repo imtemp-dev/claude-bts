@@ -145,6 +145,18 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 		}, nil
 	}
 
+	// Another session in the project: one line, no resume hints, and its
+	// events stay out of the recipe's metrics.
+	if isObserver(recipe, input.SessionID) {
+		metricsEvent.Observer = true
+		return &HookOutput{
+			HookSpecificOutput: &HookSpecificOutput{
+				HookEventName:     "SessionStart",
+				AdditionalContext: observerNotice(recipe),
+			},
+		}, nil
+	}
+
 	metricsEvent.RecipeID = recipe.ID
 	metricsEvent.Phase = recipe.Phase
 
