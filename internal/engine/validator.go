@@ -649,19 +649,7 @@ func validateManifestJSON(path string) []ValidationError {
 					continue
 				}
 				if t, ok := entryMap["type"].(string); ok {
-					validTypes := map[string]bool{
-						"research": true, "draft": true, "debate": true,
-						"simulation": true, "verification": true,
-						"implementation": true, "test-result": true, "deviation": true,
-						"review": true,
-						// Lifecycle docs (intent/scope/final) carry their own doc type so
-						// manifests can distinguish them from drafts. "finalize" is an
-						// accepted alias kept for recipes created before the rename.
-						"discover": true, "scope": true,
-						"final": true, "finalize": true,
-						"domain": true, "wireframe": true, "architect-decision": true,
-					}
-					if !validTypes[t] {
+					if !ManifestDocTypes[t] {
 						errs = append(errs, ValidationError{File: "manifest.json", Field: "documents." + path + ".type", Message: fmt.Sprintf("invalid type '%s'", t)})
 					}
 				} else if _, exists := entryMap["type"]; !exists {
@@ -715,24 +703,7 @@ func validateChangelogJSONL(path string) []ValidationError {
 		}
 
 		if action, ok := raw["action"].(string); ok {
-			validActions := map[string]bool{
-				"discover": true, "domain-model": true, "wireframe": true,
-				"research": true, "draft": true, "improve": true, "verify": true,
-				"debate": true, "simulate": true, "audit": true, "assess": true,
-				"sync-check": true, "finalize": true,
-				"implement": true, "test": true, "sync": true, "status": true,
-				"adjudicate": true, "review": true, "architect": true,
-				"resolve-uncertainties": true,
-				"midrun-review":         true,
-				"comment-apply":         true,
-				"defend":                true,
-				// build recipe: written by `bts check build`, `bts falsifier run|check|mutate`
-				"skeleton":        true,
-				"falsify":         true,
-				"falsifier-check": true,
-				"mutate":          true,
-			}
-			if !validActions[action] {
+			if !ChangelogActions[action] {
 				errs = append(errs, ValidationError{File: "changelog.jsonl", Field: fmt.Sprintf("line %d.action", lineNum), Message: fmt.Sprintf("invalid action '%s'", action)})
 			}
 
@@ -1070,4 +1041,39 @@ func validateTestResultsJSON(path string) []ValidationError {
 	}
 
 	return errs
+}
+
+// ManifestDocTypes are the document types manifest.json accepts. `bts
+// recipe log --output` checks a type against it before writing anything,
+// so the writer and `bts validate` cannot disagree.
+var ManifestDocTypes = map[string]bool{
+	"research": true, "draft": true, "debate": true,
+	"simulation": true, "verification": true,
+	"implementation": true, "test-result": true, "deviation": true,
+	"review": true,
+	// Lifecycle docs (intent/scope/final) carry their own doc type so
+	// manifests can distinguish them from drafts. "finalize" is an
+	// accepted alias kept for recipes created before the rename.
+	"discover": true, "scope": true,
+	"final": true, "finalize": true,
+	"domain": true, "wireframe": true, "architect-decision": true,
+}
+
+// ChangelogActions are the actions changelog.jsonl accepts.
+var ChangelogActions = map[string]bool{
+	"discover": true, "domain-model": true, "wireframe": true,
+	"research": true, "draft": true, "improve": true, "verify": true,
+	"debate": true, "simulate": true, "audit": true, "assess": true,
+	"sync-check": true, "finalize": true,
+	"implement": true, "test": true, "sync": true, "status": true,
+	"adjudicate": true, "review": true, "architect": true,
+	"resolve-uncertainties": true,
+	"midrun-review":         true,
+	"comment-apply":         true,
+	"defend":                true,
+	// build recipe: written by `bts check build`, `bts falsifier run|check|mutate`
+	"skeleton":        true,
+	"falsify":         true,
+	"falsifier-check": true,
+	"mutate":          true,
 }

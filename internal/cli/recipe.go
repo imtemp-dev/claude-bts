@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -223,6 +224,15 @@ var recipeLogCmd = &cobra.Command{
 			result, _ := cmd.Flags().GetString("result")
 			gaps, _ := cmd.Flags().GetInt("gaps")
 
+			var manifestType string
+			if output != "" {
+				t, err := outputDocType(action, docType)
+				if err != nil {
+					return err
+				}
+				manifestType = t
+			}
+
 			entry := &state.ChangelogEntry{
 				Action: action,
 				Output: output,
@@ -270,11 +280,7 @@ var recipeLogCmd = &cobra.Command{
 				if basedOn != "" {
 					deps = []string{basedOn}
 				}
-				// Use explicit doc-type if given, otherwise infer from action
-				manifestType := docType
-				if manifestType == "" {
-					manifestType = actionToDocType(action)
-				}
+				// The type was checked before the changelog entry was written.
 				manifest.AddDocument(output, manifestType, deps)
 				if err := state.SaveManifest(root, recipeID, manifest); err != nil {
 					fmt.Fprintf(os.Stderr, "warning: save manifest: %v\n", err)
@@ -869,7 +875,7 @@ func actionToDocType(action string) string {
 		return "discover"
 	case "resolve-uncertainties":
 		return "verification"
-	case "review":
+	case "review", "midrun-review":
 		return "review"
 	case "finalize":
 		return "final"
@@ -1292,4 +1298,32 @@ func backupRecipeJSON(path string) error {
 		return err
 	}
 	return os.WriteFile(path+".bak", data, 0644)
+}
+
+// outputDocType is the manifest type `bts recipe log --output` records:
+// the explicit --doc-type, or the one the action implies. A type the
+// manifest does not accept is refused here, before anything is written,
+// instead of surfacing later as a `bts validate` error.
+func outputDocType(action, docType string) (string, error) {
+	t := docType
+	if t == "" {
+		t = actionToDocType(action)
+	}
+	if engine.ManifestDocTypes[t] {
+		return t, nil
+	}
+	if docType != "" {
+		return "", fmt.Errorf("--doc-type %q is not a manifest document type (%s)", docType, strings.Join(sortedDocTypes(), ", "))
+	}
+	return "", fmt.Errorf("action %q records no document, so it takes no --output; drop --output, or pass --doc-type with one of: %s",
+		action, strings.Join(sortedDocTypes(), ", "))
+}
+
+func sortedDocTypes() []string {
+	types := make([]string, 0, len(engine.ManifestDocTypes))
+	for t := range engine.ManifestDocTypes {
+		types = append(types, t)
+	}
+	sort.Strings(types)
+	return types
 }
