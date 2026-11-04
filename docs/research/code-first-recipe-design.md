@@ -73,6 +73,11 @@ Run `/bts-recipe-build` on the next suitable issues and compare with AGEN-35's b
 3. **Model check:** `bts-model-check` skill (TLA+ from `domain.md`, TLC, counterexamples as paths), `bts model check`, `model_checked`.
 4. **Prototype record:** `bts recipe uncertainty run`, `uncertainties_run`.
 
+## Found on the first real run (AGEN-35, r-002)
+
+- **Red on a skeleton proves less than intended.**  Every falsifier fails at the skeleton's `NotImplementedError`, so "fails for the invariant's own reason" cannot be checked at the red step, and `bts falsifier run` records only the exit code.  Candidate next slice, pstack's "able to fail": once a falsifier is green, break the guard that enforces its invariant (or let the agent name a mutation) and require the falsifier to go red again, recorded as `bts falsifier mutate`.
+- Fixed during the run: `bts validate` asked a build recipe for simulation scenarios per illegal cell (now: a `[illegal-cell: …]` tag on a falsifier row in `final.md`), and the skeleton skill's log step retyped `wireframe.md` in the manifest.
+
 ## Open decisions
 
 1. A new recipe beside the blueprint (proposed, additive and comparable), or a change to the blueprint itself.
