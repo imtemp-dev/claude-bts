@@ -192,6 +192,40 @@ func CheckIllegalCellCoverage(domainPath, recipeDir string) []Issue {
 	return issues
 }
 
+// CheckIllegalCellFalsifiers is the build recipe's form of
+// CheckIllegalCellCoverage. A build recipe proves an illegal cell with a
+// test that the transition is refused, not with a simulated scenario, so
+// coverage is a `[illegal-cell: <label>]` tag on that test's row in
+// final.md § 2. Returns one critical issue per untagged cell.
+func CheckIllegalCellFalsifiers(domainPath, finalPath string) []Issue {
+	cells, err := parseIllegalCells(domainPath)
+	if err != nil || len(cells) == 0 {
+		return nil
+	}
+	data, err := os.ReadFile(finalPath)
+	if err != nil {
+		return nil
+	}
+	covered := map[string]bool{}
+	for _, m := range illegalCellTagRe.FindAllStringSubmatch(string(data), -1) {
+		covered[strings.ToLower(strings.TrimSpace(m[1]))] = true
+	}
+	var issues []Issue
+	for _, cell := range cells {
+		if !covered[strings.ToLower(cell)] {
+			issues = append(issues, Issue{
+				Category: "falsify",
+				Claim:    "untested_illegal_cell: " + cell,
+				Severity: "critical",
+				Detail:   "domain.md §4 declares cell '" + cell + "' ILLEGAL but no falsifier row in final.md § 2 carries `[illegal-cell: " + cell + "]`. Write a test that the transition is refused, record it with `bts falsifier run`, and tag its row.",
+			})
+		}
+	}
+	return issues
+}
+
+var illegalCellTagRe = regexp.MustCompile(`(?i)\[illegal-cell:\s*([^\]]+)\]`)
+
 // ---- parsing helpers --------------------------------------------------
 
 func countSimulationTags(content string) SimulationStats {

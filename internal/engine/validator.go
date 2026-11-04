@@ -154,14 +154,42 @@ func ValidateRecipeDir(recipeDir string) ([]ValidationError, error) {
 
 	// Illegal-cell coverage is per-recipe (compares domain.md to all
 	// simulation files together).
+	// A build recipe has no simulations: its illegal cells are covered by
+	// falsifier tests tagged in final.md, checked once final.md exists
+	// (before the falsify step there is nothing to check yet).
 	domainPath := filepath.Join(recipeDir, "domain.md")
 	if _, err := os.Stat(domainPath); err == nil {
-		for _, issue := range CheckIllegalCellCoverage(domainPath, recipeDir) {
-			errors = append(errors, ValidationError{File: "domain.md → simulations/", Field: issue.Category, Message: issue.Claim + " — " + issue.Detail})
+		if recipeTypeOf(recipeDir) == "build" {
+			finalPath := filepath.Join(recipeDir, "final.md")
+			if _, ferr := os.Stat(finalPath); ferr == nil {
+				for _, issue := range CheckIllegalCellFalsifiers(domainPath, finalPath) {
+					errors = append(errors, ValidationError{File: "domain.md → final.md", Field: issue.Category, Message: issue.Claim + " — " + issue.Detail})
+				}
+			}
+		} else {
+			for _, issue := range CheckIllegalCellCoverage(domainPath, recipeDir) {
+				errors = append(errors, ValidationError{File: "domain.md → simulations/", Field: issue.Category, Message: issue.Claim + " — " + issue.Detail})
+			}
 		}
 	}
 
 	return errors, nil
+}
+
+// recipeTypeOf reads the type field of a recipe directory's recipe.json,
+// or "" when it cannot.
+func recipeTypeOf(recipeDir string) string {
+	data, err := os.ReadFile(filepath.Join(recipeDir, "recipe.json"))
+	if err != nil {
+		return ""
+	}
+	var r struct {
+		Type string `json:"type"`
+	}
+	if json.Unmarshal(data, &r) != nil {
+		return ""
+	}
+	return r.Type
 }
 
 // structuredVerifyResultRe matches the canonical "critical=N major=N ..."

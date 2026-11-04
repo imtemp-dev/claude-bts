@@ -58,10 +58,11 @@ The command must fail now. A test that passes on the skeleton is refused
 and not recorded: make it assert the outcome. When the skeleton changes
 later, rerun them all with `bts falsifier check {id} --red`.
 
-Add each row to `final.md` § 2 (invariant, test, command).
+Add each row to `final.md` § 2 (invariant, test, command). A row whose
+test proves an illegal cell from `domain.md` § 4 refused carries the
+cell's label as a tag, `INV-003 [illegal-cell: second issue for one PR]`:
+that tag, not a simulated scenario, is what `bts validate` counts as the
+cell's coverage in a build recipe. Every illegal cell needs a tagged row.
 
-## Log
-
-```bash
-bts recipe log {id} --action falsify --result "N invariants red"
-```
+`bts falsifier run` records each run in the changelog itself; there is
+nothing else to log for this step.

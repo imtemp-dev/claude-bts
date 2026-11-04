@@ -120,6 +120,10 @@ The invariants and owners are `domain.md` § 2.
 | Invariant | Test | Command |
 | --- | --- | --- |
 | INV-001 | `tests/test_relay.py::test_inv_001_one_issue_per_pr` | `pytest -q tests/test_relay.py -k inv_001` |
+| INV-004 [illegal-cell: second issue for one PR] | `tests/test_relay.py::test_inv_004_refuses_second_issue` | `pytest -q tests/test_relay.py -k inv_004` |
+
+A row that proves an illegal cell from `domain.md` § 4 refused carries
+its `[illegal-cell: <label>]` tag; every illegal cell needs one.
 
 ## 3. Boundary contracts
 {Per boundary: the skeleton file that declares it, and what crosses it
