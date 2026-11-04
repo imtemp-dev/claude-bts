@@ -42,3 +42,10 @@ For each finding:
 - Tag with ID: [CRT-001], [MAJ-001], [MIN-001], [INF-001]
 - Include file path and line context
 - Provide a specific, actionable fix suggestion
+- For a **critical**, add a falsifier: `Falsifier: <command>` that shows
+  the defect when run from the project root (a focused test, a short
+  script), and `Required: <what correct code would print>`. You have no
+  Bash; the orchestrator runs it once and keeps the finding critical only
+  if the output shows the failure. Never `bts test run` (it overwrites
+  the recipe's test results). A critical you cannot give a command for is
+  a major.

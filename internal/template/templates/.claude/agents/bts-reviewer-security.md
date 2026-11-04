@@ -42,3 +42,11 @@ For each finding:
 - Include file path and line context
 - Explain the attack scenario briefly
 - Provide a specific fix
+- For a **critical**, add either a falsifier (`Falsifier: <command>` run
+  from the project root, and `Required: <what correct code would print>`)
+  or a concrete scenario: `Input:` what an attacker sends, `Path:` the
+  code it travels (`file:line -> file:line`), `Outcome:` what they get.
+  You have no Bash; the orchestrator runs a falsifier once. A scenario is
+  accepted for security findings because the flaws you exist to catch are
+  the hardest to show with one command. Never `bts test run`. A critical
+  with neither is a major.

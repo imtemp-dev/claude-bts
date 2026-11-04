@@ -237,6 +237,21 @@ var recipeLogCmd = &cobra.Command{
 			// A review names the code it judged, so it can later be
 			// matched to the test run on the same code.
 			if action == "review" {
+				// review.md must carry its machine-readable block, and
+				// every critical in it the evidence that shows it. Refusing
+				// here, at the step that records the review, is what makes
+				// the rule bind rather than ask (bts-review Step 4.2).
+				reviewPath := filepath.Join(state.RecipeDir(root, recipeID), "review.md")
+				data, rerr := os.ReadFile(reviewPath)
+				if rerr != nil {
+					return fmt.Errorf("--action review: read %s: %w", reviewPath, rerr)
+				}
+				if _, perr := engine.ParseReviewFindingsBlock(data); perr != nil {
+					return fmt.Errorf("--action review: %v.\n"+
+						"bts-review Step 5 appends a <bts-review-findings> block, and every critical "+
+						"in it carries the run (or, for security, the scenario) that shows it. Run the "+
+						"falsifier, or downgrade the finding to major (Step 4.2), then log again", perr)
+				}
 				h, herr := state.RecipeImplHash(root, recipeID)
 				if herr != nil {
 					fmt.Fprintf(os.Stderr, "[bts] warning: code fingerprint: %v (this review records none)\n", herr)

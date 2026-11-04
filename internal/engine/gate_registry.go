@@ -95,6 +95,12 @@ var HardGates = []HardGate{
 		Summary:     "IMPLEMENT DONE blocked unless review.md exists",
 	},
 	{
+		ID:          "review_criticals_proven",
+		Rule:        "bts-review SKILL.md Step 4.2",
+		Enforcement: "internal/cli/recipe.go (log --action review) + internal/hook/stop.go:reviewCriticalsProven",
+		Summary:     "Logging a review, and IMPLEMENT DONE, refused when a critical in review.md's <bts-review-findings> block lacks the run (or, for security, the scenario) that shows it",
+	},
+	{
 		ID:          "phase_transitions_logged",
 		Rule:        "bts-implement-protocol.md §Execution Rules rule 7",
 		Enforcement: "internal/cli/recipe.go:recipeLogCmd phase flag",

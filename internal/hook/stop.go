@@ -3,6 +3,7 @@ package hook
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -633,6 +634,9 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 	if _, err := os.Stat(reviewPath); os.IsNotExist(err) {
 		return blockOutput(fmt.Sprintf("No review.md found. Run %s to complete review.", implCmd)), nil
 	}
+	if out := reviewCriticalsProven(reviewPath); out != nil {
+		return out, nil
+	}
 
 	// 4. Check that sync has run (deviation.md exists)
 	deviationPath := filepath.Join(state.RecipeDir(root, recipe.ID), "deviation.md")
@@ -742,6 +746,33 @@ func testsCoverCurrentCode(root, recipeID string, tr *state.TestResults) *HookOu
 		"Tests passed on different code: a file named in tasks.json changed after "+
 			"the last `bts test run` recorded its result. Re-run the tests on the code "+
 			"as it is now:\n  %s\nthen complete again.", rerun))
+}
+
+// reviewCriticalsProven is gate review_criticals_proven: every critical in
+// review.md's <bts-review-findings> block carries the run that shows it
+// (or, for a security finding, the scenario). `bts recipe log --action
+// review` already refuses a review without that; this catches review.md
+// edited after it was logged.
+//
+// Not overridable: the remedy is to run the falsifier or downgrade the
+// finding to major, both cheap and both honest about what is known.
+//
+// A review.md with no block at all was written before the block existed;
+// it passes, and `bts doctor` reports it.
+func reviewCriticalsProven(reviewPath string) *HookOutput {
+	data, err := os.ReadFile(reviewPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[bts] warning: read review.md: %v (proceeding without check)\n", err)
+		return nil
+	}
+	_, perr := engine.ParseReviewFindingsBlock(data)
+	if perr == nil || errors.Is(perr, engine.ErrNoReviewFindingsBlock) {
+		return nil
+	}
+	return blockOutput(fmt.Sprintf(
+		"review.md: %v.\nA critical code-review finding needs the run that shows it "+
+			"(or, for a security finding, the scenario). Run its falsifier and record the output, "+
+			"or downgrade it to major (bts-review Step 4.2), then complete again.", perr))
 }
 
 // handleFixDone validates fix recipe completion via fix-spec.md + test-results.json.

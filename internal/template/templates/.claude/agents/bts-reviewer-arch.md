@@ -46,3 +46,9 @@ For each finding:
 - Include file path and context
 - Reference the specific convention being violated
 - Suggest alignment fix
+- For a **critical**, add a falsifier: `Falsifier: <command>` that shows
+  the defect when run from the project root (a build, an import check, a
+  focused test), and `Required: <what correct code would print>`. You
+  have no Bash; the orchestrator runs it once. Convention and naming
+  findings rarely have one, which is why they are rarely critical. Never
+  `bts test run`. A critical you cannot give a command for is a major.

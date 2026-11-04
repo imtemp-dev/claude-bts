@@ -125,9 +125,36 @@ After collecting findings from all agents:
 
 1. **Deduplicate**: Same issue found by multiple agents → merge, note all perspectives
 2. **Assign unified IDs**: [CRT-001], [MAJ-001], [MIN-001], [INF-001]
-3. **Compile findings list**: Each finding with ID, severity, file:line, description, fix suggestion
+3. **Compile findings list**: Each finding with ID, severity, perspective
+   (quality, security, architecture), file:line, description, fix
+   suggestion, and for a critical the reviewer's `Falsifier:` and
+   `Required:` lines (or, for security, `Input:`, `Path:`, `Outcome:`)
 
 This is the raw input for adversarial validation. Do NOT assess practicality here.
+
+## Step 4.2: Run the falsifiers
+
+A critical code-review finding is a claim until something shows it. The
+reviewers have no Bash, so you run each critical's falsifier, once, from
+the project root:
+
+1. Run it only if it reads or tests: a focused test, a build, a script
+   that prints. Never run a command that deploys, sends, deletes, writes
+   outside a temp directory, or calls an external service, and never
+   `bts test run` (it overwrites the recipe's test results). A falsifier
+   you will not run counts as not shown.
+2. Record what it printed (the first 40 lines are enough) as the
+   finding's observed output.
+3. Output shows the failure → the finding stays critical, with the run as
+   its evidence. Output does not show it, the command errors for another
+   reason, or there is no command → downgrade it to **major**, keep the
+   output in its description, and tag it `[UNPROVEN]`.
+4. A security critical with an `Input`/`Path`/`Outcome` scenario and no
+   command stays critical on the scenario; Step 4.5 tests it.
+
+`bts recipe log --action review` refuses a review.md whose block (Step 5)
+has a critical without this evidence, and so does the completion gate.
+The cost is one Bash call per critical, the rarest severity.
 
 ## Step 4.5: Adversarial Validation
 
@@ -158,6 +185,8 @@ a real, practical problem.
    Severity: {critical|major|minor|info}
    Found by: {agent}
    Description: {what the reviewer found}
+   Shown by: {critical only: the command and the output Step 4.2 recorded,
+     or the security scenario}
    Fix suggestion: {suggested fix}
 
 2. [MAJ-001] ...
@@ -232,6 +261,8 @@ Validation: adversarial (2-round debate)
 1. [CRT-001] **{title}** in `{file}:{line}`
    Found by: {agent name}
    Consensus: AGREED | ADJUDICATED
+   Shown by: `{command}` → {the lines of output that show it}
+     (security scenario: Input / Path / Outcome)
    {code context}
    → {fix suggestion}
 
@@ -257,6 +288,29 @@ Validation: adversarial (2-round debate)
    Defense: {validator's evidence}
    Verdict: {INCLUDED|EXCLUDED} — {orchestrator's reasoning}
 ```
+
+End review.md with one machine-readable block listing every finding that
+survived (not the dismissed ones), after severities are final:
+
+```
+<bts-review-findings>
+{"findings": [
+  {"id": "CRT-001", "severity": "critical", "perspective": "quality",
+   "title": "...", "anchor": "src/auth/session.go:42",
+   "evidence": {"kind": "run", "command": "go test ./src/auth -run TestExpiry",
+                "observed": "--- FAIL: TestExpiry ...", "required": "PASS"}},
+  {"id": "CRT-002", "severity": "critical", "perspective": "security",
+   "title": "...", "evidence": {"kind": "scenario", "input": "...",
+                                "path": "a.go:30 -> b.go:88", "outcome": "..."}},
+  {"id": "MAJ-001", "severity": "major", "perspective": "architecture", "title": "..."}
+]}
+</bts-review-findings>
+```
+
+`severity` is `critical`, `major`, `minor` or `info`. A critical needs
+`evidence`: kind `run` with `command`, `observed` and `required`, or, for
+`perspective: security` only, kind `scenario` with `input`, `path` and
+`outcome`. Other severities need none.
 
 Log if inside recipe:
 ```bash

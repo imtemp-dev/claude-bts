@@ -1,6 +1,6 @@
 # Design: verdicts that name what they judged
 
-Status: A1 implemented on `feat/architect-runners`; B is a proposal.  Written 2026-11-04.  It covers two items from [`pstack-lessons.md`](pstack-lessons.md): "Tree hash" and "Falsifier for code-phase criticals".  Code facts below were mapped on branch `feat/architect-runners`.
+Status: A1 and B implemented on `feat/architect-runners`.  Written 2026-11-04.  It covers two items from [`pstack-lessons.md`](pstack-lessons.md): "Tree hash" and "Falsifier for code-phase criticals".  Code facts below were mapped on branch `feat/architect-runners`.
 
 ## Where bts stands
 
@@ -38,7 +38,7 @@ The hash is order-independent and CRLF-insensitive, it changes when a task file 
 2. **Security criticals may use a scenario instead.**  Input, path, outcome, which is the rebuttal agent's existing bar (`bts-reviewer-rebuttal.md:28-33`).  Security review is recall-bound, and the flaws it exists to catch are the hardest to show with one command.
 3. **Unproven means downgraded, not dropped.**  A critical whose command does not show the failure becomes major, with the run output attached.  Majors and below keep today's rules.
 4. **A machine-readable block in `review.md`.**  A new `<bts-review-findings>` JSON block: per finding `id`, `severity`, `title`, `anchor` (`file:line`), and for criticals an `evidence` object (`kind: run|scenario`, `command`, `expected`, `observed`).  A new block rather than `<bts-findings>`, because that parser's severity vocabulary (`minor_resolvable`, `minor_deferred`) and count rules belong to spec verification.
-5. **Go checks it.**  A parser beside `ParseFindingsBlock`, called from `bts recipe log --action review --from-review review.md` (which records the counts) and from `handleImplementDone`: a critical with no evidence, or with `kind: run` and an empty `observed`, blocks.  It is overridable, like the other findings gates.
+5. **Go checks it.**  `engine.ParseReviewFindingsBlock` (`internal/engine/review_findings.go`).  `bts recipe log --action review` refuses to log a review.md without the block or with a critical lacking its evidence, and `handleImplementDone` (gate `review_criticals_proven`) refuses one edited that way after it was logged.  Not overridable: the remedy, running the falsifier or downgrading to major, is cheap and honest.  A review.md with no block (written before it existed) passes the gate, and `bts doctor` warns.
 
 ### Cost
 

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -101,6 +102,36 @@ func checkTestResultsProvenance(root, recipeID string) []doctorIssue {
 		message: fmt.Sprintf("test-results.json is hand-recorded (status=%s without recorded_by:\"bts\") — the DONE gates are trusting a transcription, not an exit code", tr.Status),
 		fix:     fmt.Sprintf("re-run via `bts test run %s --cmd \"<test command>\"` so status is machine-derived", recipeID),
 	}}
+}
+
+// checkReviewFindingsBlock reports a review.md the completion gate cannot
+// check: one with no <bts-review-findings> block (written before the block
+// existed, which the gate lets through) or one whose block is invalid
+// (which the gate refuses).
+func checkReviewFindingsBlock(root, recipeID string) []doctorIssue {
+	data, err := os.ReadFile(filepath.Join(state.RecipeDir(root, recipeID), "review.md"))
+	if err != nil {
+		return nil
+	}
+	_, perr := engine.ParseReviewFindingsBlock(data)
+	switch {
+	case perr == nil:
+		return nil
+	case errors.Is(perr, engine.ErrNoReviewFindingsBlock):
+		return []doctorIssue{{
+			level:   "warning",
+			section: "review",
+			message: "review.md has no <bts-review-findings> block, so nothing checks that its critical findings were shown by a run",
+			fix:     fmt.Sprintf("re-run /bts-review for %s with the current templates", recipeID),
+		}}
+	default:
+		return []doctorIssue{{
+			level:   "error",
+			section: "review",
+			message: fmt.Sprintf("review.md block is invalid: %v", perr),
+			fix:     "run each critical's falsifier and record the output, or downgrade it to major (bts-review Step 4.2)",
+		}}
+	}
 }
 
 // checkDirtyVerifiedDocs surfaces rule-3 violations (doc modified after

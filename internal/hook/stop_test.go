@@ -473,6 +473,42 @@ func TestStopImplementDone_LegacyResultWithoutHashPasses(t *testing.T) {
 	}
 }
 
+// review_criticals_proven: review.md edited after it was logged so that a
+// critical lost its evidence must not complete the recipe.
+func TestStopImplementDone_BlocksUnprovenReviewCritical(t *testing.T) {
+	root, recipeID := setupImplementRoot(t)
+	review := "# Code Review\n\n" +
+		`<bts-review-findings>{"findings":[{"id":"CRT-001","severity":"critical",` +
+		`"perspective":"quality","title":"token never expires"}]}</bts-review-findings>` + "\n"
+	_ = os.WriteFile(filepath.Join(state.RecipeDir(root, recipeID), "review.md"), []byte(review), 0644)
+
+	out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>IMPLEMENT DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision != "block" || !strings.Contains(out.Reason, "CRT-001") {
+		t.Fatalf("expected review_criticals_proven block, got decision=%q reason=%q", out.Decision, out.Reason)
+	}
+}
+
+func TestStopImplementDone_PassesProvenReviewCritical(t *testing.T) {
+	root, recipeID := setupImplementRoot(t)
+	review := "# Code Review\n\n" +
+		`<bts-review-findings>{"findings":[{"id":"CRT-001","severity":"critical",` +
+		`"perspective":"security","title":"authz bypass","evidence":{"kind":"scenario",` +
+		`"input":"POST /reset with another id","path":"reset.go:30 -> user.go:88","outcome":"other password changed"}}]}` +
+		`</bts-review-findings>` + "\n"
+	_ = os.WriteFile(filepath.Join(state.RecipeDir(root, recipeID), "review.md"), []byte(review), 0644)
+
+	out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>IMPLEMENT DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision == "block" {
+		t.Fatalf("a proven critical must pass: %s", out.Reason)
+	}
+}
+
 // Phase 8 gate: missing resolution marker on a Known Uncertainty entry
 // must block IMPLEMENT DONE and cite the offending U-NNN id.
 func TestStopImplementDone_BlocksOnUnresolvedUncertainty(t *testing.T) {
