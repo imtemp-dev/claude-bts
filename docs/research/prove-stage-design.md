@@ -96,6 +96,13 @@ Every claim the stage reports carries a level from pstack's ladder: `L1` said, `
 
 A code-simulate pass, if kept, yields at most `L3`.
 
+As built (2026-11-05, slice 4):
+
+- `review.md`'s findings block takes `level` (`L1` to `L5`).  A finding that states none is read at the level its evidence shows (a run L4, a security scenario L3, an anchor L2, else L1).  `ParseReviewFindingsBlock`, used by `recipe log --action review` and `review_criticals_proven`, refuses a level outside L1-L5 and an `L4` or `L5` without `run` evidence, so a level cannot say more than the evidence.
+- Known Uncertainties: `Resolved` counts only as `Resolved [L4]:` or `[L5]:` (with a qualifier: `Resolved (reads) [L4]:`).  A reasoned or unlevelled `Resolved` leaves the entry unresolved at the gate.  `Diverged` and `Still-unknown` need no level.
+- The completion summary states the highest level each invariant and journey reached (skill text; no Go check).
+- Not done: levels on `deviation.md` rows.
+
 ## Records and gates
 
 | Part | Record | Gate at the completion marker |
