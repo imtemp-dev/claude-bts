@@ -7,7 +7,7 @@ description: >
   decomposition the model imagines becomes the only one considered.
 user-invocable: true
 allowed-tools: Read Write Edit Grep Glob Bash Agent AskUserQuestion WebSearch WebFetch mcp__context7__resolve-library-id mcp__context7__get-library-docs
-argument-hint: "[recipe-id]"
+argument-hint: "[recipe-id] | escalate {recipe-id} {task-id}"
 effort: max
 ---
 
@@ -226,6 +226,65 @@ AND file estimate ≤ 3 in scope.md), the architect step can be skipped:
 
 This keeps wireframe's header-presence gate consistent while avoiding
 unnecessary process overhead on trivial additions.
+
+## Escalate mode
+
+`/bts-architect escalate {id} {task-id}` is called during implementation,
+not before it: by `/bts-implement` at retry-ladder tier 5, after spec and
+domain escalation failed to unstick a task, and after a mid-run review
+reports a refactor signal. The question is narrower than "which
+decomposition": it is which part of the committed one the failure says
+is wrong. Skip the Prerequisites and Steps 1 to 5, and do not spawn
+`architect-runner` agents: the evidence is the failure, and it is in
+this context.
+
+1. **Read the evidence.** The task in tasks.json (`anchor`,
+   `modify_scope`, `last_error`, `escalation_notes`), the mid-run report
+   or refactor signal that triggered the call if there was one, the
+   `<!-- architect-decision -->` block, the File Structure rows for the
+   task's file and the files in its `Depends On`, and the invariants in
+   domain.md § 2 that the task's module owns.
+2. **Name which of three it is**, with the evidence in one sentence:
+   - **Task boundary.** The work needs symbols outside `modify_scope`, or
+     a file the row does not name. Widen the row's `scope=` when the
+     module owns the invariant the symbols serve; otherwise split the
+     row in two.
+   - **Ownership.** The task keeps editing another module because the
+     invariant it enforces is owned there. Move the invariant to the
+     module that holds its data: update the decision block's
+     `Invariant ownership:` line for it and the affected rows.
+   - **Decomposition.** The selected alternative cannot hold the
+     invariants: the same workaround in unrelated tasks, special cases
+     multiplying, type escape hatches to make the shape compile. Do not
+     re-decompose here, because that discards implemented work. Record
+     it for the user:
+     ```bash
+     bts recipe decision hold {id} --key architect-redecompose-{task-id} \
+         --question "Re-run /bts-architect from Step 1? {evidence}" \
+         --option rerun --option continue
+     ```
+3. **Apply a boundary or ownership change.** Edit the rows in
+   wireframe.md, add one line at the end of the decision block, after
+   the whole `Invariant ownership:` list and with no leading dash,
+   `Revised: {task-id}: {what moved and why}` (the checker reads the
+   ownership list until the first line that is not an entry, so a line
+   inside the list hides the entries after it), mirror the rows in
+   tasks.json (`anchor`, `modify_scope`; a split adds a task), and run
+   `bts verify wireframe.md`. Then set the task, or both halves of a
+   split, back to `pending` and append
+   `tier 5: architect {boundary|ownership}: {one line}` to
+   `escalation_notes`.
+4. **Log without changing the phase:**
+   ```bash
+   bts recipe log {id} --action architect --output wireframe.md \
+     --result "escalate {task-id}: {boundary|ownership|redecompose held}"
+   ```
+   Re-decomposition count (an indicator in `bts stats`) counts these
+   entries, which is the point: each one says the first decision missed
+   something implementation found.
+
+Return to `/bts-implement`. A held decomposition question blocks the
+recipe until the user answers it; that is the handoff.
 
 ## Rationale
 

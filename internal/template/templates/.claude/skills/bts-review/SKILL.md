@@ -310,6 +310,10 @@ When invoked as `/bts-review --mid-run {window}`:
    - major   → append to the task's `structure_findings`. Surface in
      the final review later.
    - minor   → log only.
+   - refactor signal (step 3) → after this report is written, invoke
+     `/bts-architect escalate {id} {task-id}` for the latest task in the
+     window that touched a module the signal names, before the loop
+     starts another task.
 8. Log the invocation:
    ```bash
    bts recipe log {id} --action midrun-review --output reviews/midrun-<ts>.md --result "N critical, N major, N dismissed, N refactor signals"

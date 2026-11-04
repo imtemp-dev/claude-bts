@@ -178,6 +178,40 @@ Invariant ownership:
 	}
 }
 
+// Escalate mode (bts-architect SKILL.md) appends `Revised:` lines after
+// the ownership list. They must not disturb either check; one placed
+// inside the list would end it early, which is why the skill pins it
+// after the list.
+func TestEscalateRevisedLineAfterOwnershipList(t *testing.T) {
+	wf := writeArchitectPair(t, `<!-- architect-decision -->
+Selected: arrangement-centric
+Basis: custom: single truth module
+Invariant ownership:
+  - INV-001: arrangement
+  - INV-002: layout
+Revised: t-004: INV-002 moved from arrangement to layout
+<!-- /architect-decision -->`, testDomainTwoInvariants)
+	if issues := CheckArchitectDecisionHeader(wf); len(issues) != 0 {
+		t.Fatalf("header check: expected 0 issues, got %v", issues)
+	}
+	if issues := CheckArchitectInvariantCoverage(wf); len(issues) != 0 {
+		t.Fatalf("coverage check: expected 0 issues, got %v", issues)
+	}
+
+	inside := writeArchitectPair(t, `<!-- architect-decision -->
+Selected: arrangement-centric
+Basis: custom: single truth module
+Invariant ownership:
+  - INV-001: arrangement
+Revised: t-004: INV-002 moved from arrangement to layout
+  - INV-002: layout
+<!-- /architect-decision -->`, testDomainTwoInvariants)
+	issues := CheckArchitectInvariantCoverage(inside)
+	if len(issues) != 1 || !strings.Contains(issues[0].Detail, "INV-002") {
+		t.Fatalf("a Revised line inside the list should hide INV-002, got %v", issues)
+	}
+}
+
 func TestInvariantCoverage_UnmappedInvariant(t *testing.T) {
 	wf := writeArchitectPair(t, `<!-- architect-decision -->
 Selected: arrangement-centric
