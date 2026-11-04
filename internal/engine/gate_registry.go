@@ -103,13 +103,13 @@ var HardGates = []HardGate{
 	{
 		ID:          "interrogate_clean",
 		Rule:        "bts-implement SKILL.md, Step 5.4 Interrogate",
-		Enforcement: "internal/hook/stop_build.go:interrogateClean (handleImplementDone)",
+		Enforcement: "internal/hook/stop_build.go:interrogateClean (handleImplementDone, handleFixDone)",
 		Summary:     "IMPLEMENT DONE blocked unless a verified interrogate run exists and every finding that failed again on a fresh copy is fixed on the current code or waived with the user's reason",
 	},
 	{
 		ID:          "app_proven",
 		Rule:        "bts-implement SKILL.md, Step 5.45 Drive the app",
-		Enforcement: "internal/hook/stop_build.go:appProven (handleImplementDone)",
+		Enforcement: "internal/hook/stop_build.go:appProven (handleImplementDone, handleFixDone)",
 		Summary:     "IMPLEMENT DONE blocked unless every planned user journey was driven through the real app on the current code with its evidence, or deferred with a reason and an owner, or the change is recorded as having no user-facing surface",
 	},
 	{

@@ -833,6 +833,14 @@ func (h *stopHandler) handleFixDone(root string, recipe *state.RecipeState) (*Ho
 	if out := testsCoverCurrentCode(root, recipe.ID, testResults); out != nil {
 		return out, nil
 	}
+	// The fix recipe's Step 9 runs the prove stage; its records gate the
+	// fix as they gate an implementation.
+	if out := interrogateClean(root, recipe.ID); out != nil {
+		return out, nil
+	}
+	if out := appProven(root, recipe.ID); out != nil {
+		return out, nil
+	}
 
 	// All clear — mark as complete
 	prevPhase := recipe.Phase

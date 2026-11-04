@@ -281,15 +281,22 @@ Apply **Draft Self-Check** before saving (same checklist as blueprint).
 bts recipe log {id} --phase draft --action draft --output draft.md
 ```
 
-## Step 5: Simulate
+## Step 5: Run the leading hypothesis
 
-Use Skill("bts-simulate") on draft.md:
-- Does the fix resolve the original symptom?
-- Does it handle all evidence from perspectives?
-- Does it break anything identified in the impact map (perspective 1.6)?
+Confirm or refute the top-ranked hypothesis by a run, not by walking it
+through draft.md:
 
-If gaps found → Edit draft.md → /verify → re-simulate.
-When simulation passes, continue immediately to Step 6.
+- Write a repro script or test that shows the symptom on the current code,
+  run it, and keep the output.
+- Then a run that isolates the hypothesis's cause (toggle the suspected
+  condition, or call the suspected code directly).  If the symptom does
+  not follow the cause, the hypothesis is refuted: record it in draft.md
+  and move to the next one.
+- For the impact map (perspective 1.6), prove the one fact the fix's
+  safety depends on by a run.
+
+When the leading hypothesis is confirmed by a run, edit draft.md, /verify,
+and continue to Step 6.
 
 ## Step 6: Expert Review (1 round)
 
@@ -334,7 +341,7 @@ bts recipe log {id} --phase verify --action verify
 Record verify results to verify-log (required for stop hook DONE gate):
 ```bash
 bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md \
-  --doc {verified-doc-path} --scope {full|delta} --dimension {verify|audit|simulate ...}
+  --doc {verified-doc-path} --scope {full|delta} --dimension {verify|audit ...}
 ```
 Iteration auto-increments. Fallback (no findings block): `--iteration N --critical X --major Y --minor-resolvable R --minor-deferred D`. Never use legacy `--minor` (it maps all minors to blocking [resolvable]).
 

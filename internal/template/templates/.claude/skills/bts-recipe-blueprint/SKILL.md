@@ -2,7 +2,7 @@
 name: bts-recipe-blueprint
 description: >
   Create a Level 3 blueprint — the skeleton a compiler cannot settle — through
-  an adaptive loop of research, drafting, debate, simulation, and verification.
+  an adaptive loop of research, drafting, debate and verification.
   The loop is bounded: it converges or it hands its open questions to
   implementation.
 user-invocable: true
@@ -100,17 +100,17 @@ ASSESS determines what to do next based on the document's current state.
    ```
 3. Update `manifest.json` directly (Edit tool on the JSON file):
    - Add to `incorporates` array if a debate conclusion was applied
-   - Add to `resolves` array if a simulation gap was addressed
    - Clear `verified_by` to `""` (draft changed, not yet re-verified)
 4. Run `bts validate` to verify schema compliance
-5. Run the semantic pass on draft.md. **Invoke /bts-verify, /bts-audit
-   and /bts-simulate in a SINGLE message so all three forks run
-   concurrently** — they are independent (logical consistency vs.
-   completeness vs. scenario coverage), read the same document, and
-   share no state. Do NOT run them one after another, and do not hold
-   one back for a later round.
+5. Run the semantic pass on draft.md. **Invoke /bts-verify and /bts-audit
+   in a SINGLE message so both forks run concurrently** — they are
+   independent (logical consistency vs. completeness), read the same
+   document, and share no state. Do NOT run them one after another, and
+   do not hold one back for a later round.  (Simulation was removed from
+   bts: behaviour is now proven by runs in the prove stage after
+   implementation, not by walking scenarios over prose.)
 
-   All three from the first full pass, not just the first two. Rotating
+   Both from the first full pass. Rotating
    instruments across the loop looks like thoroughness and behaves like
    a reset: a measured recipe ran audit at rounds 1-2, then not again
    until rounds 10 and 16, and each return produced five majors nobody
@@ -121,23 +121,16 @@ ASSESS determines what to do next based on the document's current state.
    rounds of the same measurement class, so a loop that keeps changing
    class is a loop whose convergence budget never accumulates.
 
-   Each fork runs AS its agent (verifier, auditor, simulator — one
+   Each fork runs AS its agent (verifier, auditor — one
    context each, no nested spawns) and returns its `<bts-findings>`
    block as its final message. Save what comes back:
    - /bts-verify → write its output VERBATIM to `verification.md`
      (overwrite previous)
    - /bts-audit → write its output VERBATIM to `audit.md` (overwrite)
-   - /bts-simulate → it already wrote `simulations/NNN-{category}.md`;
-     its final message names the file. Nothing to write.
-
-   Then log the two actions the forks cannot log for themselves (rule 4;
-   the completion gate `simulate_at_least_once` reads the changelog for
-   the simulate entry, and the verify entry is appended automatically by
-   the round record in step 7):
+   Then log the action the audit fork cannot log for itself (rule 4; the
+   verify entry is appended automatically by the round record in step 7):
    ```bash
    bts recipe log {id} --action audit --output audit.md --result "{c} critical, {m} major, ..."
-   bts recipe log {id} --action simulate --output simulations/NNN-{category}.md \
-     --result "{n} scenarios, {f} findings ({c} critical, {m} major)"
    ```
 
    This orchestrator runs at `effort: high` (frontmatter): its job here
@@ -145,15 +138,14 @@ ASSESS determines what to do next based on the document's current state.
    session's orchestrator produced 443K output tokens at xhigh across a
    19-hour turn and re-read them on every call — $61 of an $87 session.
 6. After /verify, update manifest: set draft.md `verified_by` to `"verification.md"`
-7. Record the batch as ONE round. The CLI joins the audit and simulate
-   blocks into verification.md and parses the merged block, so counts
-   can never drift and the three instruments are one entry:
+7. Record the batch as ONE round. The CLI joins the audit block into
+   verification.md and parses the merged block, so counts can never drift
+   and the two instruments are one entry:
    ```bash
    bts recipe log {id} --from-verification .bts/specs/recipes/{id}/verification.md \
      --merge .bts/specs/recipes/{id}/audit.md \
-     --merge .bts/specs/recipes/{id}/simulations/NNN-{category}.md \
      --doc {verified-doc-path} --scope {full|delta} \
-     --dimension verify --dimension audit --dimension simulate
+     --dimension verify --dimension audit
    ```
    One batch, one entry. A measured recipe (r-026-issue-204) ran the
    three forks concurrently and then logged them as three rounds of one
@@ -218,7 +210,7 @@ ASSESS determines what to do next based on the document's current state.
    ```bash
    bts recipe log {id} --action defend --result "N defended, C challenged, D dismissed"
    ```
-   Adversarial defense used to run inside /bts-simulate as two agents on
+   Adversarial defense used to run inside the (now removed) simulation step as two agents on
    every finding the walk produced; measured, it added 17–30 minutes to
    every round's critical path and dismissed 5–30% of findings. Here it
    runs once, after the round is recorded, on the findings that actually
@@ -485,7 +477,8 @@ own output in the same context" rule. It is now split by responsibility:
   - Contradiction detection, naming consistency, error-handling
     uniformity → `/bts-verify`
   - Completeness, missing cases, branch coverage → `/bts-audit`
-  - Behavioral gaps, cross-boundary scenarios → `/bts-simulate`
+  - Behavioural gaps are proven after implementation by the prove stage
+    (falsifiers, interrogate, driven journeys), not simulated over prose
 
 After saving draft.md, run `bts verify .bts/specs/recipes/{id}/draft.md`
 for the mechanical pass, then run `/bts-verify` for the semantic pass.
@@ -505,7 +498,7 @@ bts recipe log {id} --phase <phase from <bts-decision>>
 ```
 
 Action enum (see bts-assess § Part A for authoritative list): RESEARCH,
-DEBATE, ADJUDICATE, SIMULATE, AUDIT, IMPROVE, VERIFY, SYNC_CHECK, FINALIZE,
+DEBATE, ADJUDICATE, AUDIT, IMPROVE, VERIFY, SYNC_CHECK, FINALIZE,
 SCOPE_REOPEN, WIREFRAME, DOMAIN_MODEL, ARCHITECT, and three HALT_* codes.
 
 Do NOT maintain a parallel decision table here — keeping the tree in one
@@ -533,7 +526,6 @@ and assess behavior.
    something — fix the fix, do not treat it as a new finding. Inspect
    with `bts recipe findings list {id} --open`.
 2. **Every debate conclusion → /adjudicate → if accepted → update draft → /verify.**
-3. **Every simulation gap found → update draft → /verify.**
 3a. **Prose-minimal IMPROVE — avoid amplification.** Each IMPROVE step
    resolves findings with the MINIMAL text change required. Adding prose
    around a fix expands the claim surface that the next /verify must
@@ -565,24 +557,10 @@ and assess behavior.
      will emit `action: FINALIZE` (see its "only [deferred] minors remain"
      branch). Follow that — do NOT call IMPROVE again. The deferred items
      carry into `/bts-implement` as a watch-list.
-4. **All three instruments, every round.** /bts-verify, /bts-audit and
-   /bts-simulate go in one concurrent batch (loop protocol step 5) from
-   the first full pass onward. They read the same document and answer
-   independent questions, so running them sequentially triples the
-   wall-clock for no gain — and running them in different rounds makes
-   each round's counts incomparable with the last, which is what the
-   convergence budget is counting.
-   - Completion requires a clean round from all three anyway
-     (`bts-verification-protocol.md § Completion Evidence`). A dimension
-     held back is a dimension whose findings arrive later, on top of
-     more IMPROVE work.
-   - The round cap (`verify.max_rounds`, default 6) counts rounds, not
-     dimensions. Spending three of them on one instrument each buys
-     nothing and costs half the budget — and logging one concurrent
-     batch as three entries is the same loss. Record the batch with
-     `--merge` (loop protocol step 7): one batch, one entry.
-5. **/debate for every uncertain technical choice.** Don't guess.
-6. **/sync-check before finalizing.** All documents must be in sync.
+4. **Both instruments, every round.** /bts-verify and /bts-audit go in one
+   concurrent batch (loop protocol step 5) from the first full pass
+   onward. They read the same document and answer different questions; a
+   round that skips one is not comparable with one that ran both.
 
 ### Debate → Adjudicate Flow
 
@@ -622,14 +600,13 @@ If /debate reports [DEBATE DEADLOCK] instead of a conclusion:
 ├── research/v1.md
 ├── draft.md                  # Single file, Edit-based
 ├── verification.md            # Latest round only, overwritten each cycle; holds the
-│                              # MERGED block (verify+audit+simulate) after `--merge` —
+│                              # MERGED block (verify+audit) after `--merge` —
 │                              # cross-round history lives in findings.jsonl
 ├── audit.md                   # Latest audit output, overwritten each cycle
 ├── debates/001-topic/
 │   ├── meta.json
 │   ├── round-1.md
 │   └── round-2.md
-├── simulations/001-scenarios.md
 └── final.md
 ```
 
@@ -788,7 +765,7 @@ A falsifier row names the thing that would go red and stops.
 
 If a session ended before `<bts>DONE</bts>` was emitted, the stop hook
 did not fire and `recipe.json` may still show a mid-blueprint phase
-(e.g. `phase=simulate, level=0, iteration=0`) even though
+(e.g. `phase=verify, level=0, iteration=0`) even though
 `verify-log.jsonl` already shows `converged`. Recover with:
 
 ```bash

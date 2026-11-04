@@ -50,18 +50,13 @@ Use settings values if present, otherwise use defaults noted in each step.
    ```
    - If phase is "finalize" → fresh start, go to Step 1
    - If phase is "implement" → resume from tasks.json (Step 3)
-   - If phase is "test" → smart resume based on artifacts.
-     Code simulation is detected by a `simulations/*-code.md` file (the
-     code-mode output), NOT by the simulations/ directory existing —
-     document-mode simulations from the blueprint phase always live
-     there, so directory existence proves nothing:
-     - test-results.json (pass) + simulations/*-code.md + review.md exists → Step 6 (sync)
-     - test-results.json (pass) + simulations/*-code.md + interrogate.json verified + prove.json → Step 5.5 (review)
-     - test-results.json (pass) + simulations/*-code.md + interrogate.json verified → Step 5.45 (drive the app)
-     - test-results.json (pass) + simulations/*-code.md → Step 5.4 (interrogate)
+   - If phase is "test" → smart resume based on the prove stage's records:
+     - test-results.json (pass) + interrogate.json verified + prove.json + review.md exists → Step 6 (sync)
+     - test-results.json (pass) + interrogate.json verified + prove.json → Step 5.5 (review)
+     - test-results.json (pass) + interrogate.json verified → Step 5.45 (drive the app)
      - build recipe, test-results.json (pass), and an invariant in
        build-evidence.json with neither `mutation` nor `not_mutable` → Step 5.2 (able to fail)
-     - test-results.json (pass) → Step 5.3 (simulate)
+     - test-results.json (pass) → Step 5.4 (interrogate)
      - otherwise → Step 5 (test)
    - If phase is "review" → check review.md and Known Uncertainties:
      - review.md exists AND final.md has no "## Known Uncertainties" section
@@ -88,9 +83,9 @@ Use settings values if present, otherwise use defaults noted in each step.
      These are runtime-observable items deferred from spec verification — each
      entry has a finding description and a `Why-deferred:` observation that
      would confirm or deny it. Keep this list as an in-memory watch-list for
-     Steps 5 (Test), 5.3 (Simulate), and 5.5 (Review). Do NOT treat them as
-     implementation tasks; they are things to VALIDATE during normal test/
-     simulate/review, not things to build.
+     Steps 5 (Test), 5.4 (Interrogate), 5.45 (Drive the app) and 5.5
+     (Review). Do NOT treat them as implementation tasks; they are things to
+     VALIDATE during the prove stage, not things to build.
 
 ## Resume Protocol
 
@@ -382,7 +377,7 @@ Review task status:
   - "Stop and review" → stop and report blocked task details
 
 > **Checkpoint**: Implementation tasks complete. Proceed directly to testing.
-> Do NOT /clear — test/simulate/review steps need implementation context.
+> Do NOT /clear — the test, prove-stage and review steps need implementation context.
 
 ## Step 5: Test
 
@@ -433,27 +428,6 @@ reason.  For each `INV-NNN` in domain.md:
 
 A later code change (review fixes) makes the runs stale; the Completion
 step reruns them.
-
-## Step 5.3: Simulate
-
-Use Skill("bts-simulate") with arguments: "code" to verify all code paths are covered.
-
-This reads tasks.json for implemented files and final.md for expected
-scenarios, then walks through each scenario against the actual code.
-
-If simulation finds GAPs or ISSUEs:
-- Fix the code to address each finding
-- Add tests for any COVERAGE GAPs (missing test scenarios)
-- Re-run tests: use Skill("bts-test") with arguments: {id}
-  (bts-test skips generation, re-runs tests, updates test-results.json)
-- If tests fail → fix and let bts-test retry loop handle it
-- Do NOT re-run simulation (runs once per implementation)
-
-If no gaps → proceed to Step 5.5 (Review).
-
-```bash
-bts recipe log {id} --action simulate --result "N scenarios, N gaps"
-```
 
 ## Step 5.4: Interrogate
 
@@ -507,10 +481,11 @@ bts recipe log {id} --action review --output review.md --result "N critical, N m
 ## Step 5.7: Resolve Known Uncertainties
 
 If final.md has a "## Known Uncertainties" section (loaded in Prerequisites
-Step 4), walk each entry now that tests, simulation, and review have all
+Step 4), walk each entry now that tests, the prove stage and review have all
 run. For each Uncertainty entry:
 
-1. Check whether the test suite, simulation walkthrough, or review
+1. Check whether the test suite, the prove stage (falsifiers, interrogate,
+   driven journeys) or review
    actually exercised the `Why-deferred:` observation.
 2. Classify each entry inline in final.md by appending ONE line:
    - `Resolved [L4]: <observation>` — a run confirmed the expected
@@ -522,7 +497,7 @@ run. For each Uncertainty entry:
      spec assumed. The spec needs to be synced with reality in Step 6.
    - `Still-unknown: <reason>` — none of the phases exercised this path
      (e.g., requires a specific device, network condition, or user action
-     that the test suite does not simulate). Keep in the watch-list for
+     that neither the tests nor a driven journey reach). Keep in the watch-list for
      post-deploy validation.
    - When the outcome differs by part, write one line per part with the
      part as a qualifier: `Resolved (reads) [L4]: <observation>` and
@@ -600,7 +575,7 @@ When all steps are done:
   >   - `Diverged:` entries — runtime behavior differs from spec assumption;
   >     these do NOT appear in deviation.md (sync only handles code-vs-spec),
   >     so call them out explicitly here.
-  >   - `Still-unknown:` entries — not exercised by tests/simulation/review;
+  >   - `Still-unknown:` entries — not exercised by the tests or the prove stage;
   >     watch for these post-deploy.
   > Next: run `/bts-recipe-blueprint` to start the next roadmap item, or `/bts-recipe-fix` for any bugs.
 

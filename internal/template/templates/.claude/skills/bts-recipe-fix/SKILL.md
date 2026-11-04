@@ -2,7 +2,7 @@
 name: bts-recipe-fix
 description: >
   Diagnose and fix a bug through document-first approach. Creates fix-spec.md
-  with root cause analysis, adversarial validation, simulation, expert review,
+  with root cause analysis, adversarial validation, a reproduction run, expert review,
   and verified implementation. Lighter than blueprint — no scoping, no task
   decomposition, 1-round debate.
 user-invocable: true
@@ -217,17 +217,24 @@ For each file to modify:
 bts recipe log {id} --phase draft --action draft --output fix-spec.md --result "fix for [root cause]"
 ```
 
-## Step 4: Simulate
+## Step 4: Reproduce, and prove what the fix rests on
 
-Use Skill("bts-simulate") on fix-spec.md:
-- Focus scenarios on: does this fix break other functionality?
-- Reference the original recipe's final.md for impact analysis
-- 3 scenarios are enough: fix verification, regression, side effect check
+Settle the fix spec by running, not by walking scenarios (pstack's `tdd`
+and `blast-radius`):
 
-When simulation passes, continue immediately to Step 5.
+1. **Reproduce.** Turn the Reproduction section into a test that fails on
+   the current code for the bug's own reason.  Run it and keep the output.
+   A bug you cannot reproduce goes back to Step 1.
+2. **The fact the fix rests on.** Name the one or two facts the fix's
+   safety depends on (a caller that relies on the old behaviour, a library
+   call that behaves as assumed) and prove each by a run: a small script
+   that calls the real code and fails loudly if the fact is wrong.  Say in
+   fix-spec.md how far each got: said, pointed at the line, walked, ran.
+
+Continue to Step 5 with the failing reproduction test in hand.
 
 ```bash
-bts recipe log {id} --phase simulate --action simulate
+bts recipe log {id} --action test --result "reproduction fails as expected: <test id>"
 ```
 
 ## Settings
@@ -309,27 +316,27 @@ bts test run {id} --cmd "<project test command>"
 `bts test run` writes test-results.json with `status` derived from the
 actual exit code (`recorded_by: "bts"`) — the FIX DONE gate trusts
 this. Do NOT run tests via plain Bash and hand-write test-results.json.
-- Exits 0 → Step 9 (Simulate)
+- Exits 0 → Step 9 (Prove)
 - Fails → re-examine fix-spec.md (back to Step 6), then re-run
 
 ```bash
 bts recipe log {id} --phase test --action test --output test-results.json --result "N/N passed"
 ```
 
-## Step 9: Simulate (code)
+## Step 9: Prove
 
-Use Skill("bts-simulate") with arguments: "code" to verify the fix covers all paths.
+The reproduction test from Step 4 now passes.  Then run the prove stage on
+the fix, as /bts-implement does:
 
-Focus on: does the fix handle all edge cases from fix-spec.md?
-Are there code paths where the original bug could still occur?
+- Use Skill("bts-interrogate") with arguments: {id}: adversaries try to
+  break the fix, and only what a rerun proves survives; fix what
+  reproduces, with a regression test.
+- Use Skill("bts-prove") with arguments: {id}: drive the user journey the
+  bug was reported on through the real app, or record why it cannot run
+  here and who runs it.
 
-If gaps found → fix code → re-test.
-If tests fail after simulate fixes → fix tests → re-test.
-When simulation passes, continue immediately to Step 10.
-
-```bash
-bts recipe log {id} --action simulate --result "N scenarios, N gaps"
-```
+Continue to Step 10 when no interrogate finding is open and the journey is
+driven or deferred.
 
 ## Step 10: Review
 
