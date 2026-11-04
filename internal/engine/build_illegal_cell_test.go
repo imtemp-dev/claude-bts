@@ -57,3 +57,30 @@ func TestValidate_BuildRecipeIllegalCellsAreCoveredByFalsifiers(t *testing.T) {
 		t.Fatalf("every cell tagged in final.md must be clean, got %v", got)
 	}
 }
+
+// With simulation removed, every recipe type covers an illegal cell the
+// same way: a tagged test row in final.md (prove-stage-design.md,
+// "Removing simulation"). A blueprint is no longer sent to simulations/.
+func TestValidate_EveryRecipeTypeCoversIllegalCellsInFinal(t *testing.T) {
+	for _, typ := range []string{"blueprint", "fix", "debug"} {
+		dir := t.TempDir()
+		write := func(name, body string) {
+			t.Helper()
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		write("recipe.json", `{"id":"r-1","type":"`+typ+`","phase":"verify","topic":"x","created":"2026-11-05T00:00:00Z","updated":"2026-11-05T00:00:00Z"}`)
+		write("domain.md", "## 4. Combinatorial State Space\n\n| x | ILLEGAL: second issue for one PR |\n")
+		write("final.md", "## Falsifiers\n\n| Invariant | Test |\n|---|---|\n| INV-003 [illegal-cell: second issue for one PR] | test_inv_003 |\n")
+		errs, err := ValidateRecipeDir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range errs {
+			if strings.Contains(e.Message, "illegal_cell") || strings.Contains(e.File, "simulations") {
+				t.Errorf("%s: a cell tagged in final.md is covered, and nothing asks for simulations: %s %s", typ, e.File, e.Message)
+			}
+		}
+	}
+}

@@ -16,7 +16,7 @@ effort: max
 
 Design the problem's conceptual model **before** drawing modules.
 
-This skill exists because verify/audit/simulate all check "is the drawn
+This skill exists because verify, audit and the tests all check "is the drawn
 decomposition internally consistent" — none of them ask "is this the
 *right* decomposition?". A bad decomposition (e.g., duplicating truth
 across Card/DropZone/Game state) passes every downstream check while
@@ -121,9 +121,11 @@ illegal cell with "prevented by" or "CRITICAL" in the Notes column.
 ### 5. Invariant Test Matrix
 
 For each invariant in Section 2, describe ONE scenario that WOULD
-violate it if the enforcement mechanism were removed. This feeds
-`/bts-simulate` Phase 6.2 — the illegal cells above must have
-reachability scenarios.
+violate it if the enforcement mechanism were removed. This feeds the
+falsifiers: each illegal cell above needs a test that the transition is
+refused, tagged `[illegal-cell: <label>]` on its row in final.md
+(`bts validate` checks it), and the prove stage's able-to-fail run breaks
+that enforcement to show the test catches it.
 
 | Invariant | Violating scenario | Enforcement checked |
 |-----------|---------------------|---------------------|

@@ -152,23 +152,18 @@ func ValidateRecipeDir(recipeDir string) ([]ValidationError, error) {
 		}
 	}
 
-	// Illegal-cell coverage is per-recipe (compares domain.md to all
-	// simulation files together).
-	// A build recipe has no simulations: its illegal cells are covered by
-	// falsifier tests tagged in final.md, checked once final.md exists
-	// (before the falsify step there is nothing to check yet).
+	// Illegal-cell coverage, every recipe type: each ILLEGAL cell in
+	// domain.md § 4 needs a test that the transition is refused, tagged
+	// `[illegal-cell: <label>]` on its row in final.md. Checked once
+	// final.md exists (before it there is nothing to check yet). Simulated
+	// scenarios no longer count: simulation was removed
+	// (prove-stage-design.md, decision 6).
 	domainPath := filepath.Join(recipeDir, "domain.md")
+	finalPath := filepath.Join(recipeDir, "final.md")
 	if _, err := os.Stat(domainPath); err == nil {
-		if recipeTypeOf(recipeDir) == "build" {
-			finalPath := filepath.Join(recipeDir, "final.md")
-			if _, ferr := os.Stat(finalPath); ferr == nil {
-				for _, issue := range CheckIllegalCellFalsifiers(domainPath, finalPath) {
-					errors = append(errors, ValidationError{File: "domain.md → final.md", Field: issue.Category, Message: issue.Claim + " — " + issue.Detail})
-				}
-			}
-		} else {
-			for _, issue := range CheckIllegalCellCoverage(domainPath, recipeDir) {
-				errors = append(errors, ValidationError{File: "domain.md → simulations/", Field: issue.Category, Message: issue.Claim + " — " + issue.Detail})
+		if _, ferr := os.Stat(finalPath); ferr == nil {
+			for _, issue := range CheckIllegalCellFalsifiers(domainPath, finalPath) {
+				errors = append(errors, ValidationError{File: "domain.md → final.md", Field: issue.Category, Message: issue.Claim + " — " + issue.Detail})
 			}
 		}
 	}

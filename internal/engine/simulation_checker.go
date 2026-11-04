@@ -160,72 +160,6 @@ func CheckScenarioBudget(simPath string, minScenarios, maxScenarios int) []Issue
 	return issues
 }
 
-// CheckIllegalCellCoverage compares the ILLEGAL cells declared in
-// domain.md § 4 with the `[illegal-cell: <label>]` tags in the
-// simulation file(s) of a recipe. Returns one critical issue per cell
-// that has no corresponding scenario.
-//
-// Parsing is line-scan based: we look for the H2 "## 4" heading, then
-// collect any table row whose cells contain the literal "ILLEGAL".
-// The cell label is derived from surrounding context — since authors
-// format the table freely, we use a looser match and let the author
-// include the same label in their scenario tag.
-func CheckIllegalCellCoverage(domainPath, recipeDir string) []Issue {
-	cells, err := parseIllegalCells(domainPath)
-	if err != nil || len(cells) == 0 {
-		return nil
-	}
-
-	covered := collectIllegalCellTags(recipeDir)
-
-	var issues []Issue
-	for _, cell := range cells {
-		if !covered[strings.ToLower(cell)] {
-			issues = append(issues, Issue{
-				Category: "simulation",
-				Claim:    "uncovered_illegal_cell: " + cell,
-				Severity: "critical",
-				Detail:   "domain.md §4 declares cell '" + cell + "' ILLEGAL but no simulation scenario carries `[illegal-cell: " + cell + "]`. Add a scenario that would reach this cell and documents the enforcement mechanism.",
-			})
-		}
-	}
-	return issues
-}
-
-// CheckIllegalCellFalsifiers is the build recipe's form of
-// CheckIllegalCellCoverage. A build recipe proves an illegal cell with a
-// test that the transition is refused, not with a simulated scenario, so
-// coverage is a `[illegal-cell: <label>]` tag on that test's row in
-// final.md § 2. Returns one critical issue per untagged cell.
-func CheckIllegalCellFalsifiers(domainPath, finalPath string) []Issue {
-	cells, err := parseIllegalCells(domainPath)
-	if err != nil || len(cells) == 0 {
-		return nil
-	}
-	data, err := os.ReadFile(finalPath)
-	if err != nil {
-		return nil
-	}
-	covered := map[string]bool{}
-	for _, m := range illegalCellTagRe.FindAllStringSubmatch(string(data), -1) {
-		covered[strings.ToLower(strings.TrimSpace(m[1]))] = true
-	}
-	var issues []Issue
-	for _, cell := range cells {
-		if !covered[strings.ToLower(cell)] {
-			issues = append(issues, Issue{
-				Category: "falsify",
-				Claim:    "untested_illegal_cell: " + cell,
-				Severity: "critical",
-				Detail:   "domain.md §4 declares cell '" + cell + "' ILLEGAL but no falsifier row in final.md § 2 carries `[illegal-cell: " + cell + "]`. Write a test that the transition is refused, record it with `bts falsifier run`, and tag its row.",
-			})
-		}
-	}
-	return issues
-}
-
-var illegalCellTagRe = regexp.MustCompile(`(?i)\[illegal-cell:\s*([^\]]+)\]`)
-
 // ---- parsing helpers --------------------------------------------------
 
 func countSimulationTags(content string) SimulationStats {
@@ -270,52 +204,6 @@ func countSimulationTags(content string) SimulationStats {
 
 var domainIllegalSectionRe = regexp.MustCompile(`(?i)^##\s*4\.?\s*Combinatorial\s+State\s+Space\b`)
 var illegalCellLabelRe = regexp.MustCompile(`(?i)ILLEGAL[:\s]*([^\n|]+)`)
-
-func parseIllegalCells(domainPath string) ([]string, error) {
-	data, err := os.ReadFile(domainPath)
-	if err != nil {
-		return nil, err
-	}
-	content := string(data)
-	lines := strings.Split(content, "\n")
-
-	inSection := false
-	var cells []string
-	seen := map[string]bool{}
-	for _, line := range lines {
-		if !inSection {
-			if domainIllegalSectionRe.MatchString(strings.TrimSpace(line)) {
-				inSection = true
-			}
-			continue
-		}
-		if strings.HasPrefix(strings.TrimSpace(line), "## ") &&
-			!domainIllegalSectionRe.MatchString(strings.TrimSpace(line)) {
-			break
-		}
-		// Match "ILLEGAL: label" segments anywhere on the line.
-		matches := illegalCellLabelRe.FindAllStringSubmatch(line, -1)
-		for _, m := range matches {
-			if len(m) < 2 {
-				continue
-			}
-			label := strings.TrimSpace(m[1])
-			// Strip trailing punctuation and table junk.
-			label = strings.TrimRight(label, " .—-*_`")
-			label = strings.TrimSpace(label)
-			if label == "" {
-				continue
-			}
-			key := strings.ToLower(label)
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
-			cells = append(cells, label)
-		}
-	}
-	return cells, nil
-}
 
 func collectIllegalCellTags(recipeDir string) map[string]bool {
 	simsDir := filepath.Join(recipeDir, "simulations")
