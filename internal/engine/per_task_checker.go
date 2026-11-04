@@ -219,8 +219,7 @@ func checkSymbolPresence(task *state.Task, fileContent string) []state.Structure
 			if sym == "" {
 				continue
 			}
-			re := regexp.MustCompile(`\b` + regexp.QuoteMeta(sym) + `\b`)
-			if !re.MatchString(fileContent) {
+			if !ContainsSymbol(fileContent, sym) {
 				findings = append(findings, state.StructureFinding{
 					TaskID:   task.ID,
 					Category: "symbol_missing",
@@ -262,8 +261,7 @@ func checkOwnerDelta(task *state.Task, fileContent, recipeDir string) *state.Str
 		if !strings.EqualFold(i.Owner, base) {
 			continue
 		}
-		re := regexp.MustCompile(`\b` + regexp.QuoteMeta(i.Owner) + `\b`)
-		if !re.MatchString(fileContent) {
+		if !ContainsSymbol(fileContent, i.Owner) {
 			return &state.StructureFinding{
 				TaskID:   task.ID,
 				Category: "owner_drift",

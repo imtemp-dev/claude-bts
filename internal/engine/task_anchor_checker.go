@@ -514,8 +514,7 @@ func missingSymbolsInFile(root, file string, symbols []string) []string {
 		if sym == "" {
 			continue
 		}
-		re := regexp.MustCompile(`\b` + regexp.QuoteMeta(sym) + `\b`)
-		if !re.MatchString(content) {
+		if !ContainsSymbol(content, sym) {
 			missing = append(missing, sym)
 		}
 	}
