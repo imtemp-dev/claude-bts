@@ -58,6 +58,13 @@ Gate `app_proven`: each journey the recipe touches has passed on the current cod
 
 On AGEN-35, the Slack-in journey needs the installed Slack app, so it defers to the live-check child.  A local journey (`DRY_RUN` on, a recorded event, the real entry point if the app has one, the real `multica` read path) can run now.
 
+As built (2026-11-05, slice 3):
+
+- `bts prove plan <id> --journey <name>... [--feature <file>]`, or `--no-surface "<reason>"` for a change with nothing a user drives; `bts prove run <id> --journey <name> --cmd "<drive>" --evidence <path>...` runs the drive at the project root and records the run with the code hash; it passes only with exit 0 and every evidence file present and non-empty; `bts prove defer <id> --journey <name> --reason --owner`; `bts prove status`.  Record: `prove.json`.
+- Gate `app_proven` at IMPLEMENT DONE for every recipe type: every planned journey driven on the current code, or deferred; or a no-surface reason.
+- Skills: `bts-verification-skill` (pstack's create-verification-skill, writing `.claude/skills/verify-<app>/` with a feature map, proven once) and `bts-prove` (plan, drive, defer); `bts-implement` Step 5.45.
+- For the AGEN-35 relay, the Slack-in journey defers to the live-check child (it needs the installed Slack app and real tokens).
+
 ### P3. Interrogate
 
 Two adversaries run on Opus, three when the change is contested or touches security.  Each works in its own isolated copy with Bash.  Each gets the scope (the code files under `CodeHash`), the intent (from `final.md`) and pstack's brief: break the change, prove each finding with a run, report the title, the exact command, the output it printed and the output the intent requires, and leave out anything not run.
