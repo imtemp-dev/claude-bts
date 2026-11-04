@@ -72,6 +72,13 @@ With one model family, independence comes from separate contexts and from seeds 
 
 Gate `interrogate_clean`: every reproduced finding has a regression command that passes on the current code hash, or an open decision held for the user.  Dropped findings are counted per adversary, with the reason.
 
+As built (2026-11-05, slice 2, the four points the operator approved):
+
+- A finding's command must exit non-zero while the code is wrong, as a falsifier does.  `bts interrogate verify` reruns it in a fresh copy of the current code with the repro files the adversary listed, and keeps it (`reproduced`) only if it fails again; it drops a finding with no command, one that passes or times out, and one whose repro files would replace the recipe's code.
+- After a fix, `bts interrogate verify --recheck` reruns open and fixed findings on the current code; a passing command is `fixed`, stamped with the code hash.  `bts interrogate waive --finding --reason` leaves one unfixed with the user's reason; the skill asks the user first.
+- Gate `interrogate_clean` holds IMPLEMENT DONE for every recipe type.  Until slice 5, blueprint recipes run both Step 5.3 (simulate) and Step 5.4 (interrogate).
+- Pieces: agent `adversary` (`bts-adversary.md`, Opus, with Bash), skill `bts-interrogate`, `bts interrogate prepare|verify|waive`, `interrogate.json`, `bts-implement` Step 5.4.
+
 ### P4. Confidence levels
 
 Every claim the stage reports carries a level from pstack's ladder: `L1` said, `L2` pointed (`file:line`), `L3` walked, `L4` ran (a command and its output), `L5` drove the app.  That covers review findings, Known Uncertainty resolutions, `deviation.md` items and the "works" lines of the completion summary.  Go parses the levels in the `review.md` findings block and in `deviation.md`.
