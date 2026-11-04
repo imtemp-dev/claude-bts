@@ -1,6 +1,6 @@
 # Design: a recipe belongs to one session
 
-Status: decided 2026-11-05 (both open decisions as proposed); slice 1 built, slices 2-4 not started.  Covers AGEN-35 trial log #20 and #24, and #25, found while writing this.
+Status: decided 2026-11-05 (both decisions as proposed); slices 1-3 built, slice 4 (the issue-owner skill) not started.  Covers AGEN-35 trial log #20 and #24, and #25, found while writing this.
 
 ## Problem
 
@@ -55,6 +55,12 @@ A worker that dies is replaced by a new session running `bts recipe claim <id>`.
 - **P-b, answered.**  The field is `tool_response`.  For Bash it holds `stdout`, `stderr`, `interrupted`, `isImage` and `noOutputExpected`, with no exit code.  PostToolUse fires only after a success; a command that exits non-zero fires **PostToolUseFailure** instead, with `error: "Exit code 1\n..."` and no `tool_response`; a permission denial fires neither.
 - **P-c, answered.**  SubagentStart and SubagentStop carry the parent's `session_id`, plus `agent_id`; SubagentStop also carries `last_assistant_message`.
 - Every other field `HookInput` reads is in at least one capture.  The only one never sent is `content`, the hand-piped fallback.
+
+## As built (slices 2 and 3)
+
+- `recipe.json` has `owner_session`; `bts recipe status` shows it.  The PostToolUse hook binds it after a successful `bts recipe create` (only while the recipe has no owner) or `bts recipe claim <id>` (always), and logs the changelog action `claim`.
+- Another session gets: Stop allows, and a tagged marker is refused once with the owner named; no PreToolUse breadcrumbs, budget or warnings; SessionStart says the recipe is worked by another session; PreCompact and SessionEnd do nothing; tool and subagent events are `observer: true` with no `recipe_id`, so they stay out of the recipe's metrics.
+- Checked end to end with two Claude Code sessions in a project initialised by this build: the creating session became the owner (`claim` logged); the second session's events were observers, its `<bts>DONE</bts>` was refused with the owner named, and the recipe's phase did not move.
 
 ## Tests
 
