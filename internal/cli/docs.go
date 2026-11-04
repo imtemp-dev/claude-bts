@@ -165,7 +165,8 @@ func countFiles(dir, ext string) int {
 }
 
 // maintainedSurfaces lists the prose that describes bts to its users and
-// maintainers. Deliberately excludes .claude/ (a deployed artifact),
+// maintainers. Deliberately excludes .claude/ (the repository's own
+// maintainer skills, reflect and template-eval, which never ship),
 // internal/template/ (the shipped payload, checked as inventory rather
 // than as prose), and docs/research/ (working notes, not maintained).
 func maintainedSurfaces(repo string) ([]string, error) {
