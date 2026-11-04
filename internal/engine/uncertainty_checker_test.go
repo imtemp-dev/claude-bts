@@ -36,7 +36,7 @@ func TestCheckKnownUncertainties_AllResolved(t *testing.T) {
 
 ### U-001: scroll jitter on cold start
 Why-deferred: only observable on real device.
-Resolved: simulated via T-042 — no jitter reproduced.
+Resolved [L4]: T-042 ran — no jitter reproduced.
 
 ### U-002: token refresh window
 Why-deferred: depends on server clock.
@@ -65,7 +65,7 @@ func TestCheckKnownUncertainties_MixedUnresolved(t *testing.T) {
 	path := writeFinal(t, `## Known Uncertainties
 
 ### U-001: resolved one
-Resolved: handled.
+Resolved [L4]: handled.
 
 ### U-002: unresolved one
 Why-deferred: lacks verification.
@@ -95,7 +95,7 @@ func TestCheckKnownUncertainties_StopsAtNextSection(t *testing.T) {
 	path := writeFinal(t, `## Known Uncertainties
 
 ### U-001: inside
-Resolved: yes.
+Resolved [L4]: yes.
 
 ## Appendix
 
@@ -119,7 +119,7 @@ func TestCheckKnownUncertainties_CaseAndColonVariants(t *testing.T) {
 	path := writeFinal(t, `## KNOWN UNCERTAINTIES:
 
 ### U-001: upper-case with colon
-resolved: lowercase marker — the check is case-insensitive.
+resolved [l4]: lowercase marker — the check is case-insensitive.
 `)
 	_, unresolved, err := CheckKnownUncertainties(path)
 	if err != nil {
@@ -152,13 +152,13 @@ func TestCheckKnownUncertainties_QualifiedAndMixedOutcomes(t *testing.T) {
 	path := writeFinal(t, `## Known Uncertainties
 
 ### U-001: qualifier with "for"
-Resolved for reads (§ 3): issue search returns an object with issues.
+Resolved for reads (§ 3) [L4]: issue search returns an object with issues.
 
 ### U-002: qualifier in parentheses
 Diverged (writes): the CLI prints its notice on stderr.
 
 ### U-003: mixed outcome, one line per part
-Resolved (reads): shapes recorded.
+Resolved (reads) [L4]: shapes recorded.
 Still-unknown (writes): no observation yet.
 
 ### U-004: a sentence that only starts with the word
@@ -176,5 +176,45 @@ Resolved questions are listed elsewhere.
 	}
 	if len(unresolved) != 1 || unresolved[0].ID != "U-004" {
 		t.Fatalf("only U-004 has no outcome line, unresolved=%v", unresolved)
+	}
+}
+
+// Resolved means a run confirmed it: the line carries [L4] (a test or a
+// command) or [L5] (the app driven). A reasoned "Resolved" is not one
+// (prove stage P4). Diverged and Still-unknown need no level.
+func TestCheckKnownUncertainties_ResolvedNeedsARunLevel(t *testing.T) {
+	path := writeFinal(t, `## Known Uncertainties
+
+### U-001: proven by a test
+Resolved [L4]: test_search_shape passes against the recorded output.
+
+### U-002: qualified and proven
+Resolved for reads [L5]: driven through the dry-run journey.
+
+### U-003: only reasoned
+Resolved [L3]: the code path looks right.
+
+### U-004: no level at all
+Resolved: reviewed.
+
+### U-005: still open, no level needed
+Still-unknown: needs the real workspace.
+
+### U-006: mixed, the proven part and the open part
+Resolved (reads) [L4]: shapes recorded.
+Still-unknown (writes): no observation yet.
+`)
+	all, unresolved, err := CheckKnownUncertainties(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"U-001": "resolved", "U-002": "resolved", "U-003": "", "U-004": "", "U-005": "still-unknown", "U-006": "still-unknown"}
+	for _, e := range all {
+		if e.Status != want[e.ID] {
+			t.Errorf("%s: status %q, want %q", e.ID, e.Status, want[e.ID])
+		}
+	}
+	if len(unresolved) != 2 {
+		t.Fatalf("U-003 and U-004 are not resolved by a run, unresolved=%v", unresolved)
 	}
 }

@@ -25,8 +25,9 @@ var (
 	// Resolution marker: Resolved / Diverged / Still-unknown at line start
 	// of the entry body, then a colon. A qualifier for the part it covers
 	// may sit before the colon, in parentheses ("Resolved (reads):") or
-	// after "for" ("Resolved for reads (§ 3):").
-	uncertaintyResolRe = regexp.MustCompile(`(?mi)^(Resolved|Diverged|Still-unknown)(?:[ \t]*\([^)\n]{1,80}\)|[ \t]+for[ \t][^:\n]{1,80})?:\s*\S`)
+	// after "for" ("Resolved for reads (§ 3):"), and then a confidence
+	// level ("Resolved [L4]:"), which Resolved needs (prove stage P4).
+	uncertaintyResolRe = regexp.MustCompile(`(?mi)^(Resolved|Diverged|Still-unknown)(?:[ \t]*\([^)\n]{1,80}\)|[ \t]+for[ \t][^:\n\[]{1,80})?(?:[ \t]*\[L([1-5])\])?:\s*\S`)
 )
 
 // CheckKnownUncertainties reads final.md and returns all Known
@@ -102,7 +103,13 @@ func classifyResolution(block string) string {
 	rank := map[string]int{"resolved": 1, "diverged": 2, "still-unknown": 3}
 	status := ""
 	for _, m := range uncertaintyResolRe.FindAllStringSubmatch(block, -1) {
-		if s := strings.ToLower(m[1]); rank[s] > rank[status] {
+		s := strings.ToLower(m[1])
+		// Resolved means a run confirmed it: [L4] a test or a command, [L5]
+		// the app driven. A reasoned or unlevelled "Resolved" is no outcome.
+		if s == "resolved" && (m[2] == "" || m[2] < "4") {
+			continue
+		}
+		if rank[s] > rank[status] {
 			status = s
 		}
 	}

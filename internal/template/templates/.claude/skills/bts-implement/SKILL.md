@@ -65,8 +65,8 @@ Use settings values if present, otherwise use defaults noted in each step.
      - otherwise → Step 5 (test)
    - If phase is "review" → check review.md and Known Uncertainties:
      - review.md exists AND final.md has no "## Known Uncertainties" section
-       OR every Uncertainty entry already carries a `Resolved:` / `Diverged:`
-       / `Still-unknown:` line → Step 6 (sync)
+       OR every Uncertainty entry already carries a `Resolved [L4|L5]:` /
+       `Diverged:` / `Still-unknown:` line → Step 6 (sync)
      - review.md exists AND at least one Uncertainty entry lacks a
        resolution line → Step 5.7 (resolve uncertainties)
      - review.md does not exist → Step 5.5 (review)
@@ -513,9 +513,11 @@ run. For each Uncertainty entry:
 1. Check whether the test suite, simulation walkthrough, or review
    actually exercised the `Why-deferred:` observation.
 2. Classify each entry inline in final.md by appending ONE line:
-   - `Resolved: <observation>` — a test/simulate/review confirmed the
-     expected behavior. Reference the specific test name or simulation
-     scenario ID where possible.
+   - `Resolved [L4]: <observation>` — a run confirmed the expected
+     behavior: name the test or command (`[L5]` when the app was driven,
+     with the `bts prove` journey).  A review or reading that only says it
+     looks right is not a resolution: the gate counts `Resolved` only with
+     `[L4]` or `[L5]`.
    - `Diverged: <observation>` — actual behavior differs from what the
      spec assumed. The spec needs to be synced with reality in Step 6.
    - `Still-unknown: <reason>` — none of the phases exercised this path
@@ -523,7 +525,7 @@ run. For each Uncertainty entry:
      that the test suite does not simulate). Keep in the watch-list for
      post-deploy validation.
    - When the outcome differs by part, write one line per part with the
-     part as a qualifier: `Resolved (reads): <observation>` and
+     part as a qualifier: `Resolved (reads) [L4]: <observation>` and
      `Still-unknown (writes): <reason>`.  The entry counts as its least
      settled part.  A qualifier goes in parentheses or after "for"
      (`Resolved for reads: …`); anything else before the colon is not a
@@ -573,7 +575,11 @@ When all steps are done:
 - Verify review.md exists (review has run)
 - Verify deviation.md exists (sync has run)
 - If final.md has a "## Known Uncertainties" section, confirm every entry
-  carries a `Resolved:`, `Diverged:`, or `Still-unknown:` line from Step 5.7.
+  carries a `Resolved [L4|L5]:`, `Diverged:`, or `Still-unknown:` line from Step 5.7.
+- In the completion summary, say for each invariant and each journey the
+  highest level it reached (L4 a falsifier or test ran, L5 the app was
+  driven) and name what was deferred.  Nothing in the summary claims more
+  than its run shows.
 - A build recipe (`bts recipe status` shows type `build`): run
   `bts falsifier check {id}`. Every invariant's test must pass on the code
   as it is now; the stop hook checks it (`falsifiers_green`).  Then run

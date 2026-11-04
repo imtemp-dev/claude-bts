@@ -296,13 +296,14 @@ survived (not the dismissed ones), after severities are final:
 <bts-review-findings>
 {"findings": [
   {"id": "CRT-001", "severity": "critical", "perspective": "quality",
-   "title": "...", "anchor": "src/auth/session.go:42",
+   "title": "...", "anchor": "src/auth/session.go:42", "level": "L4",
    "evidence": {"kind": "run", "command": "go test ./src/auth -run TestExpiry",
                 "observed": "--- FAIL: TestExpiry ...", "required": "PASS"}},
   {"id": "CRT-002", "severity": "critical", "perspective": "security",
    "title": "...", "evidence": {"kind": "scenario", "input": "...",
                                 "path": "a.go:30 -> b.go:88", "outcome": "..."}},
-  {"id": "MAJ-001", "severity": "major", "perspective": "architecture", "title": "..."}
+  {"id": "MAJ-001", "severity": "major", "perspective": "architecture", "title": "...",
+   "anchor": "pkg/a.go:12", "level": "L2"}
 ]}
 </bts-review-findings>
 ```
@@ -311,6 +312,14 @@ survived (not the dismissed ones), after severities are final:
 `evidence`: kind `run` with `command`, `observed` and `required`, or, for
 `perspective: security` only, kind `scenario` with `input`, `path` and
 `outcome`. Other severities need none.
+
+`level` is how far the finding was shown (prove stage P4, after pstack's
+blast-radius ladder): `L1` said so, `L2` pointed at the line (`anchor`),
+`L3` walked the failure step by step, `L4` ran it (a test or script:
+kind `run` evidence), `L5` reproduced it in the running app.  State it on
+every finding.  bts refuses a level the evidence does not support: `L4`
+or `L5` without `run` evidence, or a `scenario` called more than `L3`.
+Prose that a finding "would fail" is `L3` at most until it is run.
 
 Log if inside recipe:
 ```bash

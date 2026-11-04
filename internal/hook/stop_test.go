@@ -545,7 +545,7 @@ func TestStopImplementDone_AllowsResolvedUncertainty(t *testing.T) {
 	final := `## Known Uncertainties
 
 ### U-001: example
-Resolved: verified via integration test T-042.
+Resolved [L4]: integration test T-042 passes.
 `
 	_ = os.WriteFile(filepath.Join(state.RecipeDir(root, recipeID), "final.md"), []byte(final), 0644)
 

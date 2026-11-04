@@ -692,7 +692,7 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 			ids = append(ids, u.ID)
 		}
 		return blockOutput(fmt.Sprintf(
-			"Known Uncertainties unresolved (%d entr(y|ies): %s). Re-run Step 5.7 of %s to classify each as Resolved:/Diverged:/Still-unknown:.",
+			"Known Uncertainties unresolved (%d entr(y|ies): %s). Re-run Step 5.7 of %s to classify each as Resolved [L4]: (a test or command confirmed it; [L5] if the app was driven), Diverged: or Still-unknown:. A reasoned or unlevelled Resolved does not count.",
 			len(unresolved), strings.Join(ids, ", "), implCmd,
 		)), nil
 	}

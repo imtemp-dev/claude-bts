@@ -23,12 +23,15 @@ type ReviewFindingsBlock struct {
 
 // ReviewFinding is one consolidated finding after deduplication.
 type ReviewFinding struct {
-	ID          string          `json:"id"`          // CRT-001, MAJ-002, …
-	Severity    string          `json:"severity"`    // critical | major | minor | info
-	Perspective string          `json:"perspective"` // quality | security | architecture | other
-	Title       string          `json:"title"`
-	Anchor      string          `json:"anchor,omitempty"` // file:line
-	Evidence    *ReviewEvidence `json:"evidence,omitempty"`
+	ID          string `json:"id"`          // CRT-001, MAJ-002, …
+	Severity    string `json:"severity"`    // critical | major | minor | info
+	Perspective string `json:"perspective"` // quality | security | architecture | other
+	Title       string `json:"title"`
+	Anchor      string `json:"anchor,omitempty"` // file:line
+	// Level is the confidence the finding reached (prove stage P4): L1
+	// said, L2 pointed (file:line), L3 walked, L4 ran, L5 drove the app.
+	Level    string          `json:"level,omitempty"`
+	Evidence *ReviewEvidence `json:"evidence,omitempty"`
 }
 
 // ReviewEvidence is what makes a critical finding more than a claim.
@@ -93,6 +96,7 @@ func ParseReviewFindingsBlock(data []byte) (*ReviewFindingsBlock, error) {
 		if f.Severity == "critical" {
 			problems = append(problems, criticalEvidenceProblems(label, f)...)
 		}
+		problems = append(problems, levelProblems(label, f)...)
 	}
 	if len(problems) > 0 {
 		return &block, errors.New(strings.Join(problems, "; "))
@@ -130,6 +134,60 @@ func criticalEvidenceProblems(label string, f ReviewFinding) []string {
 		}
 	default:
 		return []string{fmt.Sprintf("%s: evidence kind %q is not run or scenario", label, e.Kind)}
+	}
+	return nil
+}
+
+var reviewLevelRe = regexp.MustCompile(`^L([1-5])$`)
+
+// declaredLevel returns the finding's stated level (1-5), or 0 when it
+// states none or an invalid one.
+func declaredLevel(f ReviewFinding) int {
+	m := reviewLevelRe.FindStringSubmatch(strings.TrimSpace(f.Level))
+	if m == nil {
+		return 0
+	}
+	return int(m[1][0] - '0')
+}
+
+// evidenceLevel is the level the finding's evidence shows: a run is L4, a
+// security scenario walked through the code is L3, an anchor is L2, a
+// bare claim is L1.
+func evidenceLevel(f ReviewFinding) int {
+	switch {
+	case f.Evidence != nil && f.Evidence.Kind == "run":
+		return 4
+	case f.Evidence != nil && f.Evidence.Kind == "scenario":
+		return 3
+	case strings.TrimSpace(f.Anchor) != "":
+		return 2
+	}
+	return 1
+}
+
+// EffectiveLevel is the finding's confidence level (prove stage P4): the
+// stated level, or, for a finding that states none, the level its
+// evidence shows.
+func EffectiveLevel(f ReviewFinding) int {
+	if n := declaredLevel(f); n > 0 {
+		return n
+	}
+	return evidenceLevel(f)
+}
+
+// levelProblems rejects a level that is not L1-L5, and one that claims a
+// run (L4 ran, L5 drove the app) without run evidence: a level may not
+// say more than the evidence shows.
+func levelProblems(label string, f ReviewFinding) []string {
+	if strings.TrimSpace(f.Level) == "" {
+		return nil
+	}
+	n := declaredLevel(f)
+	if n == 0 {
+		return []string{fmt.Sprintf("%s: level %q is not one of L1 to L5", label, f.Level)}
+	}
+	if n >= 4 && (f.Evidence == nil || f.Evidence.Kind != "run") {
+		return []string{fmt.Sprintf("%s: level L%d claims a run, but the finding has no run evidence (command, observed, required)", label, n)}
 	}
 	return nil
 }

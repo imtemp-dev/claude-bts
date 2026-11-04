@@ -84,3 +84,47 @@ func TestParseReviewFindings_TwoBlocksRejected(t *testing.T) {
 		t.Fatalf("two blocks must be rejected, got %v", err)
 	}
 }
+
+// A finding's confidence level (prove stage P4, after pstack's
+// blast-radius ladder: L1 said, L2 pointed, L3 walked, L4 ran, L5 drove
+// the app) may not claim more than its evidence shows.
+func TestParseReviewFindings_LevelsCannotExceedTheEvidence(t *testing.T) {
+	ok := reviewDoc(`<bts-review-findings>
+{"findings": [
+  {"id": "CRT-001", "severity": "critical", "perspective": "quality", "title": "a", "level": "L4",
+   "evidence": {"kind": "run", "command": "go test ./x", "observed": "FAIL", "required": "PASS"}},
+  {"id": "CRT-002", "severity": "critical", "perspective": "security", "title": "b", "level": "L3",
+   "evidence": {"kind": "scenario", "input": "i", "path": "p", "outcome": "o"}},
+  {"id": "MAJ-001", "severity": "major", "perspective": "quality", "title": "c", "level": "L2", "anchor": "x.go:1"},
+  {"id": "MIN-001", "severity": "minor", "perspective": "quality", "title": "d"}
+]}
+</bts-review-findings>`)
+	block, err := ParseReviewFindingsBlock(ok)
+	if err != nil {
+		t.Fatalf("levels that match their evidence must be accepted: %v", err)
+	}
+	want := map[string]int{"CRT-001": 4, "CRT-002": 3, "MAJ-001": 2, "MIN-001": 1}
+	for _, f := range block.Findings {
+		if got := EffectiveLevel(f); got != want[f.ID] {
+			t.Errorf("%s: effective level %d, want %d", f.ID, got, want[f.ID])
+		}
+	}
+
+	bad := reviewDoc(`<bts-review-findings>
+{"findings": [
+  {"id": "MAJ-001", "severity": "major", "perspective": "quality", "title": "says it ran", "level": "L4"},
+  {"id": "CRT-001", "severity": "critical", "perspective": "security", "title": "scenario called a run", "level": "L4",
+   "evidence": {"kind": "scenario", "input": "i", "path": "p", "outcome": "o"}},
+  {"id": "MIN-001", "severity": "minor", "perspective": "quality", "title": "no such level", "level": "L9"}
+]}
+</bts-review-findings>`)
+	_, err = ParseReviewFindingsBlock(bad)
+	if err == nil {
+		t.Fatal("inflated levels must be rejected")
+	}
+	for _, want := range []string{"MAJ-001: level L4 claims a run", "CRT-001: level L4 claims a run", `MIN-001: level "L9"`} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error must name %q, got: %v", want, err)
+		}
+	}
+}
