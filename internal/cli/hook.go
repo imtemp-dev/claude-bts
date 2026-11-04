@@ -21,7 +21,7 @@ var hookCmd = &cobra.Command{
 }
 
 func runHook(cmd *cobra.Command, args []string) error {
-	input, err := hook.ReadInput()
+	input, err := hook.ReadInputFor(args[0])
 	if err != nil {
 		// Silent exit on parse failure (don't break Claude Code)
 		os.Exit(0)
@@ -36,6 +36,7 @@ func runHook(cmd *cobra.Command, args []string) error {
 		hook.NewPreCompactHandler(),
 		hook.NewPreToolUseHandler(),
 		hook.NewPostToolUseHandler(),
+		hook.NewPostToolUseFailureHandler(),
 		hook.NewStopHandler(),
 		hook.NewSessionEndHandler(),
 		hook.NewSubagentStartHandler(),

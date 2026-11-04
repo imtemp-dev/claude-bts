@@ -63,6 +63,9 @@ func MergeHookSettings(projectRoot string) error {
 		{"SubagentStop", filepath.Join(absRoot, ".claude", "hooks", "bts-handle-subagent-stop.sh"), 5},
 		{"PreToolUse", filepath.Join(absRoot, ".claude", "hooks", "bts-handle-pre-tool-use.sh"), 5},
 		{"PostToolUse", filepath.Join(absRoot, ".claude", "hooks", "bts-handle-post-tool-use.sh"), 5},
+		// A failing tool call (a Bash command exiting non-zero) sends this
+		// instead of PostToolUse; without it, failures leave no metrics.
+		{"PostToolUseFailure", filepath.Join(absRoot, ".claude", "hooks", "bts-handle-post-tool-use-failure.sh"), 5},
 	}
 
 	makeEntry := func(script string, timeout int) []interface{} {

@@ -1,0 +1,74 @@
+{
+  "cwd": "/tmp/bts-fixture/project",
+  "duration_ms": 2319,
+  "effort": {
+    "level": "xhigh"
+  },
+  "hook_event_name": "PostToolUse",
+  "permission_mode": "default",
+  "prompt_id": "22222222-2222-4222-8222-222222222222",
+  "session_id": "11111111-1111-4111-8111-111111111111",
+  "tool_input": {
+    "description": "Reply with ok",
+    "prompt": "Reply with the single word ok.",
+    "run_in_background": false,
+    "subagent_type": "general-purpose"
+  },
+  "tool_name": "Agent",
+  "tool_response": {
+    "agentId": "aa8f6be2cb0a1dc00",
+    "agentType": "general-purpose",
+    "canContinueAgent": true,
+    "content": [
+      {
+        "text": "ok",
+        "type": "text"
+      }
+    ],
+    "harnessNoteCount": 0,
+    "harnessSectionHash": "5b76de768ca662b0",
+    "harnessTailCount": 0,
+    "prompt": "Reply with the single word ok.",
+    "resolvedModel": "claude-sonnet-5-5",
+    "status": "completed",
+    "totalDurationMs": 2316,
+    "totalTokens": 30093,
+    "totalToolUseCount": 0,
+    "usage": {
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 0,
+        "ephemeral_5m_input_tokens": 30087
+      },
+      "cache_creation_input_tokens": 30087,
+      "cache_read_input_tokens": 0,
+      "fallback_credit": null,
+      "inference_geo": "global",
+      "input_tokens": 2,
+      "iterations": [
+        {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 30087
+          },
+          "cache_creation_input_tokens": 30087,
+          "cache_read_input_tokens": 0,
+          "input_tokens": 2,
+          "output_tokens": 4,
+          "type": "message"
+        }
+      ],
+      "output_tokens": 4,
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "server_tool_use": {
+        "web_fetch_requests": 0,
+        "web_search_requests": 0
+      },
+      "service_tier": "standard",
+      "speed": "standard"
+    }
+  },
+  "tool_use_id": "tool_use_id-fixture",
+  "transcript_path": "/Users/dev/.claude/projects/-tmp-bts-fixture-project/11111111-1111-4111-8111-111111111111.jsonl"
+}

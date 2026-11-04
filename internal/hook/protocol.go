@@ -5,16 +5,46 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"time"
 )
 
 // ReadInput reads and parses JSON from stdin.
 func ReadInput() (*HookInput, error) {
+	return ReadInputFor("")
+}
+
+// CaptureEnv names a directory. When it is set, every hook writes the raw
+// payload Claude Code sent it there before parsing, so the fields bts
+// reads can be checked against what Claude Code actually sends
+// (internal/hook/testdata/claude-code/ holds captured fixtures).
+const CaptureEnv = "BTS_HOOK_CAPTURE"
+
+// ReadInputFor reads and parses the stdin payload of the named hook event,
+// capturing it first when CaptureEnv is set.
+func ReadInputFor(event string) (*HookInput, error) {
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return nil, fmt.Errorf("read stdin: %w", err)
 	}
-
+	if dir := os.Getenv(CaptureEnv); dir != "" {
+		if cerr := captureInput(dir, event, data); cerr != nil {
+			fmt.Fprintf(os.Stderr, "[bts] warning: %s: %v\n", CaptureEnv, cerr)
+		}
+	}
 	return parseInput(data)
+}
+
+// captureInput writes one raw payload as <dir>/<event>-<nanos>-<pid>.json.
+func captureInput(dir, event string, data []byte) error {
+	if event == "" {
+		event = "unknown"
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	name := fmt.Sprintf("%s-%d-%d.json", event, time.Now().UnixNano(), os.Getpid())
+	return os.WriteFile(filepath.Join(dir, name), data, 0644)
 }
 
 // parseInput decodes the stdin payload. Tests feed it Claude Code's own

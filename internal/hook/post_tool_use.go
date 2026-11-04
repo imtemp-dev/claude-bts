@@ -1,9 +1,17 @@
 package hook
 
 import (
+	"regexp"
+	"strconv"
+
 	"github.com/imtemp-dev/claude-bts/internal/metrics"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 )
+
+// Claude Code reports a tool call's outcome by which event it sends:
+// PostToolUse after a success (its tool_response carries no exit code), and
+// PostToolUseFailure after a failure, whose error text starts with
+// "Exit code N" for Bash. A permission denial sends neither.
 
 type postToolUseHandler struct{}
 
@@ -16,15 +24,48 @@ func (h *postToolUseHandler) EventType() EventType {
 }
 
 func (h *postToolUseHandler) Handle(input *HookInput) (*HookOutput, error) {
+	recordToolUse(input, true, nil)
+	return &HookOutput{}, nil
+}
+
+type postToolUseFailureHandler struct{}
+
+// NewPostToolUseFailureHandler records a failed tool call.
+func NewPostToolUseFailureHandler() Handler {
+	return &postToolUseFailureHandler{}
+}
+
+func (h *postToolUseFailureHandler) EventType() EventType {
+	return EventPostToolUseFailure
+}
+
+var exitCodeRe = regexp.MustCompile(`^Exit code (\d+)`)
+
+func (h *postToolUseFailureHandler) Handle(input *HookInput) (*HookOutput, error) {
+	var code *int
+	if m := exitCodeRe.FindStringSubmatch(input.Error); m != nil {
+		if n, err := strconv.Atoi(m[1]); err == nil {
+			code = &n
+		}
+	}
+	recordToolUse(input, false, code)
+	return &HookOutput{}, nil
+}
+
+// recordToolUse appends a tool_use metrics event and, for tracked tools, a
+// tool-trace breadcrumb for post-compact recovery.
+func recordToolUse(input *HookInput, success bool, exitCode *int) {
 	root, err := state.FindRoot(input.CWD)
 	if err != nil {
-		return &HookOutput{}, nil
+		return
 	}
 
 	event := &metrics.MetricsEvent{
 		Kind:      metrics.KindToolUse,
 		SessionID: input.SessionID,
 		ToolName:  input.ToolName,
+		Success:   &success,
+		ExitCode:  exitCode,
 	}
 
 	// Attach recipe context if available
@@ -43,34 +84,17 @@ func (h *postToolUseHandler) Handle(input *HookInput) (*HookOutput, error) {
 		// `cd /Users/…/recipes/r-001 && ` — a command whose visible form
 		// is a prefix with its verb removed. state.ClipCommand marks the
 		// cut so a partial entry cannot be read as a whole one.
-		cmd = state.ClipCommand(cmd)
-		event.ToolFile = cmd
-	}
-
-	// Extract exit code from tool result
-	if input.ToolResult != nil {
-		if ec, ok := input.ToolResult["exit_code"]; ok {
-			if ecf, ok := ec.(float64); ok {
-				code := int(ecf)
-				event.ExitCode = &code
-				success := code == 0
-				event.Success = &success
-			}
-		}
+		event.ToolFile = state.ClipCommand(cmd)
 	}
 
 	_ = metrics.Append(root, event)
 
-	// Tool-trace breadcrumb for post-compact recovery
 	if isTrackedTool(input.ToolName) {
-		entry := &state.ToolTraceEntry{
+		_ = state.AppendToolTrace(root, &state.ToolTraceEntry{
 			Phase:    "post",
 			ToolName: input.ToolName,
 			File:     event.ToolFile,
 			ExitCode: event.ExitCode,
-		}
-		_ = state.AppendToolTrace(root, entry)
+		})
 	}
-
-	return &HookOutput{}, nil
 }

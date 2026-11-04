@@ -1,0 +1,7 @@
+{
+  "cwd": "/tmp/bts-fixture/project",
+  "hook_event_name": "SessionStart",
+  "session_id": "11111111-1111-4111-8111-111111111111",
+  "source": "startup",
+  "transcript_path": "/Users/dev/.claude/projects/-tmp-bts-fixture-project/11111111-1111-4111-8111-111111111111.jsonl"
+}

@@ -59,28 +59,40 @@ func TestPreToolUse_SkipsUntrackedTool(t *testing.T) {
 	}
 }
 
-func TestPostToolUse_WritesBreadcrumbWithExitCode(t *testing.T) {
+// Claude Code sends PostToolUse only after a success, with no exit code in
+// tool_response; a failing command arrives as PostToolUseFailure, whose
+// error text carries the exit code (testdata/claude-code).
+func TestPostToolUse_BreadcrumbsCarryTheOutcomeClaudeCodeReports(t *testing.T) {
 	root := setupToolUseRoot(t)
 
-	h := NewPostToolUseHandler()
-	input := &HookInput{
-		CWD:        root,
-		ToolName:   "Bash",
-		ToolInput:  map[string]interface{}{"command": "ls -la /tmp"},
-		ToolResult: map[string]interface{}{"exit_code": float64(0)},
+	ok := &HookInput{
+		CWD:          root,
+		ToolName:     "Bash",
+		ToolInput:    map[string]interface{}{"command": "ls -la /tmp"},
+		ToolResponse: map[string]interface{}{"stdout": "x", "stderr": "", "interrupted": false},
 	}
-	if _, err := h.Handle(input); err != nil {
+	if _, err := NewPostToolUseHandler().Handle(ok); err != nil {
 		t.Fatalf("handle: %v", err)
 	}
+	failed := &HookInput{
+		CWD:       root,
+		ToolName:  "Bash",
+		ToolInput: map[string]interface{}{"command": "ls ./missing"},
+		Error:     "Exit code 2\nls: ./missing: No such file or directory",
+	}
+	if _, err := NewPostToolUseFailureHandler().Handle(failed); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+
 	tail, _ := state.TailToolTrace(root, 5)
-	if len(tail) != 1 {
-		t.Fatalf("expected 1 breadcrumb, got %d", len(tail))
+	if len(tail) != 2 {
+		t.Fatalf("expected 2 breadcrumbs, got %d", len(tail))
 	}
-	if tail[0].ToolName != "Bash" || tail[0].Phase != "post" {
-		t.Errorf("unexpected: %+v", tail[0])
+	if tail[0].ToolName != "Bash" || tail[0].Phase != "post" || tail[0].ExitCode != nil {
+		t.Errorf("a success carries no exit code (Claude Code sends none): %+v", tail[0])
 	}
-	if tail[0].ExitCode == nil || *tail[0].ExitCode != 0 {
-		t.Errorf("ExitCode should be 0, got %v", tail[0].ExitCode)
+	if tail[1].ExitCode == nil || *tail[1].ExitCode != 2 {
+		t.Errorf("a failure carries the exit code from its error text, got %v", tail[1].ExitCode)
 	}
 }
 

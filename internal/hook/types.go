@@ -4,14 +4,17 @@ package hook
 type EventType string
 
 const (
-	EventSessionStart  EventType = "session-start"
-	EventPreCompact    EventType = "pre-compact"
-	EventStop          EventType = "stop"
-	EventSessionEnd    EventType = "session-end"
-	EventPreToolUse    EventType = "pre-tool-use"
-	EventPostToolUse   EventType = "post-tool-use"
-	EventSubagentStart EventType = "subagent-start"
-	EventSubagentStop  EventType = "subagent-stop"
+	EventSessionStart EventType = "session-start"
+	EventPreCompact   EventType = "pre-compact"
+	EventStop         EventType = "stop"
+	EventSessionEnd   EventType = "session-end"
+	EventPreToolUse   EventType = "pre-tool-use"
+	EventPostToolUse  EventType = "post-tool-use"
+	// EventPostToolUseFailure fires instead of post-tool-use when a tool
+	// fails (a Bash command exiting non-zero).
+	EventPostToolUseFailure EventType = "post-tool-use-failure"
+	EventSubagentStart      EventType = "subagent-start"
+	EventSubagentStop       EventType = "subagent-stop"
 )
 
 // HookInput is the JSON received via stdin from Claude Code.
@@ -38,9 +41,12 @@ type HookInput struct {
 	AgentID string `json:"agent_id,omitempty"`
 
 	// Tool fields
-	ToolName   string                 `json:"tool_name,omitempty"`
-	ToolInput  map[string]interface{} `json:"tool_input,omitempty"`
-	ToolResult map[string]interface{} `json:"tool_result,omitempty"`
+	ToolName     string                 `json:"tool_name,omitempty"`
+	ToolInput    map[string]interface{} `json:"tool_input,omitempty"`
+	ToolResponse map[string]interface{} `json:"tool_response,omitempty"`
+	// PostToolUseFailure: the failure text ("Exit code 1\n..." for Bash).
+	Error       string `json:"error,omitempty"`
+	IsInterrupt bool   `json:"is_interrupt,omitempty"`
 
 	// Extended fields (sent by Claude Code, previously ignored)
 	Model          string `json:"model,omitempty"`

@@ -2,6 +2,8 @@ package hook
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/imtemp-dev/claude-bts/internal/state"
@@ -106,5 +108,20 @@ func TestStopInput_StopTextPrefersLastAssistantMessage(t *testing.T) {
 				t.Fatalf("StopText() = %q, want %q", got, c.want)
 			}
 		})
+	}
+}
+
+func TestCaptureInput_WritesTheRawPayload(t *testing.T) {
+	dir := t.TempDir()
+	raw := []byte(`{"hook_event_name":"Stop","last_assistant_message":"x"}`)
+	if err := captureInput(dir, "stop", raw); err != nil {
+		t.Fatal(err)
+	}
+	files, _ := filepath.Glob(filepath.Join(dir, "stop-*.json"))
+	if len(files) != 1 {
+		t.Fatalf("want one capture file, got %v", files)
+	}
+	if got, _ := os.ReadFile(files[0]); string(got) != string(raw) {
+		t.Fatalf("the capture must be the bytes Claude Code sent, got %s", got)
 	}
 }
