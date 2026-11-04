@@ -17,9 +17,6 @@ func init() {
 	checkTaskCmd.Flags().Bool("write", false, "Persist findings to tasks.json")
 	checkTaskCmd.Flags().Bool("json", false, "Emit findings as JSON")
 
-	checkCmd.AddCommand(checkTestCoverageCmd)
-	checkTestCoverageCmd.Flags().String("recipe", "", "Recipe ID (defaults to active recipe)")
-	checkTestCoverageCmd.Flags().Bool("json", false, "Emit as JSON")
 	rootCmd.AddCommand(checkCmd)
 }
 
@@ -116,64 +113,6 @@ func runCheckTask(cmd *cobra.Command, args []string) error {
 	// Exit non-zero on critical so CI / the skill loop can detect
 	// hard failures; majors and minors are advisory.
 	for _, f := range findings {
-		if f.Severity == "critical" {
-			os.Exit(2)
-		}
-	}
-	return nil
-}
-
-var checkTestCoverageCmd = &cobra.Command{
-	Use:   "test-coverage",
-	Short: "Phase 13 gate: every simulate scenario must be linked to a test",
-	Long: `Parses simulations/*.md for scenario headers, extracts
-bts:scenario tags from test files listed in test-results.json, and
-reports:
-  - scenario_unlinked   — scenario has no test pointing at it
-                          (critical for cross-boundary/illegal-cell,
-                          major otherwise)
-  - scenario_orphan     — test tag does not match a known scenario
-  - failure_category_missing — test-results.json status=fail with a
-                          failure that lacks its "category" field
-
-Exits non-zero when any finding has severity=critical.`,
-	RunE: runCheckTestCoverage,
-}
-
-func runCheckTestCoverage(cmd *cobra.Command, args []string) error {
-	cwd, _ := os.Getwd()
-	root, err := state.FindRoot(cwd)
-	if err != nil {
-		return fmt.Errorf("not a bts project: %w", err)
-	}
-	recipeID, _ := cmd.Flags().GetString("recipe")
-	if recipeID == "" {
-		active, _ := state.GetActiveRecipe(root)
-		if active == nil {
-			return fmt.Errorf("no --recipe given and no active recipe")
-		}
-		recipeID = active.ID
-	}
-
-	issues := engine.CheckTestScenarioCoverage(state.RecipeDir(root, recipeID))
-
-	asJSON, _ := cmd.Flags().GetBool("json")
-	if asJSON {
-		data, err := json.MarshalIndent(issues, "", "  ")
-		if err != nil {
-			return err
-		}
-		fmt.Println(string(data))
-	} else if len(issues) == 0 {
-		fmt.Printf("Recipe %s: all scenarios linked.\n", recipeID)
-	} else {
-		fmt.Printf("Recipe %s: %d finding(s)\n", recipeID, len(issues))
-		for _, f := range issues {
-			fmt.Printf("  [%s] %s — %s\n", f.Severity, f.Claim, f.Detail)
-		}
-	}
-
-	for _, f := range issues {
 		if f.Severity == "critical" {
 			os.Exit(2)
 		}

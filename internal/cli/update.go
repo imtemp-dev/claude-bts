@@ -186,6 +186,12 @@ var deadSettingsKeys = [][]string{
 	{"privacy", "detect_secrets"},
 	{"resume", "changelog_tail"},
 	{"fix", "simulate_scenarios"},
+	// simulation was removed; simulate.finding_batch alone is still read,
+	// as the fallback for defend.finding_batch.
+	{"simulate", "min_scenarios"},
+	{"simulate", "max_scenarios"},
+	{"simulate", "scenario_batch"},
+	{"simulate", "cross_boundary_ratio"},
 	{"verify", "convergence"},
 }
 

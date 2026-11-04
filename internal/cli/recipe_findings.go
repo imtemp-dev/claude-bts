@@ -178,8 +178,8 @@ var recipeFindingsDefendBatchCmd = &cobra.Command{
 		asJSON, _ := cmd.Flags().GetBool("json")
 		if limit < 0 {
 			limit = 12
-			if s, serr := engine.LoadSettings(root); serr == nil && s.Simulate.FindingBatch > 0 {
-				limit = 2 * s.Simulate.FindingBatch
+			if s, serr := engine.LoadSettings(root); serr == nil && s.Defend.FindingBatch > 0 {
+				limit = 2 * s.Defend.FindingBatch
 			}
 		}
 

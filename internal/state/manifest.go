@@ -109,25 +109,6 @@ func (m *Manifest) GetUnverifiedDrafts() []string {
 	return unverified
 }
 
-// GetUnresolvedGaps returns simulation gaps not yet resolved in any draft.
-func (m *Manifest) GetUnresolvedGaps() []string {
-	resolved := make(map[string]bool)
-	for _, entry := range m.Documents {
-		for _, r := range entry.Resolves {
-			resolved[r] = true
-		}
-	}
-
-	var unresolved []string
-	for path, entry := range m.Documents {
-		if entry.Type == "simulation" {
-			if !resolved[path] {
-				unresolved = append(unresolved, path)
-			}
-		}
-	}
-	return unresolved
-}
 
 // GetUnincorporatedDebates returns debate conclusions not yet incorporated in the current draft.
 func (m *Manifest) GetUnincorporatedDebates() []string {

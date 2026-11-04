@@ -30,7 +30,6 @@ type RecipeOutcome struct {
 	FirstCritical    int    `json:"first_critical"`
 	FirstMajor       int    `json:"first_major"`
 	FinalStatus      string `json:"final_status,omitempty"`
-	SimulateRuns     int    `json:"simulate_runs"`
 	// Overrides names the hard gates this recipe finalized past by
 	// recorded operator decision. An outcome that reached "complete"
 	// under an override is not the same data point as one that reached
@@ -73,14 +72,6 @@ func gatherOutcomes(root string) ([]RecipeOutcome, error) {
 		if recs, oerr := state.ReadOverrides(root, r.ID); oerr == nil {
 			for _, o2 := range state.LiveOverrides(recs, state.CurrentDocHashes(root, r.ID, recs)) {
 				o.Overrides = append(o.Overrides, o2.Gate)
-			}
-		}
-
-		if changelog, err := state.ReadChangelog(root, r.ID); err == nil {
-			for _, e := range changelog {
-				if e.Action == "simulate" {
-					o.SimulateRuns++
-				}
 			}
 		}
 
@@ -140,7 +131,7 @@ func renderOutcomes(outs []RecipeOutcome) string {
 	b.WriteString("(deviations = top-level list entries in deviation.md, approximate)\n\n")
 
 	w := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tType\tPhase\tVerifyIter\tFirst C/M\tSimRuns\tTasks\tRetries\tBlocked\tTestIter\tTest\tDeviations\tOverrides")
+	fmt.Fprintln(w, "ID\tType\tPhase\tVerifyIter\tFirst C/M\tTasks\tRetries\tBlocked\tTestIter\tTest\tDeviations\tOverrides")
 	for _, o := range outs {
 		test := o.TestStatus
 		if test != "" && o.TestRecordedBy != "bts" {
@@ -150,9 +141,9 @@ func renderOutcomes(outs []RecipeOutcome) string {
 		if len(o.Overrides) > 0 {
 			over = strings.Join(o.Overrides, ",")
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%d/%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\t%s\n",
+		fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%d/%d\t%d\t%d\t%d\t%d\t%s\t%d\t%s\n",
 			o.ID, o.Type, o.Phase, o.VerifyIterations, o.FirstCritical, o.FirstMajor,
-			o.SimulateRuns, o.Tasks, o.ImplRetries, o.BlockedTasks,
+			o.Tasks, o.ImplRetries, o.BlockedTasks,
 			o.TestIterations, test, o.Deviations, over)
 	}
 	w.Flush()
@@ -200,8 +191,6 @@ func renderOutcomes(outs []RecipeOutcome) string {
 
 	lowIter := groupMean(implemented, func(o RecipeOutcome) bool { return o.VerifyIterations <= 2 })
 	highIter := groupMean(implemented, func(o RecipeOutcome) bool { return o.VerifyIterations >= 3 })
-	withSim := groupMean(implemented, func(o RecipeOutcome) bool { return o.SimulateRuns > 0 })
-	noSim := groupMean(implemented, func(o RecipeOutcome) bool { return o.SimulateRuns == 0 })
 
 	if excluded > 0 {
 		fmt.Fprintf(&b, "Grouped means (implemented recipes; %d overridden recipe(s) excluded):\n", excluded)
@@ -210,8 +199,6 @@ func renderOutcomes(outs []RecipeOutcome) string {
 	}
 	fmt.Fprintf(&b, "  verify ≤2 iterations: %s\n", lowIter)
 	fmt.Fprintf(&b, "  verify ≥3 iterations: %s\n", highIter)
-	fmt.Fprintf(&b, "  simulate ran:         %s\n", withSim)
-	fmt.Fprintf(&b, "  simulate skipped:     %s\n", noSim)
 
 	if len(implemented) < 5 {
 		fmt.Fprintf(&b, "\n⚠ Only %d implemented recipe(s) — directional signal only, not statistics. The report gains meaning as recipes accumulate.\n", len(implemented))

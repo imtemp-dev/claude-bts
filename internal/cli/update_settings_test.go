@@ -36,6 +36,14 @@ privacy:
   strip_private_tags: true
   detect_secrets: true
 
+# Simulation (removed; finding_batch is still read)
+simulate:
+  min_scenarios: 5
+  max_scenarios: 12
+  scenario_batch: 3
+  cross_boundary_ratio: 0.30
+  finding_batch: 6
+
 # Vision
 vision:
   size_threshold: 400
@@ -60,6 +68,7 @@ vision:
 	for _, kept := range []string{
 		"# Verify", "max_iterations: 3", "# budget", "confirm_passes: 2",
 		"# Fix recipe", "debate_rounds: 1", "vision:", "size_threshold: 400",
+		"finding_batch: 6",
 	} {
 		if !strings.Contains(out, kept) {
 			t.Errorf("%q was lost:\n%s", kept, out)

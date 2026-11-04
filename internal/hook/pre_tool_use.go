@@ -161,11 +161,11 @@ func isAgentSpawnTool(name string) bool {
 	return name == "Task" || name == "Agent"
 }
 
-// Fan-out budget — the batch sizes are the one part of simulate's
-// settings that no document can be checked against afterwards.
+// Fan-out budget — a batch size is the one setting no document can be
+// checked against afterwards. (The simulator's scenario batch went with
+// simulation; defend.finding_batch remains.)
 //
-// simulate.scenario_batch and simulate.finding_batch say how much work
-// one agent takes. Nothing they govern survives into an artefact: the
+// defend.finding_batch says how much work one agent takes. Nothing they govern survives into an artefact: the
 // simulation report records what was found, never how many agents split
 // the finding. So `bts validate` cannot check them the way it checks
 // the scenario budget, and for a while that was read as "unverifiable".
@@ -205,11 +205,8 @@ func overBatchNotice(root string, input *HookInput) string {
 	var limit, count int
 	var unit, setting string
 	switch agentType {
-	case "simulator":
-		limit, unit, setting = cfg.Simulate.ScenarioBatch, "scenario", "simulate.scenario_batch"
-		count = countUnique(scenarioIDRe, prompt)
-	case "simulator-validator", "simulator-rebuttal", "defender":
-		limit, unit, setting = cfg.Simulate.FindingBatch, "finding", "simulate.finding_batch"
+	case "defender":
+		limit, unit, setting = cfg.Defend.FindingBatch, "finding", "defend.finding_batch"
 		count = countUnique(findingIDRe, prompt)
 	default:
 		return ""
@@ -249,5 +246,4 @@ var (
 	// loose forms measured walker prompts actually used — "scenario 4",
 	// "scenarios 1,2,3,7", "시나리오 5" — which the canonical-only
 	// pattern counted as zero.
-	scenarioIDRe = regexp.MustCompile(`(?i)\bS\d{2,}\b|\bsim-\d+\.s\d+\b|\bscenarios?\s*#?\s*\d+|시나리오\s*\d+`)
 )

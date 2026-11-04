@@ -75,9 +75,6 @@ not json — must be skipped
 	if o.VerifyIterations != 3 || o.FirstCritical != 2 || o.FirstMajor != 3 || o.FinalStatus != "converged" {
 		t.Errorf("verify side wrong: %+v", o)
 	}
-	if o.SimulateRuns != 2 {
-		t.Errorf("simulate runs: %d", o.SimulateRuns)
-	}
 	if o.Tasks != 3 || o.ImplRetries != 7 || o.BlockedTasks != 1 || !o.HasImplement {
 		t.Errorf("implement side wrong: %+v", o)
 	}
@@ -124,7 +121,7 @@ func TestRenderOutcomes_SmallSampleCaveatAndHandRecorded(t *testing.T) {
 			HasImplement: true, Tasks: 3, ImplRetries: 1,
 			TestIterations: 1, TestStatus: "pass", TestRecordedBy: ""},
 		{ID: "r-2", Type: "blueprint", Phase: "complete", VerifyIterations: 4,
-			SimulateRuns: 1, HasImplement: true, Tasks: 5, ImplRetries: 9,
+			HasImplement: true, Tasks: 5, ImplRetries: 9,
 			TestIterations: 3, TestStatus: "pass", TestRecordedBy: "bts"},
 	}
 	out := renderOutcomes(outs)

@@ -964,10 +964,6 @@ func checkPhasePreConditions(root string, recipe *state.RecipeState, newPhase st
 				warn("tests not passing — fix before review")
 			}
 		}
-		simsDir := filepath.Join(recipeDir, "simulations")
-		if entries, err := os.ReadDir(simsDir); err != nil || countNonHidden(entries) == 0 {
-			warn("no code simulation found — run /bts-simulate code first")
-		}
 
 	case "sync":
 		if !exists("review.md") {

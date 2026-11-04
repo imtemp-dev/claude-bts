@@ -625,13 +625,6 @@ func checkFlowCompliance(recipeDir string, recipe *state.RecipeState) []doctorIs
 			"Run /bts-test to generate and execute tests"})
 	}
 
-	// Check: test without simulate
-	if pw >= 7 && containsAction(actions, "test") && !containsAction(actions, "simulate") {
-		issues = append(issues, doctorIssue{"warning", "flow",
-			"test without code simulation",
-			"Run /bts-simulate code to verify all code paths"})
-	}
-
 	// Check: test without review
 	if pw >= 8 && containsAction(actions, "test") && !containsAction(actions, "review") {
 		issues = append(issues, doctorIssue{"warning", "flow",

@@ -158,3 +158,21 @@ func TestCheckDeviationSchema_FileMissingIsNil(t *testing.T) {
 		t.Errorf("missing file should be silent, got %v", issues)
 	}
 }
+
+// The prove stage feeds sync: a fixed interrogate finding and a driven
+// journey are drivers, as simulate:<id> was before simulation was removed
+// (which stays accepted so old deviation.md files still validate).
+func TestCheckDeviationSchema_ProveStageDrivers(t *testing.T) {
+	body := `# Deviation Report
+
+## Deviations
+| ID | Item | Spec Says | Code Has | Driver | Severity | Resolution |
+|----|------|-----------|----------|--------|----------|------------|
+| D-001 | link parse | any tail | resolved path | interrogate:F-001 | major | updated spec |
+| D-002 | boot | a | b | prove:dry-run-boot | minor | updated spec |
+| D-003 | old row | a | b | simulate:S04 | minor | legacy |
+`
+	if issues := CheckDeviationSchema(writeDeviation(t, body)); len(issues) != 0 {
+		t.Fatalf("interrogate:, prove: and the legacy simulate: drivers must validate, got %v", issues)
+	}
+}

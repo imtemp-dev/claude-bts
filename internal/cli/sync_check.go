@@ -66,16 +66,6 @@ func runSyncCheck(cmd *cobra.Command, args []string) error {
 		issues += len(debates)
 	}
 
-	// 3. Unresolved simulation gaps
-	gaps := manifest.GetUnresolvedGaps()
-	if len(gaps) > 0 {
-		fmt.Println("UNRESOLVED simulation gaps:")
-		for _, path := range gaps {
-			fmt.Printf("  - %s\n", path)
-		}
-		issues += len(gaps)
-	}
-
 	// Record the run in the changelog BEFORE any exit — the stop hook's
 	// sync_check_before_final gate requires a passing sync-check entry
 	// logged after the last draft modification (rule 8 is now machine-

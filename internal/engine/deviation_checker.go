@@ -22,8 +22,11 @@ type DeviationRow struct {
 // Driver vocabulary — exact tokens the validator accepts. Anything
 // outside this set is reported as driver_invalid. Keep in sync with
 // the list in bts-sync/SKILL.md.
+// interrogate:<id> and prove:<journey> come from the prove stage;
+// simulate:<id> is legacy (simulation was removed) and stays accepted so
+// an old deviation.md still validates.
 var validDriverRe = regexp.MustCompile(
-	`^(?:code-diff|sync-check|simulate:[\w\.\-]+|review:[\w\.\-]+|test:[^,|]+|midrun:[\w\.\-]+)$`,
+	`^(?:code-diff|sync-check|interrogate:[\w\.\-]+|prove:[\w\.\-]+|review:[\w\.\-]+|test:[^,|]+|midrun:[\w\.\-]+|simulate:[\w\.\-]+)$`,
 )
 
 // validSeverity is the set of severities acceptable in the Severity
@@ -236,7 +239,7 @@ func CheckDeviationSchema(path string) []Issue {
 						Category: "deviation",
 						Claim:    "driver_invalid: " + r.ID + ":" + d,
 						Severity: "major",
-						Detail:   "deviation.md: " + r.ID + " driver '" + d + "' is outside the vocabulary (code-diff|sync-check|simulate:...|review:...|test:...|midrun:...).",
+						Detail:   "deviation.md: " + r.ID + " driver '" + d + "' is outside the vocabulary (code-diff|sync-check|interrogate:...|prove:...|review:...|test:...|midrun:...).",
 					})
 				}
 			}

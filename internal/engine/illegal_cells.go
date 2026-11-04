@@ -85,3 +85,9 @@ func parseIllegalCells(domainPath string) ([]string, error) {
 	}
 	return cells, nil
 }
+
+// domainIllegalSectionRe finds domain.md § 4, where ILLEGAL cells live.
+var domainIllegalSectionRe = regexp.MustCompile(`(?i)^##\s*4\.?\s*Combinatorial\s+State\s+Space\b`)
+
+// illegalCellLabelRe takes the label after ILLEGAL in a § 4 row.
+var illegalCellLabelRe = regexp.MustCompile(`(?i)ILLEGAL[:\s]*([^\n|]+)`)

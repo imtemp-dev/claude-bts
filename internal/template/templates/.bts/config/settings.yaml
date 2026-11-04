@@ -90,40 +90,14 @@ debate:
   max_extensions: 3              # [advisory] After 3 extensions, new information is unlikely — force decision
   expert_count: 3                # [advisory] 3 perspectives: enough diversity without diluting focus
 
-# Simulation
-simulate:
-  min_scenarios: 5               # Below 5, too easy to miss an important path
-  max_scenarios: 12              # Ceiling for one round. The floor is a number; the ceiling used
-                                 # to be the wireframe — "every edge of the state diagram, plus one
-                                 # per illegal cell" scales with the diagram, and the diagram grows
-                                 # BECAUSE simulation found something. One measured recipe went
-                                 # 16→20 components and 12→19 paths in a single revision, so the
-                                 # next round cost more for having worked. Illegal cells come first,
-                                 # then the riskiest edges; whatever does not fit is reported as
-                                 # uncovered, never dropped in silence. 0 = no ceiling.
-  scenario_batch: 3              # LEGACY. /bts-simulate no longer spawns walker agents — the fork
-                                 # runs AS the simulator agent and walks every scenario itself
-                                 # (measured: the walker cost $2.5 / 5 min; the fork around it
-                                 # $12–30 / 40–56 min). Still read by the pre-tool-use hook,
-                                 # which refuses a `simulator` spawn carrying more scenario ids
-                                 # than this, so a skill that reintroduces the layer is caught.
-                                 # 0 = no check.
-  cross_boundary_ratio: 0.30     # Minimum share of scenarios that must cross two state axes or
-                                 # sit on an illegal cell. Single-axis walks re-confirm what the
-                                 # document already says; interaction is where specs break. Read
-                                 # by `bts validate`, which raises a critical below the threshold.
+# Defense (simulation was removed; an old simulate.finding_batch is still read here)
+defend:
   finding_batch: 6               # FINDINGS per defense pass. `bts recipe findings defend-batch`
-                                 # prints at most 2× this many open critical/major findings —
-                                 # highest severity first, then most rounds open — and names the
-                                 # rest as Undefended; /bts-defend (defender agent, sonnet) argues
-                                 # against exactly what it prints. The cap is in the command, not
-                                 # in the agent's reading of a number, because the measured failure
-                                 # (validators handed 10–28 findings, 80–110K output tokens each,
-                                 # three abandoned at the 64K limit) happened under a prose limit.
-                                 # The pre-tool-use hook additionally REFUSES any Agent-tool spawn of
-                                 # a defender/validator whose prompt carries more finding ids than
-                                 # this — a refusal, not a warning, because the warning it replaced
-                                 # matched a tool name the harness had stopped using and never fired.
+                                 # prints at most 2x this many open critical/major findings,
+                                 # highest severity first, then most rounds open, and names the
+                                 # rest as Undefended; /bts-defend argues against exactly what it
+                                 # prints. The pre-tool-use hook also refuses an Agent-tool spawn
+                                 # of a defender whose prompt carries more finding ids than this.
                                  # 0 = no cap in either place.
 
 # Implementation

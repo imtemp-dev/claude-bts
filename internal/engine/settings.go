@@ -14,8 +14,11 @@ import (
 // not require a code change.
 type Settings struct {
 	Implement ImplementSettings `yaml:"implement"`
-	Simulate  SimulateSettings  `yaml:"simulate"`
-	Verify    VerifySettings    `yaml:"verify"`
+	Defend    DefendSettings    `yaml:"defend"`
+	// Simulate is the legacy block (simulation was removed); only its
+	// finding_batch is still read, into Defend when defend sets none.
+	Simulate legacySimulateSettings `yaml:"simulate"`
+	Verify   VerifySettings         `yaml:"verify"`
 }
 
 // ImplementSettings controls the implementation loop's retry limits and
@@ -46,46 +49,17 @@ func (r RetryLadderSettings) LadderConfig() LadderConfig {
 	return LadderConfig(r)
 }
 
-// SimulateSettings captures the simulation checker thresholds.
-type SimulateSettings struct {
-	MinScenarios int `yaml:"min_scenarios"`
-	// MaxScenarios bounds one simulation round.
-	//
-	// The floor comes from a word list; the ceiling used to come from the
-	// wireframe. "Every edge of the state diagram, plus one per illegal
-	// cell" scales with the diagram, and the diagram grows because
-	// simulation found something — one measured recipe went 16 → 20
-	// components and 12 → 19 paths in a single revision, which makes the
-	// next round more expensive for having worked. A bound the document
-	// cannot move is the only kind that holds.
-	//
-	// It is a budget, not a quota: illegal cells come first, then the
-	// riskiest edges, and whatever is left over is REPORTED rather than
-	// dropped in silence. 0 disables.
-	MaxScenarios int `yaml:"max_scenarios"`
-	// ScenarioBatch is how many scenarios one walking agent takes.
-	//
-	// The protocol used to hand every scenario to a single agent, which
-	// walks them one after another in one context: 15 scenarios took 23
-	// minutes of wall clock on 132 tool calls, so the cost was reasoning,
-	// not reading. Batches fan out, and the round costs the slowest batch
-	// instead of the sum. 0 means one agent for everything (the old
-	// behaviour).
-	ScenarioBatch int `yaml:"scenario_batch"`
-	// FindingBatch is how many FINDINGS one adversarial agent takes.
-	//
-	// It is a separate number from ScenarioBatch because it is a
-	// separate unit, and reusing the scenario number cost a measured
-	// round nineteen minutes: 59 findings handed out under "batch of 3"
-	// were read as three groups, ~20 findings each, and all three
-	// validators hit the 64K output-token limit and were abandoned. A
-	// walk produces several findings per scenario, so the two counts
-	// cannot share a value. Sized so a batch's verdicts fit one reply
-	// with margin: the abandoned agents were spending ~3K output tokens
-	// per finding. 0 means one agent for every finding (the old
-	// behaviour, and the one that hit the limit).
-	FindingBatch       int     `yaml:"finding_batch"`
-	CrossBoundaryRatio float64 `yaml:"cross_boundary_ratio"`
+// DefendSettings sizes /bts-defend. FindingBatch is how many findings
+// one defender agent takes; 0 disables the cap. It was
+// simulate.finding_batch until simulation was removed.
+type DefendSettings struct {
+	FindingBatch int `yaml:"finding_batch"`
+}
+
+// legacySimulateSettings reads an old settings.yaml's simulate block, of
+// which only finding_batch still means anything.
+type legacySimulateSettings struct {
+	FindingBatch *int `yaml:"finding_batch"`
 }
 
 // VerifySettings captures verify loop controls read by Go code. Fields
@@ -173,13 +147,8 @@ func DefaultSettings() *Settings {
 				ArchitectEscalate: true,
 			},
 		},
-		Simulate: SimulateSettings{
-			MinScenarios:       5,
-			MaxScenarios:       12,
-			ScenarioBatch:      3,
-			FindingBatch:       6,
-			CrossBoundaryRatio: DefaultCrossBoundaryRatio,
-		},
+		Defend: DefendSettings{FindingBatch: 6},
+
 		Verify: VerifySettings{
 			MaxIterations:       3,
 			MaxRounds:           6,
@@ -224,22 +193,19 @@ func LoadSettings(root string) (*Settings, error) {
 	if s.Implement.MidrunReviewEvery < 0 {
 		s.Implement.MidrunReviewEvery = def.Implement.MidrunReviewEvery
 	}
-	if s.Simulate.MinScenarios <= 0 {
-		s.Simulate.MinScenarios = def.Simulate.MinScenarios
+	// defend.finding_batch, or an old simulate.finding_batch when defend
+	// sets none; a negative value falls back to the default.
+	var explicit struct {
+		Defend struct {
+			FindingBatch *int `yaml:"finding_batch"`
+		} `yaml:"defend"`
 	}
-	// 0 is meaningful for both (no ceiling; one agent for everything), so
-	// only a negative value falls back.
-	if s.Simulate.MaxScenarios < 0 {
-		s.Simulate.MaxScenarios = def.Simulate.MaxScenarios
+	_ = yaml.Unmarshal(data, &explicit)
+	if explicit.Defend.FindingBatch == nil && s.Simulate.FindingBatch != nil {
+		s.Defend.FindingBatch = *s.Simulate.FindingBatch
 	}
-	if s.Simulate.ScenarioBatch < 0 {
-		s.Simulate.ScenarioBatch = def.Simulate.ScenarioBatch
-	}
-	if s.Simulate.FindingBatch < 0 {
-		s.Simulate.FindingBatch = def.Simulate.FindingBatch
-	}
-	if s.Simulate.CrossBoundaryRatio <= 0 {
-		s.Simulate.CrossBoundaryRatio = def.Simulate.CrossBoundaryRatio
+	if s.Defend.FindingBatch < 0 {
+		s.Defend.FindingBatch = def.Defend.FindingBatch
 	}
 	if s.Verify.MaxIterations <= 0 {
 		s.Verify.MaxIterations = def.Verify.MaxIterations

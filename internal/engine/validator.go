@@ -101,56 +101,12 @@ func ValidateRecipeDir(recipeDir string) ([]ValidationError, error) {
 				Message: issue.Claim + " — " + issue.Detail,
 			})
 		}
-		// 7c. Phase 12 — every simulation DEVIATION must land in
-		// deviation.md with a matching simulate:{id} Driver.
-		for _, issue := range CheckSimDeviationConsumption(recipeDir) {
-			errors = append(errors, ValidationError{
-				File:    "simulations/ → deviation.md",
-				Field:   issue.Category,
-				Message: issue.Claim + " — " + issue.Detail,
-			})
-		}
 	}
 
-	// 7d. Phase 13 — test ↔ simulate scenario coverage. Runs when
-	// test-results.json exists (tests have been executed).
-	if _, err := os.Stat(filepath.Join(recipeDir, "test-results.json")); err == nil {
-		for _, issue := range CheckTestScenarioCoverage(recipeDir) {
-			errors = append(errors, ValidationError{
-				File:    "simulations/ → tests",
-				Field:   issue.Category,
-				Message: issue.Claim + " — " + issue.Detail,
-			})
-		}
-	}
-
-	// 8. simulations/*.md — cross-boundary ratio + illegal-cell coverage
-	// (Phase 6.1 and 6.2).
-	//
-	// The thresholds come from the project's settings, not from the
-	// constants: a knob the checker ignores is not a knob. Until this
-	// call read them, simulate.cross_boundary_ratio was parsed into a
-	// struct nothing consulted, and it was not even shipped in the
-	// settings template — an operator could not have found it to turn.
-	simCfg := DefaultSettings().Simulate
-	if s, err := LoadSettings(projectRootFromRecipeDir(recipeDir)); err == nil {
-		simCfg = s.Simulate
-	}
-	simsDir := filepath.Join(recipeDir, "simulations")
-	if entries, err := os.ReadDir(simsDir); err == nil {
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
-				continue
-			}
-			simPath := filepath.Join(simsDir, entry.Name())
-			for _, issue := range CheckSimulationScenarios(simPath, simCfg.CrossBoundaryRatio) {
-				errors = append(errors, ValidationError{File: "simulations/" + entry.Name(), Field: issue.Category, Message: issue.Claim + " — " + issue.Detail})
-			}
-			for _, issue := range CheckScenarioBudget(simPath, simCfg.MinScenarios, simCfg.MaxScenarios) {
-				errors = append(errors, ValidationError{File: "simulations/" + entry.Name(), Field: issue.Category, Message: issue.Claim + " — " + issue.Detail})
-			}
-		}
-	}
+	// 7c/7d/8 (simulation DEVIATION consumption, test-to-scenario
+	// coverage, simulation scenario checks) are gone with simulation
+	// (prove-stage-design.md, decision 6). Old simulations/ files stay on
+	// disk and are no longer validated.
 
 	// Illegal-cell coverage, every recipe type: each ILLEGAL cell in
 	// domain.md § 4 needs a test that the transition is refused, tagged

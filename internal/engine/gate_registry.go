@@ -179,18 +179,6 @@ var HardGates = []HardGate{
 		Summary:     "Every deviation.md row must carry a unique ID, at least one Driver from the vocabulary, and a Severity",
 	},
 	{
-		ID:          "sim_deviation_consumed",
-		Rule:        "bts-sync/SKILL.md §Step 2.5 (Phase 12)",
-		Enforcement: "internal/engine/simulation_deviation.go:CheckSimDeviationConsumption",
-		Summary:     "Every DEVIATION entry in simulations/*.md must land in deviation.md with a matching simulate:{id} Driver",
-	},
-	{
-		ID:          "test_scenario_link_required",
-		Rule:        "bts-test/SKILL.md §Step 2 + §Step 3 ASSESS (Phase 13)",
-		Enforcement: "internal/engine/test_scenario_map.go:CheckTestScenarioCoverage",
-		Summary:     "Every simulation scenario must be linked via `bts:scenario {id}` to at least one test; failing results must carry a `category`",
-	},
-	{
 		ID:          "recipe_state_normalized",
 		Rule:        "bts-recipe-protocol.md §Completion (Phase 21)",
 		Enforcement: "internal/hook/stop.go:handleSpecDone + internal/cli/recipe.go:recipeReconcileCmd",

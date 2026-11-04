@@ -21,9 +21,6 @@ type RecipeStats struct {
 	MidrunExpected           int    `json:"midrun_expected"`
 	DeviationRowsTotal       int    `json:"deviation_rows_total"`
 	DeviationRowsNonCodeDiff int    `json:"deviation_rows_non_code_diff"`
-	TestScenariosTotal       int    `json:"test_scenarios_total"`
-	TestScenariosLinked      int    `json:"test_scenarios_linked"`
-	TestScenariosLegacy      int    `json:"test_scenarios_legacy"`
 	RetryLadderHistogram     [7]int `json:"retry_ladder_histogram"` // index 0 unused, 1..6 tiers
 	LegacyModifyScopeTasks   int    `json:"legacy_modify_scope_tasks"`
 }
@@ -123,28 +120,6 @@ func ComputeRecipeStats(projectRoot, recipeDir string) (*RecipeStats, error) {
 				}
 			}
 		}
-	}
-
-	// Test scenarios (P13).
-	if scenarios := collectSimulationScenarioIDs(recipeDir); len(scenarios.known) > 0 {
-		s.TestScenariosTotal = len(scenarios.known)
-		linked := map[string]bool{}
-		if links, err := ExtractTestScenarioLinks(recipeDir); err == nil {
-			for _, l := range links {
-				linked[l.ScenarioID] = true
-			}
-		}
-		if tr, _ := loadTestResultsForScenarios(recipeDir); tr != nil {
-			for id, v := range tr.ScenarioCoverage {
-				// Count "legacy" placeholders separately so adoption is
-				// visible even when the gate passes.
-				if len(v) == 1 && strings.EqualFold(v[0], "legacy") {
-					s.TestScenariosLegacy++
-				}
-				linked[id] = true
-			}
-		}
-		s.TestScenariosLinked = len(linked)
 	}
 
 	// Retry ladder histogram (P15).

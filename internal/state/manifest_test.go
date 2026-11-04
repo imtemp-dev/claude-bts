@@ -188,22 +188,6 @@ func TestManifest_GetUnverifiedDrafts(t *testing.T) {
 	}
 }
 
-func TestManifest_GetUnresolvedGaps(t *testing.T) {
-	m := &Manifest{Documents: map[string]DocumentEntry{
-		"sim-1.md": {Type: "simulation"},
-		"sim-2.md": {Type: "simulation"},
-		"draft.md": {Type: "draft", Resolves: []string{"sim-1.md"}},
-	}}
-
-	unresolved := m.GetUnresolvedGaps()
-	if len(unresolved) != 1 {
-		t.Fatalf("got %d, want 1", len(unresolved))
-	}
-	if unresolved[0] != "sim-2.md" {
-		t.Errorf("got %s, want sim-2.md", unresolved[0])
-	}
-}
-
 func TestManifest_GetUnincorporatedDebates(t *testing.T) {
 	m := &Manifest{
 		CurrentDraft: "draft.md",

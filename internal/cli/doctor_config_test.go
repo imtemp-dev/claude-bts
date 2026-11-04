@@ -98,8 +98,8 @@ func TestCheckUnreadSettings_CleanFileIsQuiet(t *testing.T) {
 	writeFile(t, filepath.Join(root, ".bts", "config", "settings.yaml"), `
 verify:
   max_iterations: 3
-simulate:
-  min_scenarios: 5
+defend:
+  finding_batch: 6
 `)
 	if issues := checkUnreadSettings(root); len(issues) != 0 {
 		t.Fatalf("want no issues, got %+v", issues)
