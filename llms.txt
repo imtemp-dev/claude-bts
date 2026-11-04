@@ -168,6 +168,7 @@ Core gates use session model for maximum quality. Pattern-based checks use sonne
 | defender | sonnet | agents.defender |
 | diagnosis_validator | session model | agents.diagnosis_validator |
 | diagnosis_rebuttal | session model | agents.diagnosis_rebuttal |
+| architect_runner | opus | agent file only (two run in parallel in /bts-architect) |
 
 Override in `.bts/config/settings.yaml`. Options: sonnet, opus, haiku.
 
