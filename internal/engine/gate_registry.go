@@ -113,6 +113,12 @@ var HardGates = []HardGate{
 		Summary:     "IMPLEMENT DONE blocked unless a verified interrogate run exists and every finding that failed again on a fresh copy is fixed on the current code or waived with the user's reason",
 	},
 	{
+		ID:          "app_proven",
+		Rule:        "bts-implement SKILL.md, Step 5.45 Drive the app",
+		Enforcement: "internal/hook/stop_build.go:appProven (handleImplementDone)",
+		Summary:     "IMPLEMENT DONE blocked unless every planned user journey was driven through the real app on the current code with its evidence, or deferred with a reason and an owner, or the change is recorded as having no user-facing surface",
+	},
+	{
 		ID:          "tests_cover_current_code",
 		Rule:        "bts-implement-protocol.md §Execution Rules rule 4",
 		Enforcement: "internal/hook/stop.go:testsCoverCurrentCode (handleImplementDone, handleFixDone)",

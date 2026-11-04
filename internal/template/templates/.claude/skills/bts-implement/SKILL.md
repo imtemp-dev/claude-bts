@@ -56,7 +56,8 @@ Use settings values if present, otherwise use defaults noted in each step.
      document-mode simulations from the blueprint phase always live
      there, so directory existence proves nothing:
      - test-results.json (pass) + simulations/*-code.md + review.md exists → Step 6 (sync)
-     - test-results.json (pass) + simulations/*-code.md + interrogate.json verified → Step 5.5 (review)
+     - test-results.json (pass) + simulations/*-code.md + interrogate.json verified + prove.json → Step 5.5 (review)
+     - test-results.json (pass) + simulations/*-code.md + interrogate.json verified → Step 5.45 (drive the app)
      - test-results.json (pass) + simulations/*-code.md → Step 5.4 (interrogate)
      - build recipe, test-results.json (pass), and an invariant in
        build-evidence.json with neither `mutation` nor `not_mutable` → Step 5.2 (able to fail)
@@ -466,6 +467,18 @@ a fresh copy, and has you fix what reproduced (with a regression test) and
 recheck.  Continue when `bts interrogate verify {id} --recheck` reports no
 open finding.
 
+## Step 5.45: Drive the app
+
+Drive the user journeys this change touches through the real app, the way
+a user does, and record each with its evidence (prove stage P2):
+
+Use Skill("bts-prove") with arguments: {id}
+
+It uses the project's `verify-<app>` skill (made once by
+`/bts-verification-skill`), plans the journeys, drives each with `bts prove
+run`, and defers with an owner what cannot run here.  Continue when `bts
+prove status {id}` shows every journey driven or deferred.
+
 ## Step 5.5: Review
 
 Update phase:
@@ -570,6 +583,9 @@ When all steps are done:
 - Every recipe: run `bts interrogate verify {id} --recheck`.  No finding
   may be open on the current code; a waived one carries the user's reason
   (`interrogate_clean`).
+- Every recipe: rerun `bts prove run` for any journey driven before the
+  last code change; `bts prove status {id}` must show every journey driven
+  on the current code or deferred (`app_proven`).
 - Output `<bts>IMPLEMENT DONE</bts>`
 - Tell the user (plaintext, after the marker):
   > **Implementation complete** — `{id}` done.

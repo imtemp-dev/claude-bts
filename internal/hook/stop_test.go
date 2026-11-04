@@ -396,6 +396,8 @@ func setupImplementRoot(t *testing.T) (root, recipeID string) {
 	_ = os.WriteFile(filepath.Join(recipeDir, "deviation.md"), []byte("stub"), 0644)
 	// interrogate.json — a verified run with nothing open (prove stage P3).
 	_ = state.SaveInterrogateRun(root, recipeID, &state.InterrogateRun{PreparedAt: "t", VerifiedAt: "t"})
+	// prove.json — no user-facing surface, so nothing to drive (prove stage P2).
+	_ = state.SaveProveRecord(root, recipeID, &state.ProveRecord{NoSurface: "test fixture"})
 	return root, recipeID
 }
 

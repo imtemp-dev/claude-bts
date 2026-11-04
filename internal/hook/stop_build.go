@@ -174,3 +174,23 @@ func interrogateClean(root, recipeID string) *HookOutput {
 	}
 	return nil
 }
+
+// appProven is gate app_proven at IMPLEMENT DONE, for every recipe type:
+// the user journeys the change touches were driven through the real app
+// on the current code and left their evidence, or were deferred with a
+// reason and an owner, or the change has no user-facing surface (prove
+// stage, P2).
+func appProven(root, recipeID string) *HookOutput {
+	rec, err := state.LoadProveRecord(root, recipeID)
+	if err != nil {
+		return blockOutput(fmt.Sprintf("prove.json is unreadable (%v).", err))
+	}
+	hash, herr := engine.CodeHash(root, recipeID)
+	if herr != nil {
+		fmt.Fprintf(os.Stderr, "[bts] warning: code fingerprint: %v (freshness not checked)\n", herr)
+	}
+	if reason := engine.CheckAppProven(rec, hash, recipeID); reason != "" {
+		return blockOutput(reason)
+	}
+	return nil
+}

@@ -659,6 +659,9 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 	if out := interrogateClean(root, recipe.ID); out != nil {
 		return out, nil
 	}
+	if out := appProven(root, recipe.ID); out != nil {
+		return out, nil
+	}
 
 	// 3. Check that review has run (review.md exists)
 	reviewPath := filepath.Join(state.RecipeDir(root, recipe.ID), "review.md")

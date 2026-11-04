@@ -1080,4 +1080,6 @@ var ChangelogActions = map[string]bool{
 	"claim": true,
 	// prove stage P3: written by `bts interrogate prepare|verify|waive`
 	"interrogate": true,
+	// prove stage P2: written by `bts prove plan|run|defer`
+	"prove": true,
 }
