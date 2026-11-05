@@ -80,6 +80,21 @@ bts interrogate verify {id} --recheck
 A finding is `fixed` when its command now passes. A later code change makes
 a recheck stale; run `--recheck` again before completion.
 
+A fix may refuse the input another way than the finding's command asserts
+(a 400 where the repro wants a narrowed result or another error code), so
+the command keeps failing though the defect is gone.  Close it with the
+regression test from item 2 and a patch that reverts only the fix in the
+code, never a test:
+
+```bash
+bts interrogate pin {id} --finding F-00N --cmd "<the regression test alone>" --revert <patch> --expect "<its test id>"
+```
+
+bts runs the test on the current code (it must pass) and in a copy with the
+patch applied (it must fail and print its id), then marks the finding
+`fixed`; later rechecks rerun the pinned test.  This is a fix, not a waiver:
+it needs no agreement, but the test must really pin the fix.
+
 A finding may stay unfixed only if the user agrees. Ask with
 `AskUserQuestion`, then record the user's reason:
 

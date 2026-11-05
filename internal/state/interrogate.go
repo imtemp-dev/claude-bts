@@ -89,6 +89,20 @@ type InterrogateFinding struct {
 	Verify      *CommandRun `json:"verify,omitempty"`  // the rerun on a fresh copy
 	Recheck     *CommandRun `json:"recheck,omitempty"` // the rerun after a fix
 	WaiveReason string      `json:"waive_reason,omitempty"`
+	// Pin is the regression test that closed this finding when its fix
+	// refuses the input another way than Command asserts (`bts
+	// interrogate pin`, trial problem #83).  A recheck reruns it in place
+	// of Command.
+	Pin *InterrogatePin `json:"pin,omitempty"`
+}
+
+// InterrogatePin is a regression test shown to pin a finding's fix: it
+// passes on the code, and in a copy with the fix reverted it fails and
+// prints Expect.
+type InterrogatePin struct {
+	Command string       `json:"command"`
+	Expect  string       `json:"expect"`
+	Revert  *MutationRun `json:"revert"`
 }
 
 // InterrogatePath is the run record for a recipe.

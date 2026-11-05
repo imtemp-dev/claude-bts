@@ -25,6 +25,8 @@ import (
 //   bts interrogate verify <id>                      rerun every finding the current round reported
 //   bts interrogate verify <id> --recheck            rerun open and fixed findings after fixes
 //   bts interrogate waive <id> --finding F-001 --reason "..."
+//   bts interrogate pin <id> --finding F-001 --cmd "<test>" --revert <patch> --expect "<test id>"
+//                                                    a fix that refuses it another way, pinned by a test
 
 // adversaryAngles seed independence: one model family, separate contexts,
 // different angles of attack.
@@ -49,6 +51,16 @@ func init() {
 	interrogateWaiveCmd.Flags().String("reason", "", "Why it is left unfixed, as the user agreed (required)")
 	_ = interrogateWaiveCmd.MarkFlagRequired("finding")
 	_ = interrogateWaiveCmd.MarkFlagRequired("reason")
+	interrogateCmd.AddCommand(interrogatePinCmd)
+	interrogatePinCmd.Flags().String("finding", "", "Finding id, e.g. F-003 (required)")
+	interrogatePinCmd.Flags().String("cmd", "", "Command that runs the regression test only (required)")
+	interrogatePinCmd.Flags().String("revert", "", "Patch that reverts the fix in the code, never a test (required)")
+	interrogatePinCmd.Flags().String("expect", "", "The regression test's id, which its failing run must print (required)")
+	interrogatePinCmd.Flags().String("setup", "", "Command run in the copy before the test, e.g. bringing in an ignored file")
+	interrogatePinCmd.Flags().Int("timeout", 600, "Seconds before each run is killed")
+	for _, f := range []string{"finding", "cmd", "revert", "expect"} {
+		_ = interrogatePinCmd.MarkFlagRequired(f)
+	}
 }
 
 var interrogateCmd = &cobra.Command{
@@ -160,6 +172,112 @@ var interrogateWaiveCmd = &cobra.Command{
 		fmt.Printf("[bts] %s waived → interrogate.json\n", id)
 		return nil
 	},
+}
+
+var interrogatePinCmd = &cobra.Command{
+	Use:          "pin <recipe-id>",
+	Short:        "Close a reproduced finding whose fix refuses it another way: a regression test passes now and fails with the fix reverted",
+	Args:         cobra.ExactArgs(1),
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		root, err := projectRoot()
+		if err != nil {
+			return err
+		}
+		var o pinOptions
+		o.Finding, _ = cmd.Flags().GetString("finding")
+		o.Command, _ = cmd.Flags().GetString("cmd")
+		o.RevertFile, _ = cmd.Flags().GetString("revert")
+		o.Expect, _ = cmd.Flags().GetString("expect")
+		o.Setup, _ = cmd.Flags().GetString("setup")
+		o.TimeoutSec, _ = cmd.Flags().GetInt("timeout")
+		f, err := executeInterrogatePin(root, args[0], o, os.Stdout)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("\n[bts] %s fixed, pinned by %q (fails with the fix reverted) → interrogate.json\n", f.ID, f.Pin.Command)
+		return nil
+	},
+}
+
+type pinOptions struct {
+	Finding, Command, RevertFile, Expect, Setup string
+	TimeoutSec                                  int
+}
+
+// executeInterrogatePin closes a reproduced finding whose fix refuses the
+// input another way than the adversary's command asserts, so that command
+// keeps failing (trial problem #83).  The regression test must pass on the
+// current code and, in a copy with the revert patch applied, fail and print
+// its own id: that is what shows it pins this fix, not merely passes.  The
+// patch changes code files only, never a test.  A refused pin writes
+// nothing; a recheck afterwards reruns the pinned test.
+func executeInterrogatePin(root, recipeID string, o pinOptions, sink io.Writer) (*state.InterrogateFinding, error) {
+	o.Expect = strings.TrimSpace(o.Expect)
+	if strings.TrimSpace(o.Command) == "" || o.RevertFile == "" || o.Expect == "" {
+		return nil, errors.New("--cmd, --revert and --expect are required")
+	}
+	run, err := state.LoadInterrogateRun(root, recipeID)
+	if err != nil {
+		return nil, err
+	}
+	if run == nil {
+		return nil, fmt.Errorf("no interrogate run for %s", recipeID)
+	}
+	var f *state.InterrogateFinding
+	for _, cand := range run.Findings {
+		if cand.ID == o.Finding {
+			f = cand
+		}
+	}
+	if f == nil {
+		return nil, fmt.Errorf("no finding %s in %s's interrogate run", o.Finding, recipeID)
+	}
+	if f.Status != state.InterrogateReproduced {
+		return nil, fmt.Errorf("%s is %s; only a reproduced finding can be pinned", f.ID, f.Status)
+	}
+	patch, err := os.ReadFile(o.RevertFile)
+	if err != nil {
+		return nil, fmt.Errorf("read --revert: %w", err)
+	}
+	files, err := checkMutationPatch(root, recipeID, patch)
+	if err != nil {
+		return nil, fmt.Errorf("--revert: %w", err)
+	}
+	cr, err := runRecorded(root, recipeID, o.Command, o.TimeoutSec, "interrogate-pin-"+f.ID+".log", sink)
+	if err != nil {
+		return nil, err
+	}
+	if !cr.Passed() {
+		return nil, fmt.Errorf("%s: the regression test fails on the current code (exit %d); pin a test that passes with the fix in place", f.ID, cr.ExitCode)
+	}
+	rel := filepath.ToSlash(filepath.Join("interrogate", "pins", f.ID+".patch"))
+	m, err := runMutation(root, recipeID, f.ID, o.Command, patch, rel, files, o.Expect, o.Setup, o.TimeoutSec, sink)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case m.TimedOut:
+		return nil, fmt.Errorf("%s: the regression test timed out with the fix reverted; it must fail, not hang", f.ID)
+	case m.ExitCode == 0:
+		return nil, fmt.Errorf("%s: the regression test still passes with the fix reverted, so it does not pin this fix", f.ID)
+	case !m.Matched:
+		return nil, fmt.Errorf("%s: the regression test failed with the fix reverted, but %q was not in its output; name the test's own id with --expect, and revert only the fix", f.ID, o.Expect)
+	}
+	dir := filepath.Join(state.RecipeDir(root, recipeID), "interrogate", "pins")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(filepath.Join(state.RecipeDir(root, recipeID), filepath.FromSlash(rel)), patch, 0644); err != nil {
+		return nil, fmt.Errorf("store the revert patch: %w", err)
+	}
+	f.Status, f.Recheck = state.InterrogateFixed, cr
+	f.Pin = &state.InterrogatePin{Command: o.Command, Expect: o.Expect, Revert: m}
+	if err := state.SaveInterrogateRun(root, recipeID, run); err != nil {
+		return nil, err
+	}
+	appendEvidenceChangelog(root, recipeID, "interrogate", fmt.Sprintf("pinned %s by %s (fix reverted: exit=%d)", f.ID, o.Command, m.ExitCode), cr.CodeHash)
+	return f, nil
 }
 
 // adversaryReport is what an adversary writes: findings it proved by a
@@ -378,8 +496,16 @@ func executeInterrogateRecheck(root, recipeID string, timeoutSec int, sink io.Wr
 		if f.Status != state.InterrogateReproduced && f.Status != state.InterrogateFixed {
 			continue
 		}
-		fmt.Fprintf(sink, "\n[bts] recheck %s: %s\n", f.ID, f.Command)
-		cr, err := rerunFinding(root, recipeID, f, timeoutSec, sink)
+		var cr *state.CommandRun
+		if f.Pin != nil {
+			// A pinned finding's own command asserts a refusal the fix
+			// replaced; its regression test is what tells (trial problem #83).
+			fmt.Fprintf(sink, "\n[bts] recheck %s (pinned): %s\n", f.ID, f.Pin.Command)
+			cr, err = runRecorded(root, recipeID, f.Pin.Command, timeoutSec, "interrogate-pin-"+f.ID+".log", sink)
+		} else {
+			fmt.Fprintf(sink, "\n[bts] recheck %s: %s\n", f.ID, f.Command)
+			cr, err = rerunFinding(root, recipeID, f, timeoutSec, sink)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", f.ID, err)
 		}

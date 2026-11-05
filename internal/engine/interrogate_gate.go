@@ -159,6 +159,8 @@ func CheckInterrogateClean(run *state.InterrogateRun, currentHash, recipeID stri
 		return ""
 	}
 	return fmt.Sprintf("Interrogate findings are open: %s. Fix each and run `bts interrogate verify %s --recheck`; "+
+		"a fix that refuses the input another way than the finding's command asserts is closed by its regression test, through "+
+		"`bts interrogate pin %s --finding <id> --cmd \"<test>\" --revert <patch> --expect \"<test id>\"`; "+
 		"leave one unfixed only with the user's agreement, through `bts interrogate waive %s --finding <id> --reason \"...\"`.",
-		strings.Join(parts, "; "), recipeID, recipeID)
+		strings.Join(parts, "; "), recipeID, recipeID, recipeID)
 }
