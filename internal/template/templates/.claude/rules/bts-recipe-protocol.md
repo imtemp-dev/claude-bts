@@ -33,11 +33,27 @@ discovery → scoping → research → wireframe → draft ←→ adaptive loop 
 
 | Recipe | Phases Used | Output |
 |--------|-------------|--------|
+| build | scoping → research → domain → architect → wireframe → skeleton → falsify → one review → finalize → implement → test → prove → review → sync → complete | build spec (final.md) + skeleton + falsifiers + code |
 | blueprint | discovery → scoping → adaptive loop → finalize → implement → complete | Level 3 spec + code |
 | design | research → adaptive loop → finalize | Level 2 design doc |
 | analyze | research → adaptive loop → finalize | Level 1 analysis doc |
 | fix | research → draft → verify → implement → test → review → complete | fix-spec.md + code |
 | debug | research → perspectives → draft → verify → finalize → implement → complete | debug spec + code |
+
+### Choosing a recipe type
+
+Pick by what the work must deliver, top row first; the first that fits wins.
+
+| The work is | Type |
+|---|---|
+| behaviour that is wrong against what was intended, with a symptom you can reproduce | fix |
+| a bug whose cause one reading of the code does not show (intermittent, spread across modules) | debug |
+| a feature or a behaviour change built here, where the code can be compiled and tested: new code, or a change to committed code | build |
+| a prose spec someone else builds from, or a subject nothing here can compile or run yet (a protocol between teams, a schema another service owns) | blueprint |
+| a design document, with no implementation in this recipe | design |
+| understanding an existing system, with no change | analyze |
+
+A change that adds or alters intended behaviour is build, not fix, even when it touches only committed code.  Say the type you picked and the row that decided it.
 
 ### Project-Level Documents
 
