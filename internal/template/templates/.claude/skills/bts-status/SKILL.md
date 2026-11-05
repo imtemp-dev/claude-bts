@@ -90,7 +90,12 @@ For each recipe, determine its state:
 | `implemented` | tasks.json exists, all tasks done |
 | `tested` | test-results.json exists, status=pass |
 | `synced` | deviation.md exists |
-| `complete` | tested + synced |
+| `complete` | recipe.json `phase` is `complete` |
+
+Only the phase says complete.  A recipe that is tested and synced is
+still `synced` until IMPLEMENT DONE (or FIX DONE) passes its gates and
+the hook sets the phase: filing it under Recently Landed earlier reports
+work as landed that a gate may still refuse.
 
 Then assign each recipe to exactly one bucket:
 
