@@ -71,7 +71,9 @@ rewrites agent files.
    - FOCUS_DIFF shows changed hunks → **delta** is allowed
    State the choice in your summary — the orchestrator passes it as
    `--scope` when recording the round, and a delta round can never
-   satisfy completion.
+   satisfy completion. One exception: a build recipe's `final.md`, where
+   a clean delta round after its one full review completes that review
+   (`bts-recipe-build` step 11).
 
 3. Read the document at $ARGUMENTS and verify it:
 

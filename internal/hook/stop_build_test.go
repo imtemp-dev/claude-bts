@@ -381,3 +381,104 @@ func TestImplementDone_GeneratedCheckMustBeCurrent(t *testing.T) {
 		t.Fatalf("a current generated check must pass: %s", out.Reason)
 	}
 }
+
+// writeFinal replaces final.md and returns the content hash that a verify
+// round over it records.
+func writeFinal(t *testing.T, root, id, body string) string {
+	t.Helper()
+	p := filepath.Join(state.RecipeDir(root, id), "final.md")
+	if err := os.WriteFile(p, []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	h, ok, err := state.FileContentHash(p)
+	if err != nil || !ok {
+		t.Fatalf("hash final.md: %v %v", ok, err)
+	}
+	return h
+}
+
+// Trial problem #45: the one review absorbs a fix. A full pass found a
+// major; the fix edited final.md; a clean delta review of the change
+// counts for build_review_clean, and the blind stop no longer calls the
+// reviewed final.md dirty.
+func TestBuildSpecDone_ACleanDeltaReviewAbsorbsAFix(t *testing.T) {
+	root, id := setupBuildRoot(t)
+	recordEvidence(t, root, id, 0, "INV-001", "INV-002")
+	v1 := writeFinal(t, root, id, "# Build spec\n\n## 3. Boundary contracts\nold\n")
+	v2 := "# Build spec\n\n## 3. Boundary contracts\nfixed: the relay retries once\n"
+	h2 := writeFinal(t, root, id, v2)
+	writeVerifyLog(t, root, id, []state.VerifyLogEntry{
+		{Iteration: 1, Doc: "final.md", FullPass: true, Major: 1, DocHash: v1, Status: "continue"},
+		{Iteration: 2, Doc: "final.md", FullPass: false, MinorResolvable: 1, DocHash: h2, Status: "continue"},
+	})
+
+	out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "no marker"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Decision == "block" {
+		t.Fatalf("a clean delta review covers the edited final.md; the blind stop must not call it dirty: %s", out.Reason)
+	}
+	if out := buildDone(t, root); out.Decision == "block" {
+		t.Fatalf("a clean delta review after the full one must satisfy build_review_clean: %s", out.Reason)
+	}
+	if r, _ := state.LoadRecipeState(root, id); r.Phase != "finalize" {
+		t.Fatalf("phase must be finalize, got %q", r.Phase)
+	}
+}
+
+// The delta path has limits: a full pass is required at least once, a
+// delta that finds a critical or major sends final.md back to a full pass,
+// and an edit after the delta needs another review.
+func TestBuildSpecDone_TheDeltaPathHasLimits(t *testing.T) {
+	root, id := setupBuildRoot(t)
+	recordEvidence(t, root, id, 0, "INV-001", "INV-002")
+	v1 := writeFinal(t, root, id, "# Build spec\nv1\n")
+
+	writeVerifyLog(t, root, id, []state.VerifyLogEntry{
+		{Iteration: 1, Doc: "final.md", FullPass: false, DocHash: v1, Status: "continue"},
+	})
+	if out := buildDone(t, root); out.Decision != "block" || !strings.Contains(out.Reason, "only delta reviews") {
+		t.Fatalf("delta reviews with no full pass must not count, got %q %q", out.Decision, out.Reason)
+	}
+
+	h2 := writeFinal(t, root, id, "# Build spec\nv2\n")
+	writeVerifyLog(t, root, id, []state.VerifyLogEntry{
+		{Iteration: 1, Doc: "final.md", FullPass: true, MinorResolvable: 2, DocHash: v1, Status: "continue"},
+		{Iteration: 2, Doc: "final.md", FullPass: false, Major: 1, DocHash: h2, Status: "continue"},
+	})
+	if out := buildDone(t, root); out.Decision != "block" || !strings.Contains(out.Reason, "found 0 critical and 1 major") {
+		t.Fatalf("a delta that finds a major must block, got %q %q", out.Decision, out.Reason)
+	}
+
+	// Fixing that major and running another clean delta is not enough: the
+	// fix already reached past its sections once.
+	h3 := writeFinal(t, root, id, "# Build spec\nv3\n")
+	writeVerifyLog(t, root, id, []state.VerifyLogEntry{
+		{Iteration: 1, Doc: "final.md", FullPass: true, MinorResolvable: 2, DocHash: v1, Status: "continue"},
+		{Iteration: 2, Doc: "final.md", FullPass: false, Major: 1, DocHash: h2, Status: "continue"},
+		{Iteration: 3, Doc: "final.md", FullPass: false, DocHash: h3, Status: "continue"},
+	})
+	if out := buildDone(t, root); out.Decision != "block" || !strings.Contains(out.Reason, "at full scope") {
+		t.Fatalf("after a delta found a major, only a full pass counts, got %q %q", out.Decision, out.Reason)
+	}
+
+	// A clean delta, then another edit with no review of it.
+	writeVerifyLog(t, root, id, []state.VerifyLogEntry{
+		{Iteration: 1, Doc: "final.md", FullPass: true, Major: 1, DocHash: v1, Status: "continue"},
+		{Iteration: 2, Doc: "final.md", FullPass: false, DocHash: h3, Status: "continue"},
+	})
+	writeFinal(t, root, id, "# Build spec\nv4\n")
+	if out := buildDone(t, root); out.Decision != "block" || !strings.Contains(out.Reason, "changed after its review") {
+		t.Fatalf("an edit after the delta review must block, got %q %q", out.Decision, out.Reason)
+	}
+
+	// A delta that recorded no revision cannot say what it read.
+	writeVerifyLog(t, root, id, []state.VerifyLogEntry{
+		{Iteration: 1, Doc: "final.md", FullPass: true, Major: 1, DocHash: v1, Status: "continue"},
+		{Iteration: 2, Doc: "final.md", FullPass: false, Status: "continue"},
+	})
+	if out := buildDone(t, root); out.Decision != "block" || !strings.Contains(out.Reason, "recorded no revision") {
+		t.Fatalf("a delta with no doc_hash must block, got %q %q", out.Decision, out.Reason)
+	}
+}

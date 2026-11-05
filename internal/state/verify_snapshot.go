@@ -120,9 +120,83 @@ func LastFullPassPaths(entries []VerifyLogEntry) map[string]string {
 	return paths
 }
 
+// DeltaChain is one document's verify history split at its last full
+// pass: that pass, and the delta rounds recorded after it.
+type DeltaChain struct {
+	Full   *VerifyLogEntry  // the last full pass; nil when there is none
+	Deltas []VerifyLogEntry // delta rounds after Full, in log order
+}
+
+// LastDeltaChain splits one document's history (VerifyEntriesForDoc) at
+// its last full pass. With no full pass, Full is nil and Deltas holds
+// nothing: delta rounds with no full pass before them follow nothing.
+func LastDeltaChain(docEntries []VerifyLogEntry) DeltaChain {
+	for i := len(docEntries) - 1; i >= 0; i-- {
+		if docEntries[i].FullPass {
+			full := docEntries[i]
+			return DeltaChain{Full: &full, Deltas: append([]VerifyLogEntry(nil), docEntries[i+1:]...)}
+		}
+	}
+	return DeltaChain{}
+}
+
+// Breach returns the first delta round after the full pass that found a
+// critical or a major, or nil when none did.
+func (c DeltaChain) Breach() *VerifyLogEntry {
+	for i := range c.Deltas {
+		if c.Deltas[i].Critical > 0 || c.Deltas[i].Major > 0 {
+			d := c.Deltas[i]
+			return &d
+		}
+	}
+	return nil
+}
+
+// AbsorbedHash is the revision a clean chain of delta rounds reviewed:
+// the last delta's DocHash. ok=false when there is no full pass, no
+// delta after it, a delta that found a critical or major, or no recorded
+// revision on the last delta.
+//
+// This is how the build recipe's one review absorbs a fix (trial problem
+// #45). Before it, any edit to final.md after the review, a minor's fix
+// included, made the document dirty until another full pass, and the fix
+// text then bred new minors in that pass (r-003: one major, then three
+// minors, two of them in the fix). A delta round reads the sections
+// changed since the full pass (verify-focus always diffs against the
+// full pass's snapshot) plus their references, which is what a fix needs;
+// a delta that finds a new critical or major says the fix reached further
+// than the sections it changed, and only a full pass answers that.
+func (c DeltaChain) AbsorbedHash() (string, bool) {
+	if c.Full == nil || len(c.Deltas) == 0 || c.Breach() != nil {
+		return "", false
+	}
+	last := c.Deltas[len(c.Deltas)-1]
+	if last.DocHash == "" {
+		return "", false
+	}
+	return last.DocHash, true
+}
+
+// deltaAbsorbs reports whether a document's clean delta rounds count as
+// its reviewed revision: only the build recipe's final.md (#45). Every
+// other document keeps rule 3 as written: only a full pass advances the
+// verified revision (bts-verification-protocol.md, Verification Scope).
+func deltaAbsorbs(root, recipeID, doc string) bool {
+	if !strings.EqualFold(doc, "final.md") {
+		return false
+	}
+	r, err := LoadRecipeState(root, recipeID)
+	return err == nil && r.Type == "build"
+}
+
 // DirtyVerifiedDocs returns basenames of documents whose current content
 // differs from the revision that was last verified — i.e. documents
 // modified AFTER their last verification (rule 3 violations).
+//
+// For a build recipe's final.md, a clean chain of delta rounds after the
+// last full pass moves the reviewed revision to the last delta's
+// (DeltaChain.AbsorbedHash, trial problem #45), so the blind-stop and
+// session-start rule-3 checks agree with build_review_clean.
 //
 // The recorded hash in verify-log.jsonl is authoritative, because it is
 // tracked and therefore present in every worktree and fresh clone. The
@@ -147,6 +221,11 @@ func DirtyVerifiedDocs(root, recipeID string) ([]string, error) {
 
 	var dirty []string
 	for doc, want := range verified {
+		if deltaAbsorbs(root, recipeID, doc) {
+			if h, ok := LastDeltaChain(VerifyEntriesForDoc(entries, doc)).AbsorbedHash(); ok {
+				want = h
+			}
+		}
 		// Where the round said it read the document, if it said. A
 		// basename joined to the recipe directory is the fallback, and
 		// was the only rule — which silently exempted every verified

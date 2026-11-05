@@ -36,8 +36,10 @@ Use settings values if present, otherwise use defaults noted in each step.
      exists and its last entry has critical=0, major=0,
      minor_resolvable=0 (status "converged"; minor_deferred may be > 0).
    - **build**: the gate is `build_review_clean`: the last full review of
-     `final.md` in `verify-log.jsonl` has critical=0 and major=0, and
-     `final.md` is unchanged since. Minors do not hold a build recipe;
+     `final.md` in `verify-log.jsonl` has critical=0 and major=0 and
+     `final.md` is unchanged since, or the delta reviews after it found
+     no critical or major and the last one read the current `final.md`.
+     Minors do not hold a build recipe;
      they are fixed or carried to `/bts-sync`. Do not ask a build recipe
      for "converged".
    - If verify-log is missing or the bar is not met →

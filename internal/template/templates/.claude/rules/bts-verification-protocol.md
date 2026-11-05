@@ -166,6 +166,12 @@ anchor, interface, or invariant).
 - **Only full passes advance the verified revision**, so a delta round
   does not shrink the next round's focus diff, and does not clear a
   rule-3 dirty flag on the document as a whole.
+- **Build recipe exception.** A build recipe's `final.md` gets one full
+  review, and a delta round after it absorbs a fix: when no delta round
+  since the full pass found a critical or major, the last delta round's
+  revision is the reviewed one, for `build_review_clean` and for the
+  rule-3 dirty flag. A delta round that finds a critical or major sends
+  `final.md` back to a full pass.
 
 Rationale: re-deriving the whole document every round is what let
 untouched sections generate new findings faster than edits resolved

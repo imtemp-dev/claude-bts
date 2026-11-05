@@ -465,8 +465,27 @@ var recipeLogCmd = &cobra.Command{
 			// state.VerifyLogEntry.DocHash.
 			stampContentHashes(root, recipeID, doc, entry)
 
+			isBuild := false
+			if rs, err := state.LoadRecipeState(root, recipeID); err == nil && rs.Type == "build" {
+				isBuild = true
+			}
+
 			status := "continue"
 			switch {
+			case !entry.FullPass && isBuild && strings.EqualFold(docBase, "final.md"):
+				// A build recipe's final.md takes one full review, and a
+				// delta round after it absorbs a fix (trial problem #45):
+				// telling this caller to re-run at full scope is the
+				// advice that rule replaces. build_review_clean judges
+				// the round; "converged" is not the build recipe's bar.
+				if critical != 0 || major != 0 {
+					fmt.Fprintf(os.Stderr, "[bts] note: this delta review of final.md found %d critical and %d major, "+
+						"so it does not count for build_review_clean: fix them and review final.md again at full scope.\n",
+						critical, major)
+				} else {
+					fmt.Fprintln(os.Stderr, "[bts] note: a delta review of final.md with no critical or major counts for "+
+						"build_review_clean when a full review came before it and no delta since found a critical or major.")
+				}
 			case critical != 0 || major != 0 || minorR != 0:
 				// not clean
 			case !entry.FullPass:
@@ -686,10 +705,6 @@ var recipeLogCmd = &cobra.Command{
 			//
 			// Not for a build recipe: its one review of final.md is a
 			// verify round, and its gate (build_review_clean) counts it.
-			isBuild := false
-			if rs, err := state.LoadRecipeState(root, recipeID); err == nil && rs.Type == "build" {
-				isBuild = true
-			}
 			if len(dims) > 0 && !entry.HasAllDimensions() && !isBuild {
 				qualifying := 0
 				for i := range scopedHistory {

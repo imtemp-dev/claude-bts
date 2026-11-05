@@ -242,3 +242,60 @@ func TestDirtyVerifiedDocs_FollowsTheRecordedDocPath(t *testing.T) {
 		t.Errorf("dirty = %v, want [api-spec.md] — rule 3 must reach documents outside the recipe directory", dirty)
 	}
 }
+
+// Trial problem #45: only a build recipe's final.md lets a clean delta
+// round move its reviewed revision. Every other document keeps rule 3:
+// only a full pass advances it.
+func TestDirtyVerifiedDocs_ACleanDeltaCountsOnlyForABuildFinal(t *testing.T) {
+	root := t.TempDir()
+	recipeID := "r-045"
+	dir := RecipeDir(root, recipeID)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, body string) string {
+		t.Helper()
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0644); err != nil {
+			t.Fatal(err)
+		}
+		h, _, _ := FileContentHash(p)
+		return h
+	}
+	full := write("final.md", "v1\n")
+	delta := write("final.md", "v2\n")
+	for _, e := range []VerifyLogEntry{
+		{Iteration: 1, Doc: "final.md", FullPass: true, Major: 1, DocHash: full},
+		{Iteration: 2, Doc: "final.md", FullPass: false, DocHash: delta},
+	} {
+		e := e
+		if err := AppendVerifyLog(root, recipeID, &e); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, tc := range []struct {
+		typ       string
+		wantDirty bool
+	}{{"blueprint", true}, {"build", false}} {
+		if err := SaveRecipeState(root, &RecipeState{ID: recipeID, Type: tc.typ, Phase: "falsify"}); err != nil {
+			t.Fatal(err)
+		}
+		dirty, err := DirtyVerifiedDocs(root, recipeID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := len(dirty) == 1 && dirty[0] == "final.md"; got != tc.wantDirty {
+			t.Errorf("%s recipe: dirty=%v, want final.md dirty=%v", tc.typ, dirty, tc.wantDirty)
+		}
+	}
+
+	// A delta that found a major does not move the revision, even for a
+	// build recipe.
+	if err := AppendVerifyLog(root, recipeID, &VerifyLogEntry{Iteration: 3, Doc: "final.md", Critical: 1, DocHash: delta}); err != nil {
+		t.Fatal(err)
+	}
+	if dirty, _ := DirtyVerifiedDocs(root, recipeID); len(dirty) != 1 {
+		t.Errorf("a delta chain with a critical must leave final.md dirty, got %v", dirty)
+	}
+}

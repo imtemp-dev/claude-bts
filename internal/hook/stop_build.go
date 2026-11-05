@@ -21,7 +21,8 @@ import (
 //     that fails on that skeleton, and every one it carries has a test
 //     that passes there (trial problem #41);
 //   - build_review_clean: one full verify pass over the short final.md left
-//     no critical or major finding, and final.md has not changed since.
+//     no critical or major finding, and final.md has not changed since, or
+//     a clean delta review of what changed after it covers final.md now.
 //
 // None is overridable. Each remedy is to run something again, which is
 // cheap; an override could only mean "trust the prose instead".
@@ -86,11 +87,18 @@ func (h *stopHandler) handleBuildSpecDone(root string, recipe *state.RecipeState
 	return &HookOutput{}, nil
 }
 
-// buildReviewClean is gate build_review_clean: the last verify round on
-// final.md was a full pass with no critical or major finding, and final.md
-// is unchanged since it was verified. One review, not a loop: minors are
-// fixed or declared under Known Uncertainties, and nothing waits for a
+// buildReviewClean is gate build_review_clean: final.md had one full
+// review, and either that pass left no critical or major and final.md is
+// unchanged since, or every delta review after it was clean and the last
+// one read the final.md on disk. One review, not a loop: minors are fixed
+// or declared under Known Uncertainties, and nothing waits for a
 // replicated clean pass.
+//
+// The delta path is trial problem #45: any edit to final.md after the
+// review, a minor's fix included, used to need another full pass, and the
+// fix text bred new minors in it. A delta review of the changed sections
+// now absorbs a fix; a delta that finds a critical or major does not, and
+// sends final.md back to a full pass (state.DeltaChain).
 func buildReviewClean(root, recipeID string) *HookOutput {
 	e, err := state.LastVerifyEntryForDoc(root, recipeID, "final.md")
 	if err != nil || e == nil || !strings.EqualFold(e.Doc, "final.md") {
@@ -98,19 +106,37 @@ func buildReviewClean(root, recipeID string) *HookOutput {
 			"No review of final.md is recorded. Run /bts-verify on final.md once, and record it with "+
 				"`bts recipe log %s --doc final.md --dimension verify --scope full --from-verification <verification.md>`.", recipeID))
 	}
-	if !e.FullPass {
-		return blockOutput("The last review of final.md was a delta pass. Review it once at full scope.")
+	entries, err := state.ReadVerifyLog(root, recipeID)
+	if err != nil {
+		return blockOutput(fmt.Sprintf("verify-log.jsonl is unreadable (%v).", err))
 	}
-	if e.Critical > 0 || e.Major > 0 {
+	chain := state.LastDeltaChain(state.VerifyEntriesForDoc(entries, "final.md"))
+	if chain.Full == nil {
+		return blockOutput("final.md has only delta reviews. Review it once at full scope: a delta pass counts only after a full one.")
+	}
+	if b := chain.Breach(); b != nil {
+		return blockOutput(fmt.Sprintf(
+			"The delta review of final.md (round %d) found %d critical and %d major, so the fix reached past the sections it changed. "+
+				"Fix each where it lives, rerun what the fix touched, and review final.md again at full scope.",
+			b.Iteration, b.Critical, b.Major))
+	}
+	if len(chain.Deltas) == 0 && (chain.Full.Critical > 0 || chain.Full.Major > 0) {
 		return blockOutput(fmt.Sprintf(
 			"The review of final.md left %d critical and %d major. Fix each where it lives (the skeleton, a falsifier, or final.md), "+
-				"rerun what the fix touched (`bts check build`, `bts falsifier check --red`), and review final.md again.",
-			e.Critical, e.Major))
+				"rerun what the fix touched (`bts check build`, `bts falsifier check --red`), then review the changes with /bts-verify "+
+				"at delta scope and record it with `bts recipe log %s --doc final.md --dimension verify --scope delta --from-verification <verification.md>`.",
+			chain.Full.Critical, chain.Full.Major, recipeID))
+	}
+	if n := len(chain.Deltas); n > 0 && chain.Deltas[n-1].DocHash == "" {
+		return blockOutput(fmt.Sprintf(
+			"The delta review of final.md recorded no revision, so nothing shows it read the final.md on disk. "+
+				"Record it again with a --doc path that resolves: `bts recipe log %s --doc final.md --scope delta ...`.", recipeID))
 	}
 	if dirty, derr := state.DirtyVerifiedDocs(root, recipeID); derr == nil {
 		for _, d := range dirty {
 			if strings.EqualFold(d, "final.md") {
-				return blockOutput("final.md changed after its review. Review it again, or revert the change.")
+				return blockOutput("final.md changed after its review. Review the changed sections with /bts-verify at delta scope " +
+					"(`--scope delta`), or revert the change.")
 			}
 		}
 	}

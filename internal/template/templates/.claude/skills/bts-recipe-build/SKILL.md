@@ -104,8 +104,15 @@ decision hold`).
     `bts recipe log {id} --doc final.md --dimension verify --scope full --from-verification .bts/specs/recipes/{id}/verification.md`.
     A critical or major is fixed where it lives (the skeleton, a test, or
     `final.md`); rerun what the fix touched (`bts check build {id} --cmd ...`,
-    `bts falsifier check {id} --red`) and review `final.md` once more.
-    A minor is fixed or declared as a Known Uncertainty. There is no audit
+    `bts falsifier check {id} --red`). A minor is fixed or declared as a
+    Known Uncertainty. Then review only what changed: `/bts-verify` on
+    `final.md` at delta scope, which reads the sections changed since the
+    full pass and the sections that cite them, and checks the full pass's
+    criticals and majors against the fix; record it with `--scope delta`.
+    A delta review with no critical and no major completes the one review;
+    a delta review that finds one sends `final.md` back to a full review.
+    Any later edit to `final.md` needs another delta review. Nothing
+    changed after a clean full pass needs no delta. There is no audit
     round, no simulate round and no replicated pass.
 12. **Status.** `Skill("bts-status")` with `{id}`.
 13. **Finalize.** Output `<bts>DONE</bts>`. The stop hook checks

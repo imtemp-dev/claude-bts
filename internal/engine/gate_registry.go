@@ -86,7 +86,7 @@ var HardGates = []HardGate{
 		ID:          "build_review_clean",
 		Rule:        "bts-recipe-build SKILL.md, One review",
 		Enforcement: "internal/hook/stop_build.go:buildReviewClean",
-		Summary:     "Build recipe DONE blocked unless the last full verify pass on final.md has no critical or major and final.md is unchanged since",
+		Summary:     "Build recipe DONE blocked unless final.md had a full verify pass, and either that pass has no critical or major and final.md is unchanged since, or every delta pass after it has no critical or major and the last one covers final.md as it is now",
 	},
 	{
 		ID:          "falsifiers_green",
