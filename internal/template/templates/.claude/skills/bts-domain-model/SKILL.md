@@ -153,10 +153,11 @@ bts recipe log {id} --phase domain-model --action domain-model \
   --result "N entities, M invariants, K illegal cells"
 ```
 
-Then advance:
+Then advance to the architect step, which runs next (it, not this step,
+moves the recipe on to the wireframe):
 
 ```bash
-bts recipe log {id} --phase wireframe
+bts recipe log {id} --phase architect
 ```
 
 > **Checkpoint**: domain.md saved, quality gate passed.

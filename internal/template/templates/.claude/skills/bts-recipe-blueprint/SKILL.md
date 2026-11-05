@@ -273,7 +273,9 @@ Before scoping, check for project-level planning documents:
 
 **2. ASSESS_SIZE (only if no vision.md):**
    Analyze the user's request **based on the description alone** (no codebase scan yet):
-   - Estimated files to create/modify
+   - Estimated files to create/modify, counting only files written by hand:
+     files a generator writes (an OpenAPI document, generated types or
+     clients, lockfiles) do not count toward `vision.size_threshold`
    - Number of distinct independent subsystems
    - Greenfield project? (check if project root has source files)
 
@@ -316,7 +318,10 @@ bts recipe log {id} --phase scoping
 **2. Scan existing context**:
    - **Read project-map.md** (at `.bts/specs/project-map.md`) for the
      project layer overview: what layers exist, how to build/test each.
-     If it doesn't exist but code exists, scan root to create it.
+     If it doesn't exist but code exists, scan root to create it.  In a
+     large repository (a monorepo) a scoped map is enough: one row per
+     top-level layer, and a detail file only for the layers this recipe
+     touches; say in the map that it is scoped.
      If it doesn't exist and no code exists, skip (new project).
      If it exists, verify layer paths still exist (quick stat check).
      If any layer path is missing or new directories found → re-scan root
