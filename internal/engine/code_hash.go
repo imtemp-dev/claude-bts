@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,8 +64,10 @@ func codeTasks(root, recipeID string) []state.Task {
 }
 
 // DomainInvariantIDs lists the invariant ids declared in domain.md § 2, in
-// document order. A missing file is an error; a file with no invariants
-// returns an empty list.
+// document order. A missing file is an error, and so is a file in which no
+// invariant row is found: every gate that reads the list (falsifiers red,
+// green, able to fail) would otherwise pass with nothing checked (trial
+// problem #53).
 func DomainInvariantIDs(domainPath string) ([]string, error) {
 	invs, err := parseInvariantsTable(domainPath)
 	if err != nil {
@@ -75,6 +78,9 @@ func DomainInvariantIDs(domainPath string) ([]string, error) {
 		if id := strings.TrimSpace(inv.ID); id != "" {
 			ids = append(ids, id)
 		}
+	}
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("%s: no invariant rows found under a \"## 2. Invariants\" heading", filepath.Base(domainPath))
 	}
 	return ids, nil
 }

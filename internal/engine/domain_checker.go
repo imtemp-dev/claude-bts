@@ -85,7 +85,10 @@ func CheckInvariantOwnership(domainPath string) []Issue {
 	return issues
 }
 
-var invariantsHeadingRe = regexp.MustCompile(`(?i)^##\s*2\.?\s*Invariants\b`)
+// invariantsHeadingRe finds § 2 at level 2 or 3: the domain-model skill's
+// own example writes `### 2. Invariants`, and a parser that saw only `##`
+// read such a file as having no invariants at all (trial problem #53).
+var invariantsHeadingRe = regexp.MustCompile(`(?i)^(#{2,3})\s*2\.?\s*Invariants\b`)
 
 // parseInvariantsTable extracts invariant rows. Uses a streaming line scan
 // so domain.md size is bounded by the reader buffer, not by memory.
@@ -100,20 +103,20 @@ func parseInvariantsTable(path string) ([]Invariant, error) {
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
 	inSection := false
+	level := 0
 	lineNo := 0
 	var invariants []Invariant
 	for scanner.Scan() {
 		lineNo++
 		line := scanner.Text()
 		if !inSection {
-			if invariantsHeadingRe.MatchString(line) {
-				inSection = true
+			if m := invariantsHeadingRe.FindStringSubmatch(line); m != nil {
+				inSection, level = true, len(m[1])
 			}
 			continue
 		}
-		// Exit when the next H2 heading begins.
-		if strings.HasPrefix(strings.TrimSpace(line), "## ") &&
-			!invariantsHeadingRe.MatchString(line) {
+		// Exit at the next heading of the section's level or above.
+		if h := lineHeadingLevel(line); h > 0 && h <= level && !invariantsHeadingRe.MatchString(line) {
 			break
 		}
 		trimmed := strings.TrimSpace(line)
@@ -188,4 +191,17 @@ func splitOwners(owner string) []string {
 		out = append(out, o)
 	}
 	return out
+}
+
+// lineHeadingLevel is the number of leading #s of a markdown heading line, or 0.
+func lineHeadingLevel(line string) int {
+	t := strings.TrimSpace(line)
+	n := 0
+	for n < len(t) && t[n] == '#' {
+		n++
+	}
+	if n == 0 || n == len(t) || t[n] != ' ' {
+		return 0
+	}
+	return n
 }

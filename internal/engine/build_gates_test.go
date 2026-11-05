@@ -141,3 +141,26 @@ func TestDomainInvariantIDs(t *testing.T) {
 		t.Fatal("a missing domain.md must be an error")
 	}
 }
+
+// Trial problem #53: the domain-model skill's example heads the section
+// `### 2. Invariants`, which the parser did not see, so such a domain.md
+// read as having no invariants and every invariant gate passed with nothing
+// checked.  A level-3 heading now parses, ending at the next level-3
+// heading, and a domain.md with no invariant row is an error.
+func TestDomainInvariantIDs_LevelThreeHeadingAndNoRows(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "domain.md")
+	_ = os.WriteFile(p, []byte("# Domain\n\n### 1. Entities\n\n| Entity | Definition |\n|---|---|\n| Relay | the bot |\n\n"+
+		"### 2. Invariants (SINGLE OWNER per invariant)\n\n| ID | Statement | Owner | Enforcement point |\n|---|---|---|---|\n"+
+		"| INV-013 | only a configured group counts | Rules | screen() |\n\n### 3. State Partitioning\n\n| INV-999 | not an invariant row | x | y |\n"), 0644)
+	ids, err := DomainInvariantIDs(p)
+	if err != nil || strings.Join(ids, ",") != "INV-013" {
+		t.Fatalf("a `### 2. Invariants` section must parse and end at `### 3.`, got %v, %v", ids, err)
+	}
+
+	empty := filepath.Join(dir, "empty.md")
+	_ = os.WriteFile(empty, []byte("# Domain\n\n## 1. Entities\n\n| Entity | Definition |\n|---|---|\n| Relay | the bot |\n"), 0644)
+	if ids, err := DomainInvariantIDs(empty); err == nil {
+		t.Fatalf("a domain.md with no invariant row must be an error, got %v", ids)
+	}
+}
