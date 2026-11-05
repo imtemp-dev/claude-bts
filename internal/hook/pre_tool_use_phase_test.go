@@ -39,3 +39,34 @@ func TestPreToolUse_SpecPhaseWarningIsForBlueprintsOnly(t *testing.T) {
 		t.Fatalf("a build recipe fixing its skeleton in verify must not be warned, got %q", got)
 	}
 }
+
+// Trial problem #51: true-shark, in its build recipe's discovery phase, wrote
+// a report for another session to a directory outside the project and got
+// "Writing source code during spec phase".  Only the project's files count.
+func TestPreToolUse_SpecPhaseWarningIgnoresFilesOutsideTheProject(t *testing.T) {
+	root, id := setupStopRoot(t)
+	r, _ := state.LoadRecipeState(root, id)
+	r.Type, r.Phase = "build", "discovery"
+	if err := state.SaveRecipeState(root, r); err != nil {
+		t.Fatal(err)
+	}
+	write := func(path string) string {
+		t.Helper()
+		out, err := NewPreToolUseHandler().Handle(&HookInput{CWD: root, ToolName: "Write",
+			ToolInput: map[string]interface{}{"file_path": path}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.HookSpecificOutput == nil {
+			return ""
+		}
+		return out.HookSpecificOutput.AdditionalContext
+	}
+	outside := filepath.Join(filepath.Dir(root), "elsewhere", ".agent-scratch", "report.md")
+	if got := write(outside); got != "" {
+		t.Fatalf("a file outside the project must not be warned, got %q", got)
+	}
+	if got := write(filepath.Join(root, "src", "relay.py")); !strings.Contains(got, "spec phase") {
+		t.Fatalf("the project's own code in a spec phase must still be warned, got %q", got)
+	}
+}

@@ -2,6 +2,7 @@ package hook
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -77,6 +78,12 @@ func (h *preToolUseHandler) Handle(input *HookInput) (*HookOutput, error) {
 
 	// Allow writes to .bts/ and .claude/ directories (recipe documents, configs)
 	if strings.Contains(filePath, ".bts/") || strings.Contains(filePath, ".claude/") {
+		return &HookOutput{}, nil
+	}
+
+	// A file outside the project is not the project's code: a report for
+	// another session, a scratch note (trial problem #51).
+	if outsideProject(root, input.CWD, filePath) {
 		return &HookOutput{}, nil
 	}
 
@@ -247,3 +254,13 @@ var (
 	// "scenarios 1,2,3,7", "시나리오 5" — which the canonical-only
 	// pattern counted as zero.
 )
+
+// outsideProject reports whether path, absolute or relative to cwd, lies
+// outside the project root.
+func outsideProject(root, cwd, path string) bool {
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(cwd, path)
+	}
+	rel, err := filepath.Rel(root, filepath.Clean(path))
+	return err == nil && (rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
