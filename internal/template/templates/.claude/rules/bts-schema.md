@@ -314,7 +314,7 @@ Located at `.bts/specs/recipes/{id}/tasks.json`:
 }
 ```
 
-bts rewrites tasks.json when a command records something in it (`bts check task`, retries), and it leaves out optional fields that are empty (`depends_on: []`, `retry_count: 0`, `last_error: ""`).  Nothing set is lost, but the file changes under you: read it again before editing it after a bts command.
+bts rewrites tasks.json when a command records something in it (`bts check task`, retries, `bts task status`), and it leaves out optional fields that are empty (`depends_on: []`, `retry_count: 0`, `last_error: ""`).  Nothing set is lost, but the file changes under you.  Move a task's status with `bts task status {id} {task-id} <status> [--error "<text>"] [--reset-retries]`; for any other edit, read the file again after a bts command.
 
 Required fields:
 - `recipe_id` (string): recipe this task list belongs to

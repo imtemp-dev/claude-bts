@@ -234,14 +234,17 @@ section, warn: "[RESERVATION] This area has unresolved concerns from debate:
 For each task in dependency order:
 
 **Dependency check**: If a task's `depends_on` includes a blocked or skipped task,
-auto-skip it with status `"skipped"` and last_error `"dependency blocked: {id}"`.
+auto-skip it: `bts task status {id} {task-id} skipped --error "dependency blocked: {dependency-id}"`.
+
+Every status move below goes through `bts task status`, never a hand edit
+of tasks.json: `bts check task` rewrites the file after each run.
 
 ### ASSESS
 - Read the task from tasks.json
 - If status is `in_progress` → file may be partially written. Read the actual file
   and decide: complete the remaining parts, or rewrite from scratch.
 - If status is `pending` → fresh start for this task
-- Set status to `in_progress` and save tasks.json immediately
+- Mark it started at once: `bts task status {id} {task-id} in_progress`
 
 ### IMPLEMENT
 - Hold the contract the spec states; decide the rest here.
@@ -268,7 +271,7 @@ auto-skip it with status `"skipped"` and last_error `"dependency blocked: {id}"`
   each one (`scope_violation`, below).
   If a required change exceeds scope:
     1. Stop work on the task.
-    2. Mark it `blocked` with `last_error: "scope_expansion: needs {new_symbols}"`.
+    2. Mark it blocked: `bts task status {id} {task-id} blocked --error "scope_expansion: needs {new_symbols}"`.
     3. Defer to the user — either widen the anchor's `scope=` list in
        final.md (and mirror it in `task.modify_scope`) or split the
        task into two. Do not silently widen scope.
@@ -311,9 +314,9 @@ Run the project's build command:
    - `architect_escalate` — invoke `/bts-architect escalate {id} {task-id}`
      to re-decompose the task. The architect may rewrite the anchor's
      scope= list, split the task into two, or update final.md.
-   - `block`            — ladder exhausted: set status=blocked,
-     persist a `last_error: "retry_ladder_exhausted: {signature}"`
-     value, move to the next task.
+   - `block`            — ladder exhausted:
+     `bts task status {id} {task-id} blocked --error "retry_ladder_exhausted: {signature}"`,
+     then move to the next task.
 4. Persist the returned `next_tier` onto `task.retry_tier`. **If the
    response's `reset_attempts_in_tier` is `true`, set
    `task.attempts_in_tier` to 0** — each tier gets its own budget. Use
@@ -328,8 +331,8 @@ Run the project's build command:
    block action regardless of the ladder's preference.
 
 **If build passes:**
-- Update task status to `done`, clear `last_error`
-- Update tasks.json `updated_at`
+- `bts task status {id} {task-id} done` (it clears `last_error` and sets
+  `updated_at`)
 
 **MINI-CHECK (Phase 10)** — run before moving to next task:
 
@@ -349,7 +352,7 @@ Interpret results:
     the symbol, follow the scope-expansion steps above. Leaving it is a
     finding the reviews will cite.
   - severity=critical (e.g. symbol_missing, owner_drift) → flip the
-    task back to `pending` with `last_error: "structure_critical: {detail}"`.
+    task back: `bts task status {id} {task-id} pending --error "structure_critical: {detail}"`.
     These indicate spec-vs-code drift big enough to warrant rework.
   - `bts check task` exits 2 on critical, so shells checking `$?`
     see the failure.
@@ -384,7 +387,7 @@ The counter resets after each mid-run run. When `midrun_review_every=0`
 the entire block is skipped; the terminal Step 5.5 review still runs.
 
 **Crash safety**: tasks.json is the source of truth for implementation progress.
-It is written to disk (via Write tool) after every task status change. If the session
+`bts task status` writes it on every status change. If the session
 crashes, the next resume reads tasks.json and knows exactly where to continue.
 No separate work-state save is needed during the loop — tasks.json IS the checkpoint.
 
@@ -398,8 +401,8 @@ bts recipe log {id} --action implement --result "task {task-id} done"
 Review task status:
 - All `done` or `skipped` → continue to Step 5
 - Any `blocked` → use AskUserQuestion ("N task(s) blocked. How to proceed?"):
-  - "Skip blocked and continue" → mark blocked as `skipped`, continue
-  - "Retry blocked tasks" → reset retry_count to 0, set status to `pending`, go back to Step 3
+  - "Skip blocked and continue" → `bts task status {id} {task-id} skipped` for each, continue
+  - "Retry blocked tasks" → `bts task status {id} {task-id} pending --reset-retries` for each, go back to Step 3
   - "Stop and review" → stop and report blocked task details
 
 > **Checkpoint**: Implementation tasks complete. Proceed directly to testing.
