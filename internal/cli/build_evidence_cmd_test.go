@@ -201,3 +201,41 @@ func TestExecuteFalsifierCheck_RedRerunExpectsCarriedGreen(t *testing.T) {
 		t.Fatal("under --red a carried row is as expected when it passes, an introduced one when it fails")
 	}
 }
+
+// Trial problem #69: a build that formats its own sources (CSharpier.MsBuild
+// in Carepatron-App) rewrote whatever an earlier command had left
+// unformatted, so the fingerprint that command recorded went stale on the
+// next build.  implement.format_cmd runs the formatter first, so every
+// recorded command sees, and records, formatted code.
+func TestRunRecorded_FormatCmdKeepsTheFingerprintStable(t *testing.T) {
+	formatter := "tr a-z A-Z < src/relay.py > src/relay.tmp && mv src/relay.tmp src/relay.py"
+	run := func(t *testing.T, formatCmd string) (recorded, now string) {
+		t.Helper()
+		root, id := newBuildFixture(t)
+		if formatCmd != "" {
+			p := filepath.Join(root, ".bts", "config", "settings.yaml")
+			if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(p, []byte("implement:\n  format_cmd: \""+formatCmd+"\"\n"), 0644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		first, err := executeBuildCheck(root, id, "exit 0", 30, io.Discard)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A later build that formats the sources as a side effect.
+		if _, err := runRecorded(root, id, formatter, 30, "later-build.log", io.Discard); err != nil {
+			t.Fatal(err)
+		}
+		now, _ = engine.CodeHash(root, id)
+		return first.CodeHash, now
+	}
+	if recorded, now := run(t, ""); recorded == now {
+		t.Fatal("without format_cmd the formatting build must move the fingerprint (the problem this fixes)")
+	}
+	if recorded, now := run(t, formatter); recorded != now {
+		t.Fatalf("with format_cmd the first record must stay current after a formatting build: %s vs %s", recorded, now)
+	}
+}

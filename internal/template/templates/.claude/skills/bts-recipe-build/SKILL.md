@@ -36,6 +36,12 @@ what only judgment can see. Then implementation turns the tests green.
 
 Read `.bts/config/settings.yaml`. Use its values where present.
 
+If the project's build formats its own sources (a formatter wired into
+the build, such as CSharpier.MsBuild), set `implement.format_cmd` to the
+formatter's command before the skeleton step.  bts then runs it before
+every recorded command, so a build that reformats files does not make the
+build, falsifier and test records go stale one after another.
+
 ## Resume
 
 ```bash

@@ -1342,6 +1342,13 @@ var settingsInsertions = []settingsInsertion{
 		Comment: "true: the first product code phase waits for a resolved decision code-edit-go.",
 		Since:   "v0.18.0",
 	},
+	{
+		Parent:  "implement",
+		Key:     "format_cmd",
+		Value:   `""`,
+		Comment: "The project's formatter, run before every recorded command so a formatting build does not make records stale.",
+		Since:   "v0.18.0",
+	},
 }
 
 func runMigrateSettings(cmd *cobra.Command, args []string) error {

@@ -91,6 +91,7 @@ func executeTestRun(root, recipeID, cmdStr, framework string, timeoutSec int, co
 		timeoutSec = 600
 	}
 
+	formatBeforeRecord(root, timeoutSec)
 	before, _ := state.RecipeImplHash(root, recipeID)
 	run, err := runShellCommand(root, cmdStr, timeoutSec, sink)
 	if err != nil {

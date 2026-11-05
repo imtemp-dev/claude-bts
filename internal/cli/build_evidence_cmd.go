@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/imtemp-dev/claude-bts/internal/engine"
@@ -142,6 +143,7 @@ func runRecorded(root, recipeID, cmdStr string, timeoutSec int, logName string, 
 	if cmdStr == "" {
 		return nil, errors.New("--cmd is required")
 	}
+	formatBeforeRecord(root, timeoutSec)
 	before, _ := engine.CodeHash(root, recipeID)
 	run, err := runShellCommand(root, cmdStr, timeoutSec, sink)
 	if err != nil {
@@ -163,6 +165,27 @@ func runRecorded(root, recipeID, cmdStr string, timeoutSec int, logName string, 
 		CodeHash: hash,
 		RunAt:    time.Now().UTC().Format(time.RFC3339),
 	}, nil
+}
+
+// formatBeforeRecord runs implement.format_cmd, when the project sets one,
+// before a recorded command and before its fingerprint is taken.  A build
+// that formats its own sources (CSharpier.MsBuild) rewrote whatever the
+// previous command had left unformatted, so each recorded run moved the
+// fingerprint and the one before it went stale (trial problem #69).  With
+// the formatter run first, every command sees and records formatted code.
+// A failing formatter is reported and the command runs anyway.
+func formatBeforeRecord(root string, timeoutSec int) {
+	cfg, err := engine.LoadSettings(root)
+	if err != nil || strings.TrimSpace(cfg.Implement.FormatCmd) == "" {
+		return
+	}
+	run, err := runShellCommand(root, cfg.Implement.FormatCmd, timeoutSec, io.Discard)
+	switch {
+	case err != nil:
+		fmt.Fprintf(os.Stderr, "[bts] warning: implement.format_cmd could not run: %v\n", err)
+	case run.ExitCode != 0 || run.TimedOut:
+		fmt.Fprintf(os.Stderr, "[bts] warning: implement.format_cmd exited %d; the fingerprint may move on the next build\n", run.ExitCode)
+	}
 }
 
 // warnIfRunMovedFingerprint warns when a recorded command changed the code

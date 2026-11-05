@@ -37,6 +37,14 @@ type ImplementSettings struct {
 	// "wait for approval before editing" held only because the agent
 	// chose to ask (trial problem #67).
 	RequireEditGo bool `yaml:"require_edit_go"`
+	// FormatCmd is the project's own formatter, run at the project root
+	// before every recorded command (build check, falsifier runs, test run,
+	// drive) and before bts fingerprints the code for it.  A build that
+	// formats its sources itself (CSharpier.MsBuild in Carepatron-App)
+	// otherwise rewrites the files each command builds, so the fingerprint
+	// one command recorded goes stale on the next (trial problem #69).
+	// Empty: nothing runs.
+	FormatCmd string `yaml:"format_cmd"`
 }
 
 // RetryLadderSettings mirrors engine.LadderConfig with yaml tags.
