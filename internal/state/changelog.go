@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/imtemp-dev/claude-bts/pkg/version"
 )
 
 // ChangelogEntry records one action in the recipe evolution.
@@ -24,6 +26,13 @@ type ChangelogEntry struct {
 	// on test and review entries, so a review can be matched to the code
 	// it judged and the tests that ran on it.
 	ImplHash string `json:"impl_hash,omitempty"`
+	// BtsVersion is the bts build that wrote the entry
+	// (version.GetTemplateVersion), stamped by AppendChangelog. r-003
+	// started on one build and finished on another because a session start
+	// updated the templates mid-recipe, and nothing in its record said which
+	// build ran which phase (trial problem #55). Absent on entries written
+	// before the field existed.
+	BtsVersion string `json:"bts_version,omitempty"`
 }
 
 // ChangelogPath returns the changelog file path for a recipe.
@@ -31,12 +40,32 @@ func ChangelogPath(root, recipeID string) string {
 	return filepath.Join(RecipeDir(root, recipeID), "changelog.jsonl")
 }
 
-// AppendChangelog adds an entry to the recipe's changelog.
+// AppendChangelog adds an entry to the recipe's changelog, stamped with
+// the time and the bts build that wrote it.
 func AppendChangelog(root, recipeID string, entry *ChangelogEntry) error {
 	if entry.Timestamp == "" {
 		entry.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	}
+	if entry.BtsVersion == "" {
+		entry.BtsVersion = version.GetTemplateVersion()
+	}
 	return AppendJSONL(ChangelogPath(root, recipeID), entry)
+}
+
+// LogPhaseChange records a phase change in the changelog as action
+// "phase", with the bts build that made it. Every place that moves a
+// recipe's phase calls it beside its phase_change metric: the metric lives
+// in .bts/local and is not committed, so without this entry the recipe's
+// own history could not say which build ran which phase (trial problem
+// #55). from is "" for a recipe's first phase.
+func LogPhaseChange(root, recipeID, from, to string) error {
+	if from == "" {
+		from = "(new)"
+	}
+	return AppendChangelog(root, recipeID, &ChangelogEntry{
+		Action: "phase",
+		Result: from + " → " + to,
+	})
 }
 
 // ReadChangelog returns all parseable changelog entries in file order.

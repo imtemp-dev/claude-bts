@@ -177,6 +177,9 @@ var recipeLogCmd = &cobra.Command{
 				Phase:         phase,
 				PreviousPhase: previousPhase,
 			})
+			if err := state.LogPhaseChange(root, recipeID, previousPhase, phase); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: append changelog: %v\n", err)
+			}
 			fmt.Printf("Phase → %s\n", phase)
 		}
 
@@ -793,6 +796,11 @@ var recipeCreateCmd = &cobra.Command{
 		if err := state.SaveManifest(root, id, manifest); err != nil {
 			return fmt.Errorf("create manifest: %w", err)
 		}
+		// The first phase, with the build that started the recipe (trial
+		// problem #55). Diagnostics go to stderr: stdout is the ID alone.
+		if err := state.LogPhaseChange(root, id, "", initialPhase); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: append changelog: %v\n", err)
+		}
 
 		// The PostToolUse hook makes the calling session the owner only
 		// when this request is waiting for it (state.OwnerRequest).
@@ -1291,6 +1299,7 @@ func reconcileRecipe(root, recipeID string, opts reconcileOpts) (*reconcilePlan,
 		Phase:         plan.ToPhase,
 		PreviousPhase: plan.FromPhase,
 	})
+	_ = state.LogPhaseChange(root, recipeID, plan.FromPhase, plan.ToPhase)
 	_ = state.AppendChangelog(root, recipeID, &state.ChangelogEntry{
 		Action: "finalize",
 		Result: fmt.Sprintf(

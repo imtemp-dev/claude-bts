@@ -128,6 +128,7 @@ Optional fields:
 - `resolves` (array of strings): resolved gaps
 - `result` (string): summary of outcome
 - `level` (number): level after this action
+- `bts_version` (string): the bts build that wrote the entry; bts stamps it. Every phase change is an entry with action `phase` and result `<from> → <to>`
 
 ## verify-log.jsonl
 

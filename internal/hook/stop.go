@@ -580,6 +580,7 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		Phase:         "finalize",
 		PreviousPhase: prevPhase,
 	})
+	_ = state.LogPhaseChange(root, recipe.ID, prevPhase, "finalize")
 
 	fmt.Fprintf(os.Stderr, "[bts] Spec verified ✓ Next: /bts-implement %s\n", recipe.ID)
 	return &HookOutput{}, nil
@@ -732,6 +733,7 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 		Phase:         "complete",
 		PreviousPhase: prevPhase,
 	})
+	_ = state.LogPhaseChange(root, recipe.ID, prevPhase, "complete")
 
 	if err := state.MarkRoadmapItemDone(root, recipe.ID); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: update roadmap: %v\n", err)
@@ -862,6 +864,7 @@ func (h *stopHandler) handleFixDone(root string, recipe *state.RecipeState) (*Ho
 		Phase:         "complete",
 		PreviousPhase: prevPhase,
 	})
+	_ = state.LogPhaseChange(root, recipe.ID, prevPhase, "complete")
 
 	if err := state.MarkRoadmapItemDone(root, recipe.ID); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: update roadmap: %v\n", err)

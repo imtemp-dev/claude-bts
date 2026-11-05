@@ -1033,4 +1033,6 @@ var ChangelogActions = map[string]bool{
 	"interrogate": true,
 	// prove stage P2: written by `bts prove plan|run|defer`
 	"prove": true,
+	// every phase change, with the bts build that made it (trial problem #55)
+	"phase": true,
 }

@@ -32,7 +32,7 @@ func TestAutoUpdateTemplates_RemovesRetiredFilesAtTheCurrentVersion(t *testing.T
 		}
 	}
 
-	if autoUpdateTemplates(root) {
+	if updated, _ := autoUpdateTemplates(root); updated {
 		t.Error("templates already at the current version must not be redeployed")
 	}
 	for _, rel := range retired {

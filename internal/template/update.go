@@ -36,11 +36,28 @@ var updateSkipFiles = []string{".bts/config/settings.yaml", ".mcp.json", ".gitig
 // The version is recorded last, so an update that fails half way is
 // retried next time.
 func Update(root, current string) (*UpdateResult, error) {
+	return update(root, current, true)
+}
+
+// CleanupOnly runs Update's idempotent cleanup and leaves the templates and
+// their recorded version as they are; OldVersion says which version the
+// project is on.  The SessionStart hook calls it while a recipe is active:
+// a session start that deployed mid-recipe moved r-003 from 944b3e7 to
+// 8bfa2c8 between two of its steps (trial problem #55), so the move waits
+// for a `bts update` the user runs between steps.  The cleanup still runs
+// because it brings the project in line with the binary already running,
+// not with the templates.
+func CleanupOnly(root string) *UpdateResult {
+	res, _ := update(root, "", false)
+	return res
+}
+
+func update(root, current string, deploy bool) (*UpdateResult, error) {
 	versionFile := filepath.Join(root, ".bts", "config", ".template-version")
 	existing, _ := os.ReadFile(versionFile)
 	res := &UpdateResult{OldVersion: strings.TrimSpace(string(existing))}
 
-	if res.OldVersion != current {
+	if deploy && res.OldVersion != current {
 		files, err := DeployForce(root, updateSkipFiles)
 		if err != nil {
 			return res, fmt.Errorf("update templates: %w", err)

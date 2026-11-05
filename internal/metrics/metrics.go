@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/imtemp-dev/claude-bts/internal/state"
+	"github.com/imtemp-dev/claude-bts/pkg/version"
 )
 
 // EventKind categorizes the metric event.
@@ -39,6 +40,10 @@ type MetricsEvent struct {
 
 	// Phase change fields
 	PreviousPhase string `json:"prev_phase,omitempty"`
+	// BtsVersion is the bts build that made a phase change, stamped by
+	// Append, so the recipe's phase transitions say which build ran each
+	// phase (trial problem #55).
+	BtsVersion string `json:"bts_version,omitempty"`
 
 	// Tool fields
 	ToolName string `json:"tool_name,omitempty"`
@@ -79,6 +84,9 @@ func recipePath(root, recipeID string) string {
 func Append(root string, event *MetricsEvent) error {
 	if event.Timestamp == "" {
 		event.Timestamp = time.Now().UTC().Format(time.RFC3339)
+	}
+	if event.Kind == KindPhaseChange && event.BtsVersion == "" {
+		event.BtsVersion = version.GetTemplateVersion()
 	}
 
 	if err := state.AppendJSONL(globalPath(root), event); err != nil {

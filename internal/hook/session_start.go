@@ -29,8 +29,9 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return &HookOutput{}, nil
 	}
 
-	// Auto-update templates if binary version changed
-	updated := autoUpdateTemplates(root)
+	// Auto-update templates if binary version changed; held is the line
+	// that replaces the update while a recipe is active.
+	updated, held := autoUpdateTemplates(root)
 
 	// Try to load work state for rich context recovery.
 	// ws may reference a recipe that has since been cancelled/deleted; we
@@ -152,7 +153,7 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return &HookOutput{
 			HookSpecificOutput: &HookSpecificOutput{
 				HookEventName:     "SessionStart",
-				AdditionalContext: observerNotice(recipe),
+				AdditionalContext: held + observerNotice(recipe),
 			},
 		}, nil
 	}
@@ -202,6 +203,7 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 	if updated {
 		msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)
 	}
+	msg = held + msg
 
 	return &HookOutput{
 		HookSpecificOutput: &HookSpecificOutput{
@@ -338,8 +340,39 @@ func buildNonRecipeCompactMsg(root string, templatesUpdated bool) string {
 // diverge between the two paths.  It reports true when templates were
 // deployed.  Cleanup notes and warnings go to stderr: this hook's stdout
 // is the JSON the harness parses.
-func autoUpdateTemplates(root string) bool {
-	res, err := template.Update(root, version.GetTemplateVersion())
+//
+// While a recipe is active it deploys nothing (trial problem #55): a
+// second worker's session start moved r-003's templates from 944b3e7 to
+// 8bfa2c8 mid-recipe, and true-shark's moved at its architect step, so one
+// recipe ran its steps under two sets of skills with no record of the
+// switch.  Only the idempotent cleanup runs then, and held is one line of
+// session-start context ("" when the templates are current) telling the
+// user to move them with `bts update` between steps.  A finalized recipe
+// does not hold them: finalize is where analyze, design and debug recipes
+// stop for good, and implementation starting from it is itself a step
+// boundary.
+func autoUpdateTemplates(root string) (updated bool, held string) {
+	current := version.GetTemplateVersion()
+	if active, _ := state.GetActiveRecipe(root); active != nil {
+		res := template.CleanupOnly(root)
+		reportTemplateResult(res, nil)
+		if res.OldVersion != current {
+			old := res.OldVersion
+			if old == "" {
+				old = "an unrecorded version"
+			}
+			held = fmt.Sprintf("[bts] Templates are at %s and the bts binary is at %s; recipe %s is active, so they were not updated. "+
+				"Run `bts update` between steps to move them.\n", old, current, active.ID)
+		}
+		return false, held
+	}
+	res, err := template.Update(root, current)
+	reportTemplateResult(res, err)
+	return res.Deployed, ""
+}
+
+// reportTemplateResult writes an update's warnings and notes to stderr.
+func reportTemplateResult(res *template.UpdateResult, err error) {
 	for _, w := range res.Warnings {
 		fmt.Fprintf(os.Stderr, "[bts] warning: %s\n", w)
 	}
@@ -349,7 +382,6 @@ func autoUpdateTemplates(root string) bool {
 	for _, n := range res.Notes {
 		fmt.Fprintf(os.Stderr, "[bts] %s\n", n)
 	}
-	return res.Deployed
 }
 
 // nextStepHint returns a specific next-action hint based on recipe phase and state files.
