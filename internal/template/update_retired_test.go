@@ -1,12 +1,10 @@
-package cli
+package template
 
 import (
 	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/imtemp-dev/claude-bts/internal/template"
 )
 
 // DeployForce writes what the binary embeds and never looks at what an
@@ -31,7 +29,10 @@ func TestRemoveRetiredTemplates_DeletesOnlyTheRetiredFiles(t *testing.T) {
 	keep := ".claude/agents/bts-defender.md" // a live agent: must not be touched
 	write(keep)
 
-	removeRetiredTemplates(root)
+	var warnings []string
+	if note := removeRetiredTemplates(root, &warnings); note == "" || len(warnings) != 0 {
+		t.Errorf("want a removal note and no warning, got %q %v", note, warnings)
+	}
 
 	for _, rel := range retiredTemplateFiles {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel))); !os.IsNotExist(err) {
@@ -43,13 +44,15 @@ func TestRemoveRetiredTemplates_DeletesOnlyTheRetiredFiles(t *testing.T) {
 	}
 
 	// A project that never had them: no error, nothing to do.
-	removeRetiredTemplates(t.TempDir())
+	if note := removeRetiredTemplates(t.TempDir(), &warnings); note != "" {
+		t.Errorf("nothing to remove must give no note, got %q", note)
+	}
 }
 
 // The list must never name a file the template still ships — that would
 // delete a live file on every update.
 func TestRetiredTemplateFiles_AreNotShippedAnyMore(t *testing.T) {
-	tmpl, err := template.EmbeddedTemplates()
+	tmpl, err := EmbeddedTemplates()
 	if err != nil {
 		t.Fatal(err)
 	}

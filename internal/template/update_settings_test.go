@@ -1,4 +1,4 @@
-package cli
+package template
 
 import (
 	"strings"

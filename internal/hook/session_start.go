@@ -333,70 +333,23 @@ func buildNonRecipeCompactMsg(root string, templatesUpdated bool) string {
 	return b.String()
 }
 
-// autoUpdateTemplates checks if templates need updating and deploys if so.
-// Returns true if templates were updated, false if skipped.
+// autoUpdateTemplates runs template.Update, the same routine as `bts
+// update`, so the deploy and the cleanup of retired files can no longer
+// diverge between the two paths.  It reports true when templates were
+// deployed.  Cleanup notes and warnings go to stderr: this hook's stdout
+// is the JSON the harness parses.
 func autoUpdateTemplates(root string) bool {
-	versionFile := filepath.Join(root, ".bts", "config", ".template-version")
-	existing, _ := os.ReadFile(versionFile)
-
-	current := version.GetTemplateVersion()
-
-	if strings.TrimSpace(string(existing)) == current {
-		return false // same version, skip
+	res, err := template.Update(root, version.GetTemplateVersion())
+	for _, w := range res.Warnings {
+		fmt.Fprintf(os.Stderr, "[bts] warning: %s\n", w)
 	}
-
-	// Deploy templates (overwrite all except user-owned files).
-	// .gitignore is user-owned — merged via EnsureGitignore below, never overwritten.
-	_, _ = template.DeployForce(root, []string{
-		".bts/config/settings.yaml",
-		".mcp.json",
-		".gitignore",
-	})
-
-	// Ensure .gitignore ignores bts local data without destroying existing rules.
-	_ = template.EnsureGitignore(root)
-
-	// Ensure hooks are registered in settings.local.json
-	_ = template.MergeHookSettings(root)
-
-	// Clean up legacy forge files if present
-	cleanupLegacyTemplates(root)
-
-	// Record new version
-	if err := os.WriteFile(versionFile, []byte(current), 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: save template version: %v\n", err)
-	}
-	return true
-}
-
-// cleanupLegacyTemplates removes old forge-* files from .claude/ directories.
-func cleanupLegacyTemplates(root string) {
-	claudeDir := filepath.Join(root, ".claude")
-	for _, d := range []string{"skills", "agents", "rules", "hooks", "commands"} {
-		base := filepath.Join(claudeDir, d)
-		entries, err := os.ReadDir(base)
-		if err != nil {
-			continue
-		}
-		for _, entry := range entries {
-			if strings.HasPrefix(entry.Name(), "forge-") {
-				_ = os.RemoveAll(filepath.Join(base, entry.Name()))
-			}
-		}
-	}
-
-	// Migrate hook settings
-	settingsPath := filepath.Join(claudeDir, "settings.local.json")
-	data, err := os.ReadFile(settingsPath)
 	if err != nil {
-		return
+		fmt.Fprintf(os.Stderr, "[bts] warning: %v\n", err)
 	}
-	content := string(data)
-	if strings.Contains(content, "forge-handle-") {
-		content = strings.ReplaceAll(content, "forge-handle-", "bts-handle-")
-		content = strings.ReplaceAll(content, ".forge/status_line.sh", ".bts/status_line.sh")
-		_ = os.WriteFile(settingsPath, []byte(content), 0644)
+	for _, n := range res.Notes {
+		fmt.Fprintf(os.Stderr, "[bts] %s\n", n)
 	}
+	return res.Deployed
 }
 
 // nextStepHint returns a specific next-action hint based on recipe phase and state files.
