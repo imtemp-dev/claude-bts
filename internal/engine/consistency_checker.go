@@ -149,7 +149,7 @@ func VerifyDocument(docPath string, projectRoot string, checkCode bool) (*Verify
 
 	// 3. If project has code, optionally check file/symbol references
 	if projectRoot != "" && checkCode {
-		checkCodeReferences(content, projectRoot, result)
+		checkCodeReferences(content, projectRoot, filepath.Dir(docPath), result)
 	}
 
 	// 4. Domain-specific structural checks.
@@ -338,14 +338,31 @@ func checkInternalConsistency(content string, result *VerifyResult) {
 
 // checkCodeReferences verifies file/symbol references against actual code.
 // Only runs when projectRoot has code files.
-func checkCodeReferences(content string, projectRoot string, result *VerifyResult) {
+//
+// A path is looked up under the project root and, failing that, beside the
+// document (a recipe's own `research/v1.md`).  A path that starts at `~/`
+// or `/` is outside the project and not checked.  A dot-prefixed path
+// (`.bts/...`) keeps its dot.  A file the document or the recipe's
+// wireframe says will be created is info, not a missing file (trial
+// problem #4: four of five domain-verify criticals on true-shark, three of
+// five on r-003, were these).
+func checkCodeReferences(content string, projectRoot, docDir string, result *VerifyResult) {
+	planned := plannedFiles(docDir)
 	filePaths := extractFilePaths(content)
 	for _, fp := range filePaths {
+		if strings.HasPrefix(fp, "~/") || strings.HasPrefix(fp, "/") {
+			continue
+		}
 		result.Summary.Checked++
 		absPath := filepath.Join(projectRoot, fp)
+		if _, err := os.Stat(absPath); os.IsNotExist(err) && docDir != "" {
+			if _, derr := os.Stat(filepath.Join(docDir, fp)); derr == nil {
+				continue
+			}
+		}
 		if _, err := os.Stat(absPath); os.IsNotExist(err) {
 			// Check if this is a "create" reference (new file to be made)
-			if isCreateReference(content, fp) {
+			if isCreateReference(content, fp) || planned[filepath.ToSlash(filepath.Clean(fp))] {
 				result.Issues = append(result.Issues, Issue{
 					Category: "file_ref",
 					Claim:    fp,
@@ -389,7 +406,32 @@ func checkCodeReferences(content string, projectRoot string, result *VerifyResul
 }
 
 // isCreateReference checks if a file path is mentioned as "to be created" rather than existing.
+// isCreateReference reports whether the document says filePath will be
+// created, with the path bare or in backticks ("`src/x.cs` (new)").
 func isCreateReference(content, filePath string) bool {
+	return createPhrase(content, filePath) || createPhrase(content, "`"+filePath+"`")
+}
+
+// plannedFiles are the files the recipe's wireframe will create, from its
+// File Structure rows; empty when the document is not in a recipe.
+func plannedFiles(docDir string) map[string]bool {
+	out := map[string]bool{}
+	if docDir == "" {
+		return out
+	}
+	data, err := os.ReadFile(filepath.Join(docDir, "wireframe.md"))
+	if err != nil {
+		return out
+	}
+	for _, k := range ParseWireframeFileTable(string(data)) {
+		if strings.EqualFold(strings.TrimSpace(k.Action), "create") {
+			out[filepath.ToSlash(filepath.Clean(strings.TrimSpace(k.Path)))] = true
+		}
+	}
+	return out
+}
+
+func createPhrase(content, filePath string) bool {
 	createPatterns := []string{
 		filePath + "를 생성",
 		filePath + " 생성",
@@ -410,7 +452,10 @@ func isCreateReference(content, filePath string) bool {
 
 // --- Helper functions ---
 
-var filePathRe = regexp.MustCompile(`(?:` + "`" + `)?([a-zA-Z0-9_][a-zA-Z0-9_./-]*\.[a-zA-Z0-9]{1,10})(?:` + "`" + `)?`)
+// filePathRe captures a path with its prefix: `~/` and `/` (outside the
+// project), `./`, `../` and a leading dot (`.bts/...`), which the old
+// pattern dropped, turning `.bts/specs/x.md` into a missing `bts/specs/x.md`.
+var filePathRe = regexp.MustCompile(`(?:` + "`" + `)?((?:~/|/|\.\./|\./|\.)?[a-zA-Z0-9_][a-zA-Z0-9_./-]*\.[a-zA-Z0-9]{1,10})(?:` + "`" + `)?`)
 
 type symbolRef struct {
 	Name string
