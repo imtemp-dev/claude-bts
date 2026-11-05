@@ -1335,6 +1335,13 @@ var settingsInsertions = []settingsInsertion{
 		Comment: "FINDINGS per defense pass; an old simulate.finding_batch is still read (0 = no cap).",
 		Since:   "v0.17.0",
 	},
+	{
+		Parent:  "implement",
+		Key:     "require_edit_go",
+		Value:   "false",
+		Comment: "true: the first product code phase waits for a resolved decision code-edit-go.",
+		Since:   "v0.18.0",
+	},
 }
 
 func runMigrateSettings(cmd *cobra.Command, args []string) error {

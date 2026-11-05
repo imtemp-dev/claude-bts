@@ -165,6 +165,10 @@ var recipeLogCmd = &cobra.Command{
 			if err := checkPhasePreConditions(root, recipe, phase, force); err != nil {
 				return err
 			}
+			if err := checkCodeEditGo(root, recipe, phase); err != nil {
+				cmd.SilenceUsage = true
+				return err
+			}
 
 			previousPhase := recipe.Phase
 			recipe.Phase = phase
@@ -991,6 +995,65 @@ func checkPhasePreConditions(root string, recipe *state.RecipeState, newPhase st
 	}
 
 	return nil
+}
+
+// codeEditGoKey is the decision that records the user's go-ahead to start
+// writing product code.
+const codeEditGoKey = "code-edit-go"
+
+// checkCodeEditGo refuses the phase where a recipe first writes product
+// code until the user's go-ahead is a resolved decision code-edit-go,
+// when implement.require_edit_go is on. On true-shark the user's "wait
+// for approval before editing" held only because the agent chose to ask
+// (trial problem #67); a decision makes the go-ahead a record the CLI can
+// check, and one that survives a compaction or a new session. --force
+// does not pass it: the flag is the agent's, and the go-ahead is not.
+func checkCodeEditGo(root string, recipe *state.RecipeState, newPhase string) error {
+	if !entersFirstCodePhase(recipe, newPhase) {
+		return nil
+	}
+	settings, err := engine.LoadSettings(root)
+	if err != nil {
+		return fmt.Errorf("load settings: %w", err)
+	}
+	if !settings.Implement.RequireEditGo {
+		return nil
+	}
+	decisions, err := state.LoadDecisions(root, recipe.ID)
+	if err != nil {
+		return fmt.Errorf("read decisions: %w", err)
+	}
+	status := ""
+	for _, d := range decisions {
+		if d.Key == codeEditGoKey {
+			status = d.Status
+		}
+	}
+	if status == state.DecisionResolved {
+		return nil
+	}
+	resolve := fmt.Sprintf("  bts recipe decision resolve %s %s --answer \"<the user's words>\"", recipe.ID, codeEditGoKey)
+	how := "Ask the user, then record the question and their answer:\n" +
+		fmt.Sprintf("  bts recipe decision hold %s --key %s --question \"Start writing product code for %s?\"\n", recipe.ID, codeEditGoKey, recipe.ID) +
+		resolve
+	if status == state.DecisionOpen {
+		how = "The decision " + codeEditGoKey + " is open; when the user answers, record it:\n" + resolve
+	}
+	return fmt.Errorf("phase '%s' is where recipe %s starts writing product code, and implement.require_edit_go "+
+		"is on: it waits for the user's go-ahead, recorded as the resolved decision %s.\n%s\n"+
+		"then run this command again (--force does not pass this gate)",
+		newPhase, recipe.ID, codeEditGoKey, how)
+}
+
+// entersFirstCodePhase reports whether moving recipe to newPhase starts its
+// product code: a build recipe's skeleton (its implement phases come after
+// the skeleton and are not gated again), and for any other type the move
+// into the implement phases from outside them.
+func entersFirstCodePhase(recipe *state.RecipeState, newPhase string) bool {
+	if recipe.Type == "build" {
+		return newPhase == "skeleton" && recipe.Phase != "skeleton"
+	}
+	return state.IsImplementPhase(newPhase) && !state.IsImplementPhase(recipe.Phase)
 }
 
 func countNonHidden(entries []os.DirEntry) int {

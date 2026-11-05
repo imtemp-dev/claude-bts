@@ -191,6 +191,14 @@ If tasks.json exists in the recipe directory:
    ```bash
    bts recipe log {id} --phase implement --action implement --output tasks.json --based-on final.md --result "N tasks decomposed"
    ```
+   This is where a recipe other than build starts writing product code
+   (a build recipe passed that point at its skeleton). When
+   `.bts/config/settings.yaml` sets `implement.require_edit_go: true`,
+   the command is refused until the user's go-ahead is recorded: ask the
+   user, then `bts recipe decision hold {id} --key code-edit-go
+   --question "Start writing product code for {id}?"` and, with their
+   answer, `bts recipe decision resolve {id} code-edit-go --answer
+   "<their words>"`, and run it again. `--force` does not pass it.
 
 7. Validate:
    ```bash

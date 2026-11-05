@@ -290,6 +290,13 @@ refuses the combination rather than exiting 0 on a round it discarded.
 
 ## Step 7: Implement
 
+When `.bts/config/settings.yaml` sets `implement.require_edit_go: true`,
+the `--phase implement` log below is refused until the user's go-ahead
+is recorded, so record it before the first edit: ask the user, then
+`bts recipe decision hold {id} --key code-edit-go --question "Start
+writing product code for {id}?"` and, with their answer, `bts recipe
+decision resolve {id} code-edit-go --answer "<their words>"`.
+
 Read `.bts/specs/project-map.md` for layer-specific build/test commands.
 When fix spans multiple layers, use each layer's build command for verification.
 

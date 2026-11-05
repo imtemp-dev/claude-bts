@@ -107,6 +107,11 @@ implement:
                                  # Below 8 the upper escalation tiers become unreachable.
   max_test_iterations: 5         # [advisory] If 5 fix cycles don't resolve it, human help needed
   midrun_review_every: 5         # Run a lightweight structural review every N tasks. 0 disables.
+  require_edit_go: false         # true: `bts recipe log --phase` refuses the first phase that writes
+                                 # product code (a build recipe's skeleton, another type's first
+                                 # implement phase) until the user's go-ahead is recorded as a
+                                 # resolved decision `code-edit-go` (`bts recipe decision hold`,
+                                 # then `resolve`). --force does not pass it.
   retry_ladder:
     syntactic_max: 3             # In-place retries (tier 1) before moving to strategy switch
     semantic_max: 2              # Strategy switches (tier 2) before spec escalation

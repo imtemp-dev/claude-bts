@@ -170,6 +170,7 @@ var settingsKeysRead = map[string]bool{
 	"implement.retry_ladder.spec_escalate":      true,
 	"implement.retry_ladder.domain_escalate":    true,
 	"implement.retry_ladder.architect_escalate": true,
+	"implement.require_edit_go":                 true,
 	"fix.debate_rounds":                         true,
 	"debug.debate_rounds":                       true,
 	"debug.perspective_count":                   true,

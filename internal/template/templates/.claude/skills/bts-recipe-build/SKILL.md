@@ -74,7 +74,13 @@ decision hold`).
    skeleton writes and, later, the tasks.
 7. **Skeleton.** `bts recipe log {id} --phase skeleton`, then
    `Skill("bts-skeleton")` with `{id}`. It ends with `bts check build`
-   passing.
+   passing. The skeleton is the recipe's first product code: when
+   `.bts/config/settings.yaml` sets `implement.require_edit_go: true`,
+   the phase change is refused until the user's go-ahead is recorded.
+   Ask the user, then `bts recipe decision hold {id} --key code-edit-go
+   --question "Start writing product code for {id}?"` and, with their
+   answer, `bts recipe decision resolve {id} code-edit-go --answer
+   "<their words>"`. `--force` does not pass it.
 8. **Falsify.** `bts recipe log {id} --phase falsify`, then
    `Skill("bts-falsify")` with `{id}`. It ends with every invariant's test
    recorded red.

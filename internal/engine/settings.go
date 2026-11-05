@@ -30,6 +30,13 @@ type ImplementSettings struct {
 	MaxTestIterations int                 `yaml:"max_test_iterations"`
 	MidrunReviewEvery int                 `yaml:"midrun_review_every"`
 	RetryLadder       RetryLadderSettings `yaml:"retry_ladder"`
+	// RequireEditGo makes `bts recipe log --phase` refuse the first phase
+	// that writes product code (a build recipe's skeleton, any other
+	// type's first implement phase) until the recipe holds a resolved
+	// decision `code-edit-go`. Off by default. On true-shark the user's
+	// "wait for approval before editing" held only because the agent
+	// chose to ask (trial problem #67).
+	RequireEditGo bool `yaml:"require_edit_go"`
 }
 
 // RetryLadderSettings mirrors engine.LadderConfig with yaml tags.
