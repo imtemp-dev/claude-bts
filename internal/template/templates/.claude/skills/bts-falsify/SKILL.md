@@ -58,6 +58,12 @@ The command must fail now. A test that passes on the skeleton is refused
 and not recorded: make it assert the outcome. When the skeleton changes
 later, rerun them all with `bts falsifier check {id} --red`.
 
+The tests you wrote or changed are often File Structure rows too, so they
+are part of the skeleton's code hash.  After the last one, rerun the
+skeleton build (`bts check build {id} --cmd "<the same build command>"`)
+so `skeleton_builds` sees the code as it now is; otherwise the stop hook
+refuses DONE with "skeleton changed after its last build".
+
 Add each row to `final.md` § 2 (invariant, test, command). A row whose
 test proves an illegal cell from `domain.md` § 4 refused carries the
 cell's label as a tag, `INV-003 [illegal-cell: second issue for one PR]`:

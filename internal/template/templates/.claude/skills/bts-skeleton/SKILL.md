@@ -43,7 +43,14 @@ For each row whose action is `create` or `modify`:
   - Swift `fatalError("not implemented: Relay.handle")`
   - C# `throw new NotImplementedException("Relay.Handle")`
 - **modify:** add only the symbols the row names (its `scope=` list, or
-  what its responsibility requires). Leave existing bodies alone.
+  what its responsibility requires). Leave existing bodies alone.  A new
+  symbol that existing code already calls on every path (a setting read
+  at startup, a parameter the hot path passes) gets an inert body
+  instead of a loud one: an empty set, a no-op, a value that matches
+  nothing.  A loud body there would break every existing test and make
+  the new invariant's test fail for the wrong reason; an inert one keeps
+  the old tests green and leaves the new test failing on its own
+  assertion.
 
 Each public symbol gets one line of doc comment: its contract, and the
 invariant it owns (`Owns INV-003.`).

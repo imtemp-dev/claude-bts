@@ -24,9 +24,11 @@ If found, read `.bts/specs/recipes/{id}/intent.md`:
 - Status EXPLORING → continue the conversation from where it left off
 - Status CONFIRMED → skip discovery, proceed to blueprint
 
-If no active recipe, create one:
+If no active recipe, create one with the type
+`.claude/rules/bts-recipe-protocol.md` § Choosing a recipe type gives
+(blueprint when nothing else is said):
 ```bash
-bts recipe create --type blueprint --topic "$ARGUMENTS"
+bts recipe create --type <type> --topic "$ARGUMENTS"
 ```
 Capture the output — this is the recipe ID (e.g., `r-001-mcp-server`).
 Use this ID for all subsequent `bts recipe log` calls.
@@ -99,6 +101,14 @@ When you believe you have enough understanding:
 2. Ask for confirmation using AskUserQuestion:
    - "Direction confirmed — proceed" → mark Status: CONFIRMED
    - "Needs adjustment" → continue conversation
+
+   When the user answers somewhere else (through another session, or
+   later), record the wait so it is visible to the next session and to
+   `bts recipe status`: `bts recipe decision hold {id} --key intent-confirm
+   --question "Confirm the intent in intent.md?"`, and when the answer
+   arrives, `bts recipe decision resolve {id} intent-confirm --answer
+   "<the user's words, quoted>"`.  The same applies to the scope
+   confirmation.
 3. After confirmation, update intent.md Status to CONFIRMED
 4. Log:
    ```bash
