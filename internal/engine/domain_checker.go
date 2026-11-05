@@ -170,11 +170,23 @@ func normalizeStatement(s string) string {
 // splitOwners accepts "Arrangement", "Arrangement, Card", "Arrangement / Card".
 // Comma and slash both indicate a shared-ownership row — which is itself
 // an invariant-owner violation, so the splitter exposes all candidates.
+var (
+	parenNoteRe = regexp.MustCompile(`\([^()]*\)`)
+	codeSpanRe  = regexp.MustCompile("`[^`]*`")
+)
+
 func splitOwners(owner string) []string {
 	owner = strings.TrimSpace(owner)
 	if owner == "" {
 		return nil
 	}
+	// A parenthesised note ("Rules (screen, decide)") and a code span
+	// (`Work.Module/Domain`) belong to one owner: drop the note and keep the
+	// span whole before splitting (trial problem #63).
+	owner = parenNoteRe.ReplaceAllString(owner, "")
+	owner = codeSpanRe.ReplaceAllStringFunc(owner, func(span string) string {
+		return strings.NewReplacer("/", "\x00", ",", "\x01").Replace(span)
+	})
 	// Normalize separators to comma before split.
 	owner = strings.ReplaceAll(owner, " / ", ",")
 	owner = strings.ReplaceAll(owner, "/", ",")
@@ -183,7 +195,7 @@ func splitOwners(owner string) []string {
 	out := make([]string, 0, len(parts))
 	seen := map[string]bool{}
 	for _, p := range parts {
-		o := strings.TrimSpace(p)
+		o := strings.TrimSpace(strings.NewReplacer("\x00", "/", "\x01", ",").Replace(p))
 		if o == "" || seen[strings.ToLower(o)] {
 			continue
 		}

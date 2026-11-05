@@ -155,3 +155,20 @@ func TestCheckInvariantOwnership_EscapedPipeInACell(t *testing.T) {
 		t.Fatalf("an escaped pipe must stay in its cell, got %d issues: %v", len(issues), issues)
 	}
 }
+
+// Trial problem #63: an Owner cell with a parenthesised note split on the
+// comma inside it and read as two owners.
+func TestSplitOwners_KeepsNotesAndCodeSpansWhole(t *testing.T) {
+	cases := map[string][]string{
+		"Rules (screen, decide)":         {"Rules"},
+		"`Work.Module/Domain` (rule)":    {"`Work.Module/Domain`"},
+		"Arrangement, Card":              {"Arrangement", "Card"},
+		"WorkController / WorkItemQuery": {"WorkController", "WorkItemQuery"},
+	}
+	for in, want := range cases {
+		got := splitOwners(in)
+		if strings.Join(got, "|") != strings.Join(want, "|") {
+			t.Errorf("splitOwners(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
