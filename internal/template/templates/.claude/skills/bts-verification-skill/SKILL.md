@@ -92,8 +92,14 @@ placeholders:
   cleanup deletes.  `bts prove run` looks for it there, and bts leaves
   `.verify/` and gitignored paths out of the code fingerprint, so anything
   else a drive writes in the project (a log, a cache, bytecode in a path
-  git does not ignore) can read as a code change.  Add `.verify/` to `.gitignore`
-  unless the team keeps evidence in git.  Proof standards:
+  git does not ignore) can read as a code change.  Unless the team keeps
+  evidence in git, ignore `.verify/` in the file that already keeps bts
+  out: `git check-ignore -v .bts/local/x` names it.  A shared repository
+  keeps bts out through the exclude file every worktree shares
+  (`$(git rev-parse --git-common-dir)/info/exclude`), where a line in the
+  tracked `.gitignore` would land in a pull request.  The `verify-<app>`
+  skill directory goes in the same file unless the team commits it.
+  Proof standards:
   - exercise the real user path, not internal setters or test-only
     endpoints;
   - capture the action and the resulting state, and the side effects
