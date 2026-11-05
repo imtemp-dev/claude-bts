@@ -32,7 +32,7 @@ Rejected: binding the first session that starts.  On AGEN-35 the owner session s
 | Hook | Owning session, or a recipe with no owner yet | Any other session |
 | --- | --- | --- |
 | Stop | the gates, as today | allowed; a tagged completion marker is refused with a note naming the owning session and `bts recipe claim` |
-| PreToolUse | spec-phase warnings, fan-out budget | nothing |
+| PreToolUse | spec-phase warnings, fan-out budget | nothing, except a warning on a Write or Edit of a file the recipe's tasks.json or wireframe names (added for trial problem #56) |
 | PostToolUse, SubagentStart/Stop metrics | `recipe_id` set | `recipe_id` empty and `observer: true`; the project metrics keep the event |
 | SessionStart | resume hints | one line: the recipe is worked by another session, and how to claim it |
 | PreCompact, SessionEnd | as today | nothing |
@@ -59,7 +59,7 @@ A worker that dies is replaced by a new session running `bts recipe claim <id>`.
 ## As built (slices 2 and 3)
 
 - `recipe.json` has `owner_session`; `bts recipe status` shows it.  The PostToolUse hook binds it after a successful `bts recipe create` (only while the recipe has no owner) or `bts recipe claim <id>` (always), and logs the changelog action `claim`.
-- Another session gets: Stop allows, and a tagged marker is refused once with the owner named; no PreToolUse breadcrumbs, budget or warnings; SessionStart says the recipe is worked by another session; PreCompact and SessionEnd do nothing; tool and subagent events are `observer: true` with no `recipe_id`, so they stay out of the recipe's metrics.
+- Another session gets: Stop allows, and a tagged marker is refused once with the owner named; no PreToolUse breadcrumbs, budget or spec-phase warnings, but a warning naming the owner and `bts recipe claim` when it writes one of the recipe's files (#56); SessionStart says the recipe is worked by another session; PreCompact and SessionEnd do nothing; tool and subagent events are `observer: true` with no `recipe_id`, so they stay out of the recipe's metrics.
 - Checked end to end with two Claude Code sessions in a project initialised by this build: the creating session became the owner (`claim` logged); the second session's events were observers, its `<bts>DONE</bts>` was refused with the owner named, and the recipe's phase did not move.
 
 ## Tests

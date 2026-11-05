@@ -29,7 +29,16 @@ func (h *preToolUseHandler) Handle(input *HookInput) (*HookOutput, error) {
 
 	// Another session in the project gets nothing from the recipe: no
 	// breadcrumbs in its recovery trail, no budget, no phase warnings.
+	// Only a write to one of the recipe's own files is called out.
 	if recipe, _ := state.GetActiveRecipe(root); isObserver(recipe, input.SessionID) {
+		if note := observerEditNotice(root, recipe, input); note != "" {
+			return &HookOutput{
+				HookSpecificOutput: &HookSpecificOutput{
+					HookEventName:     "PreToolUse",
+					AdditionalContext: note,
+				},
+			}, nil
+		}
 		return &HookOutput{}, nil
 	}
 

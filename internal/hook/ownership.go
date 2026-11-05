@@ -3,9 +3,12 @@ package hook
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
+	"github.com/imtemp-dev/claude-bts/internal/engine"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 )
 
@@ -89,6 +92,68 @@ func shortSession(id string) string {
 		return id[:8]
 	}
 	return id
+}
+
+// observerEditNotice warns a session that does not own the active recipe
+// when it writes a file the recipe's tasks.json or wireframe File
+// Structure names, and returns "" for anything else. In the AGEN-43
+// handoff a stood-down session could still edit and test r-003's code,
+// and only its own discipline kept the two sessions from editing the same
+// files (trial problem #56). It warns rather than refuses: the observer
+// may be the user's own session fixing something on purpose, and a
+// refusal would make it claim the recipe just to type.
+func observerEditNotice(root string, recipe *state.RecipeState, input *HookInput) string {
+	if input.ToolName != "Write" && input.ToolName != "Edit" {
+		return ""
+	}
+	path, _ := input.ToolInput["file_path"].(string)
+	rel := projectRelPath(root, input.CWD, path)
+	if rel == "" || !recipeFiles(root, recipe.ID)[rel] {
+		return ""
+	}
+	return fmt.Sprintf("[bts] This session does not own recipe %s; session %s works it, and %s is one of its files. "+
+		"Leave the recipe's files to that session, or run `bts recipe claim %s` first.",
+		recipe.ID, shortSession(recipe.OwnerSession), rel, recipe.ID)
+}
+
+// recipeFiles is the set of files the recipe's tasks.json and wireframe
+// File Structure rows name, relative to the project root, slash-separated.
+// Both are read: tasks.json may not exist yet, and its tasks need not
+// cover every row.
+func recipeFiles(root, recipeID string) map[string]bool {
+	files := map[string]bool{}
+	add := func(f string) {
+		if f = filepath.ToSlash(filepath.Clean(strings.TrimSpace(f))); f != "" && f != "." {
+			files[f] = true
+		}
+	}
+	if ts, err := state.LoadTaskState(root, recipeID); err == nil {
+		for _, t := range ts.Tasks {
+			add(t.File)
+		}
+	}
+	if data, err := os.ReadFile(filepath.Join(state.RecipeDir(root, recipeID), "wireframe.md")); err == nil {
+		for _, k := range engine.ParseWireframeFileTable(string(data)) {
+			add(k.Path)
+		}
+	}
+	return files
+}
+
+// projectRelPath returns path, absolute or relative to cwd, relative to the
+// project root and slash-separated, or "" when it lies outside the project.
+func projectRelPath(root, cwd, path string) string {
+	if path == "" {
+		return ""
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(cwd, path)
+	}
+	rel, err := filepath.Rel(root, filepath.Clean(path))
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return ""
+	}
+	return filepath.ToSlash(rel)
 }
 
 // observerNotice is the one line another session sees about the recipe.
