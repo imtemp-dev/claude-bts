@@ -29,8 +29,10 @@ a target a run can check and the spec has nothing left to argue about.
 
 In the project's test framework, next to its other tests:
 
-- Name it with the id: `test_inv_003_one_issue_per_pr`,
-  `TestInv003OneIssuePerPR`.
+- Name it by the behaviour it checks, under the project's naming rules:
+  `test_one_issue_per_pr`, `RefusesASecondIssueForOnePr`.  Its row in
+  `final.md` § 2 ties it to the invariant; put the id in the name only
+  where the project allows bts ids in committed code.
 - Call the owner's public surface, as a caller would.
 - Assert the invariant's observable outcome: the state after the
   operation, what is returned or written, or that a forbidden transition
@@ -91,6 +93,18 @@ test proves an illegal cell from `domain.md` § 4 refused carries the
 cell's label as a tag, `INV-003 [illegal-cell: second issue for one PR]`:
 that tag, not a simulated scenario, is what `bts validate` counts as the
 cell's coverage in a build recipe. Every illegal cell needs a tagged row.
+
+The command selects the test alone, by a name or path nothing else
+matches.  Some runners pass when a filter matches no test (`dotnet test
+--filter`, `go test -run`), so a command that drifts from its test can
+read green.
+
+A test renamed or moved after it is recorded (a review, the project's
+naming rules) keeps its record through
+`bts falsifier repoint {id} --inv INV-003 --cmd "<new command>" --expect "<new test id>"`,
+then `bts falsifier mutate {id} --rerun`.  The new command must give the
+recorded result, and the mutation rerun under it is what shows it selects
+a test that can fail.  Update the `final.md` § 2 row to match.
 
 `bts falsifier run` records each run in the changelog itself; there is
 nothing else to log for this step.

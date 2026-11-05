@@ -22,6 +22,8 @@ import (
 //   bts falsifier run <id> --inv INV-NNN --cmd "<test>"   fails on the skeleton
 //                                                         (passes, for a [carried] invariant)
 //   bts falsifier check <id> [--red]                      reruns every falsifier
+//   bts falsifier repoint <id> --inv INV-NNN --cmd "<test>" [--expect "<id>"]
+//                                                         follows a renamed or moved test
 
 func init() {
 	checkCmd.AddCommand(checkBuildCmd)
@@ -38,6 +40,94 @@ func init() {
 	falsifierRunCmd.Flags().Int("timeout", 600, "Seconds before the run is killed")
 	falsifierCheckCmd.Flags().Bool("red", false, "Expect every falsifier to fail (the skeleton), instead of to pass; a [carried] invariant's is still expected to pass")
 	falsifierCheckCmd.Flags().Int("timeout", 600, "Seconds before each run is killed")
+	falsifierCmd.AddCommand(falsifierRepointCmd)
+	falsifierRepointCmd.Flags().String("inv", "", "Invariant id whose falsifier moved, e.g. INV-003 (required)")
+	_ = falsifierRepointCmd.MarkFlagRequired("inv")
+	falsifierRepointCmd.Flags().String("cmd", "", "Command that runs the renamed or moved test only (required)")
+	_ = falsifierRepointCmd.MarkFlagRequired("cmd")
+	falsifierRepointCmd.Flags().String("expect", "", "The test's new id, which a mutation rerun must find in the failing output (required when a mutation is recorded)")
+	falsifierRepointCmd.Flags().Int("timeout", 600, "Seconds before the run is killed")
+}
+
+var falsifierRepointCmd = &cobra.Command{
+	Use:   "repoint <recipe-id>",
+	Short: "Point an invariant's recorded falsifier at its renamed or moved test; the new command must give the recorded result",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		root, err := projectRoot()
+		if err != nil {
+			return err
+		}
+		inv, _ := cmd.Flags().GetString("inv")
+		cmdStr, _ := cmd.Flags().GetString("cmd")
+		expect, _ := cmd.Flags().GetString("expect")
+		timeout, _ := cmd.Flags().GetInt("timeout")
+		run, err := executeFalsifierRepoint(root, args[0], inv, cmdStr, expect, timeout, os.Stdout)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("\n[bts] %s now runs %q (exit=%d) → build-evidence.json\n", inv, cmdStr, run.ExitCode)
+		if ev, err := state.LoadBuildEvidence(root, args[0]); err == nil && ev.Falsifiers[inv].Mutation != nil {
+			fmt.Printf("[bts] its mutation run proved the old command: run `bts falsifier mutate %s --rerun`\n", args[0])
+		}
+		return nil
+	},
+}
+
+// executeFalsifierRepoint points an invariant's recorded falsifier at a new
+// command, for a test renamed or moved after it was recorded (trial problem
+// #76).  `falsifier run` cannot do it once the implementation exists, since
+// it records only a test that fails on the skeleton.  The new command must
+// give the result of the latest recorded run (green on the implementation,
+// red on the skeleton) and replaces that run.  A recorded mutation keeps
+// its patch and takes the test's new id as its expected text; the gate
+// reads it as stale until `falsifier mutate --rerun` runs it under the new
+// command, which is what proves the new command selects a test that can
+// fail.
+func executeFalsifierRepoint(root, recipeID, inv, cmdStr, expect string, timeoutSec int, sink io.Writer) (*state.CommandRun, error) {
+	if _, err := state.LoadRecipeState(root, recipeID); err != nil {
+		return nil, fmt.Errorf("load recipe %s: %w", recipeID, err)
+	}
+	ev, err := state.LoadBuildEvidence(root, recipeID)
+	if err != nil {
+		return nil, fmt.Errorf("load build evidence: %w", err)
+	}
+	f := ev.Falsifiers[inv]
+	if f == nil || f.Command == "" {
+		return nil, fmt.Errorf("no falsifier recorded for %s: record it with `bts falsifier run %s --inv %s --cmd \"<test command>\"`", inv, recipeID, inv)
+	}
+	slot, prev := &f.Red, f.Red
+	if f.Green != nil {
+		slot, prev = &f.Green, f.Green
+	}
+	if prev == nil {
+		return nil, fmt.Errorf("%s has no recorded run to compare with: run `bts falsifier check %s` first", inv, recipeID)
+	}
+	expect = strings.TrimSpace(expect)
+	if f.Mutation != nil && expect == "" {
+		return nil, fmt.Errorf("%s has a mutation run that expects %q in the failing output: pass --expect with the moved test's id", inv, f.Mutation.Expect)
+	}
+	run, err := runRecorded(root, recipeID, cmdStr, timeoutSec, "falsifier-"+inv+".log", sink)
+	if err != nil {
+		return nil, err
+	}
+	if run.Passed() != prev.Passed() {
+		want := "fail, as the recorded run does"
+		if prev.Passed() {
+			want = "pass, as the recorded run does"
+		}
+		return nil, fmt.Errorf("%s: the new command must %s (exit %d); nothing was changed", inv, want, run.ExitCode)
+	}
+	f.Command = cmdStr
+	*slot = run
+	if f.Mutation != nil {
+		f.Mutation.Expect = expect
+	}
+	if err := state.SaveBuildEvidence(root, recipeID, ev); err != nil {
+		return nil, fmt.Errorf("save build evidence: %w", err)
+	}
+	appendEvidenceChangelog(root, recipeID, "falsify", fmt.Sprintf("%s repointed exit=%d", inv, run.ExitCode), run.CodeHash)
+	return run, nil
 }
 
 var checkBuildCmd = &cobra.Command{

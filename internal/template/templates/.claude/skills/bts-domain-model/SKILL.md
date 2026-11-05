@@ -116,7 +116,7 @@ the ID, optionally saying where it came from:
 
 | ID | Statement | Owner | Enforcement point |
 |----|-----------|-------|-------------------|
-| INV-004 [carried: r-002 INV-001] | A PR has at most one issue | Relay | `Relay.open()` lookup, kept by `tests/test_relay.py::test_inv_001_one_issue_per_pr` |
+| INV-004 [carried: r-002 INV-001] | A PR has at most one issue | Relay | `Relay.open()` lookup, kept by `tests/test_relay.py::test_one_issue_per_pr` |
 
 - Carry only what the code already keeps. Anything this change creates or
   alters is a new invariant, even when it resembles an old one.

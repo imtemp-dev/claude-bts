@@ -140,7 +140,7 @@ func CheckFalsifiersGreen(ev *state.BuildEvidence, invariants []string, currentH
 // one it wrote, and falsifiers_green already requires their tests to pass
 // on the change (trial problem #41).
 func CheckFalsifiersAbleToFail(ev *state.BuildEvidence, invariants []string, currentHash, recipeID string) string {
-	var unproven, survived, stale []string
+	var unproven, moved, survived, stale []string
 	for _, id := range invariants {
 		f := ev.Falsifiers[id]
 		switch {
@@ -148,6 +148,10 @@ func CheckFalsifiersAbleToFail(ev *state.BuildEvidence, invariants []string, cur
 			continue
 		case f == nil || f.Mutation == nil:
 			unproven = append(unproven, id)
+		case f.Mutation.Command != "" && f.Mutation.Command != f.Command:
+			// The run proved the command it ran; a renamed test's new
+			// command is not proven by it (trial problem #76).
+			moved = append(moved, id)
 		case !f.Mutation.Killed():
 			survived = append(survived, id)
 		case currentHash != "" && f.Mutation.BaseHash != currentHash:
@@ -157,6 +161,9 @@ func CheckFalsifiersAbleToFail(ev *state.BuildEvidence, invariants []string, cur
 	var parts []string
 	if len(unproven) > 0 {
 		parts = append(parts, fmt.Sprintf("no mutation run for %s", strings.Join(unproven, ", ")))
+	}
+	if len(moved) > 0 {
+		parts = append(parts, fmt.Sprintf("the falsifier's command changed after the mutation runs for %s", strings.Join(moved, ", ")))
 	}
 	if len(survived) > 0 {
 		parts = append(parts, fmt.Sprintf("the falsifier did not fail in its own test with the guard broken for %s, so it does not test that invariant yet", strings.Join(survived, ", ")))
@@ -168,7 +175,7 @@ func CheckFalsifiersAbleToFail(ev *state.BuildEvidence, invariants []string, cur
 		return ""
 	}
 	return fmt.Sprintf("Falsifiers are not shown able to fail: %s. Break each invariant's guard in a patch and run "+
-		"`bts falsifier mutate %s --inv <id> --patch <file> --expect \"<its test id>\"`; after a code change run "+
+		"`bts falsifier mutate %s --inv <id> --patch <file> --expect \"<its test id>\"`; after a code or command change run "+
 		"`bts falsifier mutate %s --rerun`; an invariant with no code guard is recorded with --not-mutable \"<reason>\".",
 		strings.Join(parts, "; "), recipeID, recipeID)
 }

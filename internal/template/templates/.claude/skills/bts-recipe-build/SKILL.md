@@ -153,8 +153,8 @@ The invariants and owners are `domain.md` § 2.
 
 | Invariant | Test | Command |
 | --- | --- | --- |
-| INV-001 | `tests/test_relay.py::test_inv_001_one_issue_per_pr` | `pytest -q tests/test_relay.py -k inv_001` |
-| INV-004 [illegal-cell: second issue for one PR] | `tests/test_relay.py::test_inv_004_refuses_second_issue` | `pytest -q tests/test_relay.py -k inv_004` |
+| INV-001 | `tests/test_relay.py::test_one_issue_per_pr` | `pytest -q tests/test_relay.py -k test_one_issue_per_pr` |
+| INV-004 [illegal-cell: second issue for one PR] | `tests/test_relay.py::test_refuses_second_issue` | `pytest -q tests/test_relay.py -k test_refuses_second_issue` |
 | INV-005 [carried] | `tests/test_relay.py::test_old_token_still_pages` | `pytest -q tests/test_relay.py -k old_token` |
 
 A row that proves an illegal cell from `domain.md` § 4 refused carries

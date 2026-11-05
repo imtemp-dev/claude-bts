@@ -429,11 +429,11 @@ Only the CLI writes it; never edit it by hand.
   "skeleton": {"command": "mypy relay", "exit_code": 0, "code_hash": "sha256:…", "run_at": "…"},
   "falsifiers": {
     "INV-001": {
-      "command": "pytest -q tests/test_relay.py -k inv_001",
+      "command": "pytest -q tests/test_relay.py -k test_one_issue_per_pr",
       "red":   {"command": "…", "exit_code": 1, "code_hash": "sha256:…", "run_at": "…"},
       "green": {"command": "…", "exit_code": 0, "code_hash": "sha256:…", "run_at": "…"},
       "mutation": {"patch": "mutations/INV-001.patch", "patch_hash": "sha256:…", "files": ["relay/main.py"],
-                   "command": "…", "exit_code": 1, "expect": "tests/test_relay.py::test_inv_001", "matched": true,
+                   "command": "…", "exit_code": 1, "expect": "tests/test_relay.py::test_one_issue_per_pr", "matched": true,
                    "base_hash": "sha256:…", "isolation": "git-ls-files", "run_at": "…"}
     },
     "INV-002": {"command": "…", "not_mutable": "held by the type of Decision; no code guard to break"},
