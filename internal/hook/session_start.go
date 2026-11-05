@@ -24,7 +24,7 @@ func (h *sessionStartHandler) EventType() EventType {
 }
 
 func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
-	root, err := state.FindRoot(input.CWD)
+	root, err := input.ProjectRoot()
 	if err != nil {
 		return &HookOutput{}, nil
 	}

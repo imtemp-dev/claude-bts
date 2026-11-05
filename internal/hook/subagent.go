@@ -21,7 +21,7 @@ func (h *subagentStartHandler) EventType() EventType {
 }
 
 func (h *subagentStartHandler) Handle(input *HookInput) (*HookOutput, error) {
-	root, err := state.FindRoot(input.CWD)
+	root, err := input.ProjectRoot()
 	if err != nil {
 		return &HookOutput{}, nil
 	}
@@ -58,7 +58,7 @@ func (h *subagentStopHandler) EventType() EventType {
 }
 
 func (h *subagentStopHandler) Handle(input *HookInput) (*HookOutput, error) {
-	root, err := state.FindRoot(input.CWD)
+	root, err := input.ProjectRoot()
 	if err != nil {
 		return &HookOutput{}, nil
 	}

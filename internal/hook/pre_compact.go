@@ -19,7 +19,7 @@ func (h *preCompactHandler) EventType() EventType {
 }
 
 func (h *preCompactHandler) Handle(input *HookInput) (*HookOutput, error) {
-	root, err := state.FindRoot(input.CWD)
+	root, err := input.ProjectRoot()
 	if err != nil {
 		return &HookOutput{}, nil
 	}

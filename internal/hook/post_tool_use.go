@@ -24,7 +24,7 @@ func (h *postToolUseHandler) EventType() EventType {
 }
 
 func (h *postToolUseHandler) Handle(input *HookInput) (*HookOutput, error) {
-	if root, err := state.FindRoot(input.CWD); err == nil {
+	if root, err := input.ProjectRoot(); err == nil {
 		bindOwnership(root, input)
 	}
 	recordToolUse(input, true, nil)
@@ -58,7 +58,7 @@ func (h *postToolUseFailureHandler) Handle(input *HookInput) (*HookOutput, error
 // recordToolUse appends a tool_use metrics event and, for tracked tools, a
 // tool-trace breadcrumb for post-compact recovery.
 func recordToolUse(input *HookInput, success bool, exitCode *int) {
-	root, err := state.FindRoot(input.CWD)
+	root, err := input.ProjectRoot()
 	if err != nil {
 		return
 	}
