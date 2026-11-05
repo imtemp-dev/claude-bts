@@ -84,6 +84,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if err := os.WriteFile(filepath.Join(absRoot, ".bts", "config", ".template-version"), []byte(tv), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: save template version: %v\n", err)
 	}
+	if h := template.TemplatesHash(); h != "" {
+		if err := os.WriteFile(filepath.Join(absRoot, filepath.FromSlash(template.TemplateHashFile)), []byte(h+"\n"), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: save template hash: %v\n", err)
+		}
+	}
 
 	// Merge statusline and hook configs into .claude/settings.local.json
 	if err := template.MergeHookSettings(absRoot); err != nil {

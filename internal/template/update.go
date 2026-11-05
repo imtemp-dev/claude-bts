@@ -12,7 +12,7 @@ import (
 // harness parses, so a stray line there would break the hook.
 type UpdateResult struct {
 	OldVersion string   // the project's recorded template version before the update, "" if none
-	Deployed   bool     // templates were deployed because the recorded version differed
+	Deployed   bool     // templates were deployed because the recorded version or template hash differed
 	Files      []string // files the deploy wrote
 	Notes      []string // one line per cleanup step that changed something
 	Warnings   []string // steps that failed without stopping the update
@@ -30,7 +30,7 @@ var updateSkipFiles = []string{".bts/config/settings.yaml", ".mcp.json", ".gitig
 // and never ran it, which left retired agents and skills listed by the
 // harness in every auto-updated project.
 //
-// The deploy runs only when the recorded version differs.  The cleanup
+// The deploy runs only when the recorded version or template hash differs.  The cleanup
 // steps are idempotent and run every time, so a project an older binary
 // left with retired files is cleaned on its next update or session start.
 // The version is recorded last, so an update that fails half way is
@@ -57,7 +57,15 @@ func update(root, current string, deploy bool) (*UpdateResult, error) {
 	existing, _ := os.ReadFile(versionFile)
 	res := &UpdateResult{OldVersion: strings.TrimSpace(string(existing))}
 
-	if deploy && res.OldVersion != current {
+	// The recorded template hash catches templates that changed under the
+	// same version (trial problem #15).  A project with none recorded was
+	// deployed before hashes were kept: the version alone decides for it.
+	hashFile := filepath.Join(root, filepath.FromSlash(TemplateHashFile))
+	recordedHash, _ := os.ReadFile(hashFile)
+	currentHash := TemplatesHash()
+	hashMoved := len(recordedHash) > 0 && currentHash != "" && strings.TrimSpace(string(recordedHash)) != currentHash
+
+	if deploy && (res.OldVersion != current || hashMoved) {
 		files, err := DeployForce(root, updateSkipFiles)
 		if err != nil {
 			return res, fmt.Errorf("update templates: %w", err)
@@ -80,6 +88,11 @@ func update(root, current string, deploy bool) (*UpdateResult, error) {
 		}
 		if err := os.WriteFile(versionFile, []byte(current), 0644); err != nil {
 			res.Warnings = append(res.Warnings, fmt.Sprintf("save template version: %v", err))
+		}
+		if currentHash != "" {
+			if err := os.WriteFile(hashFile, []byte(currentHash+"\n"), 0644); err != nil {
+				res.Warnings = append(res.Warnings, fmt.Sprintf("save template hash: %v", err))
+			}
 		}
 	}
 	return res, nil

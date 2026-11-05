@@ -43,6 +43,8 @@ var updateCmd = &cobra.Command{
 			fmt.Printf("Templates already up to date (%s)\n", current)
 		case res.OldVersion == "":
 			fmt.Printf("Templates initialized: %s\n", current)
+		case res.OldVersion == current:
+			fmt.Printf("Templates updated: %s, whose templates changed since they were deployed\n", current)
 		default:
 			fmt.Printf("Templates updated: %s → %s\n", res.OldVersion, current)
 		}
