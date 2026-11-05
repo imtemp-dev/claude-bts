@@ -1,5 +1,7 @@
 package hook
 
+import "strings"
+
 // EventType represents a Claude Code lifecycle event.
 type EventType string
 
@@ -60,6 +62,54 @@ func (in *HookInput) StopText() string {
 		return in.LastAssistantMessage
 	}
 	return in.StopHookContent
+}
+
+// MarkerText is StopText with code removed: fenced blocks and inline code
+// spans.  A completion marker counts only outside code, so a report that
+// quotes `<bts>DONE</bts>` in backticks completes nothing, in the owning
+// session or another one (trial problem #46).
+func (in *HookInput) MarkerText() string {
+	return stripCode(in.StopText())
+}
+
+// stripCode drops fenced code blocks (``` or ~~~) and inline code spans,
+// keeping everything else.  An unmatched backtick run is kept as text.
+func stripCode(s string) string {
+	var out strings.Builder
+	inFence := false
+	for _, line := range strings.SplitAfter(s, "\n") {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") {
+			inFence = !inFence
+			continue
+		}
+		if !inFence {
+			out.WriteString(stripInlineCode(line))
+		}
+	}
+	return out.String()
+}
+
+func stripInlineCode(line string) string {
+	var b strings.Builder
+	for i := 0; i < len(line); {
+		if line[i] != '`' {
+			b.WriteByte(line[i])
+			i++
+			continue
+		}
+		j := i
+		for j < len(line) && line[j] == '`' {
+			j++
+		}
+		end := strings.Index(line[j:], line[i:j])
+		if end < 0 {
+			b.WriteString(line[i:])
+			break
+		}
+		i = j + end + (j - i)
+	}
+	return b.String()
 }
 
 // HookOutput is the JSON written to stdout for Claude Code.

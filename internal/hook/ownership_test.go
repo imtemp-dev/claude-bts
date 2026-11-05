@@ -169,3 +169,46 @@ func TestOwnership_SessionStartTellsAnotherSessionItIsNotBound(t *testing.T) {
 		t.Fatalf("another session must be told the recipe is not its own, got %+v", out.HookSpecificOutput)
 	}
 }
+
+// Trial problem #46: the AGEN-35 owner's summary quoted the spec marker in
+// backticks; as an observer it was blocked ("does not own recipe"), and the
+// same quote in the owning session's message would have run the completion
+// gates.  A marker inside inline code or a fenced block is prose.
+func TestStop_AQuotedMarkerIsNotACompletion(t *testing.T) {
+	root, id := setupImplementRoot(t)
+	setOwner(t, root, id, ownerSID)
+	quoted := "The owner's report says `<bts>IMPLEMENT DONE</bts>` was accepted.\n\n```\n<bts>IMPLEMENT DONE</bts>\n```\n"
+
+	if out, _ := NewStopHandler().Handle(&HookInput{CWD: root, SessionID: observerSID, LastAssistantMessage: quoted}); out.Decision == "block" {
+		t.Fatalf("an observer quoting a marker must not be blocked: %s", out.Reason)
+	}
+	if out, _ := NewStopHandler().Handle(&HookInput{CWD: root, SessionID: ownerSID, LastAssistantMessage: quoted}); out.Decision == "block" {
+		t.Fatalf("the owner quoting a marker must not run the completion gates: %s", out.Reason)
+	}
+	if r, _ := state.LoadRecipeState(root, id); r.Phase != "implement" {
+		t.Fatalf("a quoted marker must complete nothing, phase is %q", r.Phase)
+	}
+
+	// The same marker outside code still completes.
+	if out, _ := NewStopHandler().Handle(&HookInput{CWD: root, SessionID: ownerSID, LastAssistantMessage: "All green.\n<bts>IMPLEMENT DONE</bts>"}); out.Decision == "block" {
+		t.Fatalf("a real marker must still complete: %s", out.Reason)
+	}
+	if r, _ := state.LoadRecipeState(root, id); r.Phase == "implement" {
+		t.Fatal("a real marker must move the recipe on")
+	}
+}
+
+func TestStripCode(t *testing.T) {
+	cases := map[string]string{
+		"a `b` c":                   "a  c",
+		"a ``x ` y`` c":             "a  c",
+		"keep\n```\ncode\n```\nend": "keep\nend",
+		"unmatched ` tick":          "unmatched ` tick",
+		"<bts>DONE</bts>":           "<bts>DONE</bts>",
+	}
+	for in, want := range cases {
+		if got := stripCode(in); got != want {
+			t.Errorf("stripCode(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

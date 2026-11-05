@@ -72,9 +72,10 @@ func (h *stopHandler) decide(root string, input *HookInput) (*HookOutput, error)
 		return &HookOutput{}, nil
 	}
 
-	// Completion markers count only with their <bts> tags. Prose that names
-	// a marker (a report, an explanation of a block) is not a completion.
-	text := input.StopText()
+	// Completion markers count only with their <bts> tags and outside code.
+	// Prose that names a marker, or quotes it in backticks or a code block
+	// (a report, an explanation of a block), is not a completion.
+	text := input.MarkerText()
 
 	// Another session in the project is not held by this recipe's rules,
 	// and cannot complete it: its tagged marker is refused once, with the
