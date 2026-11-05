@@ -501,7 +501,11 @@ func executeInterrogateRecheck(root, recipeID string, timeoutSec int, sink io.Wr
 			// A pinned finding's own command asserts a refusal the fix
 			// replaced; its regression test is what tells (trial problem #83).
 			fmt.Fprintf(sink, "\n[bts] recheck %s (pinned): %s\n", f.ID, f.Pin.Command)
-			cr, err = runRecorded(root, recipeID, f.Pin.Command, timeoutSec, "interrogate-pin-"+f.ID+".log", sink)
+			cr, err = runRecorded(root, recipeID, f.Pin.Command, timeoutSec, "interrogate-pin-"+f.ID+".log", io.Discard)
+			if err == nil {
+				printRunLine(sink, root, f.ID, cr.ExitCode, cr.TimedOut,
+					filepath.Join(state.LocalPath(root), "recipes", recipeID, "interrogate-pin-"+f.ID+".log"))
+			}
 		} else {
 			fmt.Fprintf(sink, "\n[bts] recheck %s: %s\n", f.ID, f.Command)
 			cr, err = rerunFinding(root, recipeID, f, timeoutSec, sink)
@@ -598,19 +602,38 @@ func rerunFinding(root, recipeID string, f *state.InterrogateFinding, timeoutSec
 			return nil, fmt.Errorf("restore repro file %s: %w", rel, err)
 		}
 	}
-	sr, err := runShellCommand(dir, f.Command, timeoutSec, sink)
+	// The run's output goes to its log only: on true-shark every repro's
+	// full build output came before the findings summary (trial problem
+	// #87).  The terminal gets one line per finding.
+	sr, err := runShellCommand(dir, f.Command, timeoutSec, io.Discard)
 	if err != nil {
 		return nil, fmt.Errorf("run %q: %w", f.Command, err)
 	}
 	logDir := filepath.Join(state.LocalPath(root), "recipes", recipeID)
+	logPath := filepath.Join(logDir, "interrogate-"+f.ID+".log")
 	if err := os.MkdirAll(logDir, 0755); err == nil {
-		_ = os.WriteFile(filepath.Join(logDir, "interrogate-"+f.ID+".log"), sr.Output, 0644)
+		_ = os.WriteFile(logPath, sr.Output, 0644)
 	}
+	printRunLine(sink, root, f.ID, sr.ExitCode, sr.TimedOut, logPath)
 	hash, _ := engine.CodeHash(root, recipeID)
 	return &state.CommandRun{
 		Command: f.Command, ExitCode: sr.ExitCode, TimedOut: sr.TimedOut,
 		CodeHash: hash, RunAt: time.Now().UTC().Format(time.RFC3339),
 	}, nil
+}
+
+// printRunLine is the one line a rerun prints: its exit and where its
+// output went.
+func printRunLine(sink io.Writer, root, id string, exit int, timedOut bool, logPath string) {
+	rel, err := filepath.Rel(root, logPath)
+	if err != nil {
+		rel = logPath
+	}
+	if timedOut {
+		fmt.Fprintf(sink, "[bts]   %s: timed out, output in %s\n", id, rel)
+		return
+	}
+	fmt.Fprintf(sink, "[bts]   %s: exit=%d, output in %s\n", id, exit, rel)
 }
 
 func countFindings(run *state.InterrogateRun) (reproduced, dropped int) {
