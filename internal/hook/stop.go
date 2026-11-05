@@ -598,12 +598,16 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 		return blockOutput(fmt.Sprintf("No tasks.json found. Run %s to decompose tasks.", implCmd)), nil
 	}
 
+	// Only done and skipped are finished.  Any other word (todo, doing, a
+	// typo) used to pass as done, because only blocked, pending and
+	// in_progress were counted (trial problem #54).
 	var blocked, pending int
 	for _, t := range tasks.Tasks {
 		switch t.Status {
+		case "done", "skipped":
 		case "blocked":
 			blocked++
-		case "pending", "in_progress":
+		default:
 			pending++
 		}
 	}
@@ -617,7 +621,7 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 
 	if pending > 0 {
 		return blockOutput(fmt.Sprintf(
-			"Implementation incomplete: %d task(s) still pending. Run %s to complete remaining tasks.",
+			"Implementation incomplete: %d task(s) not done or skipped. Run %s to complete remaining tasks.",
 			pending, implCmd,
 		)), nil
 	}

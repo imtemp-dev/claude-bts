@@ -1,6 +1,7 @@
 package hook
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -146,5 +147,26 @@ func TestFixDone_RunsGoStaleWhenTheTreeChanges(t *testing.T) {
 	recordDrive()
 	if out := done(); out.Decision == "block" {
 		t.Fatalf("every run on the current code completes the fix: %s", out.Reason)
+	}
+}
+
+// Trial problem #54: IMPLEMENT DONE counted a task as unfinished only when
+// its status was blocked, pending or in_progress, so `todo` passed as done.
+func TestImplementDone_AnyStatusButDoneOrSkippedIsUnfinished(t *testing.T) {
+	root, id := setupImplementRoot(t)
+	tasks := &state.TaskState{RecipeID: id, Tasks: []state.Task{
+		{ID: "t-001", File: "src/a.go", Action: "create", Status: "done", Description: "x"},
+		{ID: "t-002", File: "src/b.go", Action: "create", Status: "todo", Description: "y"},
+	}}
+	data, _ := json.MarshalIndent(tasks, "", "  ")
+	if err := os.WriteFile(filepath.Join(state.RecipeDir(root, id), "tasks.json"), data, 0644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := NewStopHandler().Handle(&HookInput{CWD: root, LastAssistantMessage: "<bts>IMPLEMENT DONE</bts>"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Decision != "block" || !strings.Contains(out.Reason, "not done or skipped") {
+		t.Fatalf("a `todo` task must keep the implementation open, got %q %q", out.Decision, out.Reason)
 	}
 }
