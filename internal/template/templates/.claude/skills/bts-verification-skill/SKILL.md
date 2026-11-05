@@ -70,7 +70,10 @@ placeholders:
 
 - **Launch:** the exact command that starts the app for verification and how
   to tell it is ready (a log line, a prompt, a health check that means
-  usable).  It reaches a usable state from an empty data directory.
+  usable).  When the app's logging hides its startup line, the process
+  the launch started listening on its port is the signal; a port answered
+  by any other process is not ours.  It reaches a usable state from an
+  empty data directory.
   Include teardown.  An app with no long-running process (a CLI, a
   library, an event handler driven in-process), or one launched below its
   entry point (Reach), has no ready signal: its instance is a fresh sandbox
