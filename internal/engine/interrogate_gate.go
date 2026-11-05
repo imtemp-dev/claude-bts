@@ -88,19 +88,33 @@ func isDocPath(p string) bool {
 }
 
 // IsTestPath reports whether a path looks like a test or test support file.
+//
+// A directory counts when one of its dot-separated parts is a test word in
+// any case, or a PascalCase name ending in Tests: .NET test projects are
+// named `Work.Module.Tests.Unit` or `MyApp.UnitTests`, and Carepatron keeps
+// its suites under `tests.component`.  A C# file named `*Tests.cs` counts
+// too; `*Test.cs` does not, since `ABTest.cs` is ordinary code.  Without
+// these, .NET unit tests read as production code to interrogate and
+// mutation (trial problem #79, AGEN-53).
 func IsTestPath(p string) bool {
 	base := filepath.Base(p)
 	for _, seg := range strings.Split(filepath.ToSlash(filepath.Dir(p)), "/") {
-		switch seg {
-		case "test", "tests", "__tests__", "spec", "specs", "testdata":
-			return true
+		for _, part := range strings.Split(seg, ".") {
+			switch strings.ToLower(part) {
+			case "test", "tests", "__tests__", "spec", "specs", "testdata":
+				return true
+			}
+			if len(part) > len("Tests") && strings.HasSuffix(part, "Tests") {
+				return true
+			}
 		}
 	}
 	switch {
 	case base == "conftest.py",
 		strings.HasPrefix(base, "test_") && strings.HasSuffix(base, ".py"),
 		strings.HasSuffix(base, "_test.py"),
-		strings.HasSuffix(base, "_test.go"):
+		strings.HasSuffix(base, "_test.go"),
+		strings.HasSuffix(base, "Tests.cs"):
 		return true
 	}
 	for _, mid := range []string{".test.", ".spec."} {
