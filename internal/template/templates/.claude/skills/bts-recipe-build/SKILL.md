@@ -63,11 +63,16 @@ decision hold`).
    § Intent Check, § Vision & Roadmap Check and § Scoping exactly. Scope
    ends CONFIRMED.
 3. **Research.** `/bts-research`, scoped by `scope.md`, including its
-   `## Official Guidance`.
+   `## Official Guidance` and its `## Open questions that decide an owner`.
 4. **Domain.** `/bts-domain-model`: entities, invariants with one owner
    each, illegal cells. Every invariant in § 2 will need a test, so state
-   each as an outcome someone can observe. An invariant this change keeps
-   from earlier work, rather than introduces, is a `[carried]` row.
+   each as an outcome someone can observe. An open question that decides
+   an owner or an enforcement point (how a framework binds a value,
+   whether a library surfaces an error) is answered here with a throwaway
+   run and recorded in `domain.md` as a Known Uncertainty with
+   `Resolved [L4]:` and the command, before the owner is written: steps 5
+   and 6 build on that answer. An invariant this change keeps from earlier
+   work, rather than introduces, is a `[carried]` row.
 5. **Architect.** `/bts-architect`: two runners, debate, adjudicate, the
    decision block.
 6. **Wireframe.** `/bts-wireframe`, then `bts verify wireframe.md` with no
@@ -86,12 +91,13 @@ decision hold`).
    `Skill("bts-falsify")` with `{id}`. It ends with every introduced
    invariant's test recorded red and every `[carried]` one's recorded
    green.
-9. **Empirical questions.** For each open question that running something
-   would answer (how a library or API behaves, a timing, a format), write
-   the smallest throwaway script in a scratch directory outside the
-   project, run it, and record the answer in `final.md` as a Known
-   Uncertainty with `Resolved:` and the command. Do not argue it in prose
-   and do not defer it to implementation.
+9. **Empirical questions.** For each open question still left that running
+   something would answer (how a library or API behaves, a timing, a
+   format), write the smallest throwaway script in a scratch directory
+   outside the project, run it, and record the answer in `final.md` as a
+   Known Uncertainty with `Resolved [L4]:` and the command. Do not argue it
+   in prose and do not defer it to implementation. A question that decided
+   an owner was answered at step 4, not here.
 10. **Build spec.** Write `final.md` in the shape below. It points at the
     skeleton, `domain.md` and the wireframe instead of copying them.
 11. **One review.** `/bts-verify` on `final.md` at full scope, recorded with
@@ -153,7 +159,7 @@ back. "None" is an answer.}
 ## Known Uncertainties
 
 ### U-001: {question}
-Resolved: {answer} (`{command that showed it}`)
+Resolved [L4]: {answer} (`{command that showed it}`)
 ```
 
 ## When to use the blueprint instead

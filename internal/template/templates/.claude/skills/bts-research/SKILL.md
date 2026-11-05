@@ -82,6 +82,17 @@ Research the given topic and produce a structured document.
    queries attempted (`Gathered:` line) so architect knows the ground
    truth was checked, not skipped.
 
+3.6 **Questions that decide an owner.** Some behaviour decides which
+   module will own an invariant, or where it is enforced: how the
+   framework binds a value (does an empty or malformed query parameter
+   reach the validator, or arrive as null?), whether a library surfaces
+   an error or swallows it, what a driver does with input it cannot
+   parse. Reading the code or the docs rarely settles these, and a wrong
+   guess moves an owner after the architect and the wireframe have built
+   on it. List each under `## Open questions that decide an owner`, with
+   what the reading suggests. `/bts-domain-model` answers each with a
+   throwaway run before it writes the owner.
+
 4. Synthesize findings into a structured document:
    ```markdown
    # Research: [topic]
@@ -97,6 +108,11 @@ Research the given topic and produce a structured document.
 
    ## Constraints
    - Limitations discovered
+
+   ## Open questions that decide an owner
+   - {question} — decides {which module owns what, or where it is
+     enforced}; reading so far says {what the code or docs suggest}
+   (or: "None.")
 
    ## Patterns
    - Conventions to follow

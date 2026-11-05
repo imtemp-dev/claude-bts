@@ -44,9 +44,41 @@ bts recipe status
 3. Read `.bts/specs/recipes/{id}/intent.md` for the Success Criteria
 4. Read `.bts/specs/project-map.md` for existing layer structure
 
+## Probe what decides an owner
+
+Some open questions decide which module owns an invariant, or where it is
+enforced: how the framework binds a value (does an empty query parameter
+reach the validator, or arrive as null?), whether a library surfaces an
+error or swallows it, what a driver does with a value it cannot parse.
+Answer each with a run now, before you write the owner, not at the build
+recipe's empirical-questions step: by then the architect and the
+wireframe have built on an assumed answer, and a wrong one moves an owner.
+Research lists such questions under `## Open questions that decide an
+owner`; add any you meet here.
+
+1. Write the smallest throwaway script or project that asks the question,
+   in a scratch directory outside the project, and run it.
+2. Record the answer in `domain.md` under `## Known Uncertainties`, with
+   the command that showed it:
+
+   ```markdown
+   ## Known Uncertainties
+
+   ### U-001: Does an empty `number=` reach the validator?
+   Resolved [L4]: no; the binder turns `number=` and `number=%20` into
+   null, so the request contract owns INV-005, not the validator
+   (`cd "$TMPDIR/probe-binding" && dotnet run`)
+   ```
+3. Write the owner and the enforcement point from that answer.
+
+A question whose answer would not move an owner or an enforcement point
+waits for the build recipe's empirical-questions step, or for the tests.
+
 ## Output: `.bts/specs/recipes/{id}/domain.md`
 
 Emit exactly these five sections. All are required for the Quality Gate.
+Add `## Known Uncertainties` after them when a probe answered a question
+(above).
 
 ### 1. Entities
 
@@ -167,6 +199,9 @@ Run through each check. Fail any one → fix in domain.md before exiting.
 - [ ] Every invariant in Section 2 has a Section 5 violating-scenario row
 - [ ] Every `[carried]` row is one the code already keeps, and names the
       test that holds it
+- [ ] Every open question that decided an owner or an enforcement point
+      was answered by a run, recorded under `## Known Uncertainties` with
+      `Resolved [L4]:` and the command
 - [ ] `bts verify .bts/specs/recipes/{id}/domain.md` returns 0 critical, 0 major
 
 ## Completion
