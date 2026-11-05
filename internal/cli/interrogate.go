@@ -21,7 +21,8 @@ import (
 // copy of the current code and the command fails again.
 //
 //   bts interrogate prepare <id> [--adversaries 2]   copies + seats
-//   bts interrogate verify <id>                      rerun every reported finding
+//   bts interrogate prepare <id> --rescope           one seat on what changed since the last round
+//   bts interrogate verify <id>                      rerun every finding the current round reported
 //   bts interrogate verify <id> --recheck            rerun open and fixed findings after fixes
 //   bts interrogate waive <id> --finding F-001 --reason "..."
 
@@ -33,10 +34,15 @@ var adversaryAngles = []string{
 	"operations: restart, a crash mid-step, configuration and environment",
 }
 
+// rescopeAngle is the first seat of a rescoped round: it attacks what
+// changed since the round before, which that round could not have seen.
+const rescopeAngle = "the change since the last interrogate round (the scope lists its files): what it broke, or let through, that the earlier round could not have seen"
+
 func init() {
 	rootCmd.AddCommand(interrogateCmd)
 	interrogateCmd.AddCommand(interrogatePrepareCmd, interrogateVerifyCmd, interrogateWaiveCmd)
-	interrogatePrepareCmd.Flags().Int("adversaries", 2, "Adversary seats: 2, or 3 for a contested or security-sensitive change")
+	interrogatePrepareCmd.Flags().Int("adversaries", 2, "Adversary seats: 2, or 3 for a contested or security-sensitive change (with --rescope: 1 by default, up to 3)")
+	interrogatePrepareCmd.Flags().Bool("rescope", false, "After a large change to a verified run: a new round on the files changed since the last one")
 	interrogateVerifyCmd.Flags().Bool("recheck", false, "After fixes: rerun open and fixed findings on the current code")
 	interrogateVerifyCmd.Flags().Int("timeout", 600, "Seconds before each run is killed")
 	interrogateWaiveCmd.Flags().String("finding", "", "Finding id, e.g. F-002 (required)")
@@ -62,20 +68,39 @@ var interrogatePrepareCmd = &cobra.Command{
 			return err
 		}
 		n, _ := cmd.Flags().GetInt("adversaries")
-		run, err := executeInterrogatePrepare(root, args[0], n)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("[bts] interrogate prepared for %s. Scope (the recipe's code files; tests marked):\n", args[0])
-		for _, f := range engine.CodeFiles(root, args[0]) {
-			if isTestPath(f) {
-				fmt.Printf("  %s (test)\n", f)
-			} else {
+		rescope, _ := cmd.Flags().GetBool("rescope")
+		var run *state.InterrogateRun
+		if rescope {
+			if !cmd.Flags().Changed("adversaries") {
+				n = 1
+			}
+			run, err = executeInterrogateRescope(root, args[0], n)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("[bts] interrogate round %d prepared for %s. Scope (changed since the last round):\n", run.CurrentRound(), args[0])
+			for _, f := range run.Scope {
 				fmt.Printf("  %s\n", f)
+			}
+		} else {
+			run, err = executeInterrogatePrepare(root, args[0], n)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("[bts] interrogate prepared for %s. Scope (the recipe's code files; tests marked):\n", args[0])
+			for _, f := range engine.CodeFiles(root, args[0]) {
+				if isTestPath(f) {
+					fmt.Printf("  %s (test)\n", f)
+				} else {
+					fmt.Printf("  %s\n", f)
+				}
 			}
 		}
 		fmt.Println("[bts] seats:")
 		for _, a := range run.Adversaries {
+			if !a.InRound(run.CurrentRound()) {
+				continue
+			}
 			fmt.Printf("  %s\n    angle:  %s\n    copy:   %s\n    report: %s\n", a.Name, a.Angle, a.Copy,
 				filepath.Join(state.RecipeDir(root, args[0]), a.Report))
 		}
@@ -108,6 +133,10 @@ var interrogateVerifyCmd = &cobra.Command{
 		hash, _ := engine.CodeHash(root, args[0])
 		if reason := engine.CheckInterrogateClean(run, hash, args[0]); reason != "" {
 			fmt.Printf("[bts] %s\n", reason)
+		} else if change, ok, derr := engine.InterrogateDrift(root, args[0], run); derr == nil && ok {
+			if reason := engine.CheckInterrogateRescope(change, args[0]); reason != "" {
+				fmt.Printf("[bts] %s\n", reason)
+			}
 		}
 		return nil
 	},
@@ -156,25 +185,13 @@ func executeInterrogatePrepare(root, recipeID string, n int) (*state.Interrogate
 	if existing, err := state.LoadInterrogateRun(root, recipeID); err != nil {
 		return nil, err
 	} else if existing != nil {
-		return nil, fmt.Errorf("%s already has an interrogate run (prepared %s); verify it, or recheck it after fixes", recipeID, existing.PreparedAt)
+		return nil, fmt.Errorf("%s already has an interrogate run (prepared %s); verify it, recheck it after fixes, "+
+			"or after a large change run `bts interrogate prepare %s --rescope`", recipeID, existing.PreparedAt, recipeID)
 	}
-	if err := os.MkdirAll(filepath.Join(state.RecipeDir(root, recipeID), "interrogate"), 0755); err != nil {
+	run := &state.InterrogateRun{PreparedAt: time.Now().UTC().Format(time.RFC3339), Round: 1}
+	angles := adversaryAngles[:n]
+	if err := seatAdversaries(root, recipeID, run, angles); err != nil {
 		return nil, err
-	}
-	run := &state.InterrogateRun{PreparedAt: time.Now().UTC().Format(time.RFC3339)}
-	for i := 0; i < n; i++ {
-		name := fmt.Sprintf("a%d", i+1)
-		dir, err := os.MkdirTemp("", "bts-adversary-"+recipeID+"-"+name+"-")
-		if err != nil {
-			return nil, err
-		}
-		if _, err := copyProjectTo(root, dir); err != nil {
-			return nil, fmt.Errorf("copy project for %s: %w", name, err)
-		}
-		run.Adversaries = append(run.Adversaries, &state.Adversary{
-			Name: name, Angle: adversaryAngles[i], Copy: dir,
-			Report: filepath.ToSlash(filepath.Join("interrogate", name+".json")),
-		})
 	}
 	if err := state.SaveInterrogateRun(root, recipeID, run); err != nil {
 		return nil, err
@@ -182,6 +199,83 @@ func executeInterrogatePrepare(root, recipeID string, n int) (*state.Interrogate
 	hash, _ := engine.CodeHash(root, recipeID)
 	appendEvidenceChangelog(root, recipeID, "interrogate", fmt.Sprintf("prepared %d adversaries", n), hash)
 	return run, nil
+}
+
+// executeInterrogateRescope opens a new round on a verified run, scoped to
+// the files changed since the round before (trial problem #52): one seat
+// by default, attacking the change. The run's earlier findings stay, so a
+// fix they needed still has to hold on the current code.
+func executeInterrogateRescope(root, recipeID string, n int) (*state.InterrogateRun, error) {
+	if _, err := state.LoadRecipeState(root, recipeID); err != nil {
+		return nil, fmt.Errorf("load recipe %s: %w", recipeID, err)
+	}
+	if n < 1 || n > len(adversaryAngles) {
+		return nil, fmt.Errorf("--adversaries with --rescope must be 1 to 3, got %d", n)
+	}
+	run, err := state.LoadInterrogateRun(root, recipeID)
+	if err != nil {
+		return nil, err
+	}
+	if run == nil {
+		return nil, fmt.Errorf("no interrogate run to rescope; start with `bts interrogate prepare %s`", recipeID)
+	}
+	if run.VerifiedAt == "" {
+		return nil, fmt.Errorf("round %d is prepared but not verified; run `bts interrogate verify %s` first", run.CurrentRound(), recipeID)
+	}
+	change, ok, err := engine.InterrogateDrift(root, recipeID, run)
+	if err != nil {
+		return nil, fmt.Errorf("what changed since round %d: %w", run.CurrentRound(), err)
+	}
+	if !ok {
+		return nil, fmt.Errorf("round %d recorded no copy of the code to compare with, so bts cannot tell what changed; "+
+			"interrogate_clean does not ask this run for a rescope", run.CurrentRound())
+	}
+	scope := change.Files()
+	if len(scope) == 0 {
+		return nil, fmt.Errorf("no code file changed since round %d's copies were made; no rescope is needed", run.CurrentRound())
+	}
+	angles := append([]string{rescopeAngle}, adversaryAngles...)[:n]
+	run.Round = run.CurrentRound() + 1
+	run.Scope = scope
+	run.VerifiedAt = ""
+	if err := seatAdversaries(root, recipeID, run, angles); err != nil {
+		return nil, err
+	}
+	if err := state.SaveInterrogateRun(root, recipeID, run); err != nil {
+		return nil, err
+	}
+	hash, _ := engine.CodeHash(root, recipeID)
+	appendEvidenceChangelog(root, recipeID, "interrogate",
+		fmt.Sprintf("rescoped round %d: %d seat(s) on %s", run.Round, n, strings.Join(scope, ", ")), hash)
+	return run, nil
+}
+
+// seatAdversaries records what the code is now (CodeSeen) and gives each
+// angle a seat in run.CurrentRound() with its own copy of the project.
+func seatAdversaries(root, recipeID string, run *state.InterrogateRun, angles []string) error {
+	if err := os.MkdirAll(filepath.Join(state.RecipeDir(root, recipeID), "interrogate"), 0755); err != nil {
+		return err
+	}
+	seen, err := engine.SeeCode(root, recipeID)
+	if err != nil {
+		return fmt.Errorf("record the code the adversaries see: %w", err)
+	}
+	run.Seen = seen
+	for _, angle := range angles {
+		name := fmt.Sprintf("a%d", len(run.Adversaries)+1)
+		dir, err := os.MkdirTemp("", "bts-adversary-"+recipeID+"-"+name+"-")
+		if err != nil {
+			return err
+		}
+		if _, err := copyProjectTo(root, dir); err != nil {
+			return fmt.Errorf("copy project for %s: %w", name, err)
+		}
+		run.Adversaries = append(run.Adversaries, &state.Adversary{
+			Name: name, Angle: angle, Copy: dir, Round: run.CurrentRound(),
+			Report: filepath.ToSlash(filepath.Join("interrogate", name+".json")),
+		})
+	}
+	return nil
 }
 
 func executeInterrogateVerify(root, recipeID string, timeoutSec int, sink io.Writer) (*state.InterrogateRun, error) {
@@ -204,8 +298,14 @@ func executeInterrogateVerify(root, recipeID string, timeoutSec int, sink io.Wri
 			code[f] = true
 		}
 	}
+	// Only the current round's seats report now; a rescoped round's
+	// findings are numbered after the earlier rounds'.
+	var seats []*state.Adversary
 	var reports []*adversaryReport
 	for _, a := range run.Adversaries {
+		if !a.InRound(run.CurrentRound()) {
+			continue
+		}
 		data, err := os.ReadFile(filepath.Join(recipeDir, filepath.FromSlash(a.Report)))
 		if err != nil {
 			return nil, fmt.Errorf("adversary %s wrote no report at %s: %w", a.Name, a.Report, err)
@@ -215,11 +315,12 @@ func executeInterrogateVerify(root, recipeID string, timeoutSec int, sink io.Wri
 			return nil, fmt.Errorf("adversary %s report is not valid JSON: %w", a.Name, err)
 		}
 		rep.Adversary = a.Name
+		seats = append(seats, a)
 		reports = append(reports, &rep)
 	}
-	n := 0
+	n := len(run.Findings)
 	for i, rep := range reports {
-		adv := run.Adversaries[i]
+		adv := seats[i]
 		for _, r := range rep.Findings {
 			n++
 			f := &state.InterrogateFinding{
@@ -255,7 +356,7 @@ func executeInterrogateVerify(root, recipeID string, timeoutSec int, sink io.Wri
 	if err := state.SaveInterrogateRun(root, recipeID, run); err != nil {
 		return nil, err
 	}
-	for _, a := range run.Adversaries {
+	for _, a := range seats {
 		_ = os.RemoveAll(a.Copy)
 	}
 	reproduced, dropped := countFindings(run)

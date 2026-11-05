@@ -18,6 +18,29 @@ type InterrogateRun struct {
 	// VerifiedAt is set once `bts interrogate verify` has read every
 	// adversary's report; until then the run proves nothing.
 	VerifiedAt string `json:"verified_at,omitempty"`
+	// Round numbers the rounds held on this record: 1 for the first, one
+	// more per `bts interrogate prepare --rescope`. A seat belongs to the
+	// round in its own Round field. 0 is a run written before rescopes
+	// existed, read as 1 (CurrentRound).
+	Round int `json:"round,omitempty"`
+	// Scope is the files a rescoped round attacks: what changed since the
+	// round before it. Empty for a first round, whose scope is the
+	// recipe's code files.
+	Scope []string `json:"scope,omitempty"`
+	// Seen is the code the current round's adversaries took their copies
+	// of, so interrogate_clean can tell a small change after them from a
+	// large one (trial problem #52: a clean run never went stale, so code
+	// reworked after it was never attacked again). Nil on a run written
+	// before the field existed, which never asks for a rescope.
+	Seen *CodeSeen `json:"seen,omitempty"`
+}
+
+// CurrentRound is the round the run's latest seats belong to.
+func (r *InterrogateRun) CurrentRound() int {
+	if r.Round < 1 {
+		return 1
+	}
+	return r.Round
 }
 
 // Adversary is one seat: the angle it attacks from, the copy of the
@@ -27,6 +50,17 @@ type Adversary struct {
 	Angle  string `json:"angle"`
 	Copy   string `json:"copy"`   // absolute path of its private copy
 	Report string `json:"report"` // relative to the recipe directory
+	Round  int    `json:"round,omitempty"`
+}
+
+// InRound reports whether the seat belongs to round n; a seat written
+// before rounds existed belongs to round 1.
+func (a *Adversary) InRound(n int) bool {
+	r := a.Round
+	if r < 1 {
+		r = 1
+	}
+	return r == n
 }
 
 // Finding statuses.

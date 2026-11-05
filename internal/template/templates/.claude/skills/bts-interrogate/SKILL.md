@@ -25,7 +25,12 @@ bts interrogate prepare {id} --adversaries 3   # a contested or security-sensiti
 ```
 
 It prints the scope (the recipe's code files) and, for each seat, its
-angle, its private copy and its report path.
+angle, its private copy and its report path. It also records, in
+`interrogate.json`, the code the copies hold: each code file's content
+hash, or for a recipe that names no code files (a fix recipe) the git
+commit and the files that differ from it. That record is what tells a
+small change after the run from a large one (After a large change,
+below).
 
 ## Step 2: Write the intent
 
@@ -82,7 +87,38 @@ A finding may stay unfixed only if the user agrees. Ask with
 bts interrogate waive {id} --finding F-00N --reason "<the user's reason>"
 ```
 
+## After a large change: a scoped round
+
+A clean run does not go stale by itself, so code reworked after it would
+never be attacked. bts compares the code with what the adversaries
+copied. A small change keeps the cheap path: rerun the tests, the
+falsifiers and the drives on the current code. The change is large when
+either holds, counting code files only (tests and documentation files
+such as `.md` do not count):
+
+- a code file the adversaries did not see exists now (a new file), or
+- more than two of the code files they saw changed (a deleted one
+  counts).
+
+Then `interrogate_clean` blocks IMPLEMENT DONE and FIX DONE until a scoped
+round has attacked the change, and `bts interrogate verify {id}
+--recheck` says so. Run it on the same record:
+
+```bash
+bts interrogate prepare {id} --rescope        # one adversary on the changed files
+```
+
+It refuses when the current round is not verified yet or nothing
+changed. It prints the scope (the files changed since the last round)
+and one seat whose angle is that change. Write the intent as in Step 2,
+spawn the seat as in Step 3 with the scope it printed, then run
+`bts interrogate verify {id}`: it reads only the new seat's report, and
+its findings are numbered after the earlier ones, which keep their
+status. Fix and recheck as in Step 5. Add `--adversaries 2` or `3` for a
+rework of a contested or security-sensitive part.
+
 ## Done
 
-`bts interrogate verify {id} --recheck` reports no open finding. The stop
-hook checks the same at IMPLEMENT DONE (`interrogate_clean`).
+`bts interrogate verify {id} --recheck` reports no open finding and does
+not ask for a scoped round. The stop hook checks the same at IMPLEMENT
+DONE and FIX DONE (`interrogate_clean`).

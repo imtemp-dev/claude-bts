@@ -308,29 +308,9 @@ func patchFiles(patch []byte) ([]string, error) {
 	return files, nil
 }
 
-// isTestPath reports whether a path looks like a test or test support file.
-func isTestPath(p string) bool {
-	base := filepath.Base(p)
-	for _, seg := range strings.Split(filepath.ToSlash(filepath.Dir(p)), "/") {
-		switch seg {
-		case "test", "tests", "__tests__", "spec", "specs", "testdata":
-			return true
-		}
-	}
-	switch {
-	case base == "conftest.py",
-		strings.HasPrefix(base, "test_") && strings.HasSuffix(base, ".py"),
-		strings.HasSuffix(base, "_test.py"),
-		strings.HasSuffix(base, "_test.go"):
-		return true
-	}
-	for _, mid := range []string{".test.", ".spec."} {
-		if strings.Contains(base, mid) {
-			return true
-		}
-	}
-	return false
-}
+// isTestPath reports whether a path looks like a test or test support
+// file. It lives in engine, where the interrogate rescope rule needs it too.
+func isTestPath(p string) bool { return engine.IsTestPath(p) }
 
 // runMutation copies the project, applies the patch to the copy, runs the
 // setup and then the falsifier there, and records the run. The project on

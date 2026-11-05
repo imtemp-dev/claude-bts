@@ -221,6 +221,8 @@ func generatedCurrent(root, recipeID string) *HookOutput {
 // recipe type: adversaries tried to break the change, bts reran each
 // finding on a fresh copy, and every finding that failed again is fixed on
 // the current code or waived with the user's reason (prove stage, P3).
+// When the code changed beyond the rescope rule since the adversaries'
+// copies, a scoped round must attack the change first (trial problem #52).
 func interrogateClean(root, recipeID string) *HookOutput {
 	run, err := state.LoadInterrogateRun(root, recipeID)
 	if err != nil {
@@ -232,6 +234,16 @@ func interrogateClean(root, recipeID string) *HookOutput {
 	}
 	if reason := engine.CheckInterrogateClean(run, hash, recipeID); reason != "" {
 		return blockOutput(reason)
+	}
+	change, ok, derr := engine.InterrogateDrift(root, recipeID, run)
+	if derr != nil {
+		fmt.Fprintf(os.Stderr, "[bts] warning: interrogate drift: %v (rescope not checked)\n", derr)
+		return nil
+	}
+	if ok {
+		if reason := engine.CheckInterrogateRescope(change, recipeID); reason != "" {
+			return blockOutput(reason)
+		}
 	}
 	return nil
 }
