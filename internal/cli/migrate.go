@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/imtemp-dev/claude-bts/internal/mdtable"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 	"github.com/spf13/cobra"
 )
@@ -1199,19 +1200,10 @@ func isPlaceholderCells(cells []string) bool {
 	return true
 }
 
-// parseTableRow is a thin wrapper so migrate doesn't need to import
-// engine (which would create a cycle). Duplicates the logic in
-// engine/domain_checker.go — kept short enough to inline.
+// parseTableRow splits a markdown table row the way the engine's checkers
+// do (mdtable.SplitRow), without importing engine, which would be a cycle.
 func parseTableRow(line string) []string {
-	line = strings.TrimSpace(line)
-	parts := strings.Split(line, "|")
-	if len(parts) > 0 && strings.TrimSpace(parts[0]) == "" && strings.HasPrefix(line, "|") {
-		parts = parts[1:]
-	}
-	if len(parts) > 0 && strings.TrimSpace(parts[len(parts)-1]) == "" && strings.HasSuffix(line, "|") {
-		parts = parts[:len(parts)-1]
-	}
-	return parts
+	return mdtable.SplitRow(line)
 }
 
 // ---- sim-deviations migration (Phase 12) ------------------------------

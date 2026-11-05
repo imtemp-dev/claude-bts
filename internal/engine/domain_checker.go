@@ -5,6 +5,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/imtemp-dev/claude-bts/internal/mdtable"
 )
 
 // Invariant represents one row parsed from domain.md § 2 Invariants.
@@ -151,18 +153,7 @@ func parseInvariantsTable(path string) ([]Invariant, error) {
 // INTERNAL empty cells (e.g. "| a |  | c |") must be preserved so
 // schema checkers can report "missing field" correctly.
 func parseTableRow(line string) []string {
-	line = strings.TrimSpace(line)
-	parts := strings.Split(line, "|")
-	// strings.Split on "|a|b|" yields ["", "a", "b", ""]. Drop the
-	// leading and trailing empty segments (from the outer pipes)
-	// without touching internal ones.
-	if len(parts) > 0 && strings.TrimSpace(parts[0]) == "" && strings.HasPrefix(line, "|") {
-		parts = parts[1:]
-	}
-	if len(parts) > 0 && strings.TrimSpace(parts[len(parts)-1]) == "" && strings.HasSuffix(line, "|") {
-		parts = parts[:len(parts)-1]
-	}
-	return parts
+	return mdtable.SplitRow(line)
 }
 
 // normalizeStatement collapses whitespace and lowercases so minor

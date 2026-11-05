@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/imtemp-dev/claude-bts/internal/mdtable"
 )
 
 // The wireframe's File Structure table as a task-anchor source.
@@ -69,8 +71,7 @@ func splitTableRow(line string) []string {
 	if !strings.HasPrefix(line, "|") {
 		return nil
 	}
-	line = strings.Trim(line, "|")
-	cells := strings.Split(line, "|")
+	cells := mdtable.SplitRow(line)
 	for i := range cells {
 		cells[i] = strings.TrimSpace(cells[i])
 	}

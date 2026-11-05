@@ -140,3 +140,18 @@ func TestVerifyDocument_InvokesDomainCheckers(t *testing.T) {
 		t.Fatalf("expected domain critical issue to be counted, got %+v", result.Summary)
 	}
 }
+
+// Trial problem #40: r-003's INV-014 row carried a GFM-escaped pipe inside a
+// code span.  Splitting on every pipe moved the statement's tail into the
+// Owner column and raised a false invariant_multiple_owners critical.
+func TestCheckInvariantOwnership_EscapedPipeInACell(t *testing.T) {
+	path := writeDomainMd(t, "# Domain\n\n## 2. Invariants\n\n"+
+		"| ID | Statement | Owner | Enforcement |\n"+
+		"|----|-----------|-------|-------------|\n"+
+		"| INV-014 | `<!subteam^S0BA1QR2YQZ\\|team-ai>`, a usergroup element or a direct mention counts as addressed | Rules | screen() |\n"+
+		"| INV-015 | A bad group id is a ConfigError | Settings | from_env() |\n\n"+
+		"## 3. State Partitioning\n")
+	if issues := CheckInvariantOwnership(path); len(issues) != 0 {
+		t.Fatalf("an escaped pipe must stay in its cell, got %d issues: %v", len(issues), issues)
+	}
+}
