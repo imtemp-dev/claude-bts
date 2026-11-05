@@ -100,9 +100,11 @@ func renderRecipeSegment(root string) string {
 		agentDot = "🟡 "
 	}
 
-	// Try work state first (richer info)
+	// Try work state first (richer info), unless its recipe was cancelled
+	// or removed since it was saved: the line showed a cancelled recipe's
+	// phase (trial problem #14, AGEN-64).
 	ws, _ := state.LoadWorkState(root)
-	if ws != nil && ws.RecipeID != "" {
+	if ws != nil && ws.RecipeID != "" && workStateRecipeLive(root, ws.RecipeID) {
 		detail := renderPhaseFromWorkState(ws, root)
 		return agentDot + blockedMarker(root, ws.RecipeID) + detail
 	}
@@ -131,6 +133,13 @@ func blockedMarker(root, recipeID string) string {
 		return ""
 	}
 	return fmt.Sprintf("⛔%d ", len(open))
+}
+
+// workStateRecipeLive reports whether the work state's recipe still exists
+// and was not cancelled.
+func workStateRecipeLive(root, recipeID string) bool {
+	r, err := state.LoadRecipeState(root, recipeID)
+	return err == nil && r != nil && r.Phase != "cancelled"
 }
 
 // renderPhaseFromWorkState builds a detailed phase string.
