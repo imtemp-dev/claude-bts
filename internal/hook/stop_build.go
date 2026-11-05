@@ -164,6 +164,33 @@ func buildFalsifiersAbleToFail(root, recipeID string) *HookOutput {
 	return nil
 }
 
+// generatedCurrent is gate generated_current at IMPLEMENT DONE, for every
+// recipe whose wireframe has `generate` rows: the generators ran on the
+// current code and their files are still what they wrote. Nothing held
+// generated files to the code before (trial problem #66).
+func generatedCurrent(root, recipeID string) *HookOutput {
+	rows := engine.WireframeGenerateRows(root, recipeID)
+	if len(rows) == 0 {
+		return nil
+	}
+	ev, err := state.LoadBuildEvidence(root, recipeID)
+	if err != nil {
+		return blockOutput(fmt.Sprintf("build-evidence.json is unreadable (%v). Run `bts check generated %s`.", err, recipeID))
+	}
+	hash, herr := engine.CodeHash(root, recipeID)
+	if herr != nil {
+		fmt.Fprintf(os.Stderr, "[bts] warning: code fingerprint: %v (freshness not checked)\n", herr)
+	}
+	_, filesHash, ferr := engine.GeneratedFiles(root, engine.GenerateRowPaths(rows))
+	if ferr != nil {
+		return blockOutput(fmt.Sprintf("The generated files are unreadable (%v).", ferr))
+	}
+	if reason := engine.CheckGeneratedCurrent(ev.Generated, rows, hash, filesHash, recipeID); reason != "" {
+		return blockOutput(reason)
+	}
+	return nil
+}
+
 // interrogateClean is gate interrogate_clean at IMPLEMENT DONE, for every
 // recipe type: adversaries tried to break the change, bts reran each
 // finding on a fresh copy, and every finding that failed again is fixed on

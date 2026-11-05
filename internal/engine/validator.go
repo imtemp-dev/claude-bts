@@ -1027,6 +1027,8 @@ var ChangelogActions = map[string]bool{
 	"falsify":         true,
 	"falsifier-check": true,
 	"mutate":          true,
+	// written by `bts check generated`, for any recipe with generate rows (#66)
+	"generated": true,
 	// written by the PostToolUse hook when a session creates or claims a recipe
 	"claim": true,
 	// prove stage P3: written by `bts interrogate prepare|verify|waive`

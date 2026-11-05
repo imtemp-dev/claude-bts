@@ -12,12 +12,48 @@ import (
 // skeleton compiles, and whether each invariant's falsifier fails on the
 // skeleton and passes on the finished code.
 //
-// Only the CLI writes it (`bts skeleton check`, `bts falsifier run|check`).
+// Only the CLI writes it (`bts skeleton check`, `bts falsifier run|check`,
+// `bts check generated`).
 // The stop hook reads it. A hand edit is detectable: every run carries the
 // code hash it ran on, and the gates recompute that hash.
 type BuildEvidence struct {
 	Skeleton   *CommandRun           `json:"skeleton,omitempty"`
 	Falsifiers map[string]*Falsifier `json:"falsifiers,omitempty"` // by invariant id, e.g. INV-003
+	// Generated is the last `bts check generated`. Unlike the rest it is
+	// recorded for any recipe type whose wireframe has `generate` rows,
+	// not only a build recipe (trial problem #66).
+	Generated *GeneratedRun `json:"generated,omitempty"`
+}
+
+// GeneratedRun is one `bts check generated`: each generator the
+// wireframe's `generate` rows name, run in row order on the code as it
+// was, and the fingerprint of the files they wrote. The stop hook compares
+// both with the disk, so the generated files count as current only while
+// neither the code they come from nor the files themselves have changed.
+type GeneratedRun struct {
+	Runs  []*CommandRun `json:"runs"`  // one per distinct generator; stops at the first failure
+	Files []string      `json:"files"` // the generate rows' paths
+	// FilesHash is engine.GeneratedFiles over Files after the runs.
+	FilesHash string   `json:"files_hash"`
+	Changed   []string `json:"changed,omitempty"` // paths the runs rewrote
+	Missing   []string `json:"missing,omitempty"` // paths absent after the runs
+	// CodeHash is engine.CodeHash after the last run.
+	CodeHash string `json:"code_hash,omitempty"`
+	RunAt    string `json:"run_at"`
+}
+
+// Passed reports whether every generator ran and exited 0, and every
+// generated path exists afterwards.
+func (g *GeneratedRun) Passed() bool {
+	if g == nil || len(g.Runs) == 0 || len(g.Missing) > 0 {
+		return false
+	}
+	for _, r := range g.Runs {
+		if !r.Passed() {
+			return false
+		}
+	}
+	return true
 }
 
 // CommandRun is one execution of a recorded command.

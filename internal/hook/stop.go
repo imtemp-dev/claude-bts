@@ -650,6 +650,9 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 			return out, nil
 		}
 	}
+	if out := generatedCurrent(root, recipe.ID); out != nil {
+		return out, nil
+	}
 	if out := interrogateClean(root, recipe.ID); out != nil {
 		return out, nil
 	}

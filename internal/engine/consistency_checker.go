@@ -196,11 +196,13 @@ func VerifyDocument(docPath string, projectRoot string, checkCode bool) (*Verify
 	// 6. wireframe.md: responsibility line conjunction check (Phase 5.1).
 	// Each node's responsibility must be a single-job sentence — "and",
 	// "&", "및" signal two jobs that should split into two nodes.
-	// Also check architect-decision header presence (Phase 5.3).
+	// Also check architect-decision header presence (Phase 5.3), and that
+	// every `generate` row names its generator (trial problem #66).
 	if strings.EqualFold(base, "wireframe.md") {
 		appendIssues(result, CheckWireframeResponsibilities(docPath))
 		appendIssues(result, CheckArchitectDecisionHeader(docPath))
 		appendIssues(result, CheckArchitectInvariantCoverage(docPath))
+		appendIssues(result, CheckWireframeGenerateRows(docPath))
 	}
 
 	return result, nil
@@ -413,7 +415,9 @@ func isCreateReference(content, filePath string) bool {
 }
 
 // plannedFiles are the files the recipe's wireframe will create, from its
-// File Structure rows; empty when the document is not in a recipe.
+// File Structure rows, and the files its `generate` rows' generators write
+// (one may not exist yet: trial problem #66); empty when the document is
+// not in a recipe.
 func plannedFiles(docDir string) map[string]bool {
 	out := map[string]bool{}
 	if docDir == "" {
@@ -427,6 +431,9 @@ func plannedFiles(docDir string) map[string]bool {
 		if strings.EqualFold(strings.TrimSpace(k.Action), "create") {
 			out[filepath.ToSlash(filepath.Clean(strings.TrimSpace(k.Path)))] = true
 		}
+	}
+	for _, g := range ParseWireframeGenerateRows(string(data)) {
+		out[filepath.ToSlash(filepath.Clean(strings.TrimSpace(g.Path)))] = true
 	}
 	return out
 }

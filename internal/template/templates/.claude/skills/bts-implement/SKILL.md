@@ -120,7 +120,10 @@ If tasks.json exists in the recipe directory:
    Responsibility`, which is exactly what a task needs.
 2. Each row whose action is `create`, `modify` or `delete` becomes a
    task. Rows marked otherwise (`unchanged`) record a deliberate
-   non-edit and are not tasks.
+   non-edit and are not tasks. A `generate` row is not a task either:
+   never edit its file by hand. Its generator (the row's `generator:`
+   command) rewrites it, through `bts check generated {id}` (Step 5 and
+   Completion).
 3. Take dependency order from the `Depends On` column. It was decided
    during /bts-architect against alternatives; do not re-derive it.
 4. **Anchor every decomposition.** A File Structure row IS the anchor —
@@ -394,6 +397,11 @@ Update phase and run tests:
 bts recipe log {id} --phase test
 ```
 
+When `wireframe.md` has `generate` rows, run `bts check generated {id}`
+first, so tests that read generated files (client types, a contract
+document) see ones that match the code. It lists the files the
+generators rewrote; read their diff, since it is part of the change.
+
 Use Skill("bts-test") with arguments: {id}
 The test skill will read final.md for test scenarios and tasks.json
 for the list of implemented files.
@@ -572,6 +580,11 @@ When all steps are done:
   `bts falsifier mutate {id} --rerun`: every mutation from Step 5.2 must
   still make its falsifier fail on the current code
   (`falsifiers_able_to_fail`).
+- A recipe whose `wireframe.md` has `generate` rows: after the last code
+  change, run `bts check generated {id}`.  Every generator must exit 0
+  and write its files, and neither the code nor those files may change
+  afterwards; a hand edit of a generated file counts as a change
+  (`generated_current`).
 - Every recipe: run `bts interrogate verify {id} --recheck`.  No finding
   may be open on the current code; a waived one carries the user's reason
   (`interrogate_clean`).

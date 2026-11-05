@@ -37,7 +37,7 @@ func TestOutputDocType_SkillPairsMapToValidTypes(t *testing.T) {
 }
 
 func TestOutputDocType_EvidenceActionsAndBadDocTypesAreRefused(t *testing.T) {
-	for _, action := range []string{"skeleton", "falsify", "falsifier-check", "mutate"} {
+	for _, action := range []string{"skeleton", "falsify", "falsifier-check", "mutate", "generated"} {
 		if typ, err := outputDocType(action, ""); err == nil {
 			t.Errorf("%q writes evidence, not a document; --output must be refused, got type %q", action, typ)
 		}

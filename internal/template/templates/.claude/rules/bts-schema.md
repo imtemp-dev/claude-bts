@@ -417,7 +417,8 @@ Optional fields:
 
 ## build-evidence.json
 
-A build recipe's runs, at `.bts/specs/recipes/{id}/build-evidence.json`.
+A build recipe's runs, at `.bts/specs/recipes/{id}/build-evidence.json`,
+and `generated` for any recipe whose wireframe has `generate` rows.
 Only the CLI writes it; never edit it by hand.
 
 ```json
@@ -435,6 +436,11 @@ Only the CLI writes it; never edit it by hand.
     "INV-002": {"command": "…", "not_mutable": "held by the type of Decision; no code guard to break"},
     "INV-003": {"command": "pytest -q tests/test_cursor.py -k old_token",
                 "green": {"command": "…", "exit_code": 0, "code_hash": "sha256:…", "run_at": "…"}}
+  },
+  "generated": {
+    "runs": [{"command": "make openapi", "exit_code": 0, "code_hash": "sha256:…", "run_at": "…"}],
+    "files": ["api/openapi.json"], "files_hash": "sha256:…", "changed": ["api/openapi.json"],
+    "code_hash": "sha256:…", "run_at": "…"
   }
 }
 ```
@@ -464,6 +470,14 @@ Only the CLI writes it; never edit it by hand.
   `not_mutable`; `--rerun` reapplies every stored patch to the current code.
   Gate `falsifiers_able_to_fail` counts a mutation only while `base_hash`
   matches the code on disk.
+- `bts check generated {id}` runs each generator the wireframe's
+  `generate` rows name, in row order, stopping at the first failure, and
+  writes `generated`: the runs, the rows' paths, `files_hash` over them
+  after the runs, the paths the runs rewrote (`changed`) or did not write
+  (`missing`), and `code_hash`.  Gate `generated_current` at IMPLEMENT DONE
+  counts it only when every run passed, the rows still name the same
+  paths and generators, and both `code_hash` and `files_hash` still match
+  the disk.
 
 ## deviation.md
 

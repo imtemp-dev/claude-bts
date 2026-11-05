@@ -301,3 +301,83 @@ func TestImplementDone_CarriedInvariantMustPassButNeedsNoMutation(t *testing.T) 
 		t.Fatalf("a carried invariant green on the current code needs no mutation: %s", out.Reason)
 	}
 }
+
+// Trial problem #66: nothing recorded that generated files (an OpenAPI
+// document, client types) must be regenerated after the code they come
+// from changed.  When the wireframe has a `generate` row, IMPLEMENT DONE
+// needs a generated check on the current code, for every recipe type.
+func TestImplementDone_GenerateRowNeedsAGeneratedCheck(t *testing.T) {
+	root, id := setupImplementRoot(t)
+	_ = os.WriteFile(filepath.Join(state.RecipeDir(root, id), "wireframe.md"), []byte(
+		"## File Structure\n\n| File | Action | Depends On | Responsibility |\n|---|---|---|---|\n"+
+			"| src/a.go | create | - | the code |\n"+
+			"| gen/api.json | generate | src/a.go | the contract (generator: `mkdir -p gen && cp src/a.go gen/api.json`) |\n"), 0644)
+	_ = os.MkdirAll(filepath.Join(root, "src"), 0755)
+	_ = os.WriteFile(filepath.Join(root, "src", "a.go"), []byte("package a\n"), 0644)
+	recordImplHash(t, root, id)
+
+	out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>IMPLEMENT DONE</bts>"})
+	if err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+	if out.Decision != "block" || !strings.Contains(out.Reason, "bts check generated "+id) {
+		t.Fatalf("a generate row with no generated check must block: %q %q", out.Decision, out.Reason)
+	}
+}
+
+// The generated check counts only while the code and the generated files
+// are as they were when the generators ran: a code change or a hand edit
+// of a generated file makes it stale (trial problem #66).
+func TestImplementDone_GeneratedCheckMustBeCurrent(t *testing.T) {
+	root, id := setupImplementRoot(t)
+	_ = os.WriteFile(filepath.Join(state.RecipeDir(root, id), "wireframe.md"), []byte(
+		"## File Structure\n\n| File | Action | Depends On | Responsibility |\n|---|---|---|---|\n"+
+			"| src/a.go | create | - | the code |\n"+
+			"| gen/api.json | generate | src/a.go | the contract (generator: `make api`) |\n"), 0644)
+	_ = os.MkdirAll(filepath.Join(root, "src"), 0755)
+	_ = os.MkdirAll(filepath.Join(root, "gen"), 0755)
+	_ = os.WriteFile(filepath.Join(root, "src", "a.go"), []byte("package a\n"), 0644)
+	_ = os.WriteFile(filepath.Join(root, "gen", "api.json"), []byte("{}\n"), 0644)
+
+	record := func() {
+		t.Helper()
+		recordImplHash(t, root, id)
+		code, _ := engine.CodeHash(root, id)
+		_, files, err := engine.GeneratedFiles(root, []string{"gen/api.json"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = state.SaveBuildEvidence(root, id, &state.BuildEvidence{Generated: &state.GeneratedRun{
+			Runs:  []*state.CommandRun{{Command: "make api", ExitCode: 0, CodeHash: code}},
+			Files: []string{"gen/api.json"}, FilesHash: files, CodeHash: code,
+		}})
+	}
+	done := func() *HookOutput {
+		t.Helper()
+		out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>IMPLEMENT DONE</bts>"})
+		if err != nil {
+			t.Fatalf("handle: %v", err)
+		}
+		return out
+	}
+
+	// The passing case comes last: a passing IMPLEMENT DONE completes the
+	// recipe, and the hook does not judge a completed one again.
+	record()
+	_ = os.WriteFile(filepath.Join(root, "gen", "api.json"), []byte("{\"edited\": true}\n"), 0644)
+	if out := done(); out.Decision != "block" || !strings.Contains(out.Reason, "never edited by hand") {
+		t.Fatalf("a hand edit after the check must block: %q", out.Reason)
+	}
+
+	record()
+	_ = os.WriteFile(filepath.Join(root, "src", "a.go"), []byte("package a\n\nconst X = 1\n"), 0644)
+	recordImplHash(t, root, id)
+	if out := done(); out.Decision != "block" || !strings.Contains(out.Reason, "code changed after the generators") {
+		t.Fatalf("a code change after the check must block: %q", out.Reason)
+	}
+
+	record()
+	if out := done(); out.Decision == "block" {
+		t.Fatalf("a current generated check must pass: %s", out.Reason)
+	}
+}

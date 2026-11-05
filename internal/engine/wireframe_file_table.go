@@ -63,7 +63,8 @@ func cleanCell(s string) string {
 // anchorActions are the actions a task can carry. A File Structure row
 // may legitimately name others — one measured wireframe marked a file
 // `unchanged` to record that it needed no edit — and those are not
-// tasks, so they are not anchors.
+// tasks, so they are not anchors. `generate` is one of those too: its
+// file is written by a generator, never by a task (ParseWireframeGenerateRows).
 var anchorActions = map[string]bool{"create": true, "modify": true, "delete": true}
 
 func splitTableRow(line string) []string {
@@ -131,6 +132,72 @@ func sectionEndRe(level int) *regexp.Regexp {
 // Structure table, in document order. Anything else in the wireframe is
 // ignored, and a wireframe without the section returns nothing.
 func ParseWireframeFileTable(content string) []TaskAnchorKey {
+	var out []TaskAnchorKey
+	seen := map[TaskAnchorKey]bool{}
+	for _, r := range fileStructureRows(content) {
+		if r.Path == "" || !anchorActions[r.Action] {
+			continue
+		}
+		key := TaskAnchorKey{Path: r.Path, Action: r.Action}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, key)
+	}
+	return out
+}
+
+// GenerateRow is a File Structure row whose action is `generate`: a file a
+// generator writes (an OpenAPI document, generated client types, generated
+// headers), or a directory it writes into. It is never a task and never
+// edited by hand, so the row carries the command that regenerates it
+// instead. Without the action, true-shark marked three such rows
+// `generated`, which passed as a non-task row and left nothing to say they
+// had to be regenerated and checked (trial problem #66).
+type GenerateRow struct {
+	Path string
+	// Command is the generator, written `generator: ` and the command in a
+	// code span in the row's Responsibility cell; "" when the row names none.
+	Command string
+}
+
+// generatorRe finds a generate row's command. The skill puts it in the
+// Responsibility cell rather than a new column, so the table keeps the
+// four columns every wireframe already has; the parse reads the whole row,
+// so a table with translated headers needs no alias for that column.
+var generatorRe = regexp.MustCompile("(?i)\\bgenerator:\\s*`([^`]+)`")
+
+// ParseWireframeGenerateRows returns the File Structure table's `generate`
+// rows in document order, one per path.
+func ParseWireframeGenerateRows(content string) []GenerateRow {
+	var out []GenerateRow
+	seen := map[string]bool{}
+	for _, r := range fileStructureRows(content) {
+		if r.Path == "" || r.Action != "generate" || seen[r.Path] {
+			continue
+		}
+		seen[r.Path] = true
+		row := GenerateRow{Path: r.Path}
+		// SplitRow turns an escaped `\|` back into the pipe it stands for.
+		if m := generatorRe.FindStringSubmatch(strings.Join(r.Cells, " | ")); m != nil {
+			row.Command = strings.TrimSpace(m[1])
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+// fileStructureRow is one data row of the File Structure table: the path
+// and the lower-cased action with their decoration stripped, and every
+// cell as written.
+type fileStructureRow struct {
+	Path, Action string
+	Cells        []string
+}
+
+// fileStructureRows reads the File Structure table's data rows.
+func fileStructureRows(content string) []fileStructureRow {
 	loc := fileStructureHeadingRe.FindStringIndex(content)
 	if loc == nil {
 		return nil
@@ -150,8 +217,7 @@ func ParseWireframeFileTable(content string) []TaskAnchorKey {
 
 	var header []string
 	var fileCol, actionCol int
-	var out []TaskAnchorKey
-	seen := map[TaskAnchorKey]bool{}
+	var out []fileStructureRow
 	for _, line := range strings.Split(section, "\n") {
 		cells := splitTableRow(line)
 		if len(cells) == 0 {
@@ -174,17 +240,11 @@ func ParseWireframeFileTable(content string) []TaskAnchorKey {
 		if fileCol >= len(cells) || actionCol >= len(cells) {
 			continue
 		}
-		path := cleanCell(cells[fileCol])
-		action := strings.ToLower(cleanCell(cells[actionCol]))
-		if path == "" || !anchorActions[action] {
-			continue
-		}
-		key := TaskAnchorKey{Path: path, Action: action}
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-		out = append(out, key)
+		out = append(out, fileStructureRow{
+			Path:   cleanCell(cells[fileCol]),
+			Action: strings.ToLower(cleanCell(cells[actionCol])),
+			Cells:  cells,
+		})
 	}
 	return out
 }

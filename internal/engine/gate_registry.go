@@ -101,6 +101,12 @@ var HardGates = []HardGate{
 		Summary:     "IMPLEMENT DONE blocked for a build recipe unless every invariant it introduces (not a [carried] one) has a falsifier that failed in its own test on a copy of the current code with the invariant's guard broken (bts falsifier mutate), or is recorded as not mutable",
 	},
 	{
+		ID:          "generated_current",
+		Rule:        "bts-wireframe SKILL.md, Step 4 (generate rows)",
+		Enforcement: "internal/hook/stop_build.go:generatedCurrent (handleImplementDone) via engine.CheckGeneratedCurrent",
+		Summary:     "IMPLEMENT DONE blocked, for any recipe whose wireframe has generate rows, unless the last `bts check generated` ran every row's generator with exit 0 on the current code hash and the generated files are unchanged since",
+	},
+	{
 		ID:          "interrogate_clean",
 		Rule:        "bts-implement SKILL.md, Step 5.4 Interrogate",
 		Enforcement: "internal/hook/stop_build.go:interrogateClean (handleImplementDone, handleFixDone)",

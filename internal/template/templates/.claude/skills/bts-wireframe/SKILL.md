@@ -119,10 +119,12 @@ List ALL files to create or modify with dependencies:
 | `pkg/server.go` | create | types.go | Server lifecycle |
 | `pkg/handler.go` | create | server.go, types.go | Request handling |
 | `main.go` | modify | pkg/ | Entry point |
+| `api/openapi.json` | generate | pkg/handler.go | API contract (generator: `make openapi`) |
 
 Rules:
 - Order by dependency (roots first)
 - Mark create vs modify
+- Mark a file a generator writes `generate` (below)
 
 **This table IS the task decomposition.** `/bts-implement` reads it
 directly and every row becomes a task, so it is parsed, not just read:
@@ -134,6 +136,19 @@ directly and every row becomes a task, so it is parsed, not just read:
   — `unchanged` is the useful one — records a deliberate non-edit and
   becomes nothing. Use it when a reader would otherwise wonder why a
   file is missing from the list.
+- `generate` marks a file a generator writes from the code: an OpenAPI
+  document, client types generated from it, generated headers. It is not
+  a task, and nobody edits it by hand; the generator rewrites it. Its
+  Responsibility cell names the generator as `generator:` followed by
+  the command in backticks, run at the project root
+  (`` generator: `make openapi` ``, as in the table above). Write a pipe
+  in it as `\|`, or put a long command in a script or a make target.
+  `Depends On` names the hand-written files it is generated from. A directory path stands for every file the
+  generator writes into it; rows that share a generator run it once.
+  `bts verify` reports a `generate` row with no generator. At
+  implementation, `bts check generated {id}` runs the generators, and
+  IMPLEMENT DONE requires that run on the current code
+  (`generated_current`).
 - A path may appear once per action. Write it as it will exist on disk;
   backticks and bold are stripped, underscores are not.
 - `bts verify` enforces the mapping both ways: a task with no row, or a
