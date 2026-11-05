@@ -111,3 +111,40 @@ func TestUpdate_WritesNothingToStdout(t *testing.T) {
 		t.Errorf("Update must not write to stdout, got %q", out)
 	}
 }
+
+// Trial problem #38: after simulation was removed, settings.yaml kept a
+// `simulate:` section only because finding_batch was still read from it.
+func TestUpdate_MovesSimulateFindingBatchToDefend(t *testing.T) {
+	settings := func(t *testing.T, body string) (string, string) {
+		t.Helper()
+		root := t.TempDir()
+		p := filepath.Join(root, ".bts", "config", "settings.yaml")
+		_ = os.MkdirAll(filepath.Dir(p), 0755)
+		_ = os.WriteFile(p, []byte(body), 0644)
+		_ = os.WriteFile(filepath.Join(root, ".bts", "config", ".template-version"), []byte("v"), 0644)
+		if _, err := Update(root, "v"); err != nil {
+			t.Fatal(err)
+		}
+		got, _ := os.ReadFile(p)
+		return root, string(got)
+	}
+
+	_, got := settings(t, "verify:\n  max_iterations: 3\n\n# Simulation\nsimulate:\n  finding_batch: 4   # old\n")
+	if strings.Contains(got, "simulate") {
+		t.Errorf("the simulate section must go, got:\n%s", got)
+	}
+	if v, ok := yamlValue(got, "defend", "finding_batch"); !ok || v != "4" {
+		t.Errorf("the old value must move to defend.finding_batch, got %q %v in:\n%s", v, ok, got)
+	}
+	if v, _ := yamlValue(got, "verify", "max_iterations"); v != "3" {
+		t.Errorf("other settings must stay, got:\n%s", got)
+	}
+
+	_, got = settings(t, "defend:\n  finding_batch: 8\nsimulate:\n  finding_batch: 4\n")
+	if strings.Contains(got, "simulate") {
+		t.Errorf("the simulate section must go when defend is set, got:\n%s", got)
+	}
+	if v, _ := yamlValue(got, "defend", "finding_batch"); v != "8" {
+		t.Errorf("defend's own value must win, got %q", v)
+	}
+}

@@ -55,6 +55,7 @@ func Update(root, current string) (*UpdateResult, error) {
 	res.note(removeRetiredTemplates(root, &res.Warnings))
 	res.note(migrateHookSettings(root))
 	res.note(pruneDeadSettings(root, &res.Warnings))
+	res.note(moveSimulateFindingBatch(root, &res.Warnings))
 
 	if res.Deployed {
 		if err := MergeHookSettings(root); err != nil {
@@ -220,4 +221,54 @@ func pruneDeadSettings(root string, warnings *[]string) string {
 	}
 	return fmt.Sprintf("settings.yaml: removed %d key(s) nothing reads: %s",
 		len(removed), strings.Join(removed, ", "))
+}
+
+// moveSimulateFindingBatch moves an old `simulate.finding_batch` to
+// `defend.finding_batch` and drops the `simulate:` section, which names a
+// stage bts no longer has (trial problem #38).  When `defend` already sets
+// finding_batch, that value wins as it always did, and the old key just goes.
+func moveSimulateFindingBatch(root string, warnings *[]string) string {
+	path := filepath.Join(root, ".bts", "config", "settings.yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	text := string(data)
+	value, ok := yamlValue(text, "simulate", "finding_batch")
+	if !ok {
+		return ""
+	}
+	out, _ := stripYAMLKeys(text, [][]string{{"simulate", "finding_batch"}})
+	note := "settings.yaml: removed simulate.finding_batch (defend.finding_batch is set)"
+	if _, has := yamlValue(text, "defend", "finding_batch"); !has {
+		out = strings.TrimRight(out, "\n") + "\n\n# Defense\ndefend:\n  finding_batch: " + value + "\n"
+		note = "settings.yaml: moved simulate.finding_batch to defend.finding_batch (" + value + ")"
+	}
+	if err := os.WriteFile(path, []byte(out), 0644); err != nil {
+		*warnings = append(*warnings, fmt.Sprintf("move simulate.finding_batch: %v", err))
+		return ""
+	}
+	return note
+}
+
+// yamlValue returns the scalar value of `section.key` in a two-level YAML
+// document, without its trailing comment.
+func yamlValue(text, section, key string) (string, bool) {
+	current := ""
+	for _, line := range strings.Split(text, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") || !strings.Contains(trimmed, ":") {
+			continue
+		}
+		k, v, _ := strings.Cut(trimmed, ":")
+		if line[0] != ' ' && line[0] != '\t' {
+			current = strings.TrimSpace(k)
+			continue
+		}
+		if current == section && strings.TrimSpace(k) == key {
+			v, _, _ = strings.Cut(v, "#")
+			return strings.TrimSpace(v), true
+		}
+	}
+	return "", false
 }
