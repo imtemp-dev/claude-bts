@@ -58,6 +58,12 @@ Save debate state after each round:
 bts debate log --topic "$ARGUMENTS" --round N --content "round summary"
 ```
 
+When the debate decides, record the conclusion with the last round instead
+of editing `debate.json`:
+```bash
+bts debate log --id <id> --round N --content "round summary" --conclusion "Decision: ...; revisit if ..." --decided
+```
+
 To resume a previous debate:
 ```bash
 bts debate resume <id>

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"text/tabwriter"
+	"time"
 
 	"github.com/imtemp-dev/claude-bts/internal/state"
 	"github.com/spf13/cobra"
@@ -17,6 +18,8 @@ func init() {
 	debateLogCmd.Flags().Int("round", 0, "Round number")
 	debateLogCmd.Flags().String("content", "", "Round content summary")
 	debateLogCmd.Flags().String("id", "", "Debate ID (auto-generated if empty)")
+	debateLogCmd.Flags().String("conclusion", "", "The debate's conclusion (sets it)")
+	debateLogCmd.Flags().Bool("decided", false, "Mark the debate decided")
 }
 
 var debateCmd = &cobra.Command{
@@ -70,6 +73,8 @@ var debateLogCmd = &cobra.Command{
 		round, _ := cmd.Flags().GetInt("round")
 		content, _ := cmd.Flags().GetString("content")
 		debateID, _ := cmd.Flags().GetString("id")
+		conclusion, _ := cmd.Flags().GetString("conclusion")
+		decided, _ := cmd.Flags().GetBool("decided")
 
 		if topic == "" && debateID == "" {
 			return fmt.Errorf("--topic or --id required")
@@ -100,9 +105,18 @@ var debateLogCmd = &cobra.Command{
 		ds, err := state.LoadDebateState(root, debateID)
 		if err != nil {
 			ds = &state.DebateState{
-				ID:    debateID,
-				Topic: topic,
+				ID:        debateID,
+				Topic:     topic,
+				StartedAt: time.Now().UTC().Format(time.RFC3339),
 			}
+		}
+		// The conclusion and the decided flag were settable only by editing
+		// debate.json by hand (trial problem #44).
+		if conclusion != "" {
+			ds.Conclusion = conclusion
+		}
+		if decided {
+			ds.Decided = true
 		}
 		if topic != "" {
 			ds.Topic = topic
