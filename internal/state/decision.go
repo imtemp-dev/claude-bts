@@ -128,6 +128,9 @@ func FoldDecisions(events []DecisionEvent) []DecisionState {
 		if e.Doc != "" {
 			cur.Doc = e.Doc
 		}
+		if len(e.Options) > 0 {
+			cur.Options = e.Options
+		}
 		if len(e.Blocks) > 0 {
 			cur.Blocks = e.Blocks
 		}
@@ -195,16 +198,35 @@ func appendDecisionEvent(root, recipeID string, e *DecisionEvent) error {
 // overwriting it would lose the original question. Re-opening an already
 // resolved key is likewise refused: the answer is history.
 func HoldDecision(root, recipeID string, e *DecisionEvent) (created bool, err error) {
+	outcome, err := HoldOrCorrectDecision(root, recipeID, e)
+	return outcome == HoldCreated, err
+}
+
+// What holding a decision did.
+const (
+	HoldCreated   = "created"
+	HoldCorrected = "corrected" // an open decision took a new doc, options or blocks
+	HoldUnchanged = "unchanged" // an exact repeat
+)
+
+// HoldOrCorrectDecision is HoldDecision that also says whether a repeat
+// corrected the open decision.  Holding an open decision again with the
+// same key and question replaces the doc, options or blocks the repeat
+// sets; a repeat that sets nothing new records nothing.  Before, every
+// such repeat counted as exact and a wrong blocks list could not be
+// corrected (trial problem #12, AGEN-63).
+func HoldOrCorrectDecision(root, recipeID string, e *DecisionEvent) (string, error) {
 	if strings.TrimSpace(e.Key) == "" {
-		return false, fmt.Errorf("decision key is required")
+		return "", fmt.Errorf("decision key is required")
 	}
 	if strings.TrimSpace(e.Question) == "" {
-		return false, fmt.Errorf("decision question is required")
+		return "", fmt.Errorf("decision question is required")
 	}
 	existing, err := LoadDecisions(root, recipeID)
 	if err != nil {
-		return false, err
+		return "", err
 	}
+	outcome := HoldCreated
 	for _, d := range existing {
 		if d.Key != e.Key {
 			continue
@@ -212,23 +234,45 @@ func HoldDecision(root, recipeID string, e *DecisionEvent) (created bool, err er
 		switch d.Status {
 		case DecisionOpen:
 			if d.Question != e.Question {
-				return false, fmt.Errorf(
+				return "", fmt.Errorf(
 					"decision %q is already open with a different question (%q). "+
 						"Use a new key for a new decision, or resolve the existing one first",
 					e.Key, d.Question)
 			}
-			return false, nil // exact repeat
+			if !decisionRepeatChanges(d, e) {
+				return HoldUnchanged, nil
+			}
+			outcome = HoldCorrected
 		case DecisionResolved:
-			return false, fmt.Errorf(
+			return "", fmt.Errorf(
 				"decision %q was already resolved (%q). Reopening would lose that answer; use a new key",
 				e.Key, d.Answer)
 		}
 	}
 	e.Status = DecisionOpen
 	if err := appendDecisionEvent(root, recipeID, e); err != nil {
-		return false, err
+		return "", err
 	}
-	return true, nil
+	return outcome, nil
+}
+
+// decisionRepeatChanges reports whether a repeat sets a doc, options or
+// blocks that differ from the open decision's.
+func decisionRepeatChanges(d DecisionState, e *DecisionEvent) bool {
+	differ := func(a, b []string) bool {
+		if len(a) != len(b) {
+			return true
+		}
+		for i := range a {
+			if a[i] != b[i] {
+				return true
+			}
+		}
+		return false
+	}
+	return (e.Doc != "" && e.Doc != d.Doc) ||
+		(len(e.Options) > 0 && differ(e.Options, d.Options)) ||
+		(len(e.Blocks) > 0 && differ(e.Blocks, d.Blocks))
 }
 
 // ResolveDecision records the user's answer. The decision must exist and

@@ -22,7 +22,7 @@ func init() {
 	recipeDecisionHoldCmd.Flags().String("question", "", "What the user must decide")
 	recipeDecisionHoldCmd.Flags().String("doc", "", "Document this decision blocks")
 	recipeDecisionHoldCmd.Flags().StringArray("option", nil, "A candidate answer (repeatable)")
-	recipeDecisionHoldCmd.Flags().StringArray("blocks", nil, "Finding or task ID held by this decision (repeatable)")
+	recipeDecisionHoldCmd.Flags().StringArray("blocks", nil, "Finding or task ID held by this decision (repeatable); holding an open decision again with the same key and question replaces its blocks, doc and options")
 	_ = recipeDecisionHoldCmd.MarkFlagRequired("key")
 	_ = recipeDecisionHoldCmd.MarkFlagRequired("question")
 
@@ -73,14 +73,18 @@ var recipeDecisionHoldCmd = &cobra.Command{
 		options, _ := cmd.Flags().GetStringArray("option")
 		blocks, _ := cmd.Flags().GetStringArray("blocks")
 
-		created, err := state.HoldDecision(root, recipeID, &state.DecisionEvent{
+		outcome, err := state.HoldOrCorrectDecision(root, recipeID, &state.DecisionEvent{
 			Key: key, Question: question, Doc: doc, Options: options, Blocks: blocks,
 		})
 		if err != nil {
 			return err
 		}
-		if !created {
+		switch outcome {
+		case state.HoldUnchanged:
 			fmt.Printf("Decision %q already open — unchanged.\n", key)
+			return nil
+		case state.HoldCorrected:
+			fmt.Printf("Decision %q still open — corrected (doc, options or blocks replaced by this hold's).\n", key)
 			return nil
 		}
 		fmt.Printf("Decision %q held. %s is blocked until it is resolved:\n  bts recipe decision resolve %s %s --answer \"...\"\n",
