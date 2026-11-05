@@ -75,6 +75,28 @@ decomposition is wrong — re-partition before completing this section.
 | INV-002 | At most one DragGesture is active | DragGesture | DragGesture.begin() guard |
 | INV-003 | Display order equals Arrangement order | Arrangement | derived, no independent store |
 
+**Carried invariants.** A change to code that already exists must often
+keep an invariant that earlier work established: an earlier recipe's
+INV, or a compatibility property such as "a token issued before the
+deploy still pages" or "without the new parameter the list is
+unchanged". List each one here as a carried row, with `[carried]` after
+the ID, optionally saying where it came from:
+
+| ID | Statement | Owner | Enforcement point |
+|----|-----------|-------|-------------------|
+| INV-004 [carried: r-002 INV-001] | A PR has at most one issue | Relay | `Relay.open()` lookup, kept by `tests/test_relay.py::test_inv_001_one_issue_per_pr` |
+
+- Carry only what the code already keeps. Anything this change creates or
+  alters is a new invariant, even when it resembles an old one.
+- The Owner is the module that keeps it today. The Enforcement point
+  names the existing code and the test that already passes for it; when
+  no test exists, the falsify step writes one that passes on the current
+  code.
+- In a build recipe its test is recorded passing, not failing, must still
+  pass when implementation is done, and needs no mutation. The architect
+  maps owners only for the invariants this change introduces.
+- It still has one owner and a § 5 row, like any other invariant.
+
 ### 3. State Partitioning
 
 Every piece of state falls into exactly one category:
@@ -143,6 +165,8 @@ Run through each check. Fail any one → fix in domain.md before exiting.
 - [ ] No Derived-row state has an independent source-of-truth
 - [ ] Every ILLEGAL cell in Section 4 has "prevented by ..." OR is flagged CRITICAL
 - [ ] Every invariant in Section 2 has a Section 5 violating-scenario row
+- [ ] Every `[carried]` row is one the code already keeps, and names the
+      test that holds it
 - [ ] `bts verify .bts/specs/recipes/{id}/domain.md` returns 0 critical, 0 major
 
 ## Completion

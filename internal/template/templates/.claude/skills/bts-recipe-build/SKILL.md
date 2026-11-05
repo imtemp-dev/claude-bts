@@ -66,7 +66,8 @@ decision hold`).
    `## Official Guidance`.
 4. **Domain.** `/bts-domain-model`: entities, invariants with one owner
    each, illegal cells. Every invariant in § 2 will need a test, so state
-   each as an outcome someone can observe.
+   each as an outcome someone can observe. An invariant this change keeps
+   from earlier work, rather than introduces, is a `[carried]` row.
 5. **Architect.** `/bts-architect`: two runners, debate, adjudicate, the
    decision block.
 6. **Wireframe.** `/bts-wireframe`, then `bts verify wireframe.md` with no
@@ -82,8 +83,9 @@ decision hold`).
    answer, `bts recipe decision resolve {id} code-edit-go --answer
    "<their words>"`. `--force` does not pass it.
 8. **Falsify.** `bts recipe log {id} --phase falsify`, then
-   `Skill("bts-falsify")` with `{id}`. It ends with every invariant's test
-   recorded red.
+   `Skill("bts-falsify")` with `{id}`. It ends with every introduced
+   invariant's test recorded red and every `[carried]` one's recorded
+   green.
 9. **Empirical questions.** For each open question that running something
    would answer (how a library or API behaves, a timing, a format), write
    the smallest throwaway script in a scratch directory outside the
@@ -101,13 +103,15 @@ decision hold`).
     round, no simulate round and no replicated pass.
 12. **Status.** `Skill("bts-status")` with `{id}`.
 13. **Finalize.** Output `<bts>DONE</bts>`. The stop hook checks
-    `skeleton_builds`, `falsifiers_red` and `build_review_clean`, and moves
-    the recipe to `finalize`.
+    `skeleton_builds`, `falsifiers_red` (introduced invariants red,
+    carried ones green) and `build_review_clean`, and moves the recipe to
+    `finalize`.
 14. **Implement.** `/bts-implement {id}`. The skeleton is the starting
     point: a `create` task fills the file the skeleton wrote and keeps its
     public signatures; changing one is a deviation, recorded by sync.
     Before `<bts>IMPLEMENT DONE</bts>`, run `bts falsifier check {id}`; the
-    stop hook adds `falsifiers_green` to the implement gates.
+    stop hook adds `falsifiers_green` (carried invariants included) to the
+    implement gates.
 
 ## Build spec (`final.md`)
 
@@ -127,9 +131,11 @@ The invariants and owners are `domain.md` § 2.
 | --- | --- | --- |
 | INV-001 | `tests/test_relay.py::test_inv_001_one_issue_per_pr` | `pytest -q tests/test_relay.py -k inv_001` |
 | INV-004 [illegal-cell: second issue for one PR] | `tests/test_relay.py::test_inv_004_refuses_second_issue` | `pytest -q tests/test_relay.py -k inv_004` |
+| INV-005 [carried] | `tests/test_relay.py::test_old_token_still_pages` | `pytest -q tests/test_relay.py -k old_token` |
 
 A row that proves an illegal cell from `domain.md` § 4 refused carries
-its `[illegal-cell: <label>]` tag; every illegal cell needs one.
+its `[illegal-cell: <label>]` tag; every illegal cell needs one. A
+`[carried]` invariant's row names the existing test that keeps it.
 
 ## 3. Boundary contracts
 {Per boundary: the skeleton file that declares it, and what crosses it

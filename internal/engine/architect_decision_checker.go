@@ -152,9 +152,13 @@ func CheckArchitectInvariantCoverage(wireframePath string) []Issue {
 		}}
 	}
 
+	// A carried invariant is owned where it already lives: the decision
+	// partitions what this change introduces, and demanding an owner for
+	// a kept property made the agent invent one (trial problem #41,
+	// true-shark P12). Mapping one anyway is allowed; it is a known id.
 	var missing []string
 	for _, inv := range invariants {
-		if _, ok := mapped[strings.ToUpper(inv.ID)]; !ok {
+		if _, ok := mapped[strings.ToUpper(inv.ID)]; !ok && !inv.Carried {
 			missing = append(missing, inv.ID)
 		}
 	}
@@ -175,7 +179,7 @@ func CheckArchitectInvariantCoverage(wireframePath string) []Issue {
 			Category: "architect_decision",
 			Claim:    "architect_decision_invariant_unmapped",
 			Severity: "major",
-			Detail:   "architect-decision block's Invariant ownership mapping omits domain.md invariant(s): " + strings.Join(missing, ", ") + ". Every invariant needs exactly one owning module in the selected decomposition.",
+			Detail:   "architect-decision block's Invariant ownership mapping omits domain.md invariant(s): " + strings.Join(missing, ", ") + ". Every invariant needs exactly one owning module in the selected decomposition. An invariant the change keeps from earlier work, rather than introduces, is marked `[carried]` in its domain.md § 2 ID cell and needs none.",
 		})
 	}
 	if len(unknown) > 0 {

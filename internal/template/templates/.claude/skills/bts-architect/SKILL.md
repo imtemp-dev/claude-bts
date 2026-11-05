@@ -68,9 +68,12 @@ shape. For each alternative, produce:
 - **Node list** — files or modules with a ONE-SENTENCE responsibility
   (same "and"/"&"/"및" rule as bts-wireframe Step 1). Include file path
   hints so it is clear what the decomposition produces.
-- **Invariant ownership mapping** — for every invariant in domain.md § 2,
-  name the module that owns it in this alternative. Two invariants may
-  share a module; the same invariant must NOT appear under two modules.
+- **Invariant ownership mapping** — for every invariant in domain.md § 2
+  that this change introduces, name the module that owns it in this
+  alternative. Two invariants may share a module; the same invariant must
+  NOT appear under two modules. A `[carried]` row is owned where it
+  already lives and needs no entry; an alternative that moves it must
+  keep its existing test passing.
 - **YAGNI check** — list every interface the alternative introduces.
   For each, either name ≥ 2 concrete implementations planned in this
   recipe, or justify why the abstraction earns its keep. Single-
@@ -185,6 +188,9 @@ Invariant ownership:
   - …
 <!-- /architect-decision -->
 ```
+
+The ownership list names every invariant domain.md § 2 introduces.
+`[carried]` rows may be left out: `bts verify` does not ask for them.
 
 Update `manifest.json` with the decision name:
 

@@ -30,7 +30,9 @@ func CheckSkeletonBuilds(ev *state.BuildEvidence, currentHash, recipeID string) 
 }
 
 // CheckFalsifiersRed is gate falsifiers_red: every invariant in domain.md
-// has a falsifier that was run on the skeleton as it is now and failed.
+// that this recipe introduces has a falsifier that was run on the skeleton
+// as it is now and failed. Carried invariants are not passed in: their
+// tests pass already, and CheckCarriedGreen holds them (trial problem #41).
 func CheckFalsifiersRed(ev *state.BuildEvidence, invariants []string, currentHash, recipeID string) string {
 	var missing, stale, notRed []string
 	for _, id := range invariants {
@@ -60,8 +62,46 @@ func CheckFalsifiersRed(ev *state.BuildEvidence, invariants []string, currentHas
 	return "Falsifiers are not all red on the current skeleton: " + strings.Join(parts, "; ") + "."
 }
 
+// CheckCarriedGreen is the carried half of gate falsifiers_red: every
+// invariant domain.md marks `[carried]` has its existing test recorded
+// passing on the skeleton as it is now. A carried invariant is one the
+// code already keeps, so its test is green before the change and must
+// stay green through it; requiring it red, as for a new invariant, made
+// every such test unrecordable (trial problem #41). The skeleton leaves
+// existing bodies alone, so a carried test that fails on it means the
+// skeleton broke what the change must keep.
+func CheckCarriedGreen(ev *state.BuildEvidence, carried []string, currentHash, recipeID string) string {
+	var missing, failing, stale []string
+	for _, id := range carried {
+		f := ev.Falsifiers[id]
+		switch {
+		case f == nil || f.Command == "":
+			missing = append(missing, id)
+		case f.Green == nil || !f.Green.Passed():
+			failing = append(failing, id)
+		case currentHash != "" && f.Green.CodeHash != currentHash:
+			stale = append(stale, id)
+		}
+	}
+	var parts []string
+	if len(missing) > 0 {
+		parts = append(parts, fmt.Sprintf("no passing test recorded for %s: record each one's existing test with `bts falsifier run %s --inv <id> --cmd \"<test command>\"`", strings.Join(missing, ", "), recipeID))
+	}
+	if len(failing) > 0 {
+		parts = append(parts, fmt.Sprintf("%s failed on the skeleton, so the skeleton broke what the change must keep: restore the existing behaviour, then run `bts falsifier check %s --red`", strings.Join(failing, ", "), recipeID))
+	}
+	if len(stale) > 0 {
+		parts = append(parts, fmt.Sprintf("the skeleton changed after %s last passed: run `bts falsifier check %s --red`", strings.Join(stale, ", "), recipeID))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "Carried invariants are not all green on the current skeleton: " + strings.Join(parts, "; ") + "."
+}
+
 // CheckFalsifiersGreen is gate falsifiers_green: every invariant's
-// falsifier passed on the code as it is now.
+// falsifier passed on the code as it is now. Carried invariants are
+// included: the change must leave them passing (trial problem #41).
 func CheckFalsifiersGreen(ev *state.BuildEvidence, invariants []string, currentHash, recipeID string) string {
 	var missing, failing, stale []string
 	for _, id := range invariants {
@@ -95,7 +135,10 @@ func CheckFalsifiersGreen(ev *state.BuildEvidence, invariants []string, currentH
 // invariant's falsifier has been seen failing, for the invariant's own
 // reason, on a copy of the current code with the invariant's guard broken
 // (`bts falsifier mutate`), or the invariant is recorded as having no code
-// guard to break. It returns "" when the gate is met.
+// guard to break. It returns "" when the gate is met. Carried invariants
+// are not passed in: their guard is existing code this change keeps, not
+// one it wrote, and falsifiers_green already requires their tests to pass
+// on the change (trial problem #41).
 func CheckFalsifiersAbleToFail(ev *state.BuildEvidence, invariants []string, currentHash, recipeID string) string {
 	var unproven, survived, stale []string
 	for _, id := range invariants {

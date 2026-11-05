@@ -409,7 +409,9 @@ Skip this step unless `bts recipe status` shows type `build`.
 
 A falsifier that has only failed on the skeleton (at "not implemented")
 and passed on the code has never been seen failing for its invariant's
-reason.  For each `INV-NNN` in domain.md:
+reason.  For each `INV-NNN` in domain.md that this recipe introduces (a
+`[carried]` row needs no mutation: its guard is existing code the change
+keeps, and its test only has to stay green):
 
 1. Find the guard: the line or step in the code that enforces the
    invariant (a check, an order, an effect done exactly once).
@@ -564,8 +566,9 @@ When all steps are done:
   driven) and name what was deferred.  Nothing in the summary claims more
   than its run shows.
 - A build recipe (`bts recipe status` shows type `build`): run
-  `bts falsifier check {id}`. Every invariant's test must pass on the code
-  as it is now; the stop hook checks it (`falsifiers_green`).  Then run
+  `bts falsifier check {id}`. Every invariant's test, `[carried]` ones
+  included, must pass on the code as it is now; the stop hook checks it
+  (`falsifiers_green`).  Then run
   `bts falsifier mutate {id} --rerun`: every mutation from Step 5.2 must
   still make its falsifier fail on the current code
   (`falsifiers_able_to_fail`).

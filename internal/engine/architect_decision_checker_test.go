@@ -289,3 +289,55 @@ Basis: custom: no domain contract yet
 		t.Fatalf("expected nil without domain.md, got %v", issues)
 	}
 }
+
+// testDomainWithCarried is a change recipe's domain.md: INV-001 is new,
+// INV-002 and INV-003 are kept from earlier work (trial problem #41).
+const testDomainWithCarried = `# Domain
+
+## 2. Invariants
+
+| ID | Statement | Owner | Enforcement point |
+|---|---|---|---|
+| INV-001 | one issue per PR | relay | lookup before create |
+| INV-002 [carried: r-002 INV-008] | a token issued before the deploy still pages | cursor | Cursor.decode, kept by ` + "`tests/test_cursor.py::test_old_token`" + ` |
+| INV-003 [Carried] | without the new parameters the list is unchanged | query | ` + "`tests/test_list.py::test_unfiltered`" + ` |
+`
+
+// Trial problem #41 (true-shark P12): architect_decision_invariant_unmapped
+// demanded owners for the preserved properties a change keeps, so the
+// agent invented a mapping to pass.  A carried row is owned where it
+// already lives; the decision maps only what this change introduces, and
+// mapping a carried row anyway is not an unknown id.
+func TestInvariantCoverage_CarriedRowNeedsNoOwner(t *testing.T) {
+	wf := writeArchitectPair(t, `<!-- architect-decision -->
+Selected: relay-module
+Basis: custom: one module
+Invariant ownership:
+  - INV-001: relay
+<!-- /architect-decision -->`, testDomainWithCarried)
+	if issues := CheckArchitectInvariantCoverage(wf); len(issues) != 0 {
+		t.Fatalf("a carried invariant needs no new owner, got %v", issues)
+	}
+
+	mapped := writeArchitectPair(t, `<!-- architect-decision -->
+Selected: relay-module
+Basis: custom: one module
+Invariant ownership:
+  - INV-001: relay
+  - INV-002: cursor
+<!-- /architect-decision -->`, testDomainWithCarried)
+	if issues := CheckArchitectInvariantCoverage(mapped); len(issues) != 0 {
+		t.Fatalf("mapping a carried invariant is allowed, not an unknown id, got %v", issues)
+	}
+
+	none := writeArchitectPair(t, `<!-- architect-decision -->
+Selected: relay-module
+Basis: custom: one module
+Invariant ownership:
+  - INV-002: cursor
+<!-- /architect-decision -->`, testDomainWithCarried)
+	issues := CheckArchitectInvariantCoverage(none)
+	if len(issues) != 1 || !strings.Contains(issues[0].Detail, "INV-001") || strings.Contains(issues[0].Detail, "INV-003") {
+		t.Fatalf("an introduced invariant still needs its owner, and only it: %v", issues)
+	}
+}

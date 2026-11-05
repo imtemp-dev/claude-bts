@@ -17,8 +17,9 @@ import (
 // what ran:
 //
 //   - skeleton_builds:    the skeleton compiles, on the code as it is now;
-//   - falsifiers_red:     every invariant in domain.md has a test that fails
-//     on that skeleton;
+//   - falsifiers_red:     every invariant domain.md introduces has a test
+//     that fails on that skeleton, and every one it carries has a test
+//     that passes there (trial problem #41);
 //   - build_review_clean: one full verify pass over the short final.md left
 //     no critical or major finding, and final.md has not changed since.
 //
@@ -53,11 +54,14 @@ func (h *stopHandler) handleBuildSpecDone(root string, recipe *state.RecipeState
 		return blockOutput(reason), nil
 	}
 
-	ids, derr := engine.DomainInvariantIDs(filepath.Join(recipeDir, "domain.md"))
+	introduced, carried, derr := engine.DomainInvariantKinds(filepath.Join(recipeDir, "domain.md"))
 	if derr != nil {
 		return blockOutput(fmt.Sprintf("domain.md invariants are unreadable (%v). The build recipe falsifies each invariant in domain.md § 2.", derr)), nil
 	}
-	if reason := engine.CheckFalsifiersRed(ev, ids, hash, recipe.ID); reason != "" {
+	if reason := engine.CheckFalsifiersRed(ev, introduced, hash, recipe.ID); reason != "" {
+		return blockOutput(reason), nil
+	}
+	if reason := engine.CheckCarriedGreen(ev, carried, hash, recipe.ID); reason != "" {
 		return blockOutput(reason), nil
 	}
 
@@ -78,7 +82,7 @@ func (h *stopHandler) handleBuildSpecDone(root string, recipe *state.RecipeState
 		PreviousPhase: prevPhase,
 	})
 	_ = state.LogPhaseChange(root, recipe.ID, prevPhase, "finalize")
-	fmt.Fprintf(os.Stderr, "[bts] Build spec ready ✓ skeleton builds, %d falsifier(s) red. Next: /bts-implement %s\n", len(ids), recipe.ID)
+	fmt.Fprintf(os.Stderr, "[bts] Build spec ready ✓ skeleton builds, %d falsifier(s) red, %d carried green. Next: /bts-implement %s\n", len(introduced), len(carried), recipe.ID)
 	return &HookOutput{}, nil
 }
 
@@ -114,7 +118,8 @@ func buildReviewClean(root, recipeID string) *HookOutput {
 }
 
 // buildFalsifiersGreen is gate falsifiers_green at IMPLEMENT DONE: every
-// invariant's falsifier passes on the code as it is now.
+// invariant's falsifier passes on the code as it is now, carried ones
+// included.
 func buildFalsifiersGreen(root, recipeID string) *HookOutput {
 	ev, err := state.LoadBuildEvidence(root, recipeID)
 	if err != nil {
@@ -143,7 +148,9 @@ func buildFalsifiersAbleToFail(root, recipeID string) *HookOutput {
 	if err != nil {
 		return blockOutput(fmt.Sprintf("build-evidence.json is unreadable (%v). Run `bts falsifier mutate %s --rerun`.", err, recipeID))
 	}
-	ids, derr := engine.DomainInvariantIDs(filepath.Join(state.RecipeDir(root, recipeID), "domain.md"))
+	// Only the invariants this recipe introduces: a carried one's guard is
+	// existing code the change keeps, not one it wrote (trial problem #41).
+	introduced, _, derr := engine.DomainInvariantKinds(filepath.Join(state.RecipeDir(root, recipeID), "domain.md"))
 	if derr != nil {
 		return blockOutput(fmt.Sprintf("domain.md invariants are unreadable (%v).", derr))
 	}
@@ -151,7 +158,7 @@ func buildFalsifiersAbleToFail(root, recipeID string) *HookOutput {
 	if herr != nil {
 		fmt.Fprintf(os.Stderr, "[bts] warning: code fingerprint: %v (freshness not checked)\n", herr)
 	}
-	if reason := engine.CheckFalsifiersAbleToFail(ev, ids, hash, recipeID); reason != "" {
+	if reason := engine.CheckFalsifiersAbleToFail(ev, introduced, hash, recipeID); reason != "" {
 		return blockOutput(reason)
 	}
 	return nil

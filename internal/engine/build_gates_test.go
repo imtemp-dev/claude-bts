@@ -164,3 +164,28 @@ func TestDomainInvariantIDs_LevelThreeHeadingAndNoRows(t *testing.T) {
 		t.Fatalf("a domain.md with no invariant row must be an error, got %v", ids)
 	}
 }
+
+// Trial problem #41: a `[carried]` tag in the ID cell marks an invariant
+// the change keeps.  The id is the invariant's own, without the tag, so
+// `bts falsifier run --inv INV-002` and the architect mapping name it as
+// written everywhere else.
+func TestDomainInvariantIDs_CarriedTagIsNotPartOfTheID(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "domain.md")
+	_ = os.WriteFile(p, []byte(testDomainWithCarried), 0644)
+	ids, err := DomainInvariantIDs(p)
+	if err != nil || strings.Join(ids, ",") != "INV-001,INV-002,INV-003" {
+		t.Fatalf("got %v, %v", ids, err)
+	}
+}
+
+func TestDomainInvariantKinds(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "domain.md")
+	_ = os.WriteFile(p, []byte(testDomainWithCarried), 0644)
+	introduced, carried, err := DomainInvariantKinds(p)
+	if err != nil || strings.Join(introduced, ",") != "INV-001" || strings.Join(carried, ",") != "INV-002,INV-003" {
+		t.Fatalf("got introduced %v, carried %v, %v", introduced, carried, err)
+	}
+	if _, _, err := DomainInvariantKinds(filepath.Join(t.TempDir(), "missing.md")); err == nil {
+		t.Fatal("a missing domain.md must be an error")
+	}
+}

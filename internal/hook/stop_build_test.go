@@ -216,3 +216,88 @@ func TestImplementDone_BuildRecipeNeedsFalsifiersAbleToFail(t *testing.T) {
 		t.Fatalf("a killed mutation and a recorded not-mutable reason must pass: %s", out.Reason)
 	}
 }
+
+// writeCarriedDomain gives a build fixture a change recipe's domain.md:
+// INV-001 is introduced, INV-002 is carried from earlier work (trial #41).
+func writeCarriedDomain(t *testing.T, root, id string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(state.RecipeDir(root, id), "domain.md"), []byte(
+		"## 2. Invariants\n\n| ID | Statement | Owner |\n|---|---|---|\n"+
+			"| INV-001 | one issue per PR | relay |\n| INV-002 [carried: r-002 INV-008] | an issued token still pages | cursor |\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Trial problem #41: falsifiers_red demanded a red test for an invariant
+// the change keeps.  A carried row is not required red; it needs its
+// existing test recorded passing on the skeleton as it is now.
+func TestBuildSpecDone_CarriedInvariantIsGreenNotRed(t *testing.T) {
+	root, id := setupBuildRoot(t)
+	writeCarriedDomain(t, root, id)
+	hash, _ := engine.CodeHash(root, id)
+	ev := &state.BuildEvidence{
+		Skeleton: &state.CommandRun{Command: "mypy src", ExitCode: 0, CodeHash: hash},
+		Falsifiers: map[string]*state.Falsifier{
+			"INV-001": {Command: "pytest -k inv_001", Red: &state.CommandRun{ExitCode: 1, CodeHash: hash}},
+		},
+	}
+	done := func() *HookOutput {
+		t.Helper()
+		if err := state.SaveBuildEvidence(root, id, ev); err != nil {
+			t.Fatal(err)
+		}
+		return buildDone(t, root)
+	}
+
+	if out := done(); out.Decision != "block" || !strings.Contains(out.Reason, "INV-002") || !strings.Contains(out.Reason, "passing test") {
+		t.Fatalf("a carried invariant with no recorded test must block: %q %q", out.Decision, out.Reason)
+	}
+	ev.Falsifiers["INV-002"] = &state.Falsifier{Command: "pytest -k old_token", Green: &state.CommandRun{ExitCode: 1, CodeHash: hash}}
+	if out := done(); out.Decision != "block" || !strings.Contains(out.Reason, "INV-002") {
+		t.Fatalf("a carried invariant failing on the skeleton must block: %q", out.Reason)
+	}
+	ev.Falsifiers["INV-002"].Green = &state.CommandRun{ExitCode: 0, CodeHash: "sha256:older"}
+	if out := done(); out.Decision != "block" || !strings.Contains(out.Reason, "falsifier check "+id+" --red") {
+		t.Fatalf("a carried pass on an older skeleton must block: %q", out.Reason)
+	}
+	ev.Falsifiers["INV-002"].Green = &state.CommandRun{ExitCode: 0, CodeHash: hash}
+	if out := done(); out.Decision != "block" || !strings.Contains(out.Reason, "No review of final.md") {
+		t.Fatalf("one red introduced invariant and one green carried one pass the falsifier gate: %q", out.Reason)
+	}
+}
+
+// At IMPLEMENT DONE a carried invariant must still pass on the code as it
+// is now (falsifiers_green), but it introduced no guard of this change's
+// to break, so falsifiers_able_to_fail does not ask for a mutation.
+func TestImplementDone_CarriedInvariantMustPassButNeedsNoMutation(t *testing.T) {
+	root, id := setupImplementRoot(t)
+	recipe, _ := state.LoadRecipeState(root, id)
+	recipe.Type = "build"
+	_ = state.SaveRecipeState(root, recipe)
+	writeCarriedDomain(t, root, id)
+	_ = os.MkdirAll(filepath.Join(root, "src"), 0755)
+	_ = os.WriteFile(filepath.Join(root, "src", "a.go"), []byte("package a\n"), 0644)
+	hash, _ := engine.CodeHash(root, id)
+	ev := &state.BuildEvidence{Falsifiers: map[string]*state.Falsifier{
+		"INV-001": {Command: "t1", Red: &state.CommandRun{ExitCode: 1}, Green: &state.CommandRun{ExitCode: 0, CodeHash: hash},
+			Mutation: &state.MutationRun{ExitCode: 1, Matched: true, BaseHash: hash}},
+		"INV-002": {Command: "t2", Green: &state.CommandRun{ExitCode: 1, CodeHash: hash}},
+	}}
+	done := func() *HookOutput {
+		t.Helper()
+		_ = state.SaveBuildEvidence(root, id, ev)
+		out, err := NewStopHandler().Handle(&HookInput{CWD: root, StopHookContent: "<bts>IMPLEMENT DONE</bts>"})
+		if err != nil {
+			t.Fatalf("handle: %v", err)
+		}
+		return out
+	}
+
+	if out := done(); out.Decision != "block" || !strings.Contains(out.Reason, "INV-002 not passing") {
+		t.Fatalf("a carried invariant that no longer passes must block: %q %q", out.Decision, out.Reason)
+	}
+	ev.Falsifiers["INV-002"].Green = &state.CommandRun{ExitCode: 0, CodeHash: hash}
+	if out := done(); out.Decision == "block" {
+		t.Fatalf("a carried invariant green on the current code needs no mutation: %s", out.Reason)
+	}
+}

@@ -432,16 +432,24 @@ Only the CLI writes it; never edit it by hand.
                    "command": "…", "exit_code": 1, "expect": "tests/test_relay.py::test_inv_001", "matched": true,
                    "base_hash": "sha256:…", "isolation": "git-ls-files", "run_at": "…"}
     },
-    "INV-002": {"command": "…", "not_mutable": "held by the type of Decision; no code guard to break"}
+    "INV-002": {"command": "…", "not_mutable": "held by the type of Decision; no code guard to break"},
+    "INV-003": {"command": "pytest -q tests/test_cursor.py -k old_token",
+                "green": {"command": "…", "exit_code": 0, "code_hash": "sha256:…", "run_at": "…"}}
   }
 }
 ```
 
 - `bts check build {id} --cmd "<typecheck>"` writes `skeleton`.
 - `bts falsifier run {id} --inv INV-NNN --cmd "<test>"` writes a falsifier
-  and its `red` run, and refuses a test that passes on the skeleton.
+  and its `red` run, and refuses a test that passes on the skeleton.  For
+  an invariant domain.md § 2 tags `[carried]` (INV-003 above) it is the
+  reverse: it writes the `green` run and refuses a test that fails.
 - `bts falsifier check {id}` reruns every falsifier and writes `green`;
-  with `--red` it writes `red` again after the skeleton changed.
+  with `--red` it writes `red` again after the skeleton changed, except
+  for a carried invariant, whose rerun is expected to pass and is written
+  as `green`.  `falsifiers_red` wants introduced invariants red and carried
+  ones green on the skeleton; `falsifiers_green` wants every one green;
+  `falsifiers_able_to_fail` asks a mutation of introduced ones only.
 - `code_hash` is the recipe's code files when the command ran (tasks.json's
   files, or the wireframe's File Structure rows before tasks.json exists).
   The gates `skeleton_builds`, `falsifiers_red` and `falsifiers_green`

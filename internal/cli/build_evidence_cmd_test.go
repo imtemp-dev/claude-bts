@@ -133,3 +133,71 @@ func TestExecuteFalsifierCheck_NothingRecorded(t *testing.T) {
 		t.Fatal("a check with no falsifiers recorded must say so")
 	}
 }
+
+// writeCarriedDomain gives the fixture a change recipe's domain.md: INV-001
+// is introduced, INV-002 is carried from an earlier recipe (trial #41).
+func writeCarriedDomain(t *testing.T, root, id string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(state.RecipeDir(root, id), "domain.md"), []byte(
+		"## 2. Invariants\n\n| ID | Statement | Owner | Enforcement point |\n|---|---|---|---|\n"+
+			"| INV-001 | one issue per PR | relay | lookup |\n"+
+			"| INV-002 [carried: r-002 INV-008] | an issued token still pages | cursor | kept by `tests/test_cursor.py::test_old_token` |\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Trial problem #41: a change must keep invariants earlier work
+// established, and their tests already pass, so the red-first rule refused
+// them and they stayed in prose.  A carried row is recorded the other way
+// round: only a passing run counts, and it is kept as the green run.
+func TestExecuteFalsifierRed_CarriedRowMustPass(t *testing.T) {
+	root, id := newBuildFixture(t)
+	writeCarriedDomain(t, root, id)
+
+	_, err := executeFalsifierRed(root, id, "INV-002", "exit 1", 30, io.Discard)
+	if err == nil || strings.Contains(err.Error(), "not an invariant") {
+		t.Fatalf("a carried invariant's failing test must be refused as failing, got %v", err)
+	}
+	if ev, _ := state.LoadBuildEvidence(root, id); ev.Falsifiers["INV-002"] != nil {
+		t.Fatal("a refused carried test must not be recorded")
+	}
+
+	run, err := executeFalsifierRed(root, id, "INV-002", "exit 0", 30, io.Discard)
+	if err != nil || !run.Passed() {
+		t.Fatalf("a carried invariant's passing test must be recorded: %+v, %v", run, err)
+	}
+	ev, _ := state.LoadBuildEvidence(root, id)
+	if f := ev.Falsifiers["INV-002"]; f == nil || f.Command != "exit 0" || f.Red != nil || !f.Green.Passed() {
+		t.Fatalf("a carried test is recorded as its green run, with no red: %+v", f)
+	}
+
+	// An introduced invariant is unchanged: it must still start red.
+	if _, err := executeFalsifierRed(root, id, "INV-001", "exit 0", 30, io.Discard); !errors.Is(err, errFalsifierPassed) {
+		t.Fatalf("an introduced invariant's passing test must still be refused, got %v", err)
+	}
+}
+
+// `bts falsifier check --red` reruns every recorded falsifier on the
+// skeleton.  A carried row is expected to pass there too, so its rerun is
+// its green run and the red expectation does not apply to it (trial #41).
+func TestExecuteFalsifierCheck_RedRerunExpectsCarriedGreen(t *testing.T) {
+	root, id := newBuildFixture(t)
+	writeCarriedDomain(t, root, id)
+	if _, err := executeFalsifierRed(root, id, "INV-001", "exit 1", 30, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := executeFalsifierRed(root, id, "INV-002", "exit 0", 30, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	results, err := executeFalsifierCheck(root, id, true, 30, io.Discard)
+	if err != nil || results["INV-001"].Passed() || !results["INV-002"].Passed() {
+		t.Fatalf("--red reruns both: %+v, %v", results, err)
+	}
+	ev, _ := state.LoadBuildEvidence(root, id)
+	if f := ev.Falsifiers["INV-002"]; f.Red != nil || !f.Green.Passed() {
+		t.Fatalf("a carried rerun under --red is its green run: %+v", f)
+	}
+	if !falsifierRunAsExpected(results["INV-002"], true, true) || falsifierRunAsExpected(results["INV-002"], false, true) {
+		t.Fatal("under --red a carried row is as expected when it passes, an introduced one when it fails")
+	}
+}

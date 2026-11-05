@@ -3,8 +3,9 @@ name: bts-falsify
 description: >
   Turn each invariant in a build recipe's domain.md into a test against
   the skeleton's public surface that fails now, for the invariant's own
-  reason, and record each with `bts falsifier run`. The same tests must
-  pass when implementation is done.
+  reason, and record each with `bts falsifier run`; a [carried] invariant
+  is recorded with its existing test, which passes now. The same tests
+  must pass when implementation is done.
 user-invocable: true
 allowed-tools: Read Write Edit Grep Glob Bash
 argument-hint: "[recipe-id]"
@@ -21,7 +22,7 @@ a target a run can check and the spec has nothing left to argue about.
 ## Read
 
 - `domain.md` § 2: each invariant's id, statement, owner and enforcement,
-  and the illegal cells.
+  whether it is `[carried]`, and the illegal cells.
 - The skeleton files, for the public surface each test calls.
 
 ## Write one test per invariant
@@ -46,6 +47,21 @@ An invariant no test can reach is stated badly. Restate it as an outcome
 someone can observe, in `domain.md`, or ask the user with `bts recipe
 decision hold`.
 
+## Carried invariants
+
+A row tagged `[carried]` in `domain.md` § 2 is an invariant the code
+already keeps; this change must not break it. Its test passes now, and
+that is the point: do not write it to fail. Use the existing test its
+Enforcement point names (often the earlier recipe's falsifier). When none
+exists, write one now that asserts the invariant's outcome and passes on
+the current code. Record it the same way, with the id alone (no tag).
+
+If a test of a new invariant passes on the skeleton because the committed
+code already kept that invariant before this change, it is carried, not
+new: tag its row `[carried]` in `domain.md`. If it passes only because a
+skeleton body is inert, it is new and the test does not assert its
+outcome yet; never tag a row to get a test recorded.
+
 ## Record
 
 Run each test alone and record it:
@@ -54,9 +70,14 @@ Run each test alone and record it:
 bts falsifier run {id} --inv INV-003 --cmd "<command that runs only this test>"
 ```
 
-The command must fail now. A test that passes on the skeleton is refused
-and not recorded: make it assert the outcome. When the skeleton changes
-later, rerun them all with `bts falsifier check {id} --red`.
+The command must fail now, except for a carried invariant's, which must
+pass. bts checks which: a new invariant's test that passes on the skeleton
+is refused and not recorded (make it assert the outcome), and so is a
+carried invariant's test that fails (point at the right test, or restore
+the existing behaviour the skeleton broke; the skeleton leaves existing
+bodies alone). When the skeleton changes later, rerun them all with
+`bts falsifier check {id} --red`, which expects the new ones red and the
+carried ones green.
 
 The tests you wrote or changed are often File Structure rows too, so they
 are part of the skeleton's code hash.  After the last one, rerun the
@@ -64,7 +85,8 @@ skeleton build (`bts check build {id} --cmd "<the same build command>"`)
 so `skeleton_builds` sees the code as it now is; otherwise the stop hook
 refuses DONE with "skeleton changed after its last build".
 
-Add each row to `final.md` § 2 (invariant, test, command). A row whose
+Add each row to `final.md` § 2 (invariant, test, command), carried ones
+included. A row whose
 test proves an illegal cell from `domain.md` § 4 refused carries the
 cell's label as a tag, `INV-003 [illegal-cell: second issue for one PR]`:
 that tag, not a simulated scenario, is what `bts validate` counts as the

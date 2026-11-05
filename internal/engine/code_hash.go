@@ -64,23 +64,58 @@ func codeTasks(root, recipeID string) []state.Task {
 }
 
 // DomainInvariantIDs lists the invariant ids declared in domain.md § 2, in
-// document order. A missing file is an error, and so is a file in which no
+// document order, carried ones included (DomainInvariantKinds tells them
+// apart). A missing file is an error, and so is a file in which no
 // invariant row is found: every gate that reads the list (falsifiers red,
 // green, able to fail) would otherwise pass with nothing checked (trial
 // problem #53).
 func DomainInvariantIDs(domainPath string) ([]string, error) {
-	invs, err := parseInvariantsTable(domainPath)
+	invs, err := domainInvariantRows(domainPath)
 	if err != nil {
 		return nil, err
 	}
 	ids := make([]string, 0, len(invs))
 	for _, inv := range invs {
-		if id := strings.TrimSpace(inv.ID); id != "" {
-			ids = append(ids, id)
-		}
-	}
-	if len(ids) == 0 {
-		return nil, fmt.Errorf("%s: no invariant rows found under a \"## 2. Invariants\" heading", filepath.Base(domainPath))
+		ids = append(ids, inv.ID)
 	}
 	return ids, nil
+}
+
+// DomainInvariantKinds splits the ids of domain.md § 2 into the invariants
+// this recipe introduces and the ones it carries (`[carried]` in the ID
+// cell), each in document order. The falsifier gates treat them in
+// opposite ways: an introduced invariant's test must fail on the skeleton
+// and be shown able to fail, while a carried one's test already passes and
+// must keep passing (trial problem #41). Errors as DomainInvariantIDs does.
+func DomainInvariantKinds(domainPath string) (introduced, carried []string, err error) {
+	invs, err := domainInvariantRows(domainPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, inv := range invs {
+		if inv.Carried {
+			carried = append(carried, inv.ID)
+		} else {
+			introduced = append(introduced, inv.ID)
+		}
+	}
+	return introduced, carried, nil
+}
+
+// domainInvariantRows is the § 2 rows that carry an id; none is an error.
+func domainInvariantRows(domainPath string) ([]Invariant, error) {
+	invs, err := parseInvariantsTable(domainPath)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]Invariant, 0, len(invs))
+	for _, inv := range invs {
+		if inv.ID = strings.TrimSpace(inv.ID); inv.ID != "" {
+			rows = append(rows, inv)
+		}
+	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("%s: no invariant rows found under a \"## 2. Invariants\" heading", filepath.Base(domainPath))
+	}
+	return rows, nil
 }

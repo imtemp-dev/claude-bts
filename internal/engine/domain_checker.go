@@ -15,7 +15,20 @@ type Invariant struct {
 	Statement string
 	Owner     string
 	LineNo    int
+	// Carried marks an invariant the change keeps rather than introduces:
+	// earlier work established it and a test already holds it.  Its ID
+	// cell carries a `[carried]` tag, which ID does not include.
+	Carried bool
 }
+
+// carriedTagRe is the `[carried]` tag in a § 2 ID cell, with an optional
+// note on where the invariant was established: `INV-009 [carried]`,
+// `INV-009 [carried: r-002 INV-001]`.  A change to committed code must
+// keep what an earlier recipe established, and the red-first falsifier
+// rule refused the passing test such an invariant already has, so it
+// stayed in prose with no test linked (trial problem #41).  A tag rather
+// than an ID prefix keeps the INV-NNN form every other check reads.
+var carriedTagRe = regexp.MustCompile(`(?i)\s*\[carried\b[^\]]*\]`)
 
 // CheckInvariantOwnership parses domain.md § 2 and returns an Issue for
 // each invariant statement that has two or more distinct owners. This is
@@ -141,6 +154,10 @@ func parseInvariantsTable(path string) ([]Invariant, error) {
 			Statement: strings.TrimSpace(cells[1]),
 			Owner:     strings.TrimSpace(cells[2]),
 			LineNo:    lineNo,
+		}
+		if carriedTagRe.MatchString(inv.ID) {
+			inv.ID = strings.TrimSpace(carriedTagRe.ReplaceAllString(inv.ID, ""))
+			inv.Carried = true
 		}
 		// Skip blank / template rows.
 		if inv.ID == "" && inv.Statement == "" && inv.Owner == "" {

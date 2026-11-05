@@ -79,8 +79,8 @@ var HardGates = []HardGate{
 	{
 		ID:          "falsifiers_red",
 		Rule:        "bts-recipe-build SKILL.md, Falsify",
-		Enforcement: "internal/hook/stop_build.go:handleBuildSpecDone via engine.CheckFalsifiersRed",
-		Summary:     "Build recipe DONE blocked unless every domain.md invariant has a falsifier recorded failing on the current skeleton",
+		Enforcement: "internal/hook/stop_build.go:handleBuildSpecDone via engine.CheckFalsifiersRed + engine.CheckCarriedGreen",
+		Summary:     "Build recipe DONE blocked unless every invariant domain.md introduces has a falsifier recorded failing on the current skeleton, and every [carried] one has its existing test recorded passing there",
 	},
 	{
 		ID:          "build_review_clean",
@@ -92,13 +92,13 @@ var HardGates = []HardGate{
 		ID:          "falsifiers_green",
 		Rule:        "bts-recipe-build SKILL.md, Implement",
 		Enforcement: "internal/hook/stop_build.go:buildFalsifiersGreen (handleImplementDone, build recipes)",
-		Summary:     "IMPLEMENT DONE blocked for a build recipe unless every invariant's falsifier passed on the current code hash",
+		Summary:     "IMPLEMENT DONE blocked for a build recipe unless every invariant's falsifier, [carried] ones included, passed on the current code hash",
 	},
 	{
 		ID:          "falsifiers_able_to_fail",
 		Rule:        "bts-implement SKILL.md, Step 5.2 Able to fail",
 		Enforcement: "internal/hook/stop_build.go:buildFalsifiersAbleToFail (handleImplementDone, build recipes)",
-		Summary:     "IMPLEMENT DONE blocked for a build recipe unless every invariant's falsifier failed in its own test on a copy of the current code with the invariant's guard broken (bts falsifier mutate), or the invariant is recorded as not mutable",
+		Summary:     "IMPLEMENT DONE blocked for a build recipe unless every invariant it introduces (not a [carried] one) has a falsifier that failed in its own test on a copy of the current code with the invariant's guard broken (bts falsifier mutate), or is recorded as not mutable",
 	},
 	{
 		ID:          "interrogate_clean",
