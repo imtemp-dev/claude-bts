@@ -124,3 +124,25 @@ func TestMergeFindingsBlocks_NoExtrasIsIdentityOnCounts(t *testing.T) {
 		t.Errorf("no extras must leave the counts alone, got %+v", *counts)
 	}
 }
+
+// Trial problem #71: confirmed_fixed survives parsing and a merge, joined
+// across the merged blocks without repeats.
+func TestConfirmedFixed_ParsedAndKeptByMerge(t *testing.T) {
+	primary := []byte("<bts-findings>\n{\"critical\":0,\"major\":0,\"minor_resolvable\":0,\"minor_deferred\":0,\"info\":0,\"findings\":[],\"confirmed_fixed\":[\"F-a\",\" F-b \",\"F-a\"]}\n</bts-findings>\n")
+	audit := []byte("<bts-findings>\n{\"critical\":0,\"major\":0,\"minor_resolvable\":0,\"minor_deferred\":0,\"info\":0,\"findings\":[],\"confirmed_fixed\":[\"F-b\",\"F-c\"]}\n</bts-findings>\n")
+	c, err := ParseFindingsBlock(primary)
+	if err != nil || strings.Join(c.ConfirmedFixed, ",") != "F-a,F-b" {
+		t.Fatalf("parse: %v %v", c.ConfirmedFixed, err)
+	}
+	merged, mc, err := MergeFindingsBlocks(primary, [][]byte{audit}, []string{"audit.md"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(mc.ConfirmedFixed, ",") != "F-a,F-b,F-c" {
+		t.Errorf("merged counts confirmed_fixed = %v", mc.ConfirmedFixed)
+	}
+	again, err := ParseFindingsBlock(merged)
+	if err != nil || strings.Join(again.ConfirmedFixed, ",") != "F-a,F-b,F-c" {
+		t.Errorf("the merged block must carry the union, got %v %v", again.ConfirmedFixed, err)
+	}
+}

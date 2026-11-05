@@ -82,6 +82,16 @@ func MergeFindingsBlocks(primary []byte, extras [][]byte, sourceNames []string) 
 		merged.Findings = []state.ReportedFinding{}
 	}
 	obj["findings"] = merged.Findings
+	// Each instrument may confirm earlier findings fixed; keep them all.
+	for _, ex := range extras {
+		if c, err := ParseFindingsBlock(ex); err == nil {
+			merged.ConfirmedFixed = append(merged.ConfirmedFixed, c.ConfirmedFixed...)
+		}
+	}
+	merged.ConfirmedFixed = uniqueTrimmed(merged.ConfirmedFixed)
+	if len(merged.ConfirmedFixed) > 0 {
+		obj["confirmed_fixed"] = merged.ConfirmedFixed
+	}
 
 	enc, err := json.MarshalIndent(obj, "", "  ")
 	if err != nil {
@@ -98,3 +108,18 @@ func MergeFindingsBlocks(primary []byte, extras [][]byte, sourceNames []string) 
 
 // mergedMarkerRe finds the marker a previous merge left behind.
 var mergedMarkerRe = regexp.MustCompile(`<!--\s*bts-merged:\s*([^>]*?)\s*-->`)
+
+// uniqueTrimmed drops blank and repeated entries, keeping first-seen order.
+func uniqueTrimmed(in []string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, s := range in {
+		s = strings.TrimSpace(s)
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	return out
+}

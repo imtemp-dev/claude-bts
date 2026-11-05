@@ -173,6 +173,13 @@ type FindingsCounts struct {
 	// before v0.10 and on migrate-seeded blocks — callers degrade to
 	// counts-only rather than failing, but lose stagnation detection.
 	Findings []state.ReportedFinding
+
+	// ConfirmedFixed lists ledger IDs of earlier findings the verifier
+	// re-checked this round and found fixed (`"confirmed_fixed"` in the
+	// block, optional).  The ledger closes them as fixed at once instead
+	// of waiting for a second silent round, which a build recipe's one
+	// review never has (trial problem #71).
+	ConfirmedFixed []string
 }
 
 // Total returns the number of findings the counts describe. Used to
@@ -208,6 +215,7 @@ func ParseFindingsBlock(data []byte) (*FindingsCounts, error) {
 		MinorDeferred   *int                    `json:"minor_deferred"`
 		Info            int                     `json:"info"`
 		Findings        []state.ReportedFinding `json:"findings"`
+		ConfirmedFixed  []string                `json:"confirmed_fixed"`
 	}
 	if err := json.Unmarshal(matches[0][1], &raw); err != nil {
 		return nil, fmt.Errorf("invalid JSON in findings block: %w", err)
@@ -230,6 +238,7 @@ func ParseFindingsBlock(data []byte) (*FindingsCounts, error) {
 		MinorDeferred:   *raw.MinorDeferred,
 		Info:            raw.Info,
 		Findings:        raw.Findings,
+		ConfirmedFixed:  uniqueTrimmed(raw.ConfirmedFixed),
 	}
 
 	// The array is optional, but a present array must be consistent with

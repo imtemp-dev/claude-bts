@@ -207,10 +207,17 @@ rewrites agent files.
        {"severity": "minor_resolvable", "title": "level header still says Level 2", "anchor": "§1"},
        {"severity": "minor_resolvable", "title": "retryCount declared twice", "anchor": "§4.2"},
        {"severity": "minor_deferred", "title": "scroll threshold needs a device measurement", "anchor": "§7"}
-     ]
+     ],
+     "confirmed_fixed": ["F-3a9c01d2"]
    }
    </bts-findings>
    ```
+
+   `confirmed_fixed` is optional: the ledger IDs, from the carry-forward
+   section, of earlier findings you re-checked in this document and found
+   fixed.  The ledger closes them as fixed when the round is recorded,
+   instead of waiting for a second silent round.  List only what you
+   checked; leave out anything you did not look at.
 
    The `findings` array is REQUIRED and feeds the findings ledger, which
    is what gives findings identity across rounds. Rules:

@@ -343,6 +343,7 @@ var recipeLogCmd = &cobra.Command{
 			}
 
 			var reported []state.ReportedFinding
+			var confirmedFixed []string
 			haveFindingsArray := false
 
 			fromVerification, _ := cmd.Flags().GetString("from-verification")
@@ -396,6 +397,7 @@ var recipeLogCmd = &cobra.Command{
 				infoCt = counts.Info
 				minor = 0
 				reported = counts.Findings
+				confirmedFixed = counts.ConfirmedFixed
 				haveFindingsArray = len(counts.Findings) > 0 || counts.Total() == 0
 			}
 
@@ -577,6 +579,24 @@ var recipeLogCmd = &cobra.Command{
 				} else {
 					sync = s
 					verdict.Stagnant = s.Stagnant
+				}
+				// Earlier findings the verifier re-checked and found fixed
+				// close now, not after a second silent round (trial #71).
+				if fixed, skipped, cerr := state.ConfirmFixedFindings(root, recipeID, entry, confirmedFixed, reported); cerr != nil {
+					fmt.Fprintf(os.Stderr, "warning: confirmed-fixed findings: %v\n", cerr)
+				} else {
+					if len(fixed) > 0 {
+						fmt.Fprintf(os.Stderr, "[bts] confirmed fixed by this round: %s\n", strings.Join(fixed, ", "))
+						if sync != nil {
+							sync.Fixed = append(sync.Fixed, fixed...)
+							sync.Unreported = without(sync.Unreported, fixed)
+							sync.Restated = without(sync.Restated, fixed)
+						}
+					}
+					if len(skipped) > 0 {
+						fmt.Fprintf(os.Stderr, "[bts] warning: confirmed_fixed lists %s, which is not an open finding on %s or was reported again this round; left as it was\n",
+							strings.Join(skipped, ", "), docBase)
+					}
 				}
 			}
 
@@ -1428,4 +1448,19 @@ func sortedDocTypes() []string {
 	}
 	sort.Strings(types)
 	return types
+}
+
+// without returns list minus every entry in drop, keeping order.
+func without(list, drop []string) []string {
+	skip := make(map[string]bool, len(drop))
+	for _, d := range drop {
+		skip[d] = true
+	}
+	var out []string
+	for _, s := range list {
+		if !skip[s] {
+			out = append(out, s)
+		}
+	}
+	return out
 }

@@ -713,11 +713,54 @@ func CarryForwardBlock(states []*FindingState) string {
 		b.WriteString("\n")
 	}
 
-	section("STILL OPEN", "expect these unless the fix landed", open)
+	section("STILL OPEN", "expect these unless the fix landed; list the IDs of those you checked and "+
+		"found fixed in the block's \"confirmed_fixed\"", open)
 	section("UNCONFIRMED", "last round went silent on these without closing them — "+
-		"say explicitly whether each is fixed, and reuse its exact recorded title if it is not", unreported)
+		"check each: list its ID in \"confirmed_fixed\" if it is fixed, and reuse its exact recorded title if it is not", unreported)
 	section("FIXED", "report again only if the fix was reverted or is wrong", fixed)
 	section("DISMISSED", "adjudicated as not-a-defect; do NOT re-raise", dismissed)
 	section("DEFERRED", "runtime watch-items; not IMPROVE targets", deferred)
 	return b.String()
+}
+
+// ConfirmFixedFindings closes, as fixed, the earlier findings on round's
+// document that the verifier re-checked this round and listed as fixed
+// (the block's "confirmed_fixed").  Absence alone closes a finding only
+// after a second silent round, which a build recipe's one review never
+// has, so confirmed fixes stayed "unreported" and the ledger could not say
+// they were done (trial problem #71).  A finding reported again this
+// round, one already closed, or an ID the ledger does not hold for this
+// document is not closed; the IDs it skipped are returned for a warning.
+func ConfirmFixedFindings(root, recipeID string, round *VerifyLogEntry, ids []string, reported []ReportedFinding) (fixed, skipped []string, err error) {
+	if len(ids) == 0 {
+		return nil, nil, nil
+	}
+	docBase := filepath.Base(round.Doc)
+	events, err := ReadFindingEvents(root, recipeID)
+	if err != nil {
+		return nil, nil, err
+	}
+	prior := FoldFindings(events)
+	reportedNow := map[string]bool{}
+	for _, rf := range reported {
+		reportedNow[FindingID(docBase, rf.Title)] = true
+	}
+	var toAppend []FindingEvent
+	for _, id := range ids {
+		st, ok := prior[id]
+		if !ok || st.Doc != docBase || reportedNow[id] || !NotClosed(st.Status) {
+			skipped = append(skipped, id)
+			continue
+		}
+		toAppend = append(toAppend, FindingEvent{
+			ID: id, Doc: docBase, Iteration: round.Iteration,
+			Severity: st.Severity, Title: st.Title, Anchor: st.Anchor,
+			Status: FindingFixed,
+		})
+		fixed = append(fixed, id)
+	}
+	if err := AppendFindingEvents(root, recipeID, toAppend); err != nil {
+		return nil, nil, err
+	}
+	return fixed, skipped, nil
 }

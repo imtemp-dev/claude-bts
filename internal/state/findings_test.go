@@ -687,3 +687,51 @@ func TestNominateDuplicatesOverNominatesSharedSubject(t *testing.T) {
 		t.Fatalf("want the ArtworkView pair raised for the operator, got %+v", got)
 	}
 }
+
+// Trial problem #71: a review round that re-checked earlier findings and
+// found them fixed had no way to say so; absence closes a finding only
+// after a second silent round, which a build recipe's one review never
+// has.  A confirmed_fixed ID closes it at once; one reported again, one
+// already closed, and one the ledger does not hold are left alone.
+func TestConfirmFixedFindings(t *testing.T) {
+	root, id := findingsRoot(t)
+	if _, err := SyncFindings(root, id, legacyRound("final.md", 1), []ReportedFinding{
+		{Severity: "major", Title: "rollout assumes DRY_RUN=1 unstated"},
+		{Severity: "minor_resolvable", Title: "README anchor is stale"},
+		{Severity: "minor_resolvable", Title: "INV-008 claim overstated"},
+	}, 3); err != nil {
+		t.Fatal(err)
+	}
+	major := FindingID("final.md", "rollout assumes DRY_RUN=1 unstated")
+	anchor := FindingID("final.md", "README anchor is stale")
+	stillThere := FindingID("final.md", "INV-008 claim overstated")
+
+	round2 := legacyRound("final.md", 2)
+	reported := []ReportedFinding{{Severity: "minor_resolvable", Title: "INV-008 claim overstated"}}
+	if _, err := SyncFindings(root, id, round2, reported, 3); err != nil {
+		t.Fatal(err)
+	}
+	fixed, skipped, err := ConfirmFixedFindings(root, id, round2, []string{major, anchor, stillThere, "F-unknown"}, reported)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(fixed, ",") != major+","+anchor {
+		t.Errorf("fixed = %v, want the two confirmed findings", fixed)
+	}
+	if strings.Join(skipped, ",") != stillThere+",F-unknown" {
+		t.Errorf("skipped = %v, want the re-reported and the unknown IDs", skipped)
+	}
+	states, _ := LoadFindings(root, id, "final.md")
+	for _, st := range states {
+		want := FindingFixed
+		if st.ID == stillThere {
+			want = FindingOpen
+		}
+		if st.Status != want {
+			t.Errorf("%s (%s) status %s, want %s", st.ID, st.Title, st.Status, want)
+		}
+	}
+	if again, _, _ := ConfirmFixedFindings(root, id, round2, []string{major}, nil); len(again) != 0 {
+		t.Errorf("an already fixed finding must not be closed twice, got %v", again)
+	}
+}
