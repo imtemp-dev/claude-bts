@@ -172,6 +172,12 @@ Small example (two axes — real problems often have 3-4):
 For 3+ axes, produce a flat table: one row per legal cell, one row per
 illegal cell with "prevented by" or "CRITICAL" in the Notes column.
 
+Name each illegal cell in its row as `ILLEGAL: <label>`.  `bts validate`
+reads cells only from this section's table rows: the label runs to where
+its bold ends, a spaced dash (` — `) or the cell's end, a trailing
+parenthetical is a note rather than part of it, and prose here declares
+no cell.  final.md tags the same label: `[illegal-cell: <label>]`.
+
 ### 5. Invariant Test Matrix
 
 For each invariant in Section 2, describe ONE scenario that WOULD
