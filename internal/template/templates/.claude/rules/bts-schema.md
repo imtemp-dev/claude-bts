@@ -313,6 +313,8 @@ Located at `.bts/specs/recipes/{id}/tasks.json`:
 }
 ```
 
+bts rewrites tasks.json when a command records something in it (`bts check task`, retries), and it leaves out optional fields that are empty (`depends_on: []`, `retry_count: 0`, `last_error: ""`).  Nothing set is lost, but the file changes under you: read it again before editing it after a bts command.
+
 Required fields:
 - `recipe_id` (string): recipe this task list belongs to
 - `started_at` (string): ISO 8601 timestamp
