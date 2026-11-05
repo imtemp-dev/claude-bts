@@ -101,7 +101,11 @@ func ComputeRecipeStats(projectRoot, recipeDir string) (*RecipeStats, error) {
 	// projectRoot is the argument the CLI passes through; stats.go's
 	// caller resolves it to the BTS root, so LoadSettings works here.
 	// If settings.yaml is absent LoadSettings returns DefaultSettings.
-	if settings, err := LoadSettings(projectRoot); err == nil {
+	// A build recipe expects none: its tasks close in one pass after the
+	// skeleton and falsify stages wrote the code, and the skeleton build,
+	// the falsifiers, mutation, interrogate and the terminal review check
+	// it instead (trial problem #77, AGEN-58).
+	if settings, err := LoadSettings(projectRoot); err == nil && recipeTypeOf(recipeDir) != "build" {
 		every := settings.Implement.MidrunReviewEvery
 		if every > 0 {
 			s.MidrunExpected = s.CompletedTasks / every

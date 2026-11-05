@@ -386,6 +386,13 @@ if settings.implement.midrun_review_every > 0 AND
 The counter resets after each mid-run run. When `midrun_review_every=0`
 the entire block is skipped; the terminal Step 5.5 review still runs.
 
+A build recipe (`bts recipe status` shows type `build`) skips this block
+too.  Its skeleton and falsify stages wrote most of the code before the
+tasks, so the tasks close in one pass and no window of them matches a
+stretch of new code.  The skeleton build, the falsifiers red then green,
+mutation, interrogate and the terminal review check that code instead,
+and `bts stats` expects no mid-run review for it.
+
 **Crash safety**: tasks.json is the source of truth for implementation progress.
 `bts task status` writes it on every status change. If the session
 crashes, the next resume reads tasks.json and knows exactly where to continue.
