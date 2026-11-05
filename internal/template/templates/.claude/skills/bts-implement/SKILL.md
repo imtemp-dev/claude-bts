@@ -455,9 +455,18 @@ keeps, and its test only has to stay green):
      `bts falsifier check {id}`, and mutate again.  Never weaken the
      mutation to make it pass.
    - "the --expect text was not in its output": the run failed somewhere
-     else (import, another test).  Break only the guard.
+     else (import, another test, a file missing from the copy).  Break
+     only the guard.
    - An invariant held by a type or a configuration, with no code guard:
      `bts falsifier mutate {id} --inv INV-NNN --not-mutable "<reason>"`.
+
+   The copy holds what git lists: tracked files, and untracked ones git
+   does not ignore.  A falsifier that reads an ignored file (a local env
+   file, generated configuration) fails there before it reaches the
+   guard.  Bring the file in with `--setup`, which runs in the copy, by
+   its absolute path in the project:
+   `--setup 'mkdir -p .env.d && cp /abs/project/.env.d/test.env .env.d/'`.
+   `--rerun` repeats each run's setup.
 
 A later code change (review fixes) makes the runs stale; the Completion
 step reruns them.
