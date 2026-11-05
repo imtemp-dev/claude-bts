@@ -134,6 +134,7 @@ func runRecorded(root, recipeID, cmdStr string, timeoutSec int, logName string, 
 	if cmdStr == "" {
 		return nil, errors.New("--cmd is required")
 	}
+	before, _ := engine.CodeHash(root, recipeID)
 	run, err := runShellCommand(root, cmdStr, timeoutSec, sink)
 	if err != nil {
 		return nil, fmt.Errorf("run %q: %w", cmdStr, err)
@@ -146,6 +147,7 @@ func runRecorded(root, recipeID, cmdStr string, timeoutSec int, logName string, 
 	if herr != nil {
 		fmt.Fprintf(os.Stderr, "[bts] warning: code fingerprint: %v (this run records none)\n", herr)
 	}
+	warnIfRunMovedFingerprint(before, hash)
 	return &state.CommandRun{
 		Command:  cmdStr,
 		ExitCode: run.ExitCode,
@@ -153,6 +155,17 @@ func runRecorded(root, recipeID, cmdStr string, timeoutSec int, logName string, 
 		CodeHash: hash,
 		RunAt:    time.Now().UTC().Format(time.RFC3339),
 	}, nil
+}
+
+// warnIfRunMovedFingerprint warns when a recorded command changed the code
+// fingerprint itself. The run is stamped with the code as it left it, but
+// a command that writes into the fingerprinted files moves the fingerprint
+// on every run, so each recorded run makes the others stale.
+func warnIfRunMovedFingerprint(before, after string) {
+	if before != "" && after != "" && before != after {
+		fmt.Fprintf(os.Stderr, "[bts] warning: this command changed files the code fingerprint covers. "+
+			"Keep what it writes under .verify/ or a gitignored path, or every other run compared with it reads as stale.\n")
+	}
 }
 
 func executeBuildCheck(root, recipeID, cmdStr string, timeoutSec int, sink io.Writer) (*state.CommandRun, error) {

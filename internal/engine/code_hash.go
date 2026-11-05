@@ -18,9 +18,14 @@ import (
 // still have to say which code they judged. Implementation derives its tasks
 // from the same rows, so both sources name the same files.
 //
-// It returns "" when neither source names a file.
+// When neither source names a file (a fix recipe writes neither), it is
+// state.TreeHash over the whole project, so the freshness gates still see
+// an edit made after a run; "" only outside a git repository.
 func CodeHash(root, recipeID string) (string, error) {
-	return state.ImplHash(root, codeTasks(root, recipeID))
+	if h, err := state.ImplHash(root, codeTasks(root, recipeID)); err != nil || h != "" {
+		return h, err
+	}
+	return state.TreeHash(root)
 }
 
 // CodeFiles lists the files CodeHash covers, as written in tasks.json or

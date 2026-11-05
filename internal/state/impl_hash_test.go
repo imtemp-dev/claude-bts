@@ -92,9 +92,11 @@ func TestImplHash_NoFilesIsEmpty(t *testing.T) {
 	}
 }
 
+// Outside a git repository a recipe without tasks.json has no fingerprint;
+// inside one it falls back to the tree (TestRecipeImplHash_FallsBackToTheTree).
 func TestRecipeImplHash_NoTasksJSON(t *testing.T) {
 	h, err := RecipeImplHash(t.TempDir(), "r-001-none")
 	if err != nil || h != "" {
-		t.Fatalf("a recipe without tasks.json must give (\"\", nil), got (%q, %v)", h, err)
+		t.Fatalf("outside git a recipe without tasks.json must give (\"\", nil), got (%q, %v)", h, err)
 	}
 }

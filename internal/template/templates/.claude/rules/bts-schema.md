@@ -388,6 +388,13 @@ the command ran. The implement and fix stop gates refuse a pass whose
 `impl_hash` no longer matches those files: any code change after the
 run, a review fix included, needs another `bts test run`. Test files
 are not part of it, because `test_files` is filled in after the run.
+A recipe with no tasks.json (a fix recipe) fingerprints the whole git
+tree instead: every file `git ls-files -co --exclude-standard` lists,
+tests included, outside `.bts/`, `.claude/` and `.verify/`, so any edit
+in the project needs another run.  Outside a git repository such a
+recipe records no fingerprint.  The interrogate and prove records use
+the same fingerprint, so a drive must write only under `.verify/` (or
+a gitignored path), or its own output reads as a code change.
 
 Required fields:
 - `recipe_id` (string): recipe this test run belongs to

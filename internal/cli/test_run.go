@@ -91,6 +91,7 @@ func executeTestRun(root, recipeID, cmdStr, framework string, timeoutSec int, co
 		timeoutSec = 600
 	}
 
+	before, _ := state.RecipeImplHash(root, recipeID)
 	run, err := runShellCommand(root, cmdStr, timeoutSec, sink)
 	if err != nil {
 		return nil, fmt.Errorf("run test command: %w", err)
@@ -121,6 +122,7 @@ func executeTestRun(root, recipeID, cmdStr, framework string, timeoutSec int, co
 	if herr != nil {
 		fmt.Fprintf(os.Stderr, "[bts] warning: code fingerprint: %v (this run records none)\n", herr)
 	}
+	warnIfRunMovedFingerprint(before, implHash)
 
 	tr := &state.TestResults{
 		RecipeID:   recipeID,

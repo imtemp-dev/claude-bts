@@ -56,13 +56,15 @@ func ImplHash(root string, tasks []Task) (string, error) {
 	return ContentHash([]byte(strings.Join(lines, "\n"))), nil
 }
 
-// RecipeImplHash is ImplHash over the recipe's tasks.json. It returns ""
-// with a nil error when the recipe has no tasks.json, which is normal
-// before decomposition and for fix recipes that never wrote one.
+// RecipeImplHash is ImplHash over the recipe's tasks.json. When the recipe
+// has no tasks.json, or its tasks name no file (normal before decomposition
+// and for a fix recipe, which never writes one), it is TreeHash over the
+// whole project, and "" only outside a git repository.
 func RecipeImplHash(root, recipeID string) (string, error) {
-	ts, err := LoadTaskState(root, recipeID)
-	if err != nil {
-		return "", nil
+	if ts, err := LoadTaskState(root, recipeID); err == nil {
+		if h, herr := ImplHash(root, ts.Tasks); herr != nil || h != "" {
+			return h, herr
+		}
 	}
-	return ImplHash(root, ts.Tasks)
+	return TreeHash(root)
 }

@@ -736,15 +736,17 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 
 // testsCoverCurrentCode is gate tests_cover_current_code: a passing test
 // run counts only for the code it ran on. `bts test run` records
-// state.ImplHash over the task files; when the files hash differently now,
+// state.RecipeImplHash (the task files, or for a recipe without tasks.json
+// the whole project, state.TreeHash); when the code hashes differently now,
 // the pass describes code that no longer exists — typically a fix made
 // after the review, which re-running the tests is cheap enough to cover.
 //
 // It is deliberately not overridable: the remedy is always to re-run the
 // tests, so an override could only ever mean "skip testing this code".
 //
-// A result with no recorded hash (written before the field existed, or a
-// recipe with no tasks.json) passes; `bts doctor` reports it. A hash that
+// A result with no recorded hash (written before the field existed, or
+// outside a git repository by a recipe with no tasks.json) passes; `bts
+// doctor` reports it. A hash that
 // cannot be computed now passes with a warning, so a read failure degrades
 // coverage instead of manufacturing a block.
 func testsCoverCurrentCode(root, recipeID string, tr *state.TestResults) *HookOutput {
@@ -765,7 +767,8 @@ func testsCoverCurrentCode(root, recipeID string, tr *state.TestResults) *HookOu
 		rerun = fmt.Sprintf("bts test run %s --cmd %q", recipeID, tr.Command)
 	}
 	return blockOutput(fmt.Sprintf(
-		"Tests passed on different code: a file named in tasks.json changed after "+
+		"Tests passed on different code: the code changed (a file tasks.json names, or for a "+
+			"recipe without one, any project file outside .bts/, .claude/ and .verify/) after "+
 			"the last `bts test run` recorded its result. Re-run the tests on the code "+
 			"as it is now:\n  %s\nthen complete again.", rerun))
 }
