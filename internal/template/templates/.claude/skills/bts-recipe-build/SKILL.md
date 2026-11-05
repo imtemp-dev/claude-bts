@@ -106,8 +106,13 @@ decision hold`).
    an owner was answered at step 4, not here.
 10. **Build spec.** Write `final.md` in the shape below. It points at the
     skeleton, `domain.md` and the wireframe instead of copying them.
-11. **One review.** `/bts-verify` on `final.md` at full scope, recorded with
+11. **One review.** `/bts-verify` on `final.md` at full scope.  The fork
+    returns its findings and writes nothing; when it returns, write its
+    output to `.bts/specs/recipes/{id}/verification.md` verbatim, block
+    first (`bts-verify` § Division of labor), then record the round with
     `bts recipe log {id} --doc final.md --dimension verify --scope full --from-verification .bts/specs/recipes/{id}/verification.md`.
+    While the fork runs you may end the turn and wait for its
+    notification; the stop hook allows it.
     A critical or major is fixed where it lives (the skeleton, a test, or
     `final.md`); rerun what the fix touched (`bts check build {id} --cmd ...`,
     `bts falsifier check {id} --red`). A minor is fixed or declared as a
