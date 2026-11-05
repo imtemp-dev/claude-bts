@@ -220,6 +220,15 @@ func (h *stopHandler) handleBlindStop(root string, recipe *state.RecipeState) (*
 		fmt.Fprintf(os.Stderr,
 			"[bts] warning: dirty-doc check failed: %v (proceeding without check)\n", derr)
 	} else if len(dirty) > 0 {
+		// A verify fork the agent already started is the re-verify rule 3
+		// asks for: let the turn end so the agent can wait for the fork's
+		// notification, and keep the rule for when no fork is running
+		// (trial problem #8).  The completion gates still require the round.
+		if running, since := state.VerifyInFlight(root); running {
+			fmt.Fprintf(os.Stderr, "[bts] %s changed after its last verification; a verify fork started at %s is still running, so the turn may end. Record its round when it returns.\n",
+				strings.Join(dirty, ", "), since.Local().Format("15:04"))
+			return allow()
+		}
 		return blockOutput(fmt.Sprintf(
 			"%s changed after its last verification. Rule 3: every modification requires /bts-verify. "+
 				"Either re-verify and record it, or tell the user the doc is left unverified — do not end the turn as if it were still verified.",

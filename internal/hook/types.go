@@ -40,7 +40,8 @@ type HookInput struct {
 	StopHookActive bool `json:"stop_hook_active,omitempty"`
 
 	// Subagent fields
-	AgentID string `json:"agent_id,omitempty"`
+	AgentID   string `json:"agent_id,omitempty"`
+	AgentType string `json:"agent_type,omitempty"`
 
 	// Tool fields
 	ToolName     string                 `json:"tool_name,omitempty"`

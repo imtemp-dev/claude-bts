@@ -158,6 +158,47 @@ func TestBlindStop_DirtyVerifiedDoc_Blocks(t *testing.T) {
 	if !strings.Contains(out.Reason, "draft.md") {
 		t.Errorf("reason must name the dirty doc, got: %s", out.Reason)
 	}
+
+	// Trial problem #8: while the verify fork the agent started is still
+	// running, the turn may end so the agent can wait for its notification.
+	start := func(id, agentType string) {
+		t.Helper()
+		if _, err := NewSubagentStartHandler().Handle(&HookInput{CWD: root, AgentID: id, AgentType: agentType}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	start("agent-general", "general-purpose")
+	if out := blindStop(t, root); out.Decision != "block" {
+		t.Fatal("a subagent that is not a verifier must not lift rule 3")
+	}
+	start("agent-verify", "verifier")
+	if out := blindStop(t, root); out.Decision == "block" {
+		t.Fatalf("a running verify fork must let the turn end, got %q", out.Reason)
+	}
+	if _, err := NewSubagentStopHandler().Handle(&HookInput{CWD: root, AgentID: "agent-verify"}); err != nil {
+		t.Fatal(err)
+	}
+	if out := blindStop(t, root); out.Decision != "block" {
+		t.Fatal("once the fork has stopped and no round is logged, rule 3 blocks again")
+	}
+
+	// A fork that died without a SubagentStop stops counting after the limit.
+	start("agent-audit", "auditor")
+	old := time.Now().Add(-state.VerifyInFlightMaxAge - time.Minute).UTC().Format(time.RFC3339)
+	marker := filepath.Join(state.LocalPath(root), "verify-inflight", "agent-audit.json")
+	if err := os.WriteFile(marker, []byte(`{"agent_type":"auditor","started_at":"`+old+`"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if out := blindStop(t, root); out.Decision != "block" {
+		t.Fatal("a stale in-flight record must not lift rule 3")
+	}
+
+	// Logging a round clears every record.
+	start("agent-verify-2", "bts-verifier")
+	state.ClearVerifyInFlight(root)
+	if running, _ := state.VerifyInFlight(root); running {
+		t.Fatal("a logged round must clear the in-flight records")
+	}
 }
 
 // The v0.13.0 regression, in the shape that produced it: a recipe carried

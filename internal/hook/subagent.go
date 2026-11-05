@@ -38,6 +38,10 @@ func (h *subagentStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 	_ = os.MkdirAll(filepath.Dir(agentFile), 0755)
 	_ = os.WriteFile(agentFile, bytes, 0644)
 
+	if state.IsVerifyAgent(input.AgentType) {
+		_ = state.MarkVerifyStarted(root, input.AgentID, input.AgentType)
+	}
+
 	_ = metrics.Append(root, subagentEvent(root, metrics.KindSubagentStart, input))
 
 	return &HookOutput{}, nil
@@ -61,6 +65,7 @@ func (h *subagentStopHandler) Handle(input *HookInput) (*HookOutput, error) {
 
 	agentFile := filepath.Join(state.LocalPath(root), "active-agent.json")
 	_ = os.Remove(agentFile)
+	state.MarkVerifyStopped(root, input.AgentID)
 
 	_ = metrics.Append(root, subagentEvent(root, metrics.KindSubagentStop, input))
 
