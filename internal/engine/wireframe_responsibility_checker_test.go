@@ -86,3 +86,19 @@ func TestVerifyDocument_ChecksWireframeResponsibilities(t *testing.T) {
 		t.Fatalf("expected major issue for conjunction, got %+v", result.Summary)
 	}
 }
+
+// Trial problem #64: a data-flow label carrying a query, "WHERE provider AND
+// contact_id = c", read as a two-job node.  An all-capitals AND and text in
+// a code span are not a conjunction of jobs; a prose "and" still is.
+func TestCheckWireframeResponsibilities_QueryKeywordsAreNotJobs(t *testing.T) {
+	path := writeWireframe(t, "```mermaid\nflowchart LR\n"+
+		"    Q[\"filter\\n(WHERE provider AND contact_id = c)\"]\n"+
+		"    R[\"reader\\n(runs `a and b` as one query)\"]\n```")
+	if issues := CheckWireframeResponsibilities(path); len(issues) != 0 {
+		t.Fatalf("a query keyword or code span must not count as a second job, got %v", issues)
+	}
+	path = writeWireframe(t, "```mermaid\nflowchart LR\n    C[\"Card\\n(And then it owns placement)\"]\n```")
+	if issues := CheckWireframeResponsibilities(path); len(issues) != 1 {
+		t.Fatalf("a prose And must still count, got %v", issues)
+	}
+}

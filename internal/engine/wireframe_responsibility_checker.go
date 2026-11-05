@@ -16,10 +16,12 @@ import (
 var wireframeNodeRe = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*(?:\[{1,2}|\(|\{)"([^"\n]+)"(?:\]{1,2}|\)|\})`)
 
 // conjunctionRe matches the banned conjunctions as whole-word occurrences
-// in a responsibility line. Case-insensitive for "and"; Korean "및" and
-// "&" are matched literally. Word boundaries prevent false hits on
-// "android", "understand", etc.
-var conjunctionRe = regexp.MustCompile(`(?i)(\band\b|\s&\s|\s및\s)`)
+// in a responsibility line: "and" or "And", Korean "및" and "&". An
+// all-capitals AND is a query keyword ("WHERE provider AND contact_id =
+// c" in a data-flow label), not a second job, so it does not match
+// (trial problem #64). Word boundaries prevent false hits on "android",
+// "understand", etc.
+var conjunctionRe = regexp.MustCompile(`(\b[Aa]nd\b|\s&\s|\s및\s)`)
 
 // CheckWireframeResponsibilities parses wireframe.md mermaid nodes and
 // flags any node whose label (second line, responsibility) contains a
@@ -53,8 +55,9 @@ func CheckWireframeResponsibilities(wireframePath string) []Issue {
 		}
 		seen[label] = true
 
-		responsibility := extractResponsibilityLine(label)
-		if responsibility == "" {
+		// Code spans name things (a query, a path), not jobs.
+		responsibility := codeSpanRe.ReplaceAllString(extractResponsibilityLine(label), "")
+		if strings.TrimSpace(responsibility) == "" {
 			continue
 		}
 		if conjunctionRe.MatchString(responsibility) {
