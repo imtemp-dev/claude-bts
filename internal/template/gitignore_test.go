@@ -3,6 +3,7 @@ package template
 import (
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -202,5 +203,44 @@ func TestEmbeddedTemplatesHasNoGitignore(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("walk templates: %v", err)
+	}
+}
+
+// Trial problem #39: in a shared repository bts is kept out of git through
+// .git/info/exclude.  EnsureGitignore must not add its rule to the tracked
+// .gitignore there, or the line lands in a pull request.
+func TestEnsureGitignore_LeavesGitignoreAloneWhenGitAlreadyIgnoresLocal(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	root := t.TempDir()
+	if out, err := exec.Command("git", "-C", root, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	exclude := filepath.Join(root, ".git", "info", "exclude")
+	if err := os.WriteFile(exclude, []byte("/.bts/\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	gi := filepath.Join(root, ".gitignore")
+	if err := os.WriteFile(gi, []byte("node_modules/\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := EnsureGitignore(root); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(gi); string(got) != "node_modules/\n" {
+		t.Errorf(".gitignore must stay untouched when git already ignores .bts/local/, got %q", got)
+	}
+
+	// Without the exclude, the rule is still added as before.
+	if err := os.WriteFile(exclude, []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := EnsureGitignore(root); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(gi); !strings.Contains(string(got), ".bts/local/") {
+		t.Errorf("without an exclude the rule must be added, got %q", got)
 	}
 }
