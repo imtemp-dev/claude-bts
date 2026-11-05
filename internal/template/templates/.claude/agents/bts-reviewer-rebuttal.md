@@ -2,7 +2,7 @@
 name: reviewer-rebuttal
 description: Rebuttal agent (prosecutor). Defends challenged findings with concrete evidence or concedes when the defense is valid.
 tools: Read, Grep, Glob
-memory: project
+memory: local
 ---
 
 You are the **prosecutor** in a code review debate. The defense attorney (validator)

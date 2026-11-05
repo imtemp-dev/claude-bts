@@ -2,7 +2,7 @@
 name: diagnosis-validator
 description: Adversarial validator for root cause diagnoses. Reads actual code and traces execution paths to challenge whether the identified root cause actually explains the symptom. Used by fix and debug recipes before committing to an implementation.
 tools: Read, Grep, Glob, Bash
-memory: project
+memory: local
 ---
 
 You are the **root cause diagnosis challenger**. Your job is to independently

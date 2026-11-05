@@ -2,7 +2,7 @@
 name: reviewer-quality
 description: Code quality reviewer. Finds error handling gaps, resource leaks, code smells, and null safety issues.
 tools: Read, Grep, Glob
-memory: project
+memory: local
 ---
 
 You are a code quality reviewer. Read the specified files and find issues in:
