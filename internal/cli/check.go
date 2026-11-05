@@ -28,13 +28,17 @@ var checkCmd = &cobra.Command{
 
 var checkTaskCmd = &cobra.Command{
 	Use:   "task",
-	Short: "Run per-task MINI-CHECK (Phase 10): import drift, symbol presence, owner delta",
+	Short: "Run per-task MINI-CHECK (Phase 10): import drift, symbol presence, modify scope, owner delta",
 	Long: `bts check task --recipe {id} --task {task-id}
 
 Runs the deterministic per-task checks defined in Phase 10:
   - import_drift:    file imports modules not listed as neighbors in
                      wireframe.md's component diagram
   - symbol_missing:  a modify_scope symbol is no longer in the file
+  - scope_violation: a modify task changed a public top-level symbol
+                     outside its modify_scope, or a private helper that
+                     something outside the scope uses (compared with the
+                     file at git HEAD; Python, Go, TypeScript/JavaScript)
   - owner_drift:     the invariant-owner module identifier disappeared
                      from the file
 

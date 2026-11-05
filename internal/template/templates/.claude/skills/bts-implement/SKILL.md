@@ -255,10 +255,17 @@ auto-skip it with status `"skipped"` and last_error `"dependency blocked: {id}"`
 - If a choice you are about to make would violate an invariant, change
   the choice — not the invariant. If the invariant itself is wrong, stop
   and say so; that is a spec change, not an implementation detail.
-- **Modify scope (Phase 14)**: when `task.action == "modify"`, touch
-  ONLY the symbols listed in `task.modify_scope` (the same list that
-  the final.md anchor carries after `scope=`). Adding, removing, or
-  renaming any other symbol in the same file is a scope violation.
+- **Modify scope (Phase 14)**: when `task.action == "modify"`, change
+  the symbols listed in `task.modify_scope` (the same list that the
+  final.md anchor carries after `scope=`). You may also add or change
+  private module-level helpers and constants (a `_PATTERN`, an
+  unexported func, a non-exported const) that only those symbols use,
+  following the module's conventions: a pattern goes where the module
+  keeps its other patterns, not inline to stay in scope. Imports and the
+  module docstring follow from the change. Adding, removing, renaming or
+  changing any other public symbol, or a private one that something
+  outside the scope uses, is a scope violation; `bts check task` reports
+  each one (`scope_violation`, below).
   If a required change exceeds scope:
     1. Stop work on the task.
     2. Mark it `blocked` with `last_error: "scope_expansion: needs {new_symbols}"`.
@@ -335,6 +342,12 @@ Interpret results:
   - severity=major (e.g. import_drift) → persist via `--write` so the
     mid-run review (Step 5.5 / Phase 11) and final review can cite
     them. Do NOT flip the task to blocked — majors are advisory.
+  - `scope_violation` (major) on a modify task: compared with the file
+    as committed, the task changed a public symbol outside its
+    `modify_scope`, or a private helper something outside the scope
+    uses. Undo that part of the change, or, when the task really owns
+    the symbol, follow the scope-expansion steps above. Leaving it is a
+    finding the reviews will cite.
   - severity=critical (e.g. symbol_missing, owner_drift) → flip the
     task back to `pending` with `last_error: "structure_critical: {detail}"`.
     These indicate spec-vs-code drift big enough to warrant rework.

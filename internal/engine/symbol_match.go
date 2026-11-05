@@ -11,6 +11,12 @@ func ContainsSymbol(content, sym string) bool {
 	if sym == "" {
 		return false
 	}
+	return symbolRegexp(sym).MatchString(content)
+}
+
+// symbolRegexp is ContainsSymbol's pattern for a non-empty sym, compiled
+// once for a caller that matches it against many texts.
+func symbolRegexp(sym string) *regexp.Regexp {
 	pattern := regexp.QuoteMeta(sym)
 	if isWordByte(sym[0]) {
 		pattern = `(?:^|[^A-Za-z0-9_])` + pattern
@@ -18,7 +24,7 @@ func ContainsSymbol(content, sym string) bool {
 	if isWordByte(sym[len(sym)-1]) {
 		pattern += `(?:$|[^A-Za-z0-9_])`
 	}
-	return regexp.MustCompile(`(?m)` + pattern).MatchString(content)
+	return regexp.MustCompile(`(?m)` + pattern)
 }
 
 func isWordByte(b byte) bool {

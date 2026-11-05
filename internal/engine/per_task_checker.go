@@ -23,7 +23,9 @@ import (
 //     component boundaries declared by wireframe.md?
 //  2. Symbol presence — for create tasks, every symbol named in final.md
 //     must exist in the file; for modify tasks, every ModifyScope symbol
-//     must still be present (did we accidentally delete one?).
+//     must still be present (did we accidentally delete one?), and a
+//     public symbol outside the scope must not have changed since the
+//     file's committed version (scope_violation, a major report).
 //  3. Invariant owner delta — when this file is listed as the enforcement
 //     point for an invariant in domain.md § 2, the owner module name
 //     must still appear in the file.
@@ -58,6 +60,10 @@ func CheckTaskStructure(projectRoot, recipeDir string, task *state.Task) []state
 
 	// 2. Symbol presence.
 	findings = append(findings, checkSymbolPresence(task, fileContent)...)
+
+	// 2b. Modify scope: what the task changed outside its scope, against
+	// the file as committed (modify_scope_diff.go, trial problem #47).
+	findings = append(findings, checkScopeChanges(projectRoot, recipeDir, task, fileContent)...)
 
 	// 3. Invariant owner delta.
 	if f := checkOwnerDelta(task, fileContent, recipeDir); f != nil {

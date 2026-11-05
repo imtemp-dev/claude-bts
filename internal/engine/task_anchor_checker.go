@@ -341,11 +341,10 @@ type taskScopeMinimal struct {
 //   - scope_symbol_missing — a declared symbol cannot be found in the
 //     target file (grep for the name). CRITICAL — suggests the scope
 //     itself is wrong.
-//   - scope_violation — reserved for per-task check (Phase 10) when
-//     post-image diffs show out-of-scope changes. This checker does
-//     not compute diffs; the runtime check lives in the implement
-//     loop. Kept here as a placeholder for the validator to surface
-//     findings recorded elsewhere.
+//   - scope_violation — not raised here: this checker does not compute
+//     diffs. The per-task check (Phase 10, `bts check task`) compares
+//     the file with git HEAD and reports out-of-scope changes as a
+//     major structure finding (modify_scope_diff.go).
 //
 // projectRoot is the working directory where task files resolve to
 // (used for scope_symbol_missing). Empty projectRoot disables that

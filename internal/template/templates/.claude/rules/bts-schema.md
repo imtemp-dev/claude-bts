@@ -334,7 +334,10 @@ Task object required fields:
   `<!-- task-anchor: path action -->` comment in final.md. `bts verify`
   enforces the 1:1 mapping against the union of the two.
 - `modify_scope` (array of strings): REQUIRED when action=="modify" —
-  authorized symbol list; the anchor carries the same list after `scope=`
+  authorized symbol list; the anchor carries the same list after `scope=`.
+  Private module-level helpers and constants that only these symbols use
+  may change too; `bts check task` reports any other changed public
+  symbol as `scope_violation` (major, advisory)
 
 Task object optional fields:
 - `depends_on` (array of strings): task IDs this depends on

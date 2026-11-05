@@ -50,9 +50,10 @@ type TaskState struct {
 // ModifyScope (Phase 14) is required when Action=="modify": the list of
 // symbol names the task is authorized to touch. The anchor comment
 // records the same list after a `scope=` suffix (e.g.
-// `<!-- task-anchor: foo.ts modify scope=a,b -->`). Changes that reach
-// symbols outside this list raise `scope_violation` at `bts verify`
-// time.
+// `<!-- task-anchor: foo.ts modify scope=a,b -->`). Private module-level
+// helpers and constants only these symbols use may change too; `bts check
+// task` reports any other changed public symbol, or a private one used
+// outside the list, as `scope_violation` (engine/modify_scope_diff.go).
 type Task struct {
 	ID                string             `json:"id"`
 	File              string             `json:"file"`
@@ -79,7 +80,7 @@ type Task struct {
 // (critical).
 type StructureFinding struct {
 	TaskID   string `json:"task_id"`
-	Category string `json:"category"` // import_drift | symbol_missing | owner_drift
+	Category string `json:"category"` // import_drift | symbol_missing | scope_violation | owner_drift
 	Severity string `json:"severity"` // critical | major | minor
 	Detail   string `json:"detail"`
 }
