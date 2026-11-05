@@ -24,6 +24,11 @@ var recipeClaimCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		// The hook binds the session only when this request is waiting:
+		// text that merely names this command ran nothing and leaves none.
+		if err := state.WriteOwnerRequest(root, recipe.ID, "claim"); err != nil {
+			return fmt.Errorf("record the claim request: %w", err)
+		}
 		prev := recipe.OwnerSession
 		if prev == "" {
 			prev = "none"

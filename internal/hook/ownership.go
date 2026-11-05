@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"time"
 
 	"github.com/imtemp-dev/claude-bts/internal/state"
 )
@@ -13,6 +14,10 @@ import (
 // hook input, so ownership is bound here, from the successful Bash call
 // that ran `bts recipe create` or `bts recipe claim <id>`. A session id
 // survives /compact and --resume; --fork-session starts a new one.
+
+// ownerRequestMaxAge bounds how long a create or claim request waits for
+// the hook of the Bash call that ran it.
+const ownerRequestMaxAge = 2 * time.Minute
 
 var (
 	recipeCreateRe = regexp.MustCompile(`\bbts\s+recipe\s+create\b`)
@@ -28,14 +33,19 @@ func bindOwnership(root string, input *HookInput) {
 		return
 	}
 	cmd, _ := input.ToolInput["command"].(string)
+	// The text only names a candidate.  A binding also needs the request a
+	// real `bts recipe claim` or `create` run leaves (state.OwnerRequest):
+	// text inside a heredoc or a quoted report ran no bts and left none.
 	var id string
 	claim := false
-	if m := recipeClaimRe.FindStringSubmatch(cmd); m != nil {
+	if m := recipeClaimRe.FindStringSubmatch(cmd); m != nil &&
+		state.TakeOwnerRequest(root, m[1], "claim", ownerRequestMaxAge) {
 		id, claim = m[1], true
 	} else if recipeCreateRe.MatchString(cmd) {
 		stdout, _ := input.ToolResponse["stdout"].(string)
 		for _, cand := range recipeIDRe.FindAllString(stdout, -1) {
-			if r, err := state.LoadRecipeState(root, cand); err == nil && r.OwnerSession == "" {
+			if r, err := state.LoadRecipeState(root, cand); err == nil && r.OwnerSession == "" &&
+				state.TakeOwnerRequest(root, cand, "create", ownerRequestMaxAge) {
 				id = cand
 			}
 		}

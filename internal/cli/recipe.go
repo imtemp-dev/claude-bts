@@ -794,6 +794,12 @@ var recipeCreateCmd = &cobra.Command{
 			return fmt.Errorf("create manifest: %w", err)
 		}
 
+		// The PostToolUse hook makes the calling session the owner only
+		// when this request is waiting for it (state.OwnerRequest).
+		if err := state.WriteOwnerRequest(root, id, "create"); err != nil {
+			fmt.Fprintf(os.Stderr, "[bts] warning: record the owner request: %v\n", err)
+		}
+
 		// Output ID only (for skill capture via Bash)
 		fmt.Println(id)
 		return nil

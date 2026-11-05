@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/imtemp-dev/claude-bts/internal/engine"
 	"github.com/imtemp-dev/claude-bts/internal/metrics"
@@ -36,6 +37,9 @@ func owner(t *testing.T, root, id string) string {
 func TestOwnership_CreateBindsAndClaimRebinds(t *testing.T) {
 	root, id := setupStopRoot(t)
 
+	// Each hook call below follows a real CLI run, which leaves the request
+	// the hook needs (state.OwnerRequest); the tests write it as the CLI does.
+	_ = state.WriteOwnerRequest(root, id, "create")
 	if _, err := NewPostToolUseHandler().Handle(ranBash(root, ownerSID, "bts recipe create --type build --topic x", id+"\n")); err != nil {
 		t.Fatal(err)
 	}
@@ -44,12 +48,14 @@ func TestOwnership_CreateBindsAndClaimRebinds(t *testing.T) {
 	}
 
 	// Another session's create does not take an owned recipe.
+	_ = state.WriteOwnerRequest(root, id, "create")
 	_, _ = NewPostToolUseHandler().Handle(ranBash(root, observerSID, "bts recipe create --topic y", id+"\n"))
 	if got := owner(t, root, id); got != ownerSID {
 		t.Fatalf("an owned recipe must not move on another create, owner=%q", got)
 	}
 
 	// An explicit claim does, and is logged.
+	_ = state.WriteOwnerRequest(root, id, "claim")
 	_, _ = NewPostToolUseHandler().Handle(ranBash(root, observerSID, "bts recipe claim "+id, "claimed\n"))
 	if got := owner(t, root, id); got != observerSID {
 		t.Fatalf("a claim must rebind the recipe, owner=%q", got)
@@ -210,5 +216,40 @@ func TestStripCode(t *testing.T) {
 		if got := stripCode(in); got != want {
 			t.Errorf("stripCode(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// Trial problem #59: during the r-003 handoff the AGEN-35 owner wrote a
+// report with a heredoc that mentioned the claim command, and the hook,
+// matching the text, made the owner's session the recipe's owner.  A Bash
+// call that ran no `bts recipe claim` leaves no request and moves nothing;
+// a real claim still does.
+func TestOwnership_TextThatNamesAClaimMovesNothing(t *testing.T) {
+	root, id := setupStopRoot(t)
+	setOwner(t, root, id, ownerSID)
+
+	report := "cat > handoff.md <<'EOF'\nThe worker ran `bts recipe claim " + id + "` and took over.\nEOF"
+	_, _ = NewPostToolUseHandler().Handle(ranBash(root, observerSID, report, ""))
+	if got := owner(t, root, id); got != ownerSID {
+		t.Fatalf("text naming a claim must not move ownership, owner=%q", got)
+	}
+
+	// A stale request (a claim run outside Claude Code long ago) does not count.
+	_ = state.WriteOwnerRequest(root, id, "claim")
+	p := state.OwnerRequestPath(root, id)
+	old := time.Now().Add(-10 * time.Minute)
+	_ = os.WriteFile(p, []byte(`{"action":"claim","at":"`+old.UTC().Format(time.RFC3339Nano)+`"}`), 0644)
+	_, _ = NewPostToolUseHandler().Handle(ranBash(root, observerSID, "bts recipe claim "+id, ""))
+	if got := owner(t, root, id); got != ownerSID {
+		t.Fatalf("a stale request must not move ownership, owner=%q", got)
+	}
+
+	_ = state.WriteOwnerRequest(root, id, "claim")
+	_, _ = NewPostToolUseHandler().Handle(ranBash(root, observerSID, "bts recipe claim "+id, ""))
+	if got := owner(t, root, id); got != observerSID {
+		t.Fatalf("a real claim must still move ownership, owner=%q", got)
+	}
+	if _, err := os.Stat(state.OwnerRequestPath(root, id)); !os.IsNotExist(err) {
+		t.Fatalf("the request must be consumed by the binding (err=%v)", err)
 	}
 }
