@@ -41,7 +41,38 @@ func CheckIllegalCellFalsifiers(domainPath, finalPath string) []Issue {
 
 var illegalCellTagRe = regexp.MustCompile(`(?i)\[illegal-cell:\s*([^\]]+)\]`)
 
-// parseIllegalCells reads the illegal cells domain.md § 4 declares.
+// CheckUnlabelledIllegalCells reports each domain.md § 4 table row that
+// marks a cell ILLEGAL without naming it.  Such a row declares no cell, so
+// no falsifier could be asked for or tied to it: relay r-001 had three,
+// tagged by row id or description in final.md and read by nothing (trial
+// problem #74, AGEN-51).  It needs only domain.md, so the author hears of
+// it while writing § 4, not once final.md exists.
+func CheckUnlabelledIllegalCells(domainPath string) []Issue {
+	_, unlabelled, err := readIllegalSection(domainPath)
+	if err != nil {
+		return nil
+	}
+	var issues []Issue
+	for _, row := range unlabelled {
+		issues = append(issues, Issue{
+			Category: "domain",
+			Claim:    "unlabelled_illegal_cell: " + row,
+			Severity: "critical",
+			Detail:   "domain.md §4 marks this row ILLEGAL without a label, so no falsifier can be tied to it. Name the cell in the row as `ILLEGAL: <label>`, then tag its test's row in final.md § 2 `[illegal-cell: <label>]`.",
+		})
+	}
+	return issues
+}
+
+// parseIllegalCells reads the labels of the illegal cells domain.md § 4
+// declares.
+func parseIllegalCells(domainPath string) ([]string, error) {
+	cells, _, err := readIllegalSection(domainPath)
+	return cells, err
+}
+
+// readIllegalSection reads domain.md § 4: the labels of the cells it
+// declares, and the rows it marks ILLEGAL without one.
 //
 // A cell is declared only in a table row of § 4, by the uppercase marker
 // and its label: `ILLEGAL: <label>`, bold or not, or `**ILLEGAL** — <label>`.
@@ -51,13 +82,15 @@ var illegalCellTagRe = regexp.MustCompile(`(?i)\[illegal-cell:\s*([^\]]+)\]`)
 // part of the name (cellLabel).  Reading the marker case-blind anywhere in
 // the section, to the end of the cell, made prose sentences into cells and
 // kept notes and preventions in labels (trial problem #68, AGEN-49).
-func parseIllegalCells(domainPath string) ([]string, error) {
+//
+// A row with the marker and no label in any cell is unlabelled; a row
+// whose label sits in one cell and whose status column says ILLEGAL is not.
+func readIllegalSection(domainPath string) (cells, unlabelled []string, err error) {
 	data, err := os.ReadFile(domainPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	inSection := false
-	var cells []string
 	seen := map[string]bool{}
 	for _, line := range strings.Split(string(data), "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -71,16 +104,37 @@ func parseIllegalCells(domainPath string) ([]string, error) {
 		if !strings.HasPrefix(trimmed, "|") {
 			continue
 		}
+		labelled, marked := false, false
 		for _, cell := range mdtable.SplitRow(trimmed) {
 			label := declaredCellLabel(cell)
-			if label == "" || seen[cellKey(label)] {
+			if label == "" {
+				marked = marked || bareIllegalRe.MatchString(cell)
 				continue
 			}
-			seen[cellKey(label)] = true
-			cells = append(cells, label)
+			labelled = true
+			if !seen[cellKey(label)] {
+				seen[cellKey(label)] = true
+				cells = append(cells, label)
+			}
+		}
+		if marked && !labelled {
+			unlabelled = append(unlabelled, rowRef(trimmed))
 		}
 	}
-	return cells, nil
+	return cells, unlabelled, nil
+}
+
+// bareIllegalRe finds the uppercase marker without a label.
+var bareIllegalRe = regexp.MustCompile(`\bILLEGAL\b`)
+
+// rowRef is a table row as an error names it: whitespace collapsed, and
+// cut at 100 characters.
+func rowRef(row string) string {
+	r := []rune(strings.Join(strings.Fields(row), " "))
+	if len(r) > 100 {
+		return string(r[:100]) + "…"
+	}
+	return string(r)
 }
 
 // domainIllegalSectionRe finds domain.md § 4, where ILLEGAL cells live.

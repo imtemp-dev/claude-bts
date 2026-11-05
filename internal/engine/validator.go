@@ -117,6 +117,11 @@ func ValidateRecipeDir(recipeDir string) ([]ValidationError, error) {
 	domainPath := filepath.Join(recipeDir, "domain.md")
 	finalPath := filepath.Join(recipeDir, "final.md")
 	if _, err := os.Stat(domainPath); err == nil {
+		// A row marked ILLEGAL with no label declares no cell to cover
+		// (trial problem #74): named as soon as domain.md exists.
+		for _, issue := range CheckUnlabelledIllegalCells(domainPath) {
+			errors = append(errors, ValidationError{File: "domain.md", Field: issue.Category, Message: issue.Claim + " — " + issue.Detail})
+		}
 		if _, ferr := os.Stat(finalPath); ferr == nil {
 			for _, issue := range CheckIllegalCellFalsifiers(domainPath, finalPath) {
 				errors = append(errors, ValidationError{File: "domain.md → final.md", Field: issue.Category, Message: issue.Claim + " — " + issue.Detail})

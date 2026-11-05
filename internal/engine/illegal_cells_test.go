@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -86,5 +87,40 @@ func TestCheckIllegalCellFalsifiers_TagsMatchDeclaredLabels(t *testing.T) {
 			claims = append(claims, i.Claim)
 		}
 		t.Fatalf("every declared cell is tagged, so validate must be clean; got %q", claims)
+	}
+}
+
+// A § 4 row marked ILLEGAL with no label declared no cell, so validate
+// never asked for its falsifier (trial problem #74, Multica AGEN-51): relay
+// r-001 rows 11, 12 and 15 were `**ILLEGAL**` alone, and their authors'
+// tags, by row id or description, were read by nothing.  Validate names
+// such a row as soon as domain.md exists.  A row whose label sits in one
+// cell while its status column says ILLEGAL is labelled.
+func TestValidate_ReportsAnIllegalRowWithNoLabel(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("recipe.json", `{"id":"r-1","type":"build","phase":"skeleton","topic":"x","created":"2026-11-05T00:00:00Z","updated":"2026-11-05T00:00:00Z"}`)
+	write("domain.md", "## 4. Combinatorial State Space\n\n"+
+		"| # | Cell | Status | Prevention |\n|---|---|---|---|\n"+
+		"| 5 | **ILLEGAL: second issue for one PR** | ILLEGAL | INV-003 |\n"+
+		"| 11 | any Effect with DRY_RUN on | **ILLEGAL** | INV-005 |\n"+
+		"| 12 | a dry run left rows | legal | rows are read-only |\n")
+	errs, err := ValidateRecipeDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, e := range errs {
+		if strings.Contains(e.Message, "unlabelled_illegal_cell") {
+			got = append(got, e.Message)
+		}
+	}
+	if len(got) != 1 || !strings.Contains(got[0], "any Effect with DRY_RUN on") {
+		t.Fatalf("exactly row 11 must be named, before final.md exists; got %q", got)
 	}
 }
