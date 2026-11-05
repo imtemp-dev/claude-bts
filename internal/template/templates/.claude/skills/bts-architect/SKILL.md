@@ -38,9 +38,10 @@ If any prerequisite fails, STOP and point the user at the missing step.
 
 Two `architect-runner` agents write the alternatives, each in its own
 context. Do not write an alternative yourself before they return. This
-context later debates and adjudicates the alternatives; if it also
-wrote them, the candidates are variations on its own first idea and the
-judgment is over its own output.
+context later debates the alternatives; if it also wrote them, the
+candidates are variations on its own first idea and the debate is over
+its own output. For the same reason it does not adjudicate the debate:
+an `architect-adjudicator` agent does (Step 3).
 
 **Grounding rule**: when the platform has an officially recommended
 architecture (research `## Official Guidance`), EXACTLY ONE alternative
@@ -153,17 +154,56 @@ Use three personas:
 - **Simplicity engineer** — YAGNI enforcement, smallest surface.
 - **Domain expert** — invariant fit, protection of the core entities.
 
-## Step 3: Adjudicate
+## Step 3: Adjudicate in a separate context
 
-Run `Skill("bts-adjudicate")`. Outcome possibilities:
+This context played all three personas and wrote the debate's
+conclusion, so it does not judge that conclusion: an adjudicator that
+judges its own synthesis finds what it already believes. One
+`architect-adjudicator` agent judges it, in its own context, from the
+runners' alternatives and the debate rounds. Do not run
+`Skill("bts-adjudicate")` here; its criteria are what the agent applies.
+
+Spawn one `Agent` call (`subagent_type: "architect-adjudicator"`). The
+prompt carries:
+
+- the recipe id and the recipe directory path;
+- the paths of the files under `alternatives/`;
+- the debate's directory (its `round-N.md` files and `debate.json`);
+- the paths of `scope.md`, `domain.md` and the research doc;
+- the extension count: `0`, or `N/3` after `N` follow-up debates
+  (`debate.max_extensions`), with the paths of the earlier adjudication
+  files;
+- the output path, `adjudication.md` in the debate's directory.
+
+Give paths and the count, nothing else: no summary of the debate, no
+alternative you prefer, no reasoning from this context. Wait for the
+completion notification; do not poll.
+
+Then read the adjudication file, record it:
+
+```bash
+bts recipe log {id} --action adjudicate --output {debate-dir}/adjudication.md \
+  --result "{verdict}: {one line}"
+```
+
+and act on its verdict:
 
 - `ACCEPT` → proceed to Step 4.
 - `ACCEPT WITH RESERVATIONS` → proceed to Step 4, record the caveats
-  in the Rejected list as "partially-rejected notes".
-- `EXTEND` → research the gap the adjudicator flagged, add a new
-  alternative or revise an existing one, re-debate. Max 3 extensions.
-- `[DEBATE DEADLOCK]` → surface to user for tiebreak; user's choice
-  becomes the "conclusion", re-adjudicate for feasibility.
+  in the Rejected list as "partially-rejected notes", and save its
+  Reservations section to `reservations.md` as bts-adjudicate Step 5
+  says.
+- `EXTEND N/3` → run its Preparation Brief (bts-adjudicate Step 4: the
+  research, then a follow-up debate in a new `-followup` directory),
+  adding or revising an alternative where the brief asks for one. Then
+  spawn a fresh adjudicator on the follow-up debate. Max 3 extensions.
+- `SCOPE CHANGE` → the adjudicator cannot ask the user. Ask with
+  bts-adjudicate Step 2b's question; on approval update `scope.md` and
+  spawn a fresh adjudicator, on rejection extend the debate with the
+  brief "find a solution that does not require {item}".
+- `[DEBATE DEADLOCK]` (from the debate) → surface to the user for a
+  tiebreak; the user's choice becomes the conclusion, and a fresh
+  adjudicator checks it for feasibility.
 
 ## Step 4: Commit decision to wireframe.md
 
@@ -305,7 +345,10 @@ Forcing ≥ 2 alternatives in one context still left one context to write
 them, debate them as three personas and adjudicate the result, against
 the rule that no context judges its own output. Two runners in separate
 contexts with opposed seeds make the alternatives independent of the
-context that judges them. The cost is two Opus spawns per recipe that
-reaches this step, and it is not yet measured: read it from the
-architect-phase metrics, the runner fields in the Step 5 log result,
-and how often Step 3 returns `EXTEND`.
+context that judges them. With the runners alone, the debate and the
+adjudication still ran in the orchestrator, so the adjudicator judged a
+synthesis its own context wrote (true-shark, trial problem #65); the
+adjudicator agent reads only the record. The cost is two Opus spawns per
+recipe that reaches this step plus one per adjudication, and it is not
+yet measured: read it from the architect-phase metrics, the runner
+fields in the Step 5 log result, and how often Step 3 returns `EXTEND`.

@@ -101,7 +101,7 @@ Code is generated from a spec that has survived multiple rounds of independent v
 
 ## Models
 
-Core quality gates (verify, audit) use your **session model** in a **fork context** — a separate AI instance that doesn't share the conversation history — and so do the three review agents. Pattern-based checks (cross-check, sync-check, the review validator, and the defend step that argues against a round's findings) use Sonnet. The architect step's two runners use Opus.
+Core quality gates (verify, audit) use your **session model** in a **fork context** — a separate AI instance that doesn't share the conversation history — and so do the three review agents. Pattern-based checks (cross-check, sync-check, the review validator, and the defend step that argues against a round's findings) use Sonnet. The architect step's two runners and its adjudicator use Opus.
 
 The model of an agent a skill spawns can be set in `.bts/config/settings.yaml`; the skill passes the value as the spawn's `model`:
 

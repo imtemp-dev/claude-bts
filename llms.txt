@@ -171,6 +171,7 @@ Core gates use session model for maximum quality. Pattern-based checks use sonne
 | diagnosis_validator | session model | agents.diagnosis_validator |
 | diagnosis_rebuttal | session model | agents.diagnosis_rebuttal |
 | architect_runner | opus | agent file only (two run in parallel in /bts-architect) |
+| architect_adjudicator | opus | agent file only (one per adjudication in /bts-architect) |
 
 A setting in `.bts/config/settings.yaml` is advisory: the skill passes it as the spawn's `model`. Fork roles run on their agent file's `model:`, which settings cannot change (`bts update` rewrites agent files). Options: sonnet, opus, haiku.
 

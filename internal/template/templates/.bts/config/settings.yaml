@@ -152,7 +152,8 @@ vision:
 # `bts update` rewrites agent files, so earlier versions' verifier / auditor /
 # simulator / defender keys never did anything; `bts doctor` warns about an
 # active one. cross-check and sync-check run on sonnet via their SKILL.md
-# `model:` field; architect-runner runs on opus via its agent file.
+# `model:` field; architect-runner and architect-adjudicator run on opus via
+# their agent files.
 agents:
   # reviewer_quality: sonnet
   # reviewer_security: sonnet

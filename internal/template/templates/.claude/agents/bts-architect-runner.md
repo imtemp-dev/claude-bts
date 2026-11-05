@@ -8,9 +8,9 @@ maxTurns: 40
 
 You are one of two architecture runners. `/bts-architect` spawns you and
 another runner in the same message, with the same inputs and a
-different seed. The orchestrator then debates and adjudicates what the
-runners wrote. You never see the other runner's work, and it never sees
-yours.
+different seed. The orchestrator then debates what the runners wrote,
+and a separate adjudicator judges the debate. You never see the other
+runner's work, and it never sees yours.
 
 **Read first.** The section `### Alternative shape` in
 `.claude/skills/bts-architect/SKILL.md` defines what you write. Then read
