@@ -99,7 +99,7 @@ var (
 	// boundaries so "api" does not match inside "rapid".
 	boundaryHeadingRe = regexp.MustCompile(
 		`(?im)^#{1,6}[^\n]*(?:\b(?:contract|wire|schema|payload|dto|endpoint|` +
-			`migration|api|interface)\b|계약|스키마|와이어|마이그레이션|경계|인터페이스)`)
+			`migration|api|interface)s?\b|계약|스키마|와이어|마이그레이션|경계|인터페이스)`)
 
 	// Table rows and fenced lines both count as a declared shape: the
 	// question is whether the shape is pinned somewhere, not how.

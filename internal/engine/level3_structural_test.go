@@ -433,3 +433,17 @@ func TestInvariantsOwnedSkipsAFalsifierSectionNamingInvariants(t *testing.T) {
 		t.Errorf("the section scope must start after the heading line, got %q", got)
 	}
 }
+
+// Trial problem #3: the build and blueprint templates head the section
+// "## 3. Boundary contracts", and the check's `\bcontract\b` missed the
+// plural, so a spec written from bts's own template failed boundary_contracts
+// (r-003; r-002 passed only because its heading also said "wire").
+func TestHasBoundaryContract_AcceptsThePluralHeading(t *testing.T) {
+	doc := "## 3. Boundary contracts\n\n| Field | Type |\n|---|---|\n| id | string |\n| at | time |\n"
+	if !hasBoundaryContract(doc) {
+		t.Error("the template's own heading \"Boundary contracts\" must satisfy boundary_contracts")
+	}
+	if hasBoundaryContract("## Rapid notes\n\n| a | b |\n|---|---|\n| 1 | 2 |\n") {
+		t.Error("\"rapid\" must not count as \"api\"")
+	}
+}
