@@ -49,7 +49,7 @@ func CheckAppProven(rec *state.ProveRecord, currentHash, recipeID string) string
 		parts = append(parts, fmt.Sprintf("%s not driven", strings.Join(undriven, ", ")))
 	}
 	if len(failing) > 0 {
-		parts = append(parts, fmt.Sprintf("%s failed or left evidence missing", strings.Join(failing, ", ")))
+		parts = append(parts, fmt.Sprintf("%s failed, recorded no passing checks, or left evidence missing (see `bts prove status`)", strings.Join(failing, ", ")))
 	}
 	if len(stale) > 0 {
 		parts = append(parts, fmt.Sprintf("the code changed after %s was driven", strings.Join(stale, ", ")))

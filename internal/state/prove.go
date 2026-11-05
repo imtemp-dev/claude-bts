@@ -26,12 +26,27 @@ type Journey struct {
 	// not leave behind; a drive with missing evidence does not pass.
 	EvidenceMissing []string  `json:"evidence_missing,omitempty"`
 	Deferred        *Deferral `json:"deferred,omitempty"`
+	// Verdict is the file the drive wrote its checks to, and what bts read
+	// there: how many checks, the ones that failed, or why the file could
+	// not be read.  A journey passes on its checks, not on its exit code
+	// alone (trial problem #29).  A record with no Verdict predates it.
+	Verdict      string   `json:"verdict,omitempty"`
+	Checks       int      `json:"checks,omitempty"`
+	ChecksFailed []string `json:"checks_failed,omitempty"`
+	VerdictError string   `json:"verdict_error,omitempty"`
 }
 
-// Passed reports whether the journey's last drive exited 0 and left every
-// promised piece of evidence.
+// Passed reports whether the journey's last drive exited 0, left every
+// promised piece of evidence and, in its verdict, recorded at least one
+// check and no failed one.
 func (j *Journey) Passed() bool {
-	return j != nil && j.Run.Passed() && len(j.EvidenceMissing) == 0
+	if j == nil || !j.Run.Passed() || len(j.EvidenceMissing) > 0 {
+		return false
+	}
+	if j.Verdict == "" {
+		return true // recorded before verdicts were read
+	}
+	return j.VerdictError == "" && j.Checks > 0 && len(j.ChecksFailed) == 0
 }
 
 // Deferral is a journey that cannot run here (it needs an installed

@@ -46,11 +46,16 @@ journey, **exits non-zero when the end state is not what the journey
 expects**, writes its evidence under `.verify/<journey>/`, and cleans up.
 
 ```bash
-bts prove run {id} --journey <name> --cmd "<drive>" --evidence .verify/<name>/<file>
+bts prove run {id} --journey <name> --cmd "<drive>" --verdict .verify/<name>/verdict.json --evidence .verify/<name>/<file>
 ```
 
-A run counts only when it exits 0 and every `--evidence` file exists and is
-not empty.  When it fails, the app is wrong or the drive is: fix the one
+The drive writes its verdict on every run, failing ones included: each
+check it made and whether it passed,
+`{"checks": [{"check": "<what it compared>", "pass": true|false, ...}]}`.
+A run counts only when it exits 0, its verdict was written by this run
+with at least one check and no failed one, and every `--evidence` file
+exists and is not empty.  The exit code alone proves nothing: a drive
+that always exits 0 would pass.  When it fails, the app is wrong or the drive is: fix the one
 that is wrong; never weaken the drive to make it pass.
 
 ## Step 4: Defer what cannot run here

@@ -87,9 +87,12 @@ placeholders:
   (selectors, commands, routes, event fixtures), not examples.  Each
   journey's drive is one command that `bts prove run --cmd` runs from the
   project root: it launches, drives, checks the end state, cleans up, and
-  exits non-zero when any check fails.  It writes its verdict file on every
-  run, failing ones included, and every file it names as evidence exists
-  and is non-empty after a passing run.
+  exits non-zero when any check fails.  It writes its verdict file,
+  `.verify/<journey>/verdict.json`, on every run, failing ones included:
+  `{"checks": [{"check": "<what it compared>", "pass": true|false, ...}]}`,
+  one entry per end-state comparison (`bts prove run --verdict` passes a
+  journey only with at least one check and none failed).  Every file it
+  names as evidence exists and is non-empty after a passing run.
 - **Evidence:** what each proof captures and where it goes: under
   `.verify/<journey>/` at the project root, never inside a sandbox that
   cleanup deletes.  `bts prove run` looks for it there, and bts leaves

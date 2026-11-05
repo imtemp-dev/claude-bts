@@ -14,7 +14,10 @@ import (
 // A drive stand-in: it "launches" the app (reads its code), checks the end
 // state a user would see, and writes its evidence; it fails when the code
 // does not do what the journey expects.
-const driveCmd = `mkdir -p .verify && grep -q 'return x > 0' src/relay.py && echo 'allow(0)=False' > .verify/zero.txt`
+const driveCmd = `mkdir -p .verify && grep -q 'return x > 0' src/relay.py && echo 'allow(0)=False' > .verify/zero.txt && ` +
+	`printf '{"checks":[{"check":"allow(0) is refused","pass":true}]}' > .verify/verdict.json`
+
+const driveVerdict = ".verify/verdict.json"
 
 func TestProve_PlanRunDeferAndTheGate(t *testing.T) {
 	root, id := newBuildFixture(t)
@@ -36,13 +39,13 @@ func TestProve_PlanRunDeferAndTheGate(t *testing.T) {
 	if r := gate(); !strings.Contains(r, "slack-in, zero-is-refused not driven") {
 		t.Fatalf("planned journeys must be driven or deferred, got %q", r)
 	}
-	if _, err := executeProveRun(root, id, "unplanned", driveCmd, nil, 30, io.Discard); err == nil {
+	if _, err := executeProveRun(root, id, "unplanned", driveCmd, nil, driveVerdict, 30, io.Discard); err == nil {
 		t.Fatal("driving an unplanned journey must be refused")
 	}
 
 	// The code is wrong: the drive fails, and the evidence is missing.
 	_ = os.WriteFile(filepath.Join(root, "src", "relay.py"), []byte(buggyCode), 0644)
-	j, err := executeProveRun(root, id, "zero-is-refused", driveCmd, []string{".verify/zero.txt"}, 30, io.Discard)
+	j, err := executeProveRun(root, id, "zero-is-refused", driveCmd, []string{".verify/zero.txt"}, driveVerdict, 30, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,13 +54,13 @@ func TestProve_PlanRunDeferAndTheGate(t *testing.T) {
 	}
 
 	// A drive that exits 0 but leaves no evidence proves nothing either.
-	if j, err = executeProveRun(root, id, "zero-is-refused", "true", []string{".verify/never-written.txt"}, 30, io.Discard); err != nil || j.Passed() {
+	if j, err = executeProveRun(root, id, "zero-is-refused", "true", []string{".verify/never-written.txt"}, driveVerdict, 30, io.Discard); err != nil || j.Passed() {
 		t.Fatalf("an exit 0 without its evidence must not pass: %+v %v", j, err)
 	}
 
 	// Fixed: the drive passes and leaves its evidence.
 	_ = os.WriteFile(filepath.Join(root, "src", "relay.py"), []byte(fixedCode), 0644)
-	if j, err = executeProveRun(root, id, "zero-is-refused", driveCmd, []string{".verify/zero.txt"}, 30, io.Discard); err != nil || !j.Passed() {
+	if j, err = executeProveRun(root, id, "zero-is-refused", driveCmd, []string{".verify/zero.txt"}, driveVerdict, 30, io.Discard); err != nil || !j.Passed() {
 		t.Fatalf("a passing drive with its evidence must pass: %+v %v", j, err)
 	}
 	if err := executeProveDefer(root, id, "slack-in", "needs the installed Slack app", ""); err == nil {

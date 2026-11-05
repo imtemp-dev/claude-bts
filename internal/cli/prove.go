@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -35,6 +36,8 @@ func init() {
 	proveRunCmd.Flags().String("journey", "", "Planned journey (required)")
 	proveRunCmd.Flags().String("cmd", "", "Drive command: launches the app, drives the journey, checks the end state, cleans up; exits non-zero on failure (required)")
 	proveRunCmd.Flags().StringSlice("evidence", nil, "File the drive must leave behind, relative to the project root (repeatable)")
+	proveRunCmd.Flags().String("verdict", "", `File the drive writes its checks to, relative to the project root: {"checks": [{"check": "...", "pass": true|false}]} (required)`)
+	_ = proveRunCmd.MarkFlagRequired("verdict")
 	proveRunCmd.Flags().Int("timeout", 900, "Seconds before the drive is killed")
 	_ = proveRunCmd.MarkFlagRequired("journey")
 	_ = proveRunCmd.MarkFlagRequired("cmd")
@@ -87,16 +90,23 @@ var proveRunCmd = &cobra.Command{
 		journey, _ := cmd.Flags().GetString("journey")
 		cmdStr, _ := cmd.Flags().GetString("cmd")
 		evidence, _ := cmd.Flags().GetStringSlice("evidence")
+		verdict, _ := cmd.Flags().GetString("verdict")
 		timeout, _ := cmd.Flags().GetInt("timeout")
-		j, err := executeProveRun(root, args[0], journey, cmdStr, evidence, timeout, os.Stdout)
+		j, err := executeProveRun(root, args[0], journey, cmdStr, evidence, verdict, timeout, os.Stdout)
 		if err != nil {
 			return err
 		}
 		if !j.Passed() {
-			fmt.Printf("\n[bts] %s FAILED: exit=%d, evidence missing: %v → prove.json\n", journey, j.Run.ExitCode, j.EvidenceMissing)
+			fmt.Printf("\n[bts] %s FAILED: exit=%d, checks %d, failed %v, evidence missing %v", journey, j.Run.ExitCode, j.Checks, j.ChecksFailed, j.EvidenceMissing)
+			if j.VerdictError != "" {
+				fmt.Printf(", verdict: %s", j.VerdictError)
+			} else if j.Checks == 0 {
+				fmt.Print(", verdict: no checks recorded")
+			}
+			fmt.Println(" → prove.json")
 			os.Exit(1)
 		}
-		fmt.Printf("\n[bts] %s driven: exit=0, evidence %v → prove.json\n", journey, j.Evidence)
+		fmt.Printf("\n[bts] %s driven: exit=0, %d checks passed, evidence %v → prove.json\n", journey, j.Checks, j.Evidence)
 		return nil
 	},
 }
@@ -203,7 +213,7 @@ func executeProvePlan(root, recipeID string, journeys []string, feature, noSurfa
 	return rec, nil
 }
 
-func executeProveRun(root, recipeID, journey, cmdStr string, evidence []string, timeoutSec int, sink io.Writer) (*state.Journey, error) {
+func executeProveRun(root, recipeID, journey, cmdStr string, evidence []string, verdict string, timeoutSec int, sink io.Writer) (*state.Journey, error) {
 	rec, err := loadOrNewProve(root, recipeID)
 	if err != nil {
 		return nil, err
@@ -212,15 +222,21 @@ func executeProveRun(root, recipeID, journey, cmdStr string, evidence []string, 
 	if j == nil {
 		return nil, fmt.Errorf("%s is not a planned journey; plan it first with `bts prove plan %s --journey %s`", journey, recipeID, journey)
 	}
-	for _, e := range evidence {
+	if strings.TrimSpace(verdict) == "" {
+		return nil, errors.New("--verdict is required: the file where the drive writes each check and whether it passed")
+	}
+	for _, e := range append(append([]string{}, evidence...), verdict) {
 		if filepath.IsAbs(e) || strings.HasPrefix(filepath.ToSlash(filepath.Clean(e)), "../") {
 			return nil, fmt.Errorf("evidence %q must be a path inside the project", e)
 		}
 	}
+	started := time.Now()
 	run, err := runRecorded(root, recipeID, cmdStr, timeoutSec, "prove-"+journey+".log", sink)
 	if err != nil {
 		return nil, err
 	}
+	j.Verdict = verdict
+	j.Checks, j.ChecksFailed, j.VerdictError = readVerdict(filepath.Join(root, verdict), started)
 	var missing []string
 	for _, e := range evidence {
 		info, serr := os.Stat(filepath.Join(root, e))
@@ -232,13 +248,69 @@ func executeProveRun(root, recipeID, journey, cmdStr string, evidence []string, 
 	if err := state.SaveProveRecord(root, recipeID, rec); err != nil {
 		return nil, err
 	}
-	verdict := "passed"
+	result := "passed"
 	if !j.Passed() {
-		verdict = "failed"
+		result = "failed"
 	}
 	appendEvidenceChangelog(root, recipeID, "prove",
-		fmt.Sprintf("run %s %s: exit=%d, evidence %d/%d", journey, verdict, run.ExitCode, len(evidence)-len(missing), len(evidence)), run.CodeHash)
+		fmt.Sprintf("run %s %s: exit=%d, checks %d (%d failed), evidence %d/%d", journey, result, run.ExitCode,
+			j.Checks, len(j.ChecksFailed), len(evidence)-len(missing), len(evidence)), run.CodeHash)
 	return j, nil
+}
+
+// readVerdict reads the checks a drive wrote: {"checks": [{"check": "<what
+// it checked>", "pass": true|false, ...}]}, with "name" and "passed" taken
+// as the same fields.  It returns how many checks there were, the names of
+// the failed ones, and why the file could not be used: missing, left from
+// an earlier run (written before this one started), not JSON, or a check
+// with no pass value.  A top-level "pass": false counts as a failed check.
+func readVerdict(path string, started time.Time) (int, []string, string) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, nil, "the drive wrote no verdict file"
+	}
+	if info.ModTime().Before(started.Add(-2 * time.Second)) {
+		return 0, nil, "the verdict file was not written by this run (it is older than the drive)"
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, nil, err.Error()
+	}
+	var v struct {
+		Pass   *bool            `json:"pass"`
+		Passed *bool            `json:"passed"`
+		Checks []map[string]any `json:"checks"`
+	}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return 0, nil, "the verdict file is not JSON: " + err.Error()
+	}
+	var failed []string
+	for i, c := range v.Checks {
+		name, _ := c["check"].(string)
+		if name == "" {
+			name, _ = c["name"].(string)
+		}
+		if name == "" {
+			name = fmt.Sprintf("check %d", i+1)
+		}
+		ok, has := c["pass"].(bool)
+		if !has {
+			ok, has = c["passed"].(bool)
+		}
+		if !has {
+			return len(v.Checks), nil, fmt.Sprintf("%s has no pass value", name)
+		}
+		if !ok {
+			failed = append(failed, name)
+		}
+	}
+	for _, top := range []*bool{v.Pass, v.Passed} {
+		if top != nil && !*top {
+			failed = append(failed, "verdict: pass=false")
+			break
+		}
+	}
+	return len(v.Checks), failed, ""
 }
 
 func executeProveDefer(root, recipeID, journey, reason, owner string) error {
@@ -285,8 +357,19 @@ func printProveStatus(rec *state.ProveRecord) {
 			status = fmt.Sprintf("deferred to %s (%s)", j.Deferred.Owner, j.Deferred.Reason)
 		case j.Run != nil && j.Passed():
 			status = "driven"
+			if j.Verdict != "" {
+				status = fmt.Sprintf("driven, %d checks passed", j.Checks)
+			}
 		case j.Run != nil:
 			status = "failed"
+			switch {
+			case j.VerdictError != "":
+				status += ": " + j.VerdictError
+			case len(j.ChecksFailed) > 0:
+				status += ": " + strings.Join(j.ChecksFailed, "; ")
+			case j.Verdict != "" && j.Checks == 0 && j.Run.Passed() && len(j.EvidenceMissing) == 0:
+				status += ": no checks recorded"
+			}
 		}
 		fmt.Printf("  %-24s %s\n", n, status)
 	}
