@@ -54,6 +54,9 @@ type RecipeStats struct {
 	TotalDuration time.Duration           `json:"total_duration"`
 	Sessions      []SessionStats          `json:"sessions,omitempty"`
 	CostByModel   map[string]CostBreakdown `json:"cost_by_model,omitempty"`
+	// Transcript is the recipe's token use summed from Claude Code's
+	// transcripts (main session and subagents), set by `bts stats`.
+	Transcript *TranscriptTokens `json:"transcript_tokens,omitempty"`
 	TotalCost     CostBreakdown           `json:"total_cost"`
 }
 

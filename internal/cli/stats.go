@@ -172,6 +172,7 @@ func showRecipeStats(root, recipeID string, jsonOutput bool) error {
 	stats.Topic = recipe.Topic
 	stats.Type = recipe.Type
 	stats.Phase = recipe.Phase
+	stats.Transcript = recipeTranscriptTokens(root, recipe)
 
 	if jsonOutput {
 		enc := json.NewEncoder(os.Stdout)
@@ -192,6 +193,18 @@ func showRecipeStats(root, recipeID string, jsonOutput bool) error {
 	}
 	if stats.TotalCost.Total > 0 {
 		fmt.Printf("  Cost:        %s\n", metrics.FormatCost(stats.TotalCost.Total))
+	}
+	if tt := stats.Transcript; tt != nil {
+		fmt.Println()
+		fmt.Println("Tokens (from transcripts)")
+		fmt.Println(strings.Repeat("─", 40))
+		row := func(label string, c metrics.TokenCounts, extra string) {
+			fmt.Printf("  %-11s %s total: in %s  out %s  cache write %s  cache read %s%s\n", label,
+				formatTokens(int(c.Total())), formatTokens(int(c.Input)), formatTokens(int(c.Output)),
+				formatTokens(int(c.CacheWrite)), formatTokens(int(c.CacheRead)), extra)
+		}
+		row("Main:", tt.Main, "")
+		row("Subagents:", tt.Subagents, fmt.Sprintf("  (%d runs)", tt.SubagentRuns))
 	}
 
 	if len(stats.Phases) > 0 {
@@ -379,6 +392,28 @@ func renderPhaseBar(phaseDur, totalDur time.Duration) string {
 	}
 	bar := strings.Repeat("#", filled) + strings.Repeat(".", barWidth-filled)
 	return fmt.Sprintf("%s  %2.0f%%", bar, pct)
+}
+
+// recipeTranscriptTokens sums the recipe's tokens from Claude Code's
+// transcripts: its owner session and that session's subagents (every
+// session, for a recipe with no owner), from its start to its last update
+// once it is complete or cancelled.  nil when nothing was found (trial
+// problem #13, AGEN-66).
+func recipeTranscriptTokens(root string, recipe *state.RecipeState) *metrics.TranscriptTokens {
+	from, _ := time.Parse(time.RFC3339, recipe.StartedAt)
+	var to time.Time
+	if recipe.Phase == "complete" || recipe.Phase == "cancelled" {
+		to, _ = time.Parse(time.RFC3339, recipe.UpdatedAt)
+	}
+	var sessions []string
+	if recipe.OwnerSession != "" {
+		sessions = []string{recipe.OwnerSession}
+	}
+	tt, err := metrics.SumTranscriptTokens(metrics.TranscriptDir(root), sessions, from, to)
+	if err != nil || tt.Messages == 0 {
+		return nil
+	}
+	return tt
 }
 
 func formatTokens(n int) string {
