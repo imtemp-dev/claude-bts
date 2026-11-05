@@ -147,18 +147,17 @@ If max iterations reached with failures:
    core of `.bts/specs/recipes/{id}/test-results.json`: `status`,
    `exit_code`, `iterations`, `command`, `recorded_by: "bts"`.
    **NEVER hand-edit these fields** — the DONE gates trust them.
-   Counts can be passed at run time (`--total 15 --passed 15 --failed 0
-   --skipped 0`) or supplemented in step 2.
+   Its counts (`total`, `passed`, `failed`, `skipped`) are read from the
+   runner's summary for pytest, jest, vitest, `dotnet test` and
+   `go test -v`.  For another runner pass them at run time
+   (`--total 15 --passed 15 --failed 0 --skipped 0`); flags win over the
+   parsed summary.  Do not edit them afterwards.
 
 2. Supplement the SAME file with the descriptive fields via the Edit
    tool (add keys; do not rewrite the file — and only AFTER the final
    run, since each `bts test run` resets annotations):
    ```json
    {
-     "total": 15,
-     "passed": 15,
-     "failed": 0,
-     "skipped": 0,
      "test_files": [
        "src/__tests__/auth.test.ts",
        "src/__tests__/session.test.ts"

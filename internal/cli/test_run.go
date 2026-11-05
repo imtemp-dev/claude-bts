@@ -98,6 +98,13 @@ func executeTestRun(root, recipeID, cmdStr, framework string, timeoutSec int, co
 	}
 	buf := bytes.NewBuffer(run.Output)
 	exitCode, timedOut := run.ExitCode, run.TimedOut
+	// Counts come from the runner's summary unless they were passed as
+	// flags; the status never does (it is the exit code's).
+	if counts == (testCounts{}) {
+		if parsed, ok := parseTestCounts(string(run.Output)); ok {
+			counts = parsed
+		}
+	}
 
 	status := "fail"
 	if exitCode == 0 && !timedOut {

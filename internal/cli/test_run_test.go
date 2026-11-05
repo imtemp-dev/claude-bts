@@ -183,3 +183,23 @@ func TestExecuteTestRun_EmptyCmdErrors(t *testing.T) {
 		t.Fatal("expected error for empty --cmd")
 	}
 }
+
+// Trial problem #49: counts come from the runner's summary when no flag
+// gives them, and a flag still wins.
+func TestExecuteTestRun_ReadsCountsFromTheSummary(t *testing.T) {
+	root, id := newTestRunFixture(t)
+	tr, err := executeTestRun(root, id, "echo '2 failed, 40 passed, 1 skipped in 0.50s'; exit 1", "pytest", 30, testCounts{}, io.Discard)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if tr.Total != 43 || tr.Passed != 40 || tr.Failed != 2 || tr.Skipped != 1 || tr.Status != "fail" {
+		t.Fatalf("counts must come from the summary and status from the exit code, got %+v", tr)
+	}
+	tr, err = executeTestRun(root, id, "echo '40 passed in 0.50s'", "pytest", 30, testCounts{Total: 7, Passed: 7}, io.Discard)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if tr.Total != 7 || tr.Passed != 7 {
+		t.Fatalf("flags must win over the parsed summary, got %+v", tr)
+	}
+}
