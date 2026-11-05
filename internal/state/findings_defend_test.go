@@ -30,7 +30,7 @@ func TestDefendBatch_SelectsOpenCriticalAndMajorInOrder(t *testing.T) {
 	}
 	batch, rest := DefendBatch(states, 0)
 	got := ids(batch)
-	want := []string{"F-crit", "F-maj-old", "F-maj-new"}
+	want := []string{"F-crit", "F-maj-new", "F-maj-old"} // open before unreported (#11)
 	if len(got) != len(want) {
 		t.Fatalf("batch = %v, want %v", got, want)
 	}
@@ -77,5 +77,25 @@ func TestDefendBatch_EmptyLedger(t *testing.T) {
 	batch, rest := DefendBatch(nil, 12)
 	if len(batch) != 0 || len(rest) != 0 {
 		t.Errorf("empty ledger must yield nothing, got %v / %v", ids(batch), ids(rest))
+	}
+}
+
+// An unreported finding (absent from the latest round, often fixed by
+// then) outranked a newly reported one by rounds survived, so under a cap
+// it pushed the open finding out of the batch (trial problem #11, Multica
+// AGEN-62).  jongyoon kept unreported findings in the batch, still owed,
+// but after the open ones of the same severity.
+func TestDefendBatch_OpenBeforeUnreportedOfTheSameSeverity(t *testing.T) {
+	states := []*FindingState{
+		fs("F-maj-unreported", "major", FindingUnreported, 3, 1),
+		fs("F-maj-open", "major", FindingOpen, 1, 3),
+		fs("F-crit-unreported", "critical", FindingUnreported, 2, 1),
+	}
+	batch, rest := DefendBatch(states, 2)
+	if got := ids(batch); len(got) != 2 || got[0] != "F-crit-unreported" || got[1] != "F-maj-open" {
+		t.Fatalf("severity first, then open before unreported: batch = %v", got)
+	}
+	if got := ids(rest); len(got) != 1 || got[0] != "F-maj-unreported" {
+		t.Fatalf("the unreported major is left over, still owed: rest = %v", got)
 	}
 }

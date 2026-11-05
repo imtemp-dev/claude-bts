@@ -203,12 +203,20 @@ var recipeFindingsDefendBatchCmd = &cobra.Command{
 		fmt.Printf("Defend batch for %s (%d of %d open critical/major; limit %d):\n", doc, len(batch), len(batch)+len(rest), limit)
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(w, "ID\tSEVERITY\tSTATUS\tROUNDS\tANCHOR\tTITLE")
+		var unreported []string
 		for _, st := range batch {
 			fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\t%s\n",
 				st.ID, st.Severity, st.Status, st.OpenRounds, st.Anchor, st.Title)
+			if st.Status == state.FindingUnreported {
+				unreported = append(unreported, st.ID)
+			}
 		}
 		if err := w.Flush(); err != nil {
 			return err
+		}
+		if len(unreported) > 0 {
+			fmt.Printf("Possibly fixed (the latest round did not raise them): %s — read the current text first; "+
+				"if one is fixed, the next verify round lists it in confirmed_fixed instead of a defense\n", strings.Join(unreported, " "))
 		}
 		if len(rest) == 0 {
 			fmt.Println("Undefended: none")

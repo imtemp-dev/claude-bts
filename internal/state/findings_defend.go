@@ -3,9 +3,9 @@ package state
 import "sort"
 
 // DefendBatch selects the findings /bts-defend argues against in one
-// pass: the open critical and major findings, highest severity first,
-// then the ones that have survived the most rounds, capped at limit
-// (0 = no cap). The remainder comes back as rest so the caller can name
+// pass: the open and unreported critical and major findings, highest
+// severity first, open before unreported, then the ones that have
+// survived the most rounds, capped at limit (0 = no cap). The remainder comes back as rest so the caller can name
 // what was left undefended instead of letting it read as defended.
 //
 // Minor findings are never in the batch. A [resolvable] minor is
@@ -32,6 +32,13 @@ func DefendBatch(states []*FindingState, limit int) (batch, rest []*FindingState
 		a, b := eligible[i], eligible[j]
 		if a.Severity != b.Severity {
 			return a.Severity == "critical"
+		}
+		// An unreported finding is still owed, but the latest round did not
+		// raise it and it is often fixed by now: it comes after the open
+		// ones, so a cap never pushes a live finding out for it (trial
+		// problem #11, AGEN-62).
+		if (a.Status == FindingOpen) != (b.Status == FindingOpen) {
+			return a.Status == FindingOpen
 		}
 		if a.OpenRounds != b.OpenRounds {
 			return a.OpenRounds > b.OpenRounds
