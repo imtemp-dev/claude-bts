@@ -581,6 +581,12 @@ func checkManifestConsistency(recipeDir string, recipeID string, manifest *state
 	}
 	for _, name := range knownFiles {
 		fullPath := filepath.Join(recipeDir, name)
+		if name == "verification.md" && verifyRoundsRecorded(recipeDir) {
+			// A verify round's report is recorded in verify-log.jsonl
+			// through --from-verification, not in the manifest (trial
+			// problem #84).
+			continue
+		}
 		if _, err := os.Stat(fullPath); err == nil {
 			if _, inManifest := manifest.Documents[name]; !inManifest {
 				issues = append(issues, doctorIssue{"warning", "manifest",
@@ -591,6 +597,12 @@ func checkManifestConsistency(recipeDir string, recipeID string, manifest *state
 	}
 
 	return issues
+}
+
+// verifyRoundsRecorded reports whether the recipe has logged a verify round.
+func verifyRoundsRecorded(recipeDir string) bool {
+	info, err := os.Stat(filepath.Join(recipeDir, "verify-log.jsonl"))
+	return err == nil && info.Size() > 0
 }
 
 // checkFlowCompliance analyzes changelog action sequence.

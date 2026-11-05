@@ -154,8 +154,7 @@ func (h *stopHandler) handleBlindStop(root string, recipe *state.RecipeState) (*
 		return &HookOutput{}, nil
 	}
 
-	if state.IsImplementPhase(recipe.Phase) ||
-		recipe.Phase == "finalize" || recipe.Phase == "complete" || recipe.Phase == "cancelled" {
+	if !state.Rule3Applies(recipe.Phase) {
 		return allow()
 	}
 

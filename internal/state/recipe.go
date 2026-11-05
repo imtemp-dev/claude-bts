@@ -221,6 +221,17 @@ func LoadTestResults(root, recipeID string) (*TestResults, error) {
 }
 
 // IsImplementPhase returns true if the phase is part of the implementation lifecycle.
+// Rule3Applies reports whether rule 3 (a verified document changed since
+// its last verification needs /bts-verify) holds in a phase.  It holds in
+// the spec loop only: implement-side phases run their own gates and
+// /bts-sync legitimately rewrites final.md there, and a finalized,
+// complete or cancelled recipe has no loop left.  The stop hook's blind
+// stop and `bts doctor` both read it, so they cannot disagree again (trial
+// problem #84).
+func Rule3Applies(phase string) bool {
+	return !IsImplementPhase(phase) && phase != "finalize" && phase != "complete" && phase != "cancelled"
+}
+
 func IsImplementPhase(phase string) bool {
 	switch phase {
 	case "implement", "test", "review", "sync", "status":

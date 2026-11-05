@@ -136,8 +136,13 @@ func checkReviewFindingsBlock(root, recipeID string) []doctorIssue {
 
 // checkDirtyVerifiedDocs surfaces rule-3 violations (doc modified after
 // its last verification) in doctor output, same detection as the stop
-// hook's DONE gate.
+// hook's DONE gate, and only in the phases rule 3 holds in: after
+// /bts-sync it warned about the final.md sync is meant to rewrite (trial
+// problem #84).  A recipe whose phase cannot be read is checked.
 func checkDirtyVerifiedDocs(root, recipeID string) []doctorIssue {
+	if r, err := state.LoadRecipeState(root, recipeID); err == nil && r != nil && !state.Rule3Applies(r.Phase) {
+		return nil
+	}
 	dirty, err := state.DirtyVerifiedDocs(root, recipeID)
 	if err != nil || len(dirty) == 0 {
 		return nil
