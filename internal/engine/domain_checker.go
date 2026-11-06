@@ -40,7 +40,7 @@ var carriedTagRe = regexp.MustCompile(`(?i)\s*\[carried\b[^\]]*\]`)
 //   - The section begins at a heading line matching "## 2. Invariants"
 //     (case-insensitive, dot tolerated).
 //   - Table rows have the form `| ID | Statement | Owner | ... |`.
-//   - Header and separator rows (those containing "---") are skipped.
+//   - Header and separator rows (mdtable.IsSeparatorRow) are skipped.
 //   - Ownership comparison normalizes whitespace/case on Statement and
 //     splits Owner on commas (so "A, B" counts as two owners even on a
 //     single row — which itself is a violation).
@@ -136,8 +136,10 @@ func parseInvariantsTable(path string) ([]Invariant, error) {
 		if !strings.HasPrefix(trimmed, "|") {
 			continue
 		}
-		// Skip the separator row (|---|---|---|).
-		if strings.Contains(trimmed, "---") {
+		// Skip the separator row (|---|---|---|).  Only a row made of
+		// pipes, dashes and colons is one: an invariant whose statement
+		// holds "---" is data (trial problem #112).
+		if mdtable.IsSeparatorRow(trimmed) {
 			continue
 		}
 		cells := parseTableRow(trimmed)

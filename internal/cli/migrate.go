@@ -1106,7 +1106,7 @@ func migrateOneDeviationDriver(path string, dryRun bool) (int, error) {
 			continue
 		}
 
-		if expectSeparator && strings.Contains(line, "---") {
+		if expectSeparator && mdtable.IsSeparatorRow(line) {
 			// Replace the old separator with one that matches the new
 			// column count.
 			switch tableMode {

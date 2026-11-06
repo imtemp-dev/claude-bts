@@ -6,6 +6,26 @@ package mdtable
 
 import "strings"
 
+// IsSeparatorRow reports whether line is a table's separator row: nothing
+// but pipes, dashes, colons and spaces, with at least one pipe and one
+// dash.  Three readers used to call any row containing "---" a separator,
+// so an invariant whose statement held "---" vanished from domain.md's
+// table (trial problem #112).
+func IsSeparatorRow(line string) bool {
+	line = strings.TrimSpace(line)
+	if !strings.Contains(line, "|") || !strings.Contains(line, "-") {
+		return false
+	}
+	for _, c := range line {
+		switch c {
+		case '|', '-', ':', ' ', '\t':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 // SplitRow splits a table row into its cells, without trimming them.  As in
 // GFM, a pipe escaped as `\|` belongs to the cell, inside a code span too,
 // and comes back as `|`.  The empty segments the row's outer pipes leave

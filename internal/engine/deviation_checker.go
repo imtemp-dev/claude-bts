@@ -5,6 +5,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/imtemp-dev/claude-bts/internal/mdtable"
 )
 
 // DeviationRow is a single row parsed from deviation.md's tables.
@@ -80,9 +82,10 @@ func ParseDeviationMd(path string) ([]DeviationRow, error) {
 			seenHeader = false
 			continue
 		}
-		if strings.Contains(trimmed, "---") {
+		if mdtable.IsSeparatorRow(trimmed) {
 			// Separator row. Marks that we are inside a table after a
-			// header was seen.
+			// header was seen.  A data row holding "---" in a cell is not
+			// one (trial problem #112).
 			if seenHeader {
 				inTable = true
 			}

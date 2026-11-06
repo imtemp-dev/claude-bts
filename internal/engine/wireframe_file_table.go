@@ -31,9 +31,6 @@ import (
 
 var fileStructureHeadingRe = regexp.MustCompile(`(?im)^#{1,6}[^\n]*\bfile structure\b`)
 
-// tableRowSplitRe splits a markdown table row into cells.
-var tableSeparatorRowRe = regexp.MustCompile(`^[\s|:-]+$`)
-
 // cellCleanupRe strips the decoration specs put around a path or an
 // action — backticks and bold/italic asterisks — so `**modify**` and
 // modify are the same answer.
@@ -301,7 +298,7 @@ func fileStructureRows(content string) []fileStructureRow {
 			}
 			continue
 		}
-		if tableSeparatorRowRe.MatchString(strings.Trim(line, " ")) {
+		if mdtable.IsSeparatorRow(line) {
 			continue
 		}
 		if fileCol >= len(cells) || actionCol >= len(cells) {
