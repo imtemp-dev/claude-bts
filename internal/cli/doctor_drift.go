@@ -71,6 +71,58 @@ func checkConfigDrift(root string) []doctorIssue {
 	return issues
 }
 
+// checkCompleteDrift reports a completed recipe whose code moved on: a
+// file its wireframe planned to create that is gone, and a code
+// fingerprint unlike the one its last test run covered.  After true-shark
+// completed, a PR review deleted WorkItemNumber.cs and changed the code,
+// and doctor and validate stayed clean (trial problem #92).
+func checkCompleteDrift(root, recipeID string) []doctorIssue {
+	r, err := state.LoadRecipeState(root, recipeID)
+	if err != nil || r == nil || r.Phase != "complete" {
+		return nil
+	}
+	var issues []doctorIssue
+	if data, err := os.ReadFile(filepath.Join(state.RecipeDir(root, recipeID), "wireframe.md")); err == nil {
+		var gone []string
+		for _, k := range engine.ParseWireframeFileTable(string(data)) {
+			if k.Action != "create" {
+				continue
+			}
+			if _, serr := os.Stat(filepath.Join(root, k.Path)); os.IsNotExist(serr) {
+				gone = append(gone, k.Path)
+			}
+		}
+		if len(gone) > 0 {
+			issues = append(issues, doctorIssue{
+				level:   "warning",
+				section: "drift",
+				message: fmt.Sprintf("%s is complete, but files its wireframe created are gone: %s", recipeID, strings.Join(gone, ", ")),
+				fix:     "the code moved on after completion; record the change in a new recipe (or a fix recipe) so the spec and the code agree again",
+			})
+		}
+	}
+	if tr, err := state.LoadTestResults(root, recipeID); err == nil && tr.ImplHash != "" {
+		if current, herr := state.RecipeImplHash(root, recipeID); herr == nil && current != "" && current != tr.ImplHash {
+			issues = append(issues, doctorIssue{
+				level:   "warning",
+				section: "drift",
+				message: fmt.Sprintf("the code under %s changed after it completed: its last test run covered %s, the code is now %s",
+					recipeID, shortHash(tr.ImplHash), shortHash(current)),
+				fix: "a change after completion is outside the recipe's evidence; record it in a new recipe (or a fix recipe), or rerun the tests if the change is meant to be part of this one",
+			})
+		}
+	}
+	return issues
+}
+
+func shortHash(h string) string {
+	h = strings.TrimPrefix(h, "sha256:")
+	if len(h) > 12 {
+		h = h[:12]
+	}
+	return h
+}
+
 // checkTestResultsProvenance warns when test-results.json was written
 // by hand instead of `bts test run` — the DONE gates trust its status
 // field, and only recorded_by=="bts" means the status came from the

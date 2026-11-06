@@ -134,6 +134,22 @@ func ValidateRecipeDir(recipeDir string) ([]ValidationError, error) {
 
 // recipeTypeOf reads the type field of a recipe directory's recipe.json,
 // or "" when it cannot.
+// recipePhaseOf reads the phase field of a recipe directory's recipe.json,
+// or "" when there is none.
+func recipePhaseOf(recipeDir string) string {
+	data, err := os.ReadFile(filepath.Join(recipeDir, "recipe.json"))
+	if err != nil {
+		return ""
+	}
+	var r struct {
+		Phase string `json:"phase"`
+	}
+	if json.Unmarshal(data, &r) != nil {
+		return ""
+	}
+	return r.Phase
+}
+
 func recipeTypeOf(recipeDir string) string {
 	data, err := os.ReadFile(filepath.Join(recipeDir, "recipe.json"))
 	if err != nil {

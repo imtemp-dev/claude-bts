@@ -397,6 +397,7 @@ func (t *trackedFiles) withTail(root, rel string) []string {
 // five on r-003, were these).
 func checkCodeReferences(content string, projectRoot, docDir string, result *VerifyResult) {
 	planned := plannedFiles(docDir)
+	completed := docDir != "" && recipePhaseOf(docDir) == "complete"
 	var tracked trackedFiles
 	filePaths := extractFilePaths(content)
 	for _, fp := range filePaths {
@@ -411,8 +412,19 @@ func checkCodeReferences(content string, projectRoot, docDir string, result *Ver
 			}
 		}
 		if _, err := os.Stat(absPath); os.IsNotExist(err) {
-			// Check if this is a "create" reference (new file to be made)
-			if isCreateReference(content, fp) || planned[filepath.ToSlash(filepath.Clean(fp))] {
+			// In a completed recipe a planned file that is gone is drift,
+			// not a file to be created: after true-shark completed, a PR
+			// review deleted one and verify still called it "to be
+			// created" (trial problem #92).
+			if completed && planned[filepath.ToSlash(filepath.Clean(fp))] {
+				result.Issues = append(result.Issues, Issue{
+					Category: "file_ref",
+					Claim:    fp,
+					Severity: SeverityMajor,
+					Detail:   "Planned (create) in the wireframe, and gone after the recipe completed: the code moved on without the spec",
+				})
+				result.Summary.Major++
+			} else if isCreateReference(content, fp) || planned[filepath.ToSlash(filepath.Clean(fp))] {
 				result.Issues = append(result.Issues, Issue{
 					Category: "file_ref",
 					Claim:    fp,

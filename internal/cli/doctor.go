@@ -137,6 +137,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		issues = append(issues, checkTestResultsProvenance(root, recipe.ID)...)
 		issues = append(issues, checkReviewFindingsBlock(root, recipe.ID)...)
 		issues = append(issues, checkDirtyVerifiedDocs(root, recipe.ID)...)
+		issues = append(issues, checkCompleteDrift(root, recipe.ID)...)
 		issues = append(issues, checkUnenforceableRule3(root, recipe.ID)...)
 		issues = append(issues, checkUnrecordedRevisions(root, recipe.ID)...)
 		issues = append(issues, checkActiveOverrides(root, recipe.ID)...)
