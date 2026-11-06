@@ -59,6 +59,12 @@ func AppendChangelog(root, recipeID string, entry *ChangelogEntry) error {
 // own history could not say which build ran which phase (trial problem
 // #55). from is "" for a recipe's first phase.
 func LogPhaseChange(root, recipeID, from, to string) error {
+	// A move to the phase the recipe is already in is no transition: it
+	// wrote "discovery → discovery" rows that `bts stats` printed as extra
+	// 0 s stages (trial problem #94).
+	if from == to {
+		return nil
+	}
 	if from == "" {
 		from = "(new)"
 	}
