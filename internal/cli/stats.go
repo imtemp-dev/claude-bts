@@ -175,6 +175,7 @@ func showRecipeStats(root, recipeID string, jsonOutput bool) error {
 	stats.Transcript = recipeTranscriptTokens(root, recipe)
 	ownerSessionFloor(root, recipe, stats)
 	startTimeline(stats, recipe, events)
+	splitBuildReviewTail(stats, root, recipe)
 
 	if jsonOutput {
 		enc := json.NewEncoder(os.Stdout)
@@ -226,9 +227,14 @@ func showRecipeStats(root, recipeID string, jsonOutput bool) error {
 			fmt.Println("Phase Timeline")
 		}
 		fmt.Println(strings.Repeat("─", 40))
+		derived := false
 		for _, p := range stats.Phases {
 			bar := renderPhaseBar(p.Duration, totalPhaseDur)
 			fmt.Printf("  %-14s %8s  %s\n", p.Phase, formatDuration(p.Duration), bar)
+			derived = derived || strings.HasSuffix(p.Phase, "*")
+		}
+		if derived {
+			fmt.Println("  * derived from the verify log: final.md and its review, from its first recorded round")
 		}
 	}
 
@@ -399,6 +405,45 @@ func renderPhaseBar(phaseDur, totalDur time.Duration) string {
 	}
 	bar := strings.Repeat("#", filled) + strings.Repeat(".", barWidth-filled)
 	return fmt.Sprintf("%s  %2.0f%%", bar, pct)
+}
+
+// splitBuildReviewTail splits a build recipe's falsify span at the first
+// recorded review of final.md.  Steps 9 to 13 (final.md, its review, DONE)
+// log no phase of their own, so swift-eagle's 1.5 h review loop counted as
+// falsify (trial problem #96).  The second part is named "review*": derived
+// from the verify log, not a phase the recipe was in.
+func splitBuildReviewTail(stats *metrics.RecipeStats, root string, recipe *state.RecipeState) {
+	if stats == nil || recipe.Type != "build" {
+		return
+	}
+	entries, err := state.ReadVerifyLog(root, recipe.ID)
+	if err != nil {
+		return
+	}
+	var first time.Time
+	for _, e := range state.VerifyEntriesForDoc(entries, "final.md") {
+		if ts, terr := time.Parse(time.RFC3339, e.Timestamp); terr == nil {
+			first = ts
+			break
+		}
+	}
+	if first.IsZero() {
+		return
+	}
+	for i, p := range stats.Phases {
+		if p.Phase != "falsify" || !first.After(p.EnteredAt) || (!p.ExitedAt.IsZero() && !first.Before(p.ExitedAt)) {
+			continue
+		}
+		end := p.ExitedAt
+		if end.IsZero() {
+			end = p.EnteredAt.Add(p.Duration)
+		}
+		head := metrics.PhaseSpan{Phase: "falsify", EnteredAt: p.EnteredAt, ExitedAt: first, Duration: first.Sub(p.EnteredAt)}
+		tail := metrics.PhaseSpan{Phase: "review*", EnteredAt: first, ExitedAt: p.ExitedAt, Duration: end.Sub(first)}
+		rest := append([]metrics.PhaseSpan{head, tail}, stats.Phases[i+1:]...)
+		stats.Phases = append(stats.Phases[:i], rest...)
+		return
+	}
 }
 
 // startTimeline opens the timeline at the recipe's creation: the phase the
