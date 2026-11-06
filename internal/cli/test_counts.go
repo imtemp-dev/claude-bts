@@ -28,34 +28,41 @@ var (
 
 // parseTestCounts reads pass, fail and skip counts from a test runner's
 // output.  It reports false when no known summary is present.
+//
+// Every summary counts, of every runner: a command often runs several
+// (`pytest && vitest`, two pytest sessions).  Returning the first runner
+// type found, and only its last summary, recorded swift-eagle's 5906
+// pytest passes plus 1297 vitest passes as 1297, and would have hidden an
+// earlier session's failures behind a later summary (trial problem #108).
 func parseTestCounts(output string) (testCounts, bool) {
-	if ms := dotnetSummaryRe.FindAllStringSubmatch(output, -1); len(ms) > 0 {
-		var c testCounts
-		for _, m := range ms {
-			c.Failed += countAtoi(m[1])
-			c.Passed += countAtoi(m[2])
-			c.Skipped += countAtoi(m[3])
-			c.Total += countAtoi(m[4])
+	var total testCounts
+	found := false
+	add := func(c testCounts) {
+		total.Total += c.Total
+		total.Passed += c.Passed
+		total.Failed += c.Failed
+		total.Skipped += c.Skipped
+		found = true
+	}
+	for _, m := range dotnetSummaryRe.FindAllStringSubmatch(output, -1) {
+		add(testCounts{Failed: countAtoi(m[1]), Passed: countAtoi(m[2]), Skipped: countAtoi(m[3]), Total: countAtoi(m[4])})
+	}
+	for _, m := range jestSummaryRe.FindAllStringSubmatch(output, -1) {
+		c := countWords(m[1])
+		if t := jestTotalRe.FindStringSubmatch(m[1]); t != nil {
+			c.Total = countAtoi(t[1])
 		}
-		return c, true
+		add(c)
 	}
-	if ms := jestSummaryRe.FindAllStringSubmatch(output, -1); len(ms) > 0 {
-		c := countWords(ms[len(ms)-1][1])
-		if m := regexp.MustCompile(`(\d+) total`).FindStringSubmatch(ms[len(ms)-1][1]); m != nil {
-			c.Total = countAtoi(m[1])
-		}
-		return c, true
+	for _, m := range vitestSummaryRe.FindAllStringSubmatch(output, -1) {
+		c := countWords(strings.ReplaceAll(m[1], "|", ","))
+		c.Total = countAtoi(m[2])
+		add(c)
 	}
-	if ms := vitestSummaryRe.FindAllStringSubmatch(output, -1); len(ms) > 0 {
-		last := ms[len(ms)-1]
-		c := countWords(strings.ReplaceAll(last[1], "|", ","))
-		c.Total = countAtoi(last[2])
-		return c, true
-	}
-	if ms := pytestSummaryRe.FindAllStringSubmatch(output, -1); len(ms) > 0 {
-		c := countWords(ms[len(ms)-1][1])
+	for _, m := range pytestSummaryRe.FindAllStringSubmatch(output, -1) {
+		c := countWords(m[1])
 		c.Total = c.Passed + c.Failed + c.Skipped
-		return c, true
+		add(c)
 	}
 	if ms := goTestResultRe.FindAllStringSubmatch(output, -1); len(ms) > 0 {
 		var c testCounts
@@ -70,10 +77,12 @@ func parseTestCounts(output string) (testCounts, bool) {
 			}
 		}
 		c.Total = c.Passed + c.Failed + c.Skipped
-		return c, true
+		add(c)
 	}
-	return testCounts{}, false
+	return total, found
 }
+
+var jestTotalRe = regexp.MustCompile(`(\d+) total`)
 
 // countWords adds up "N passed", "N failed" and the like.  An error counts
 // as a failure, xpassed as passed, xfailed, todo and pending as skipped.
