@@ -132,10 +132,14 @@ directly and every row becomes a task, so it is parsed, not just read:
 - Columns are located by **header name** — `File` and `Action` must be
   spelled that way (a leading `#` or any extra column is fine, order is
   not).
-- Actions `create`, `modify` and `delete` become tasks. Any other value
-  — `unchanged` is the useful one — records a deliberate non-edit and
-  becomes nothing. Use it when a reader would otherwise wonder why a
-  file is missing from the list.
+- Actions `create`, `modify` and `delete` become tasks. `unchanged`
+  records a deliberate non-edit and becomes nothing; use it when a reader
+  would otherwise wonder why a file is missing from the list. `bts verify`
+  reports any other action (major), since it would become no task.
+- A `modify` row names the symbols it may touch after the action, as
+  `modify scope=a,b` (the form a task anchor uses). The task's modify
+  scope comes from it, and `bts check task` reports edits outside it.
+  The Action cell holds nothing else; notes go in Responsibility.
 - `generate` marks a file a generator writes from the code: an OpenAPI
   document, client types generated from it, generated headers. It is not
   a task, and nobody edits it by hand; the generator rewrites it. Its

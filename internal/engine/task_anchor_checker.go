@@ -3,6 +3,7 @@ package engine
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -360,8 +361,18 @@ func CheckModifyScope(finalPath, tasksPath, projectRoot string) []Issue {
 	}
 
 	// Build a map of anchor key -> declared scope from final.md so we
-	// can cross-reference.
+	// can cross-reference.  A build recipe's final.md carries no anchor
+	// comments, so the wireframe beside it declares its modify scopes, as
+	// `modify scope=a,b` in the row's Action cell (trial problem #104).
+	// final.md wins where both declare one.
 	anchorScopes := parseAnchorScopes(string(finalData))
+	if wf, err := os.ReadFile(filepath.Join(filepath.Dir(finalPath), "wireframe.md")); err == nil {
+		for k, v := range ParseWireframeScopes(string(wf)) {
+			if _, ok := anchorScopes[k]; !ok {
+				anchorScopes[k] = v
+			}
+		}
+	}
 
 	var issues []Issue
 	for _, t := range tasks {

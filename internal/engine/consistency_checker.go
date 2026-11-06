@@ -197,12 +197,14 @@ func VerifyDocument(docPath string, projectRoot string, checkCode bool) (*Verify
 	// Each node's responsibility must be a single-job sentence — "and",
 	// "&", "및" signal two jobs that should split into two nodes.
 	// Also check architect-decision header presence (Phase 5.3), and that
-	// every `generate` row names its generator (trial problem #66).
+	// every `generate` row names its generator (trial problem #66), and that
+	// every row's action is one bts knows (trial problem #104).
 	if strings.EqualFold(base, "wireframe.md") {
 		appendIssues(result, CheckWireframeResponsibilities(docPath))
 		appendIssues(result, CheckArchitectDecisionHeader(docPath))
 		appendIssues(result, CheckArchitectInvariantCoverage(docPath))
 		appendIssues(result, CheckWireframeGenerateRows(docPath))
+		appendIssues(result, CheckWireframeFileActions(docPath))
 	}
 
 	return result, nil

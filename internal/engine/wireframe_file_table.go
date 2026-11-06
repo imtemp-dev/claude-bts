@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -148,6 +149,53 @@ func ParseWireframeFileTable(content string) []TaskAnchorKey {
 	return out
 }
 
+// ParseWireframeScopes returns the scope each `modify` row declares after
+// its action, as `modify scope=a,b`: the same form a task anchor uses.  A
+// build recipe's final.md carries no task-anchor comments, so the
+// wireframe row is where its modify tasks' scopes are declared.
+func ParseWireframeScopes(content string) map[TaskAnchorKey][]string {
+	out := map[TaskAnchorKey][]string{}
+	for _, r := range fileStructureRows(content) {
+		if r.Path == "" || r.Action != "modify" || len(r.Scope) == 0 {
+			continue
+		}
+		out[TaskAnchorKey{Path: r.Path, Action: r.Action}] = r.Scope
+	}
+	return out
+}
+
+// knownFileActions are every action a File Structure row may carry: the
+// three task actions, `generate` (a generator writes the file) and
+// `unchanged` (a deliberate non-edit).
+var knownFileActions = map[string]bool{"create": true, "modify": true, "delete": true, "generate": true, "unchanged": true}
+
+// CheckWireframeFileActions reports rows whose action is none of the known
+// ones.  Such a row becomes no task and no anchor, so a typo or another
+// spelling used to vanish without a word: on 11-06 swift-eagle's 31 and
+// neat-wolf's 4 `modify scope=...` rows were all dropped that way before
+// the scope was read after the action (trial problem #104).
+func CheckWireframeFileActions(wireframePath string) []Issue {
+	data, err := os.ReadFile(wireframePath)
+	if err != nil {
+		return nil
+	}
+	var issues []Issue
+	for _, r := range fileStructureRows(string(data)) {
+		if r.Path == "" || knownFileActions[r.Action] {
+			continue
+		}
+		issues = append(issues, Issue{
+			Category: "wireframe",
+			Claim:    fmt.Sprintf("unknown_file_action: %s (%q)", r.Path, r.Action),
+			Severity: SeverityMajor,
+			Detail: "A File Structure row's action must be create, modify or delete (a task), generate, or unchanged; " +
+				"any other value becomes no task and no anchor. A modify row may name its symbols after the action, " +
+				"as `modify scope=a,b` (bts-wireframe Step 4).",
+		})
+	}
+	return issues
+}
+
 // GenerateRow is a File Structure row whose action is `generate`: a file a
 // generator writes (an OpenAPI document, generated client types, generated
 // headers), or a directory it writes into. It is never a task and never
@@ -189,11 +237,30 @@ func ParseWireframeGenerateRows(content string) []GenerateRow {
 }
 
 // fileStructureRow is one data row of the File Structure table: the path
-// and the lower-cased action with their decoration stripped, and every
-// cell as written.
+// and the lower-cased action with their decoration stripped, the scope a
+// modify row names after its action, and every cell as written.
 type fileStructureRow struct {
 	Path, Action string
+	Scope        []string
 	Cells        []string
+}
+
+// splitActionCell reads an Action cell as its first word, lower-cased, and
+// a `scope=a,b` that may follow it.  Reading the whole cell as the action
+// turned `modify scope=a,b` into an action nothing knows (trial problem
+// #104), and lower-casing the whole cell would have lower-cased the
+// symbols too.
+func splitActionCell(cell string) (string, []string) {
+	fields := strings.Fields(cell)
+	if len(fields) == 0 {
+		return "", nil
+	}
+	action := strings.ToLower(strings.Trim(fields[0], ",;:"))
+	var scope []string
+	if m := scopeSuffixRe.FindStringSubmatch(strings.Join(fields[1:], " ")); len(m) > 1 {
+		scope = splitScopeList(m[1])
+	}
+	return action, scope
 }
 
 // fileStructureRows reads the File Structure table's data rows.
@@ -240,9 +307,11 @@ func fileStructureRows(content string) []fileStructureRow {
 		if fileCol >= len(cells) || actionCol >= len(cells) {
 			continue
 		}
+		action, scope := splitActionCell(cleanCell(cells[actionCol]))
 		out = append(out, fileStructureRow{
 			Path:   cleanCell(cells[fileCol]),
-			Action: strings.ToLower(cleanCell(cells[actionCol])),
+			Action: action,
+			Scope:  scope,
 			Cells:  cells,
 		})
 	}
