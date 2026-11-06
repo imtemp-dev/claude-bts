@@ -29,7 +29,7 @@ func init() {
 	recipeDecisionListCmd.Flags().Bool("open", false, "Only decisions still waiting on the user")
 	recipeDecisionListCmd.Flags().Bool("json", false, "Emit JSON")
 
-	recipeDecisionResolveCmd.Flags().String("answer", "", "The user's decision")
+	recipeDecisionResolveCmd.Flags().String("answer", "", "The user's decision, in their words and in the project's record language; a translation is marked as one, e.g. \"approved (translated from Korean)\"")
 	_ = recipeDecisionResolveCmd.MarkFlagRequired("answer")
 
 	recipeDecisionDropCmd.Flags().String("reason", "", "Why the question no longer needs an answer")

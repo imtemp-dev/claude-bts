@@ -416,6 +416,11 @@ bts recipe decision hold {id} --key <stable-key> \
   handoff. Ending it with the question only in chat is not.
 - Record the answer, never assume it:
   `bts recipe decision resolve {id} <key> --answer "..."`.
+  The answer is the user's words, in the language the project keeps its
+  records in. When they answered in another language, record a faithful
+  translation and mark it, for example `approved (translated from
+  Korean)`: a project that keeps English records refuses the original
+  text, and on two trials the first resolve failed that way.
   If the question stopped mattering, retire it with
   `bts recipe decision drop {id} <key> --reason "..."` rather than
   inventing an answer.
