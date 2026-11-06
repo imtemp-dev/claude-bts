@@ -542,6 +542,27 @@ var recipeLogCmd = &cobra.Command{
 			if docBase != "" {
 				priorRounds = state.VerifyEntriesForDoc(history, docBase)
 			}
+			// A verification.md this document already recorded is not a new
+			// reading of it.  On swift-eagle a failed write of a delta's
+			// output left round 1's file in place, and the record logged it
+			// again as round 2 (trial problem #99): one of six rounds spent,
+			// a delta that "found" round 1's critical and majors, an extra
+			// full review, and no way to take the round back.  Refuse before
+			// anything is written.
+			if fromVerification != "" && entry.VerificationHash != "" {
+				for _, p := range priorRounds {
+					if p.VerificationHash != entry.VerificationHash {
+						continue
+					}
+					short := strings.TrimPrefix(p.VerificationHash, "sha256:")
+					if len(short) > 12 {
+						short = short[:12]
+					}
+					return fmt.Errorf("verification.md holds the same content iteration %d recorded (%s), "+
+						"so this round's output has not been written there yet.  Write the verify fork's output "+
+						"to it, then record the round; nothing was logged", p.Iteration, short)
+				}
+			}
 			label := docBase
 			if label == "" {
 				label = "(unscoped)"

@@ -275,6 +275,10 @@ Division of labor — this fork has no Write tool and must not log:
    rounds against the cap. Explicit `--critical/--major/...` flags
    remain as a fallback; NEVER use legacy `--minor` (it maps all minors
    to blocking [resolvable]).
+   Write verification.md, see the write succeed, and only then record:
+   the two are dependent calls, never one parallel batch.  The record
+   refuses a verification.md this document already recorded, since that
+   is an earlier round's output, not this round's.
 
    `--doc` is not optional. It scopes convergence to this document,
    feeds the findings ledger, and snapshots the revision. **The path
