@@ -273,5 +273,14 @@ func appProven(root, recipeID string) *HookOutput {
 	if reason := engine.CheckAppProven(rec, hash, recipeID); reason != "" {
 		return blockOutput(reason)
 	}
+	// An invariant guarded by prompt text holds only when the model follows
+	// it, so a driven journey must name it (trial problem #111).
+	ev, everr := state.LoadBuildEvidence(root, recipeID)
+	if everr != nil {
+		return blockOutput(fmt.Sprintf("build-evidence.json is unreadable (%v), so prompt-guarded invariants cannot be checked.", everr))
+	}
+	if reason := engine.CheckBehaviourObserved(rec, ev, recipeID); reason != "" {
+		return blockOutput(reason)
+	}
 	return nil
 }

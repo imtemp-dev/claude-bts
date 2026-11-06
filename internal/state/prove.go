@@ -34,6 +34,11 @@ type Journey struct {
 	Checks       int      `json:"checks,omitempty"`
 	ChecksFailed []string `json:"checks_failed,omitempty"`
 	VerdictError string   `json:"verdict_error,omitempty"`
+	// Invariants are the invariants this journey's run observes
+	// (`bts prove plan --journey X --inv INV-018`).  An invariant whose
+	// guard is prompt text holds only when the model follows it, so a
+	// driven journey must name it (trial problem #111).
+	Invariants []string `json:"invariants,omitempty"`
 }
 
 // Passed reports whether the journey's last drive exited 0, left every

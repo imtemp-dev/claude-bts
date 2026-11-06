@@ -2,11 +2,84 @@ package engine
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/imtemp-dev/claude-bts/internal/state"
 )
+
+// promptTextExts are the file types a model reads as instructions: skill
+// and knowledge files, prompt templates.  A guard there is model behaviour.
+var promptTextExts = map[string]bool{".md": true, ".mdx": true, ".txt": true, ".prompt": true, ".j2": true, ".jinja": true, ".jinja2": true}
+
+// PromptGuardedInvariants returns the invariants, sorted, whose mutation
+// broke only prompt text: the guard is words a model is told, so the
+// falsifier that caught the mutation read those words, and only a model
+// run shows the behaviour (trial problem #111).
+func PromptGuardedInvariants(ev *state.BuildEvidence) []string {
+	if ev == nil {
+		return nil
+	}
+	var out []string
+	for id, f := range ev.Falsifiers {
+		if f == nil || f.Mutation == nil || len(f.Mutation.Files) == 0 {
+			continue
+		}
+		prompt := true
+		for _, p := range f.Mutation.Files {
+			if !promptTextExts[strings.ToLower(filepath.Ext(p))] {
+				prompt = false
+				break
+			}
+		}
+		if prompt {
+			out = append(out, id)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// CheckBehaviourObserved is app_proven's half for model behaviour: every
+// prompt-guarded invariant is named by a planned journey
+// (`bts prove plan --journey X --inv INV-...`), so that CheckAppProven's
+// demand that each journey be driven on the current code, or deferred
+// with an owner, covers it.  It returns "" when that holds.
+func CheckBehaviourObserved(rec *state.ProveRecord, ev *state.BuildEvidence, recipeID string) string {
+	guarded := PromptGuardedInvariants(ev)
+	if len(guarded) == 0 {
+		return ""
+	}
+	observed := map[string]bool{}
+	if rec != nil {
+		for _, j := range rec.Journeys {
+			for _, inv := range j.Invariants {
+				observed[inv] = true
+			}
+		}
+	}
+	var missing []string
+	for _, inv := range guarded {
+		if !observed[inv] {
+			missing = append(missing, inv)
+		}
+	}
+	if len(missing) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s %s guarded by prompt text (each mutation edited only %s), so its test read the words, not the behaviour. "+
+		"Name each on a journey that drives the model through it on synthetic inputs: `bts prove plan %s --journey <name> --inv %s`, "+
+		"then drive that journey, or defer it with an owner.",
+		strings.Join(missing, ", "), pluralIs(len(missing)), "skill or prompt files", recipeID, strings.Join(missing, ","))
+}
+
+func pluralIs(n int) string {
+	if n == 1 {
+		return "is"
+	}
+	return "are"
+}
 
 // CheckAppProven is gate app_proven: the recipe planned the user journeys
 // it touches, and each was driven through the real app on the current

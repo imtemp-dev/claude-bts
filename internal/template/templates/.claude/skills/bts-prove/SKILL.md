@@ -38,6 +38,18 @@ a journey the map lacks.
 bts prove plan {id} --journey <name> [--journey <name>...] --feature features/<file>.md
 ```
 
+Name the invariants each journey's run observes with `--inv INV-...`
+(call plan once per journey when the lists differ).  An invariant whose
+mutation edited only prompt text (a SKILL.md section, a knowledge file,
+a prompt template) is guarded by the model: its test read the words, so
+a journey must drive the model through it, on synthetic inputs, never a
+real person's data.  `app_proven` names any such invariant no journey
+observes.
+
+```bash
+bts prove plan {id} --journey <name> --inv INV-018,INV-019
+```
+
 ## Step 3: Drive each journey
 
 Write one drive command per journey, following the verify skill's Launch,

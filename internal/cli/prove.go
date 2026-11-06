@@ -33,6 +33,7 @@ func init() {
 	provePlanCmd.Flags().StringSlice("journey", nil, "A user journey this change touches (repeatable)")
 	provePlanCmd.Flags().String("feature", "", "The feature-map file the journeys come from")
 	provePlanCmd.Flags().String("no-surface", "", "Record that the change has no user-facing surface, with the reason")
+	provePlanCmd.Flags().StringSlice("inv", nil, "Invariants the named journeys' runs observe (repeatable or comma-separated); an invariant guarded by prompt text must be named on a journey")
 	proveRunCmd.Flags().String("journey", "", "Planned journey (required)")
 	proveRunCmd.Flags().String("cmd", "", "Drive command: launches the app, drives the journey, checks the end state, cleans up; exits non-zero on failure (required)")
 	proveRunCmd.Flags().StringSlice("evidence", nil, "File the drive must leave behind, relative to the project root (repeatable)")
@@ -68,7 +69,8 @@ var provePlanCmd = &cobra.Command{
 		journeys, _ := cmd.Flags().GetStringSlice("journey")
 		feature, _ := cmd.Flags().GetString("feature")
 		noSurface, _ := cmd.Flags().GetString("no-surface")
-		rec, err := executeProvePlan(root, args[0], journeys, feature, noSurface)
+		invs, _ := cmd.Flags().GetStringSlice("inv")
+		rec, err := executeProvePlan(root, args[0], journeys, feature, noSurface, invs...)
 		if err != nil {
 			return err
 		}
@@ -173,7 +175,7 @@ func loadOrNewProve(root, recipeID string) (*state.ProveRecord, error) {
 	return rec, nil
 }
 
-func executeProvePlan(root, recipeID string, journeys []string, feature, noSurface string) (*state.ProveRecord, error) {
+func executeProvePlan(root, recipeID string, journeys []string, feature, noSurface string, invs ...string) (*state.ProveRecord, error) {
 	rec, err := loadOrNewProve(root, recipeID)
 	if err != nil {
 		return nil, err
@@ -182,6 +184,8 @@ func executeProvePlan(root, recipeID string, journeys []string, feature, noSurfa
 	switch {
 	case noSurface != "" && len(journeys) > 0:
 		return nil, errors.New("--no-surface and --journey exclude each other")
+	case len(invs) > 0 && len(journeys) == 0:
+		return nil, errors.New("--inv names what a --journey observes; name the journey too")
 	case noSurface != "":
 		rec.NoSurface = noSurface
 	case len(journeys) == 0:
@@ -199,6 +203,7 @@ func executeProvePlan(root, recipeID string, journeys []string, feature, noSurfa
 			if feature != "" {
 				rec.Journeys[name].Feature = feature
 			}
+			rec.Journeys[name].Invariants = mergeInvariants(rec.Journeys[name].Invariants, invs)
 		}
 	}
 	if err := state.SaveProveRecord(root, recipeID, rec); err != nil {
@@ -211,6 +216,27 @@ func executeProvePlan(root, recipeID string, journeys []string, feature, noSurfa
 	}
 	appendEvidenceChangelog(root, recipeID, "prove", result, hash)
 	return rec, nil
+}
+
+// mergeInvariants adds the comma- or flag-separated invariant ids in add
+// to have, trimmed, de-duplicated and sorted.
+func mergeInvariants(have []string, add []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, list := range [][]string{have, add} {
+		for _, raw := range list {
+			for _, id := range strings.Split(raw, ",") {
+				id = strings.TrimSpace(id)
+				if id == "" || seen[id] {
+					continue
+				}
+				seen[id] = true
+				out = append(out, id)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func executeProveRun(root, recipeID, journey, cmdStr string, evidence []string, verdict string, timeoutSec int, sink io.Writer) (*state.Journey, error) {
@@ -370,6 +396,9 @@ func printProveStatus(rec *state.ProveRecord) {
 			case j.Verdict != "" && j.Checks == 0 && j.Run.Passed() && len(j.EvidenceMissing) == 0:
 				status += ": no checks recorded"
 			}
+		}
+		if len(j.Invariants) > 0 {
+			status += " [observes " + strings.Join(j.Invariants, ", ") + "]"
 		}
 		fmt.Printf("  %-24s %s\n", n, status)
 	}
