@@ -112,8 +112,32 @@ type transcriptLine struct {
 	Timestamp string `json:"timestamp"`
 	Message   struct {
 		ID    string           `json:"id"`
+		Model string           `json:"model"`
 		Usage *transcriptUsage `json:"usage"`
 	} `json:"message"`
+}
+
+// TranscriptModel returns the model of the first assistant message in a
+// session's main transcript, or "" when there is none.
+func TranscriptModel(dir, session string) string {
+	f, err := os.Open(filepath.Join(dir, session+".jsonl"))
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	r := bufio.NewReaderSize(f, 1<<20)
+	for {
+		raw, rerr := r.ReadBytes('\n')
+		if len(raw) > 0 && bytes.Contains(raw, []byte(`"model"`)) {
+			var l transcriptLine
+			if json.Unmarshal(raw, &l) == nil && l.Type == "assistant" && l.Message.Model != "" {
+				return l.Message.Model
+			}
+		}
+		if rerr != nil {
+			return ""
+		}
+	}
 }
 
 // sumTranscriptFile adds one transcript's messages to into and returns how

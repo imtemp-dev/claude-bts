@@ -173,6 +173,7 @@ func showRecipeStats(root, recipeID string, jsonOutput bool) error {
 	stats.Type = recipe.Type
 	stats.Phase = recipe.Phase
 	stats.Transcript = recipeTranscriptTokens(root, recipe)
+	ownerSessionFloor(root, recipe, stats)
 
 	if jsonOutput {
 		enc := json.NewEncoder(os.Stdout)
@@ -198,6 +199,11 @@ func showRecipeStats(root, recipeID string, jsonOutput bool) error {
 		fmt.Println()
 		fmt.Println("Tokens (from transcripts)")
 		fmt.Println(strings.Repeat("─", 40))
+		if recipe.OwnerSession != "" {
+			// The figure is the session's, over the recipe's window: other
+			// work done in that session counts too (trial problem #107).
+			fmt.Println("  (the owner session from the recipe's start; other work in that session counts too)")
+		}
 		row := func(label string, c metrics.TokenCounts, extra string) {
 			fmt.Printf("  %-11s %s total: in %s  out %s  cache write %s  cache read %s%s\n", label,
 				formatTokens(int(c.Total())), formatTokens(int(c.Input)), formatTokens(int(c.Output)),
@@ -392,6 +398,23 @@ func renderPhaseBar(phaseDur, totalDur time.Duration) string {
 	}
 	bar := strings.Repeat("#", filled) + strings.Repeat(".", barWidth-filled)
 	return fmt.Sprintf("%s  %2.0f%%", bar, pct)
+}
+
+// ownerSessionFloor counts the recipe's owner session, and its model from
+// its transcript, when no SessionStart inside the recipe did.  A recipe
+// created in the middle of a session has none until a compaction: cool-crow
+// built r-004 in one session and `bts stats` said "Sessions: 0" with no
+// model (trial problem #107).
+func ownerSessionFloor(root string, recipe *state.RecipeState, stats *metrics.RecipeStats) {
+	if stats == nil || stats.TotalSessions > 0 || recipe.OwnerSession == "" {
+		return
+	}
+	stats.TotalSessions = 1
+	if len(stats.Models) == 0 {
+		if m := metrics.TranscriptModel(metrics.TranscriptDir(root), recipe.OwnerSession); m != "" {
+			stats.Models = []string{m}
+		}
+	}
 }
 
 // recipeTranscriptTokens sums the recipe's tokens from Claude Code's
