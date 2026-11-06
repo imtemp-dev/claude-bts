@@ -545,15 +545,24 @@ func executeInterrogateWaive(root, recipeID, findingID, reason string) error {
 		if f.ID != findingID {
 			continue
 		}
-		if f.Status != state.InterrogateReproduced {
-			return fmt.Errorf("%s is %s; only a reproduced finding can be waived", findingID, f.Status)
+		// A waived finding's reason can be restated: a later change can make
+		// it stale, as the PR review's changes did for true-shark's F-003
+		// and F-005 (trial problem #91).  The changelog keeps the old one.
+		restated := f.Status == state.InterrogateWaived
+		if f.Status != state.InterrogateReproduced && !restated {
+			return fmt.Errorf("%s is %s; only a reproduced finding can be waived, or a waived one restated", findingID, f.Status)
 		}
+		old := f.WaiveReason
 		f.Status, f.WaiveReason = state.InterrogateWaived, strings.TrimSpace(reason)
 		if err := state.SaveInterrogateRun(root, recipeID, run); err != nil {
 			return err
 		}
 		hash, _ := engine.CodeHash(root, recipeID)
-		appendEvidenceChangelog(root, recipeID, "interrogate", fmt.Sprintf("waived %s: %s", findingID, f.WaiveReason), hash)
+		entry := fmt.Sprintf("waived %s: %s", findingID, f.WaiveReason)
+		if restated {
+			entry = fmt.Sprintf("waiver of %s restated: %s (was: %s)", findingID, f.WaiveReason, old)
+		}
+		appendEvidenceChangelog(root, recipeID, "interrogate", entry, hash)
 		return nil
 	}
 	return fmt.Errorf("no finding %s in %s's interrogate run", findingID, recipeID)

@@ -102,6 +102,10 @@ A finding may stay unfixed only if the user agrees. Ask with
 bts interrogate waive {id} --finding F-00N --reason "<the user's reason>"
 ```
 
+When a later change makes a waiver's reason untrue, ask the user again
+and run the same command with the new reason: it restates the waiver and
+the changelog keeps the old reason beside it.
+
 ## After a large change: a scoped round
 
 A clean run does not go stale by itself, so code reworked after it would
