@@ -99,8 +99,9 @@ decision hold`).
    green.
 9. **Empirical questions.** For each open question still left that running
    something would answer (how a library or API behaves, a timing, a
-   format), write the smallest throwaway script in a scratch directory
-   outside the project, run it, and record the answer in `final.md` as a
+   format), write the smallest throwaway script in the recipe's `probes/`
+   directory (not a session scratchpad, which is gone when the session
+   ends), run it, and record the answer in `final.md` as a
    Known Uncertainty with `Resolved [L4]:` and the command. Do not argue it
    in prose and do not defer it to implementation. A question that decided
    an owner was answered at step 4, not here.

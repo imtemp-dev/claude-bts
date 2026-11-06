@@ -57,7 +57,11 @@ Research lists such questions under `## Open questions that decide an
 owner`; add any you meet here.
 
 1. Write the smallest throwaway script or project that asks the question,
-   in a scratch directory outside the project, and run it.
+   in the recipe's `probes/` directory (`.bts/specs/recipes/{id}/probes/`),
+   and run it. Not a session scratchpad: the `Opens-with` command must
+   still run after the session ends, for a reviewer, a later session and
+   the prove stage, and `bts verify` reports one that runs from outside
+   the project. Use synthetic data, never a real person's.
 2. Record the answer in `domain.md` under `## Known Uncertainties`, with
    the command that showed it:
 

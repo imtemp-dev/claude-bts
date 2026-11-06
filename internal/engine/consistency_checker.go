@@ -181,6 +181,9 @@ func VerifyDocument(docPath string, projectRoot string, checkCode bool) (*Verify
 	if strings.EqualFold(base, "final.md") {
 		appendIssues(result, CheckScopeCoverage(docPath))
 	}
+	// 5a''. A Known Uncertainty's Opens-with has to be rerunnable after the
+	// session ends (trial problem #89).
+	appendIssues(result, CheckEvidenceLocation(docPath, projectRoot))
 
 	// 5b. Section span (draft.md / final.md). Findings scale with
 	// section length at r=+0.95, so length is the one lever on the
