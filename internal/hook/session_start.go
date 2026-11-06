@@ -29,6 +29,21 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return &HookOutput{}, nil
 	}
 
+	// A subagent's compaction (a fork, an adversary) gets no recipe resume
+	// context: its task is the one it was given, and the orchestrator's
+	// next step injected here could pull it off that task.  It is not a
+	// session either, so no template update and no session metric (trial
+	// problem #114).
+	if input.IsSubagent() {
+		return &HookOutput{
+			HookSpecificOutput: &HookSpecificOutput{
+				HookEventName: "SessionStart",
+				AdditionalContext: "[bts] Context compacted inside a subagent. Keep to the task you were given; " +
+					"the recipe's next step belongs to the main session.",
+			},
+		}, nil
+	}
+
 	// Auto-update templates if binary version changed; held is the line
 	// that replaces the update while a recipe is active.
 	updated, held := autoUpdateTemplates(root)

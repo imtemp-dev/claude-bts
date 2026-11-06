@@ -1,6 +1,9 @@
 package hook
 
-import "strings"
+import (
+	"path/filepath"
+	"strings"
+)
 
 // EventType represents a Claude Code lifecycle event.
 type EventType string
@@ -18,6 +21,14 @@ const (
 	EventSubagentStart      EventType = "subagent-start"
 	EventSubagentStop       EventType = "subagent-stop"
 )
+
+// IsSubagent reports whether the hook runs inside a subagent rather than
+// the main session: Claude Code names the agent (agent_id), or the
+// transcript is a subagent's (…/subagents/agent-….jsonl).  The captured
+// main-session SessionStart payloads carry neither.
+func (in *HookInput) IsSubagent() bool {
+	return in.AgentID != "" || strings.Contains(filepath.ToSlash(in.TranscriptPath), "/subagents/")
+}
 
 // HookInput is the JSON received via stdin from Claude Code.
 type HookInput struct {
