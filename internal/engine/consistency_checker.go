@@ -357,6 +357,34 @@ func checkInternalConsistency(content string, result *VerifyResult) {
 	}
 }
 
+// trackedFiles lists the repository's tracked files once, on the first
+// missing path, for checkCodeReferences' tail match.
+type trackedFiles struct {
+	loaded bool
+	files  []string
+}
+
+// withTail returns the tracked files whose path ends with "/"+rel, so a
+// module-relative path in a monorepo can be told from a missing file.
+// Outside a git repository it returns nothing and the old rule stands.
+func (t *trackedFiles) withTail(root, rel string) []string {
+	if !t.loaded {
+		t.loaded = true
+		cmd := exec.Command("git", "-C", root, "ls-files")
+		if out, err := cmd.Output(); err == nil {
+			t.files = strings.Split(strings.TrimSpace(string(out)), "\n")
+		}
+	}
+	tail := "/" + strings.TrimPrefix(filepath.ToSlash(filepath.Clean(rel)), "./")
+	var out []string
+	for _, f := range t.files {
+		if strings.HasSuffix("/"+f, tail) {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
 // checkCodeReferences verifies file/symbol references against actual code.
 // Only runs when projectRoot has code files.
 //
@@ -369,6 +397,7 @@ func checkInternalConsistency(content string, result *VerifyResult) {
 // five on r-003, were these).
 func checkCodeReferences(content string, projectRoot, docDir string, result *VerifyResult) {
 	planned := plannedFiles(docDir)
+	var tracked trackedFiles
 	filePaths := extractFilePaths(content)
 	for _, fp := range filePaths {
 		if strings.HasPrefix(fp, "~/") || strings.HasPrefix(fp, "/") {
@@ -391,6 +420,28 @@ func checkCodeReferences(content string, projectRoot, docDir string, result *Ver
 					Detail:   "File to be created (not yet existing)",
 				})
 				result.Summary.Info++
+			} else if matches := tracked.withTail(projectRoot, fp); len(matches) == 1 {
+				// A module-relative path in a monorepo: loop/x.py for
+				// agent_server/loop/x.py (trial problem #95).
+				result.Issues = append(result.Issues, Issue{
+					Category: "file_ref",
+					Claim:    fp,
+					Severity: SeverityInfo,
+					Detail:   fmt.Sprintf("Resolves to %s, the one tracked file with this tail", matches[0]),
+				})
+				result.Summary.Info++
+			} else if len(matches) > 1 {
+				shown := matches
+				if len(shown) > 5 {
+					shown = shown[:5]
+				}
+				result.Issues = append(result.Issues, Issue{
+					Category: "file_ref",
+					Claim:    fp,
+					Severity: SeverityMajor,
+					Detail:   fmt.Sprintf("%d tracked files end with this path (%s): name the one meant from the project root", len(matches), strings.Join(shown, ", ")),
+				})
+				result.Summary.Major++
 			} else {
 				result.Issues = append(result.Issues, Issue{
 					Category: "file_ref",
