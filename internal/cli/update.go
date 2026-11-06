@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/imtemp-dev/claude-bts/internal/state"
 	"github.com/imtemp-dev/claude-bts/internal/template"
@@ -53,6 +54,12 @@ var updateCmd = &cobra.Command{
 		}
 		for _, n := range res.Notes {
 			fmt.Println(n)
+		}
+		// Templates move, settings.yaml does not: say which keys it lacks
+		// (trial problem #98).
+		if missing := missingSettingsKeys(root); len(missing) > 0 {
+			fmt.Printf("settings.yaml lacks %d key(s) added since it was written (%s): `bts migrate settings` adds them with their defaults.\n",
+				len(missing), strings.Join(missing, ", "))
 		}
 		return nil
 	},

@@ -209,6 +209,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	driftIssues := checkConfigDrift(root)
 	driftIssues = append(driftIssues, checkDuplicateHookRegistration(root)...)
 	driftIssues = append(driftIssues, checkUnreadSettings(root)...)
+	driftIssues = append(driftIssues, checkMissingSettingsKeys(root)...)
 	driftIssues = append(driftIssues, checkEvidenceProviderNeverSucceeded(root)...)
 	driftIssues = append(driftIssues, checkOrphanedProjectDebates(root)...)
 	if len(driftIssues) == 0 {

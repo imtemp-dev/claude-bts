@@ -182,6 +182,45 @@ var settingsKeysRead = map[string]bool{
 	"statusline":                                true, // template.MergeHookSettings, removeBtsStatusLine
 }
 
+// missingSettingsKeys returns, as "parent.key" in table order, the keys
+// settingsInsertions knows that settings.yaml lacks.  A key commented out
+// is not missing: the user may have disabled it on purpose.
+func missingSettingsKeys(root string) []string {
+	data, err := os.ReadFile(filepath.Join(root, ".bts", "config", "settings.yaml"))
+	if err != nil {
+		return nil
+	}
+	content := string(data)
+	var out []string
+	for _, ins := range settingsInsertions {
+		if hasNestedKey(content, ins.Parent, ins.Key) || hasCommentedKey(content, ins.Key) {
+			continue
+		}
+		out = append(out, ins.Parent+"."+ins.Key)
+	}
+	return out
+}
+
+// checkMissingSettingsKeys reports the settings keys added since the
+// project's settings.yaml was written.  SessionStart and `bts update`
+// refresh templates, never settings.yaml, so on the relay project
+// implement.require_edit_go and implement.format_cmd existed only in the
+// binary, and nothing said so (trial problem #98).
+func checkMissingSettingsKeys(root string) []doctorIssue {
+	missing := missingSettingsKeys(root)
+	if len(missing) == 0 {
+		return nil
+	}
+	return []doctorIssue{{
+		level:   "warning",
+		section: "config",
+		message: fmt.Sprintf("settings.yaml lacks %d key(s) added since it was written: %s",
+			len(missing), strings.Join(missing, ", ")),
+		fix: "run `bts migrate settings` to add them with their defaults and a comment each; the defaults already apply, " +
+			"so nothing changes until you set one",
+	}}
+}
+
 // checkUnreadSettings reports settings.yaml keys nothing consults.
 func checkUnreadSettings(root string) []doctorIssue {
 	path := filepath.Join(root, ".bts", "config", "settings.yaml")
