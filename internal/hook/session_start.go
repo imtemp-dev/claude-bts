@@ -255,7 +255,7 @@ func dirtyDocWarning(root string, recipe *state.RecipeState) string {
 	}
 	return fmt.Sprintf(
 		"\n⚠ %s modified after last verification — run /bts-verify before continuing (rule 3).",
-		strings.Join(dirty, ", "))
+		state.DescribeDirty(root, recipe.ID, dirty))
 }
 
 // buildHint chooses the most actionable next-step description.

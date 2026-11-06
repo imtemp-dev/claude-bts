@@ -363,7 +363,14 @@ type VerifyLogEntry struct {
 	// document lives in the recipe directory", which is the fallback.
 	DocPath          string `json:"doc_path,omitempty"`
 	VerificationHash string `json:"verification_hash,omitempty"`
-	Timestamp        string `json:"timestamp"`
+	// CitedHashes are the content hashes of the documents this round read
+	// besides Doc, by basename.  A build recipe's final.md points at
+	// domain.md and the wireframe instead of copying them, so its review
+	// reads them too; an edit to one after the round leaves final.md's
+	// review stale although final.md itself is unchanged (trial problem
+	// #106).  Empty for rounds recorded before the field existed.
+	CitedHashes map[string]string `json:"cited_hashes,omitempty"`
+	Timestamp   string            `json:"timestamp"`
 }
 
 // Agent evidence values for VerifyLogEntry.AgentEvidence.

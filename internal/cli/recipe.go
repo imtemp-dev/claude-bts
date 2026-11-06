@@ -1159,6 +1159,7 @@ func agentEvidenceSince(root, recipeID string, priorRounds []state.VerifyLogEntr
 // gates fall back rather than treat a missing hash as a mismatch, so a
 // read failure degrades coverage instead of manufacturing a block.
 func stampContentHashes(root, recipeID, docPath string, entry *state.VerifyLogEntry) {
+	stampCitedHashes(root, recipeID, docPath, entry)
 	if docPath != "" {
 		// Resolve exactly as `override grant` does. --doc is routinely
 		// given as a bare basename ("draft.md") from the project root,
@@ -1205,6 +1206,36 @@ func stampContentHashes(root, recipeID, docPath string, entry *state.VerifyLogEn
 				"cannot be — write the round's verification output there before logging it.\n", vpath)
 	default:
 		entry.VerificationHash = h
+	}
+}
+
+// buildReviewCites are the documents a build recipe's final.md points at
+// instead of copying them (bts-recipe-build § Build spec), and so the ones
+// its review reads besides final.md.
+var buildReviewCites = []string{"domain.md", "wireframe.md"}
+
+// stampCitedHashes records, for a review of a build recipe's final.md, the
+// content hashes of the documents that review also read.  On cool-crow and
+// neat-wolf the last round's minors were fixed in domain.md seconds after
+// the round, and DONE passed with the change unread, because only
+// final.md's own hash was compared (trial problem #106).
+func stampCitedHashes(root, recipeID, docPath string, entry *state.VerifyLogEntry) {
+	if !strings.EqualFold(filepath.Base(docPath), "final.md") {
+		return
+	}
+	r, err := state.LoadRecipeState(root, recipeID)
+	if err != nil || r == nil || r.Type != "build" {
+		return
+	}
+	for _, name := range buildReviewCites {
+		h, ok, herr := state.FileContentHash(filepath.Join(state.RecipeDir(root, recipeID), name))
+		if herr != nil || !ok {
+			continue
+		}
+		if entry.CitedHashes == nil {
+			entry.CitedHashes = map[string]string{}
+		}
+		entry.CitedHashes[name] = h
 	}
 }
 

@@ -150,7 +150,7 @@ func checkDirtyVerifiedDocs(root, recipeID string) []doctorIssue {
 	return []doctorIssue{{
 		level:   "warning",
 		section: "verification",
-		message: fmt.Sprintf("%s modified after last verification (rule 3)", strings.Join(dirty, ", ")),
+		message: fmt.Sprintf("%s modified after last verification (rule 3)", state.DescribeDirty(root, recipeID, dirty)),
 		fix:     "run /bts-verify on the modified doc(s), then `bts recipe log " + recipeID + " --from-verification ... --doc <path>`",
 	}}
 }

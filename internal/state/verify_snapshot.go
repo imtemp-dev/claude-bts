@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -209,6 +210,53 @@ func deltaAbsorbs(root, recipeID, doc string) bool {
 // have nothing enforceable and blocking them would be a false positive.
 // Docs whose recorded revision exists but whose current file is gone are
 // skipped; missing-document problems belong to other gates.
+// CitedDocsChanged returns the documents doc's latest round read besides
+// doc itself (VerifyLogEntry.CitedHashes) whose content has changed since,
+// by basename and sorted.  A cited document that is gone counts as
+// changed.  Nil when that round recorded none.
+func CitedDocsChanged(root, recipeID, doc string) []string {
+	entries, err := ReadVerifyLog(root, recipeID)
+	if err != nil {
+		return nil
+	}
+	return citedDocsChanged(root, recipeID, entries, doc)
+}
+
+func citedDocsChanged(root, recipeID string, entries []VerifyLogEntry, doc string) []string {
+	scoped := VerifyEntriesForDoc(entries, doc)
+	if len(scoped) == 0 {
+		return nil
+	}
+	var changed []string
+	for name, want := range scoped[len(scoped)-1].CitedHashes {
+		got, ok, err := FileContentHash(filepath.Join(RecipeDir(root, recipeID), name))
+		if err != nil {
+			continue
+		}
+		if !ok || got != want {
+			changed = append(changed, name)
+		}
+	}
+	sort.Strings(changed)
+	return changed
+}
+
+// DescribeDirty renders DirtyVerifiedDocs' names for a message, naming the
+// cited document that changed where the document itself did not, as
+// "final.md (domain.md changed after its review read it)".  An agent told
+// only "final.md changed" looks at an unchanged final.md (trial problem
+// #106).
+func DescribeDirty(root, recipeID string, dirty []string) string {
+	out := make([]string, 0, len(dirty))
+	for _, d := range dirty {
+		if cited := CitedDocsChanged(root, recipeID, d); len(cited) > 0 {
+			d = fmt.Sprintf("%s (%s changed after its review read it)", d, strings.Join(cited, ", "))
+		}
+		out = append(out, d)
+	}
+	return strings.Join(out, ", ")
+}
+
 func DirtyVerifiedDocs(root, recipeID string) ([]string, error) {
 	recipeDir := RecipeDir(root, recipeID)
 
@@ -239,6 +287,18 @@ func DirtyVerifiedDocs(root, recipeID string) ([]string, error) {
 			continue
 		}
 		if got != want {
+			dirty = append(dirty, doc)
+		}
+	}
+
+	// A document whose own text is unchanged is still stale when its latest
+	// round read another document that changed since (trial problem #106):
+	// a build recipe's final.md review reads domain.md and the wireframe.
+	for doc := range verified {
+		if slices.Contains(dirty, doc) {
+			continue
+		}
+		if len(citedDocsChanged(root, recipeID, entries, doc)) > 0 {
 			dirty = append(dirty, doc)
 		}
 	}

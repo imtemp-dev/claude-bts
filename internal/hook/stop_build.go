@@ -135,6 +135,14 @@ func buildReviewClean(root, recipeID string) *HookOutput {
 	if dirty, derr := state.DirtyVerifiedDocs(root, recipeID); derr == nil {
 		for _, d := range dirty {
 			if strings.EqualFold(d, "final.md") {
+				// The review also read the documents final.md points at; an
+				// edit there leaves it as stale as an edit to final.md
+				// (trial problem #106).
+				if cited := state.CitedDocsChanged(root, recipeID, "final.md"); len(cited) > 0 {
+					return blockOutput(fmt.Sprintf("final.md's review read %s, which changed after it. "+
+						"Review the change with /bts-verify on final.md at delta scope (`--scope delta`), or revert it.",
+						strings.Join(cited, ", ")))
+				}
 				return blockOutput("final.md changed after its review. Review the changed sections with /bts-verify at delta scope " +
 					"(`--scope delta`), or revert the change.")
 			}

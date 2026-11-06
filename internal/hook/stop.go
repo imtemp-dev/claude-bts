@@ -231,13 +231,13 @@ func (h *stopHandler) handleBlindStop(root string, recipe *state.RecipeState) (*
 		// (trial problem #8).  The completion gates still require the round.
 		if running, since := state.VerifyInFlight(root); running {
 			fmt.Fprintf(os.Stderr, "[bts] %s changed after its last verification; a verify fork started at %s is still running, so the turn may end. Record its round when it returns.\n",
-				strings.Join(dirty, ", "), since.Local().Format("15:04"))
+				state.DescribeDirty(root, recipe.ID, dirty), since.Local().Format("15:04"))
 			return allow()
 		}
 		return blockOutput(fmt.Sprintf(
 			"%s changed after its last verification. Rule 3: every modification requires /bts-verify. "+
 				"Either re-verify and record it, or tell the user the doc is left unverified — do not end the turn as if it were still verified.",
-			strings.Join(dirty, ", "),
+			state.DescribeDirty(root, recipe.ID, dirty),
 		)), nil
 	}
 
@@ -461,7 +461,7 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 	} else if len(dirty) > 0 {
 		return blockOutput(fmt.Sprintf(
 			"%s modified after last verification. Rule 3: every modification requires /bts-verify. Re-verify the modified doc(s), record with `bts recipe log %s --from-verification .bts/specs/recipes/%s/verification.md --doc <doc-path>`, then re-emit DONE.",
-			strings.Join(dirty, ", "), recipe.ID, recipe.ID,
+			state.DescribeDirty(root, recipe.ID, dirty), recipe.ID, recipe.ID,
 		)), nil
 	}
 
@@ -841,7 +841,7 @@ func (h *stopHandler) handleFixDone(root string, recipe *state.RecipeState) (*Ho
 	} else if len(dirty) > 0 {
 		return blockOutput(fmt.Sprintf(
 			"%s modified after last verification. Rule 3: re-verify the modified doc(s), record with `bts recipe log %s --from-verification ... --doc <doc-path>`, then re-emit FIX DONE.",
-			strings.Join(dirty, ", "), recipe.ID,
+			state.DescribeDirty(root, recipe.ID, dirty), recipe.ID,
 		)), nil
 	}
 
