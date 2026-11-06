@@ -6,7 +6,7 @@ description: >
   Runs as the verifier agent itself — one context, no nested agent.
 user-invocable: true
 allowed-tools: Read Grep Glob Bash WebSearch WebFetch mcp__context7__resolve-library-id mcp__context7__get-library-docs
-argument-hint: "[file-path]"
+argument-hint: "[file-path] [--scope full|delta|confirm]"
 context: fork
 agent: verifier
 effort: max
@@ -41,9 +41,13 @@ rewrites agent files.
 
 ## Steps
 
+0. $ARGUMENTS is `<doc-path> [--scope full|delta|confirm]`.  Call the
+   path DOC and use DOC alone in every command below: none of them takes
+   `--scope`.  A scope given here is the answer to step 2c.
+
 1. Run the deterministic graph analysis:
    ```bash
-   bts graph paths $ARGUMENTS
+   bts graph paths DOC
    ```
    Capture the full output as GRAPH_ANALYSIS. It enumerates every
    mermaid diagram's paths, cycles, dead-ends, and orphans so you do not
@@ -51,14 +55,14 @@ rewrites agent files.
 
 2. Get focus hints from changes since the last verified revision:
    ```bash
-   bts recipe verify-focus $ARGUMENTS
+   bts recipe verify-focus DOC
    ```
    Capture the output as FOCUS_DIFF. (On first verification it reports
    that no snapshot exists — that is a full round.)
 
 2b. Get the adjudicated findings from previous rounds:
    ```bash
-   bts recipe findings carry-forward {id} --doc $ARGUMENTS
+   bts recipe findings carry-forward {id} --doc DOC
    ```
    Capture the output as CARRY_FORWARD. Empty on the first round.
    This is what stops a fresh verifier from re-deriving settled points;
@@ -78,7 +82,7 @@ rewrites agent files.
    a clean delta round after its one full review completes that review
    (`bts-recipe-build` step 11).
 
-3. Read the document at $ARGUMENTS and verify it:
+3. Read the document at DOC and verify it:
 
    **Scope of this round: {full | delta | confirm}** (from step 2c)
 

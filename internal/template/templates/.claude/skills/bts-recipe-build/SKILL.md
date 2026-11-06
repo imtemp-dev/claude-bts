@@ -115,7 +115,9 @@ decision hold`).
    an owner was answered at step 4, not here.
 10. **Build spec.** Write `final.md` in the shape below. It points at the
     skeleton, `domain.md` and the wireframe instead of copying them.
-11. **One review.** `/bts-verify` on `final.md` at full scope.  The fork
+11. **One review.** `/bts-verify .bts/specs/recipes/{id}/final.md --scope full`
+    (the path first; the scope is read by the skill, not passed to its
+    commands; delta and confirm rounds below take the same form).  The fork
     returns its findings and writes nothing; when it returns, write its
     output to `.bts/specs/recipes/{id}/verification.md` verbatim, block
     first (`bts-verify` § Division of labor), then record the round with
