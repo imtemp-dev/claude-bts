@@ -212,6 +212,15 @@ func VerifyDocument(docPath string, projectRoot string, checkCode bool) (*Verify
 		appendIssues(result, CheckWireframeFileActions(docPath))
 	}
 
+	// A clean document is the common case at a stage's end, and its lists
+	// print as [] rather than null, so a reader can loop over them (trial
+	// problem #110: neat-wolf's reader failed twice on "issues": null).
+	if result.Issues == nil {
+		result.Issues = []Issue{}
+	}
+	if result.Level.Missing == nil {
+		result.Level.Missing = []string{}
+	}
 	return result, nil
 }
 
