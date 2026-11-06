@@ -186,7 +186,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	// Vision check
 	if state.VisionExists(root) {
 		visionData, _ := os.ReadFile(filepath.Join(state.SpecsPath(root), "vision.md"))
-		if strings.Contains(string(visionData), "Status: DRAFT") {
+		if state.DocStatus(string(visionData)) == "DRAFT" {
 			fmt.Println("   ⚠ vision.md exists (Status: DRAFT — confirm with next /bts-recipe-blueprint)")
 			totalWarnings++
 		} else {
@@ -319,8 +319,7 @@ func checkDocuments(recipeDir string, recipe *state.RecipeState) []doctorIssue {
 			if exists("scope.md") {
 				data, _ := os.ReadFile(filepath.Join(recipeDir, "scope.md"))
 				if len(data) > 0 {
-					content := string(data)
-					if strings.Contains(content, "Status: DRAFT") && !strings.Contains(content, "Status: CONFIRMED") {
+					if state.DocStatus(string(data)) == "DRAFT" {
 						issues = append(issues, doctorIssue{"warning", "documents",
 							"scope.md — Status: DRAFT (not confirmed)",
 							"Confirm scope in /bts-recipe-blueprint"})

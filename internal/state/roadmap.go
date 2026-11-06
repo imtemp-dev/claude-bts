@@ -25,7 +25,7 @@ func RoadmapProgress(root string) (int, int, string) {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "Status:") && strings.Contains(line, "CONFIRMED") {
+		if DocStatus(line) == "CONFIRMED" {
 			confirmed = true
 		}
 		switch {

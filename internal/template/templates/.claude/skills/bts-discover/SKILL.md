@@ -99,17 +99,24 @@ complex ones may take 10+.
 When you believe you have enough understanding:
 1. Present a summary of the intent to the user
 2. Ask for confirmation using AskUserQuestion:
-   - "Direction confirmed — proceed" → mark Status: CONFIRMED
+   - "Direction confirmed — proceed" → record it (step 3)
    - "Needs adjustment" → continue conversation
 
    When the user answers somewhere else (through another session, or
    later), record the wait so it is visible to the next session and to
    `bts recipe status`: `bts recipe decision hold {id} --key intent-confirm
-   --question "Confirm the intent in intent.md?"`, and when the answer
-   arrives, `bts recipe decision resolve {id} intent-confirm --answer
-   "<the user's words, quoted>"`.  The same applies to the scope
-   confirmation.
-3. After confirmation, update intent.md Status to CONFIRMED
+   --question "Confirm the intent in intent.md?"`.  The confirm command
+   below resolves it when the answer arrives.  The same applies to the
+   scope confirmation.
+3. After confirmation, record it with the user's words; never edit the
+   Status line by hand:
+   ```bash
+   bts recipe confirm {id} intent --answer "<the user's words>"
+   ```
+   It resolves the confirmation decision and sets intent.md's Status line
+   to CONFIRMED.  Scope is confirmed the same way (`... confirm {id} scope`),
+   and again after any revision: a revised scope is unconfirmed until the
+   user has seen it.
 4. Log:
    ```bash
    bts recipe log {id} --phase discovery --action discover --output intent.md --result "intent confirmed"

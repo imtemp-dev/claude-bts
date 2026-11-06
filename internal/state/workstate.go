@@ -124,11 +124,9 @@ func BuildWorkState(root string) (*WorkState, error) {
 	// Check scope status
 	scopePath := filepath.Join(RecipeDir(root, recipe.ID), "scope.md")
 	if data, err := os.ReadFile(scopePath); err == nil {
-		content := string(data)
-		if strings.Contains(content, "### Status: CONFIRMED") {
-			ws.ScopeStatus = "CONFIRMED"
-		} else if strings.Contains(content, "### Status: DRAFT") {
-			ws.ScopeStatus = "DRAFT"
+		// Either form of the status line (trial problem #88).
+		if s := DocStatus(string(data)); s == "CONFIRMED" || s == "DRAFT" {
+			ws.ScopeStatus = s
 		}
 	}
 

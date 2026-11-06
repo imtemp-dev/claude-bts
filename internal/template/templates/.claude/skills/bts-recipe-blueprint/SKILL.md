@@ -374,7 +374,8 @@ bts recipe log {id} --phase scoping
    survives compaction or session breaks.
 
 **5. MUST use AskUserQuestion** to confirm scope — do NOT ask as text output:
-   - "Confirm scope and proceed" → mark Status: CONFIRMED → exit loop
+   - "Confirm scope and proceed" → `bts recipe confirm {id} scope --answer "<the user's words>"`
+     (sets Status: CONFIRMED with the user's words on record; never by hand) → exit loop
    - "Adjust scope" → user provides feedback → update scope.md → ask again
    - "Cancel recipe" → set phase to cancelled
 

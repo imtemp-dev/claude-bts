@@ -103,7 +103,7 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 			// Check for incomplete vision (DRAFT without a recipe yet)
 			if state.VisionExists(root) {
 				visionData, _ := os.ReadFile(filepath.Join(state.SpecsPath(root), "vision.md"))
-				if strings.Contains(string(visionData), "Status: DRAFT") {
+				if state.DocStatus(string(visionData)) == "DRAFT" {
 					msg := "[bts] Vision document in progress (Status: DRAFT).\nRun /bts-recipe-blueprint to continue."
 					if updated {
 						msg = fmt.Sprintf("[bts] Templates updated to %s\n%s", version.GetTemplateVersion(), msg)

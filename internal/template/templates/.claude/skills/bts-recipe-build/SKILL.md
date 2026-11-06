@@ -67,7 +67,9 @@ decision hold`).
 1. **Create.** `bts recipe create --type build --topic "<feature>"`.
 2. **Intent and scope.** Follow `.claude/skills/bts-recipe-blueprint/SKILL.md`
    § Intent Check, § Vision & Roadmap Check and § Scoping exactly. Scope
-   ends CONFIRMED.
+   ends CONFIRMED through `bts recipe confirm {id} scope --answer "..."`,
+   and a scope revised later (after research) is confirmed again the same
+   way, once the user has seen the revision.
 3. **Research.** `/bts-research`, scoped by `scope.md`, including its
    `## Official Guidance` and its `## Open questions that decide an owner`.
 4. **Domain.** `/bts-domain-model`: entities, invariants with one owner
