@@ -87,12 +87,15 @@ skeleton build (`bts check build {id} --cmd "<the same build command>"`)
 so `skeleton_builds` sees the code as it now is; otherwise the stop hook
 refuses DONE with "skeleton changed after its last build".
 
-Add each row to `final.md` § 2 (invariant, test, command), carried ones
-included. A row whose
-test proves an illegal cell from `domain.md` § 4 refused carries the
-cell's label as a tag, `INV-003 [illegal-cell: second issue for one PR]`:
-that tag, not a simulated scenario, is what `bts validate` counts as the
-cell's coverage in a build recipe. Every illegal cell needs a tagged row.
+Do not write `final.md` § 2's rows by hand: render them from the records
+with `bts falsifier table {id} --write`, which replaces the table under
+`## 2.` (one row per invariant, carried ones included, `(none recorded)`
+for a gap).  It tags a row with the label of each illegal cell from
+`domain.md` § 4 whose row names that invariant, `INV-003 [illegal-cell:
+second issue for one PR]`: that tag, not a simulated scenario, is what
+`bts validate` counts as the cell's coverage in a build recipe, so name
+the preventing invariant in each ILLEGAL row of § 4.  Every illegal cell
+needs a tagged row.  Run it again after any `falsifier run` or `repoint`.
 
 The command selects the test alone, by a name or path nothing else
 matches.  Some runners pass when a filter matches no test (`dotnet test
@@ -104,7 +107,8 @@ naming rules) keeps its record through
 `bts falsifier repoint {id} --inv INV-003 --cmd "<new command>" --expect "<new test id>"`,
 then `bts falsifier mutate {id} --rerun`.  The new command must give the
 recorded result, and the mutation rerun under it is what shows it selects
-a test that can fail.  Update the `final.md` § 2 row to match.
+a test that can fail.  Then `bts falsifier table {id} --write` updates
+the `final.md` § 2 row.
 
 `bts falsifier run` records each run in the changelog itself; there is
 nothing else to log for this step.
