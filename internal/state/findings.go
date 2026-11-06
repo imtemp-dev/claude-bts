@@ -731,6 +731,41 @@ func CarryForwardBlock(states []*FindingState) string {
 // they were done (trial problem #71).  A finding reported again this
 // round, one already closed, or an ID the ledger does not hold for this
 // document is not closed; the IDs it skipped are returned for a warning.
+// ExplainConfirmSkips gives each confirmed_fixed ID that
+// ConfirmFixedFindings left alone with its reason, as "ID (reason)".  The
+// warning used to say "not an open finding ... or was reported again this
+// round" for every one, which on swift-eagle named two causes for a
+// deferred finding when neither applied (trial problem #102).
+func ExplainConfirmSkips(root, recipeID string, round *VerifyLogEntry, ids []string, reported []ReportedFinding) []string {
+	docBase := filepath.Base(round.Doc)
+	events, err := ReadFindingEvents(root, recipeID)
+	if err != nil {
+		return ids
+	}
+	prior := FoldFindings(events)
+	reportedNow := map[string]bool{}
+	for _, rf := range reported {
+		reportedNow[FindingID(docBase, rf.Title)] = true
+	}
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		st, ok := prior[id]
+		reason := "left as it was"
+		switch {
+		case !ok || st.Doc != docBase:
+			reason = "no such finding on " + docBase
+		case reportedNow[id]:
+			reason = "reported again this round"
+		case st.Status == FindingFixed:
+			reason = "already fixed"
+		case st.Status == FindingDismissed:
+			reason = "dismissed"
+		}
+		out = append(out, id+" ("+reason+")")
+	}
+	return out
+}
+
 func ConfirmFixedFindings(root, recipeID string, round *VerifyLogEntry, ids []string, reported []ReportedFinding) (fixed, skipped []string, err error) {
 	if len(ids) == 0 {
 		return nil, nil, nil
@@ -748,7 +783,9 @@ func ConfirmFixedFindings(root, recipeID string, round *VerifyLogEntry, ids []st
 	var toAppend []FindingEvent
 	for _, id := range ids {
 		st, ok := prior[id]
-		if !ok || st.Doc != docBase || reportedNow[id] || !NotClosed(st.Status) {
+		// A deferred finding found fixed closes too: it is a watch-item
+		// someone resolved, not a closed one (trial problem #102).
+		if !ok || st.Doc != docBase || reportedNow[id] || !(NotClosed(st.Status) || st.Status == FindingDeferred) {
 			skipped = append(skipped, id)
 			continue
 		}

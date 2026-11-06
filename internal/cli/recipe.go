@@ -614,15 +614,11 @@ var recipeLogCmd = &cobra.Command{
 				} else {
 					if len(fixed) > 0 {
 						fmt.Fprintf(os.Stderr, "[bts] confirmed fixed by this round: %s\n", strings.Join(fixed, ", "))
-						if sync != nil {
-							sync.Fixed = append(sync.Fixed, fixed...)
-							sync.Unreported = without(sync.Unreported, fixed)
-							sync.Restated = without(sync.Restated, fixed)
-						}
+						absorbConfirmedFixed(sync, fixed)
 					}
 					if len(skipped) > 0 {
-						fmt.Fprintf(os.Stderr, "[bts] warning: confirmed_fixed lists %s, which is not an open finding on %s or was reported again this round; left as it was\n",
-							strings.Join(skipped, ", "), docBase)
+						fmt.Fprintf(os.Stderr, "[bts] warning: confirmed_fixed left as they were: %s\n",
+							strings.Join(state.ExplainConfirmSkips(root, recipeID, entry, skipped, reported), ", "))
 					}
 				}
 			}
@@ -1213,6 +1209,21 @@ func stampContentHashes(root, recipeID, docPath string, entry *state.VerifyLogEn
 	default:
 		entry.VerificationHash = h
 	}
+}
+
+// absorbConfirmedFixed moves the IDs a round confirmed fixed into the
+// summary's fixed list and out of every list that says they are still
+// pending.  Unjudged was missed, so a delta round printed the same 14
+// findings as "confirmed fixed" and as "not judged ... (state unchanged)"
+// (trial problem #100).
+func absorbConfirmedFixed(sync *state.SyncResult, fixed []string) {
+	if sync == nil {
+		return
+	}
+	sync.Fixed = append(sync.Fixed, fixed...)
+	sync.Unreported = without(sync.Unreported, fixed)
+	sync.Restated = without(sync.Restated, fixed)
+	sync.Unjudged = without(sync.Unjudged, fixed)
 }
 
 // confirmRefusal says why a confirm round cannot be recorded, or "" when
