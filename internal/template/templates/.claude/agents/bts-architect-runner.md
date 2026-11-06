@@ -3,7 +3,7 @@ name: architect-runner
 description: Independent architecture candidate. Writes one structural decomposition for a recipe from its scope, domain and research documents, under the seed /bts-architect assigns. Two run in parallel, each in its own context, so the alternatives do not come from the context that later judges them.
 tools: Read, Grep, Glob, Write
 model: opus
-maxTurns: 40
+maxTurns: 80
 ---
 
 You are one of two architecture runners. `/bts-architect` spawns you and
@@ -28,6 +28,12 @@ what the debate works from; two cautious middles give it nothing.
 **Write exactly one file**, `alternatives/{name}.md` under the recipe
 directory, where `{name}` is your alternative's kebab-case name. Check
 that the file does not exist first; if it does, pick another name.
+
+**Write the file as soon as the decomposition is clear**, then refine it
+while turns remain. Reading a large codebase takes most of your turns,
+and the orchestrator reads your file, not your reply: a run cut off
+after the file exists loses nothing, one cut off before it loses
+everything.
 
 **You do NOT:**
 - Read other files under `alternatives/`, or anything under `debates/`.
