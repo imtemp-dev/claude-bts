@@ -174,6 +174,7 @@ func showRecipeStats(root, recipeID string, jsonOutput bool) error {
 	stats.Phase = recipe.Phase
 	stats.Transcript = recipeTranscriptTokens(root, recipe)
 	ownerSessionFloor(root, recipe, stats)
+	startTimeline(stats, recipe, events)
 
 	if jsonOutput {
 		enc := json.NewEncoder(os.Stdout)
@@ -398,6 +399,32 @@ func renderPhaseBar(phaseDur, totalDur time.Duration) string {
 	}
 	bar := strings.Repeat("#", filled) + strings.Repeat(".", barWidth-filled)
 	return fmt.Sprintf("%s  %2.0f%%", bar, pct)
+}
+
+// startTimeline opens the timeline at the recipe's creation: the phase the
+// first transition left ran from the recipe's start, and no record says
+// so.  swift-eagle's discovery showed 0 s and its 19 minutes were missing
+// from the timeline (trial problem #96).
+func startTimeline(stats *metrics.RecipeStats, recipe *state.RecipeState, events []metrics.MetricsEvent) {
+	start, err := time.Parse(time.RFC3339, recipe.StartedAt)
+	if err != nil || stats == nil {
+		return
+	}
+	for _, e := range events {
+		if e.Kind != metrics.KindPhaseChange || e.Phase == e.PreviousPhase || e.PreviousPhase == "" {
+			continue
+		}
+		ts, terr := time.Parse(time.RFC3339, e.Timestamp)
+		if terr != nil || !ts.After(start) {
+			return
+		}
+		if len(stats.Phases) > 0 && stats.Phases[0].Phase == e.PreviousPhase {
+			return
+		}
+		span := metrics.PhaseSpan{Phase: e.PreviousPhase, EnteredAt: start, ExitedAt: ts, Duration: ts.Sub(start)}
+		stats.Phases = append([]metrics.PhaseSpan{span}, stats.Phases...)
+		return
+	}
 }
 
 // ownerSessionFloor counts the recipe's owner session, and its model from

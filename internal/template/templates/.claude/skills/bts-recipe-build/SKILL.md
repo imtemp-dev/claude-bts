@@ -72,7 +72,12 @@ decision hold`).
    way, once the user has seen the revision.
 3. **Research.** `/bts-research`, scoped by `scope.md`, including its
    `## Official Guidance` and its `## Open questions that decide an owner`.
-4. **Domain.** `/bts-domain-model`: entities, invariants with one owner
+   Each step below that names a phase starts with `bts recipe log {id}
+   --phase <phase>` before its work, so the phase timeline credits the
+   work to its stage: a phase logged at the end of the step credited a
+   wireframe's half hour to the architect (trial problem #96).
+4. **Domain.** `bts recipe log {id} --phase domain-model`, then
+   `/bts-domain-model`: entities, invariants with one owner
    each, illegal cells. Every invariant in § 2 will need a test, so state
    each as an outcome someone can observe. An open question that decides
    an owner or an enforcement point (how a framework binds a value,
@@ -81,9 +86,10 @@ decision hold`).
    `Resolved [L4]:` and the command, before the owner is written: steps 5
    and 6 build on that answer. An invariant this change keeps from earlier
    work, rather than introduces, is a `[carried]` row.
-5. **Architect.** `/bts-architect`: two runners, debate, adjudicate, the
-   decision block.
-6. **Wireframe.** `/bts-wireframe`, then `bts verify wireframe.md` with no
+5. **Architect.** `bts recipe log {id} --phase architect`, then
+   `/bts-architect`: two runners, debate, adjudicate, the decision block.
+6. **Wireframe.** `bts recipe log {id} --phase wireframe`, then
+   `/bts-wireframe`, then `bts verify wireframe.md` with no
    critical or major left. Its File Structure rows are the files the
    skeleton writes and, later, the tasks.
 7. **Skeleton.** `bts recipe log {id} --phase skeleton`, then

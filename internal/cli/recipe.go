@@ -175,12 +175,14 @@ var recipeLogCmd = &cobra.Command{
 			if err := state.SaveRecipeState(root, recipe); err != nil {
 				return fmt.Errorf("save recipe: %w", err)
 			}
-			_ = metrics.Append(root, &metrics.MetricsEvent{
-				Kind:          metrics.KindPhaseChange,
-				RecipeID:      recipeID,
-				Phase:         phase,
-				PreviousPhase: previousPhase,
-			})
+			if previousPhase != phase {
+				_ = metrics.Append(root, &metrics.MetricsEvent{
+					Kind:          metrics.KindPhaseChange,
+					RecipeID:      recipeID,
+					Phase:         phase,
+					PreviousPhase: previousPhase,
+				})
+			}
 			if err := state.LogPhaseChange(root, recipeID, previousPhase, phase); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: append changelog: %v\n", err)
 			}

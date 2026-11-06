@@ -102,6 +102,13 @@ func AggregateRecipe(events []MetricsEvent) *RecipeStats {
 		case KindPhaseChange:
 			ts, _ := time.Parse(time.RFC3339, e.Timestamp)
 
+			// A record of the phase the recipe is already in is no
+			// transition: it printed as an extra 0 s row (trial problems
+			// #94 and #96).
+			if e.Phase == currentPhase || (currentPhase == "" && e.Phase == e.PreviousPhase) {
+				continue
+			}
+
 			// Close previous phase span
 			if currentPhase != "" && !phaseEnteredAt.IsZero() && !ts.IsZero() {
 				stats.Phases = append(stats.Phases, PhaseSpan{
