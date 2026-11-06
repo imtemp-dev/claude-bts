@@ -122,9 +122,15 @@ decision hold`).
     criticals and majors against the fix; record it with `--scope delta`.
     A delta review with no critical and no major completes the one review;
     a delta review that finds one sends `final.md` back to a full review.
-    Any later edit to `final.md` needs another delta review. Nothing
-    changed after a clean full pass needs no delta. There is no audit
-    round, no simulate round and no replicated pass.
+    Once a round has left no critical or major, fix its minors (or declare
+    them Known Uncertainties) and check the fixes with a **confirm** round:
+    `/bts-verify` on `final.md` at confirm scope, recorded with
+    `--scope confirm`. It reads only those minors and raises nothing new,
+    so the review ends there instead of each delta finding new minors.
+    Any other later edit to `final.md`, `domain.md` or the wireframe needs
+    a delta review. Nothing changed after a clean full pass needs no
+    delta. There is no audit round, no simulate round and no replicated
+    pass.
 12. **Status.** `Skill("bts-status")` with `{id}`.
 13. **Finalize.** Output `<bts>DONE</bts>`. The stop hook checks
     `skeleton_builds`, `falsifiers_red` (introduced invariants red,

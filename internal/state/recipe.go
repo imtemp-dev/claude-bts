@@ -370,7 +370,12 @@ type VerifyLogEntry struct {
 	// review stale although final.md itself is unchanged (trial problem
 	// #106).  Empty for rounds recorded before the field existed.
 	CitedHashes map[string]string `json:"cited_hashes,omitempty"`
-	Timestamp   string            `json:"timestamp"`
+	// Scope is the round's declared scope: full, delta or confirm.  FullPass
+	// already says full or not; a confirm round (trial problem #105) checks
+	// only the previous round's minors and raises nothing new, and the log
+	// keeps it apart from a delta.  Empty for rounds recorded before.
+	Scope     string `json:"scope,omitempty"`
+	Timestamp string `json:"timestamp"`
 }
 
 // Agent evidence values for VerifyLogEntry.AgentEvidence.

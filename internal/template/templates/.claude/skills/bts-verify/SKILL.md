@@ -69,6 +69,9 @@ rewrites agent files.
    - FOCUS_DIFF reports no snapshot (first round) → **full**
    - The orchestrator is about to finalize → **full**
    - FOCUS_DIFF shows changed hunks → **delta** is allowed
+   - The orchestrator asked for **confirm** → confirm (it does so only
+     after a round that left no critical or major, to check that round's
+     minor fixes)
    State the choice in your summary — the orchestrator passes it as
    `--scope` when recording the round, and a delta round can never
    satisfy completion. One exception: a build recipe's `final.md`, where
@@ -77,7 +80,7 @@ rewrites agent files.
 
 3. Read the document at $ARGUMENTS and verify it:
 
-   **Scope of this round: {full | delta}** (from step 2c)
+   **Scope of this round: {full | delta | confirm}** (from step 2c)
 
    - **full** — verify the ENTIRE document. Every section, including
      ones no edit touched: an edit elsewhere can contradict them.
@@ -89,6 +92,14 @@ rewrites agent files.
      pass already cleared them and re-litigating them is what makes this
      loop oscillate. If you cannot determine the closure with
      confidence, verify the whole document and say so.
+   - **confirm** — check only the STILL OPEN minors in CARRY_FORWARD:
+     read each one's anchor in FOCUS_DIFF and list it in
+     `confirmed_fixed` if the fix landed, or report it again under its
+     exact title if it did not. Raise nothing new. If the diff changes
+     anything beyond those anchors, report one major ("the fix reached
+     past its minors") and nothing else; the orchestrator then reviews at
+     delta scope. `bts recipe log` refuses a confirm round with a new
+     minor.
 
    CARRY_FORWARD lists points that are already settled:
    - STILL OPEN — expect them unless the fix landed; reuse the given ID.

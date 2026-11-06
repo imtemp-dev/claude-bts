@@ -315,8 +315,8 @@ var recipeLogCmd = &cobra.Command{
 			scope, _ := cmd.Flags().GetString("scope")
 			rawDims, _ := cmd.Flags().GetStringSlice("dimension")
 
-			if scope != "full" && scope != "delta" {
-				return fmt.Errorf("--scope must be full or delta, got %q", scope)
+			if scope != "full" && scope != "delta" && scope != "confirm" {
+				return fmt.Errorf("--scope must be full, delta or confirm, got %q", scope)
 			}
 			dims, derr := state.NormalizeDimensions(rawDims)
 			if derr != nil {
@@ -442,6 +442,7 @@ var recipeLogCmd = &cobra.Command{
 				Info:            infoCt,
 				Doc:             docBase,
 				FullPass:        scope == "full",
+				Scope:           scope,
 				Dimensions:      dims,
 			}
 
@@ -549,6 +550,11 @@ var recipeLogCmd = &cobra.Command{
 			// a delta that "found" round 1's critical and majors, an extra
 			// full review, and no way to take the round back.  Refuse before
 			// anything is written.
+			if scope == "confirm" {
+				if reason := confirmRefusal(root, recipeID, docBase, priorRounds, reported); reason != "" {
+					return fmt.Errorf("%s; nothing was logged", reason)
+				}
+			}
 			if fromVerification != "" && entry.VerificationHash != "" {
 				for _, p := range priorRounds {
 					if p.VerificationHash != entry.VerificationHash {
@@ -917,7 +923,7 @@ func init() {
 	// No backticks in flag usage strings: cobra reads the first
 	// backtick-quoted word as the value placeholder name.
 	recipeLogCmd.Flags().String("doc", "", "Path of the verified document — scopes the verify state and findings ledger to it, and snapshots the revision for the next verify-focus diff")
-	recipeLogCmd.Flags().String("scope", "full", "Verification scope of this round: full (whole document) or delta (changed sections + reference closure). Only a full pass may satisfy the completion gate.")
+	recipeLogCmd.Flags().String("scope", "full", "Verification scope of this round: full (whole document), delta (changed sections + reference closure), or confirm (only the previous round's minors, after a round with no critical or major; raises nothing new). Only a full pass may satisfy the completion gate.")
 	recipeLogCmd.Flags().StringSlice("dimension", nil, "Semantic pass(es) that produced this round's counts: verify, audit (simulate is a legacy name, accepted and ignored). Repeatable or comma-separated. Rounds are only compared against rounds of the same dimensions+scope, and completion needs all three.")
 	// Changelog flags
 	recipeLogCmd.Flags().String("action", "", "Action type (research, improve, verify, debate, audit, assess, implement, test, sync, status)")
@@ -1207,6 +1213,43 @@ func stampContentHashes(root, recipeID, docPath string, entry *state.VerifyLogEn
 	default:
 		entry.VerificationHash = h
 	}
+}
+
+// confirmRefusal says why a confirm round cannot be recorded, or "" when
+// it can.  A confirm round ends the minors loop of trial problem #105: it
+// follows a round that left no critical or major, checks only that round's
+// minors, and raises nothing new.  A round that does more is a delta.
+func confirmRefusal(root, recipeID, docBase string, prior []state.VerifyLogEntry, reported []state.ReportedFinding) string {
+	if docBase == "" {
+		return "a confirm round needs --doc"
+	}
+	if state.LastDeltaChain(prior).Full == nil {
+		return "a confirm round follows a full review of " + docBase + ", and none is recorded"
+	}
+	last := prior[len(prior)-1]
+	if last.Critical > 0 || last.Major > 0 {
+		return fmt.Sprintf("a confirm round follows a round with no critical or major, and iteration %d left "+
+			"%d critical and %d major: review the fix at delta scope (--scope delta)", last.Iteration, last.Critical, last.Major)
+	}
+	events, err := state.ReadFindingEvents(root, recipeID)
+	if err != nil {
+		return fmt.Sprintf("the findings ledger is unreadable (%v), so the round's findings cannot be checked against it", err)
+	}
+	known := state.FoldFindings(events)
+	var fresh []string
+	for _, rf := range reported {
+		if rf.Severity != "minor_resolvable" && rf.Severity != "minor_deferred" {
+			continue
+		}
+		if _, ok := known[state.FindingID(docBase, rf.Title)]; !ok {
+			fresh = append(fresh, fmt.Sprintf("%q", rf.Title))
+		}
+	}
+	if len(fresh) > 0 {
+		return fmt.Sprintf("a confirm round raises no new minor, and this one reports %s: "+
+			"a round that reviewed beyond the cited fixes is a delta (--scope delta)", strings.Join(fresh, ", "))
+	}
+	return ""
 }
 
 // buildReviewCites are the documents a build recipe's final.md points at

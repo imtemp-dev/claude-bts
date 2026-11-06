@@ -172,6 +172,15 @@ anchor, interface, or invariant).
   revision is the reviewed one, for `build_review_clean` and for the
   rule-3 dirty flag. A delta round that finds a critical or major sends
   `final.md` back to a full pass.
+- **Confirm pass.** After a round that left no critical or major, the
+  fix of its minors is checked by a **confirm** round (`--scope
+  confirm`): it reads only those minors' anchors in the focus diff,
+  reports each one fixed (`confirmed_fixed`) or again under its ID, and
+  raises nothing new; a change that reaches past them is one major.
+  `bts recipe log` refuses a confirm round after a critical or major, or
+  one that reports a new minor. It absorbs a fix like a delta round.
+  Each delta could find new minors, whose fix needed another delta, and
+  the review only ended at the round cap (trial problem #105).
 
 Rationale: re-deriving the whole document every round is what let
 untouched sections generate new findings faster than edits resolved
