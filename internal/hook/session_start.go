@@ -464,8 +464,13 @@ func nextStepHint(root string, recipe *state.RecipeState) string {
 			detail = "show each falsifier can fail (Step 5.2): break each introduced invariant's guard and record it with `bts falsifier mutate`"
 		case exists("prove.json") && exists("review.md"):
 			detail = "sync spec with implementation"
-		case exists("prove.json"):
+		case exists("prove.json") && appProven(root, recipe.ID) == nil:
 			detail = "run code review"
+		case exists("prove.json"):
+			// `bts prove plan` writes prove.json before any journey is
+			// driven; neat-wolf heard "run code review" while its drive
+			// was still running (trial problem #101).
+			detail = "finish the prove stage (/bts-prove): drive each planned journey on the current code, or defer it with an owner"
 		case interrogateVerified(root, recipe.ID):
 			detail = "drive the app (/bts-prove)"
 		case exists("interrogate.json"):

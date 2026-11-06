@@ -77,4 +77,21 @@ func TestNextStepHint_TestPhaseFollowsTheResumeTable(t *testing.T) {
 	if h := hintFor(t, root, id); !strings.Contains(h, "drive the app") {
 		t.Fatalf("interrogate verified: driving the app is next, got %q", h)
 	}
+
+	// `bts prove plan` writes prove.json before any drive: neat-wolf heard
+	// "run code review" while its drive was still running.
+	if err := state.SaveProveRecord(root, id, &state.ProveRecord{Journeys: map[string]*state.Journey{"review": {}}}); err != nil {
+		t.Fatal(err)
+	}
+	if h := hintFor(t, root, id); strings.Contains(h, "code review") || !strings.Contains(h, "prove stage") {
+		t.Fatalf("a planned journey not yet driven: the prove stage is not done, got %q", h)
+	}
+	if err := state.SaveProveRecord(root, id, &state.ProveRecord{Journeys: map[string]*state.Journey{
+		"review": {Deferred: &state.Deferral{Reason: "needs production", Owner: "jongyoon"}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if h := hintFor(t, root, id); !strings.Contains(h, "code review") {
+		t.Fatalf("every journey driven or deferred: code review is next, got %q", h)
+	}
 }
