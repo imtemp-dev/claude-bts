@@ -81,11 +81,22 @@ func checkCompleteDrift(root, recipeID string) []doctorIssue {
 	if err != nil || r == nil || r.Phase != "complete" {
 		return nil
 	}
+	// Fix recipes that amend this one (trial problem #90): a completed one
+	// answers for the files it touched; one in progress is named.
+	answered, inProgress := amendmentsOf(root, recipeID)
+	fix := "the code moved on after completion; record the change in a fix recipe that amends this one " +
+		"(`bts recipe create --type fix --amends " + recipeID + "`) so the spec and the code agree again"
+	note := ""
+	if len(inProgress) > 0 {
+		note = fmt.Sprintf(" (being amended by %s)", strings.Join(inProgress, ", "))
+		fix = "finish the amending fix recipe; its records then answer for the files it touches"
+	}
+
 	var issues []doctorIssue
 	if data, err := os.ReadFile(filepath.Join(state.RecipeDir(root, recipeID), "wireframe.md")); err == nil {
 		var gone []string
 		for _, k := range engine.ParseWireframeFileTable(string(data)) {
-			if k.Action != "create" {
+			if k.Action != "create" || answered[k.Path] {
 				continue
 			}
 			if _, serr := os.Stat(filepath.Join(root, k.Path)); os.IsNotExist(serr) {
@@ -96,23 +107,51 @@ func checkCompleteDrift(root, recipeID string) []doctorIssue {
 			issues = append(issues, doctorIssue{
 				level:   "warning",
 				section: "drift",
-				message: fmt.Sprintf("%s is complete, but files its wireframe created are gone: %s", recipeID, strings.Join(gone, ", ")),
-				fix:     "the code moved on after completion; record the change in a new recipe (or a fix recipe) so the spec and the code agree again",
+				message: fmt.Sprintf("%s is complete, but files its wireframe created are gone%s: %s", recipeID, note, strings.Join(gone, ", ")),
+				fix:     fix,
 			})
 		}
 	}
-	if tr, err := state.LoadTestResults(root, recipeID); err == nil && tr.ImplHash != "" {
+	if tr, err := state.LoadTestResults(root, recipeID); err == nil && tr.ImplHash != "" && len(answered) == 0 {
 		if current, herr := state.RecipeImplHash(root, recipeID); herr == nil && current != "" && current != tr.ImplHash {
 			issues = append(issues, doctorIssue{
 				level:   "warning",
 				section: "drift",
-				message: fmt.Sprintf("the code under %s changed after it completed: its last test run covered %s, the code is now %s",
-					recipeID, shortHash(tr.ImplHash), shortHash(current)),
-				fix: "a change after completion is outside the recipe's evidence; record it in a new recipe (or a fix recipe), or rerun the tests if the change is meant to be part of this one",
+				message: fmt.Sprintf("the code under %s changed after it completed%s: its last test run covered %s, the code is now %s",
+					recipeID, note, shortHash(tr.ImplHash), shortHash(current)),
+				fix: fix,
 			})
 		}
 	}
 	return issues
+}
+
+// amendmentsOf returns the files the completed fix recipes amending
+// recipeID touched, and the ids of those still in progress.
+func amendmentsOf(root, recipeID string) (answered map[string]bool, inProgress []string) {
+	answered = map[string]bool{}
+	recipes, err := state.ListRecipes(root)
+	if err != nil {
+		return answered, nil
+	}
+	for _, r := range recipes {
+		if r == nil || r.Amends != recipeID {
+			continue
+		}
+		if r.Phase != "complete" {
+			if r.Phase != "cancelled" {
+				inProgress = append(inProgress, r.ID)
+			}
+			continue
+		}
+		if ts, terr := state.LoadTaskState(root, r.ID); terr == nil {
+			for _, t := range ts.Tasks {
+				answered[filepath.ToSlash(filepath.Clean(t.File))] = true
+			}
+		}
+	}
+	sort.Strings(inProgress)
+	return answered, inProgress
 }
 
 func shortHash(h string) string {

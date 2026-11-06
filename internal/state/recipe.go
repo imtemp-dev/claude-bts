@@ -24,6 +24,11 @@ type RecipeState struct {
 	StartedAt    string  `json:"started_at"`
 	UpdatedAt    string  `json:"updated_at"`
 	RefRecipe    string  `json:"ref_recipe,omitempty"` // referenced recipe ID (for fix recipes)
+	// Amends is the completed recipe this fix recipe changes (`bts recipe
+	// create --type fix --amends <id>`).  Once the fix completes, its
+	// records answer for the files it touched, and the original's drift
+	// clears for them (trial problem #90).
+	Amends string `json:"amends,omitempty"`
 	// OwnerSession is the Claude Code session that works the recipe: the
 	// one that ran `bts recipe create`, or later `bts recipe claim`. Only a
 	// hook knows a session id, so the PostToolUse hook records it. Other

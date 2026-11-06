@@ -25,6 +25,8 @@ func init() {
 	)
 	recipeCreateCmd.Flags().String("type", "blueprint", "Recipe type (blueprint, build, design, analyze, fix, debug)")
 	recipeCreateCmd.Flags().String("topic", "", "Recipe topic description")
+	recipeCreateCmd.Flags().String("amends", "", "A completed recipe this fix recipe changes (--type fix); its records answer for the files the fix touches once it completes")
+	recipeCreateCmd.Flags().String("ref", "", "A recipe this one reads for context (sets ref_recipe)")
 	_ = recipeCreateCmd.MarkFlagRequired("topic")
 	recipeReconcileCmd.Flags().Bool("dry-run", false, "Print the plan without writing")
 	recipeReconcileCmd.Flags().Bool("force", false, "Bypass blueprint-phase whitelist (implement-phase still protected)")
@@ -834,51 +836,96 @@ var recipeCreateCmd = &cobra.Command{
 
 		recipeType, _ := cmd.Flags().GetString("type")
 		topic, _ := cmd.Flags().GetString("topic")
+		amends, _ := cmd.Flags().GetString("amends")
+		ref, _ := cmd.Flags().GetString("ref")
 
-		id := state.NewRecipeID(root, topic)
-
-		// Initial phase depends on recipe type
-		initialPhase := "discovery" // blueprint: intent discovery first
-		switch recipeType {
-		case "fix", "debug", "analyze", "design":
-			initialPhase = "research"
+		id, err := executeRecipeCreate(root, recipeType, topic, amends, ref)
+		if err != nil {
+			return err
 		}
-
-		recipe := &state.RecipeState{
-			ID:        id,
-			Type:      recipeType,
-			Topic:     topic,
-			Phase:     initialPhase,
-			StartedAt: time.Now().UTC().Format(time.RFC3339),
-		}
-
-		if err := state.SaveRecipeState(root, recipe); err != nil {
-			return fmt.Errorf("create recipe: %w", err)
-		}
-
-		// Create empty manifest.json
-		manifest := &state.Manifest{
-			Documents: make(map[string]state.DocumentEntry),
-		}
-		if err := state.SaveManifest(root, id, manifest); err != nil {
-			return fmt.Errorf("create manifest: %w", err)
-		}
-		// The first phase, with the build that started the recipe (trial
-		// problem #55). Diagnostics go to stderr: stdout is the ID alone.
-		if err := state.LogPhaseChange(root, id, "", initialPhase); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: append changelog: %v\n", err)
-		}
-
-		// The PostToolUse hook makes the calling session the owner only
-		// when this request is waiting for it (state.OwnerRequest).
-		if err := state.WriteOwnerRequest(root, id, "create"); err != nil {
-			fmt.Fprintf(os.Stderr, "[bts] warning: record the owner request: %v\n", err)
-		}
-
 		// Output ID only (for skill capture via Bash)
 		fmt.Println(id)
 		return nil
 	},
+}
+
+// executeRecipeCreate creates a recipe and returns its id.  amends names a
+// completed recipe a fix recipe changes; ref names a recipe it only reads
+// for context.  Both used to be hand edits of recipe.json (bts-recipe-fix
+// step 2 said "Set ref_recipe in recipe.json"), and a change to a completed
+// recipe had no path at all: true-shark's PR review was applied to sealed
+// documents by hand (trial problem #90).
+func executeRecipeCreate(root, recipeType, topic, amends, ref string) (string, error) {
+	amends, ref = strings.TrimSpace(amends), strings.TrimSpace(ref)
+	if amends != "" {
+		if recipeType != "fix" {
+			return "", fmt.Errorf("--amends opens a fix recipe; use --type fix")
+		}
+		target, err := state.LoadRecipeState(root, amends)
+		if err != nil || target == nil {
+			return "", fmt.Errorf("--amends %s: no such recipe", amends)
+		}
+		if target.Phase != "complete" {
+			return "", fmt.Errorf("--amends %s: it is in phase %s, not complete; continue it instead", amends, target.Phase)
+		}
+		if ref == "" {
+			ref = amends
+		}
+	}
+	if ref != "" {
+		if r, err := state.LoadRecipeState(root, ref); err != nil || r == nil {
+			return "", fmt.Errorf("--ref %s: no such recipe", ref)
+		}
+	}
+
+	id := state.NewRecipeID(root, topic)
+
+	// Initial phase depends on recipe type
+	initialPhase := "discovery" // blueprint: intent discovery first
+	switch recipeType {
+	case "fix", "debug", "analyze", "design":
+		initialPhase = "research"
+	}
+
+	recipe := &state.RecipeState{
+		ID:        id,
+		Type:      recipeType,
+		Topic:     topic,
+		Phase:     initialPhase,
+		StartedAt: time.Now().UTC().Format(time.RFC3339),
+		RefRecipe: ref,
+		Amends:    amends,
+	}
+
+	if err := state.SaveRecipeState(root, recipe); err != nil {
+		return "", fmt.Errorf("create recipe: %w", err)
+	}
+
+	// Create empty manifest.json
+	manifest := &state.Manifest{
+		Documents: make(map[string]state.DocumentEntry),
+	}
+	if err := state.SaveManifest(root, id, manifest); err != nil {
+		return "", fmt.Errorf("create manifest: %w", err)
+	}
+	// The first phase, with the build that started the recipe (trial
+	// problem #55). Diagnostics go to stderr: stdout is the ID alone.
+	if err := state.LogPhaseChange(root, id, "", initialPhase); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: append changelog: %v\n", err)
+	}
+	if amends != "" {
+		_ = state.AppendChangelog(root, amends, &state.ChangelogEntry{
+			Action: "amended",
+			Result: fmt.Sprintf("amended by %s: %s", id, state.TruncateRunes(topic, 160)),
+		})
+	}
+
+	// The PostToolUse hook makes the calling session the owner only
+	// when this request is waiting for it (state.OwnerRequest).
+	if err := state.WriteOwnerRequest(root, id, "create"); err != nil {
+		fmt.Fprintf(os.Stderr, "[bts] warning: record the owner request: %v\n", err)
+	}
+	return id, nil
 }
 
 var recipeCancelCmd = &cobra.Command{

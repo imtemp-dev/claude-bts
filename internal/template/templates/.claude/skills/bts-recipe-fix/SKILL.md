@@ -18,7 +18,8 @@ Fix a bug through document-first diagnosis and verified implementation: $ARGUMEN
 
 Before starting, build situational awareness:
 1. List `.bts/specs/recipes/` → find related recipes (especially completed ones)
-2. Set `ref_recipe` in recipe.json to the most relevant recipe ID
+2. Name the most relevant recipe when creating this one (`--ref`, or
+   `--amends` for a completed recipe this fix changes; see below)
 3. For each related recipe, read its final.md → understand design intent
 4. Check deviation.md → known issues that may be relevant
 5. Check review.md from related recipes → known quality/security issues
@@ -35,10 +36,17 @@ If active fix recipe found, read diagnosis.md and fix-spec.md to resume.
 Do NOT pause to summarize or ask the user. Only stop for [CONVERGENCE FAILED]
 or when experts disagree on root cause (user decision needed).
 
-If no active recipe, create one:
+If no active recipe, create one, naming the most relevant recipe with
+`--ref` (never by editing recipe.json):
 ```bash
-bts recipe create --type fix --topic "$ARGUMENTS"
+bts recipe create --type fix --topic "$ARGUMENTS" --ref <related recipe>
 ```
+When the fix changes the code of a completed recipe (a review after
+completion, a later bug in it), create it with `--amends <that recipe>`
+instead: the completed recipe's documents stay sealed, never edited; this
+recipe's fix-spec states which of its invariants the change retires,
+narrows or restates; and once this recipe completes, its records answer
+for the files it touched, so `bts doctor` stops reporting them as drift.
 Use the output as recipe ID for all subsequent commands.
 
 ## Step 1: Diagnose

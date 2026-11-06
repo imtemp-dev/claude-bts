@@ -90,7 +90,8 @@ Required fields:
 - `updated_at` (string): ISO 8601 timestamp
 
 Optional fields:
-- `ref_recipe` (string): referenced recipe ID (for fix recipes that reference the original)
+- `ref_recipe` (string): referenced recipe ID (for fix recipes that reference the original); set with `bts recipe create --ref`
+- `amends` (string): the completed recipe a fix recipe changes; set with `bts recipe create --type fix --amends`.  Once the fix completes, its records answer for the files it touched
 
 ## diagnosis.md (fix recipe)
 
