@@ -161,7 +161,7 @@ Prints nothing when the ledger is empty (first round).`,
 // of a limit cannot prevent; what the command prints can.
 var recipeFindingsDefendBatchCmd = &cobra.Command{
 	Use:   "defend-batch [recipe-id]",
-	Short: "Print the open critical/major findings for one /bts-defend pass, capped by simulate.finding_batch",
+	Short: "Print the open critical/major findings for one /bts-defend pass, capped by defend.finding_batch",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()

@@ -1356,7 +1356,7 @@ var recipeReconcileCmd = &cobra.Command{
 	Short: "Normalize recipe.json state from verify-log (recover from missed <bts>DONE</bts>)",
 	Long: `When a session ends without the <bts>DONE</bts> marker being emitted,
 the stop hook never runs and recipe.json stays in a mid-blueprint phase
-(e.g. phase=simulate, level=0, iteration=0) while verify-log.jsonl
+(e.g. phase=audit, level=0, iteration=0) while verify-log.jsonl
 already shows 'converged'. Reconcile inspects verify-log and, when the
 last entry is converged with critical=0, major=0, resolvable=0,
 updates recipe.json to:
