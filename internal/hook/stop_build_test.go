@@ -119,6 +119,29 @@ func TestBuildSpecDone_NeedsOneCleanReviewOfFinal(t *testing.T) {
 	}
 }
 
+// Trial problem #103: every In Scope item has a row in final.md's Scope
+// coverage, or DONE is held with the format spelled out.
+func TestBuildSpecDone_NeedsEveryScopeItemCovered(t *testing.T) {
+	root, id := setupBuildRoot(t)
+	recordEvidence(t, root, id, 0, "INV-001", "INV-002")
+	writeVerifyLog(t, root, id, []state.VerifyLogEntry{
+		{Iteration: 1, Doc: "final.md", FullPass: true, Status: "continue"},
+	})
+	dir := state.RecipeDir(root, id)
+	_ = os.WriteFile(filepath.Join(dir, "scope.md"), []byte("## In Scope\n\n1. One issue per PR.\n2. Never post as the user.\n\n## Out of Scope\n"), 0644)
+
+	out := buildDone(t, root)
+	if out.Decision != "block" || !strings.Contains(out.Reason, "Scope coverage") || !strings.Contains(out.Reason, "| Scope item | Held by |") {
+		t.Fatalf("no coverage section: want a block that spells out the table, got %q %q", out.Decision, out.Reason)
+	}
+
+	_ = os.WriteFile(filepath.Join(dir, "final.md"), []byte("# Build spec\n\n## 6. Scope coverage\n\n"+
+		"| Scope item | Held by |\n| --- | --- |\n| 1 | INV-001 |\n| 2 | INV-002 |\n"), 0644)
+	if out := buildDone(t, root); out.Decision == "block" {
+		t.Fatalf("every item covered: DONE must pass, got %q", out.Reason)
+	}
+}
+
 func TestBuildSpecDone_DoesNotUseTheBlueprintLoop(t *testing.T) {
 	root, id := setupBuildRoot(t)
 	recordEvidence(t, root, id, 0, "INV-001", "INV-002")

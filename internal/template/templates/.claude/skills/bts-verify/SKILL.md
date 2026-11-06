@@ -101,6 +101,10 @@ rewrites agent files.
      delta scope. `bts recipe log` refuses a confirm round with a new
      minor.
 
+   For a build recipe's `final.md`, read its Scope coverage rows against
+   `scope.md`: a row that holds less than its item asks (a narrower
+   measure, a case left out) and cites no resolved decision is a major.
+
    CARRY_FORWARD lists points that are already settled:
    - STILL OPEN — expect them unless the fix landed; reuse the given ID.
    - FIXED — report again ONLY if the fix was reverted or is wrong.

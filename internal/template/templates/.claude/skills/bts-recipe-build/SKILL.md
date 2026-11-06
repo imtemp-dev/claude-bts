@@ -180,6 +180,18 @@ not say: an order that matters and why.}
 {Each step that cannot be undone, what must precede it, and how to roll
 back. "None" is an answer.}
 
+## 6. Scope coverage
+| Scope item | Held by |
+| --- | --- |
+| 1 | INV-001, INV-004 |
+| 2 | eval `HandoffRcmClaimEval` (unrelated turns before and inside the topic) |
+| 3 | narrowed to turns before the topic: decision `scope-3-before-only` |
+
+One row per `## In Scope` item of `scope.md`, numbered in order (bullets
+count too). A row names what holds the item, or the resolved decision
+that changed it: a row that holds less than the item asks needs one.
+`bts verify` and the DONE gate report an item with no row.
+
 ## Known Uncertainties
 
 ### U-001: {question}

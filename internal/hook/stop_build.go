@@ -66,6 +66,21 @@ func (h *stopHandler) handleBuildSpecDone(root string, recipe *state.RecipeState
 		return blockOutput(reason), nil
 	}
 
+	// Every In Scope item has a line in final.md saying what holds it, or
+	// which resolved decision changed it (trial problem #103).  Checked
+	// before the review, since adding the section is an edit to review.
+	if issues := engine.CheckScopeCoverage(finalPath); len(issues) > 0 {
+		details := make([]string, 0, len(issues))
+		for i, is := range issues {
+			if i == 5 {
+				details = append(details, fmt.Sprintf("and %d more", len(issues)-5))
+				break
+			}
+			details = append(details, is.Detail)
+		}
+		return blockOutput("Scope coverage: " + strings.Join(details, " ")), nil
+	}
+
 	if out := buildReviewClean(root, recipe.ID); out != nil {
 		return out, nil
 	}
