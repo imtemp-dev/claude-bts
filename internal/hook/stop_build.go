@@ -27,62 +27,9 @@ import (
 // None is overridable. Each remedy is to run something again, which is
 // cheap; an override could only mean "trust the prose instead".
 func (h *stopHandler) handleBuildSpecDone(root string, recipe *state.RecipeState) (*HookOutput, error) {
-	recipeDir := state.RecipeDir(root, recipe.ID)
-
-	if open, derr := state.OpenDecisions(root, recipe.ID); derr == nil && len(open) > 0 {
-		return blockOutput(fmt.Sprintf(
-			"%d decision(s) still waiting on the user: %s. Get the answer and record it with "+
-				"`bts recipe decision resolve %s <key> --answer \"...\"`, or retire the question with `bts recipe decision drop`.",
-			len(open), decisionSummary(open), recipe.ID,
-		)), nil
-	}
-
-	finalPath := filepath.Join(recipeDir, "final.md")
-	if _, err := os.Stat(finalPath); os.IsNotExist(err) {
-		return blockOutput("No final.md. A build recipe finalizes a short build spec (bts-recipe-build, Build spec); write it, review it once, then complete."), nil
-	}
-
-	ev, err := state.LoadBuildEvidence(root, recipe.ID)
-	if err != nil {
-		return blockOutput(fmt.Sprintf("build-evidence.json is unreadable (%v). Re-record it with `bts check build` and `bts falsifier check --red`.", err)), nil
-	}
-	hash, herr := engine.CodeHash(root, recipe.ID)
-	if herr != nil {
-		fmt.Fprintf(os.Stderr, "[bts] warning: code fingerprint: %v (freshness not checked)\n", herr)
-	}
-
-	if reason := engine.CheckSkeletonBuilds(ev, hash, recipe.ID); reason != "" {
+	gate, reason, introduced, carried := buildSpecGate(root, recipe)
+	if gate != "" {
 		return blockOutput(reason), nil
-	}
-
-	introduced, carried, derr := engine.DomainInvariantKinds(filepath.Join(recipeDir, "domain.md"))
-	if derr != nil {
-		return blockOutput(fmt.Sprintf("domain.md invariants are unreadable (%v). The build recipe falsifies each invariant in domain.md § 2.", derr)), nil
-	}
-	if reason := engine.CheckFalsifiersRed(ev, introduced, hash, recipe.ID); reason != "" {
-		return blockOutput(reason), nil
-	}
-	if reason := engine.CheckCarriedGreen(ev, carried, hash, recipe.ID); reason != "" {
-		return blockOutput(reason), nil
-	}
-
-	// Every In Scope item has a line in final.md saying what holds it, or
-	// which resolved decision changed it (trial problem #103).  Checked
-	// before the review, since adding the section is an edit to review.
-	if issues := engine.CheckScopeCoverage(finalPath); len(issues) > 0 {
-		details := make([]string, 0, len(issues))
-		for i, is := range issues {
-			if i == 5 {
-				details = append(details, fmt.Sprintf("and %d more", len(issues)-5))
-				break
-			}
-			details = append(details, is.Detail)
-		}
-		return blockOutput("Scope coverage: " + strings.Join(details, " ")), nil
-	}
-
-	if out := buildReviewClean(root, recipe.ID); out != nil {
-		return out, nil
 	}
 
 	prevPhase := recipe.Phase
@@ -98,8 +45,139 @@ func (h *stopHandler) handleBuildSpecDone(root string, recipe *state.RecipeState
 		PreviousPhase: prevPhase,
 	})
 	_ = state.LogPhaseChange(root, recipe.ID, prevPhase, "finalize")
-	fmt.Fprintf(os.Stderr, "[bts] Build spec ready ✓ skeleton builds, %d falsifier(s) red, %d carried green. Next: /bts-implement %s\n", len(introduced), len(carried), recipe.ID)
+	fmt.Fprintf(os.Stderr, "[bts] Build spec ready ✓ skeleton builds, %d falsifier(s) red, %d carried green. Next: /bts-implement %s\n", introduced, carried, recipe.ID)
 	return &HookOutput{}, nil
+}
+
+// buildSpecGate runs the build recipe's DONE gates in order and returns
+// the first one not met, by name, with its message; gate is "" when all
+// hold, and introduced and carried count the invariants for the success
+// line.  The next-step hint reads the same sequence, so it names what DONE
+// would block on rather than guessing from the phase (trial problem #101).
+func buildSpecGate(root string, recipe *state.RecipeState) (gate, reason string, introduced, carried int) {
+	recipeDir := state.RecipeDir(root, recipe.ID)
+
+	if open, derr := state.OpenDecisions(root, recipe.ID); derr == nil && len(open) > 0 {
+		return "decisions", fmt.Sprintf(
+			"%d decision(s) still waiting on the user: %s. Get the answer and record it with "+
+				"`bts recipe decision resolve %s <key> --answer \"...\"`, or retire the question with `bts recipe decision drop`.",
+			len(open), decisionSummary(open), recipe.ID), 0, 0
+	}
+
+	finalPath := filepath.Join(recipeDir, "final.md")
+	if _, err := os.Stat(finalPath); os.IsNotExist(err) {
+		return "final_md", "No final.md. A build recipe finalizes a short build spec (bts-recipe-build, Build spec); write it, review it once, then complete.", 0, 0
+	}
+
+	ev, err := state.LoadBuildEvidence(root, recipe.ID)
+	if err != nil {
+		return "evidence", fmt.Sprintf("build-evidence.json is unreadable (%v). Re-record it with `bts check build` and `bts falsifier check --red`.", err), 0, 0
+	}
+	hash, herr := engine.CodeHash(root, recipe.ID)
+	if herr != nil {
+		fmt.Fprintf(os.Stderr, "[bts] warning: code fingerprint: %v (freshness not checked)\n", herr)
+	}
+
+	if reason := engine.CheckSkeletonBuilds(ev, hash, recipe.ID); reason != "" {
+		return "skeleton_builds", reason, 0, 0
+	}
+
+	intro, carr, derr := engine.DomainInvariantKinds(filepath.Join(recipeDir, "domain.md"))
+	if derr != nil {
+		return "domain", fmt.Sprintf("domain.md invariants are unreadable (%v). The build recipe falsifies each invariant in domain.md § 2.", derr), 0, 0
+	}
+	if reason := engine.CheckFalsifiersRed(ev, intro, hash, recipe.ID); reason != "" {
+		return "falsifiers_red", reason, len(intro), len(carr)
+	}
+	if reason := engine.CheckCarriedGreen(ev, carr, hash, recipe.ID); reason != "" {
+		return "carried_green", reason, len(intro), len(carr)
+	}
+
+	// Every In Scope item has a line in final.md saying what holds it, or
+	// which resolved decision changed it (trial problem #103).  Checked
+	// before the review, since adding the section is an edit to review.
+	if issues := engine.CheckScopeCoverage(finalPath); len(issues) > 0 {
+		details := make([]string, 0, len(issues))
+		for i, is := range issues {
+			if i == 5 {
+				details = append(details, fmt.Sprintf("and %d more", len(issues)-5))
+				break
+			}
+			details = append(details, is.Detail)
+		}
+		return "scope_coverage", "Scope coverage: " + strings.Join(details, " "), len(intro), len(carr)
+	}
+
+	if out := buildReviewClean(root, recipe.ID); out != nil {
+		return "build_review_clean", out.Reason, len(intro), len(carr)
+	}
+	return "", "", len(intro), len(carr)
+}
+
+// buildFalsifiersRecorded reports whether falsify's own work is done:
+// every introduced invariant red and every carried one green on the
+// current code.
+func buildFalsifiersRecorded(root string, recipe *state.RecipeState) bool {
+	ev, err := state.LoadBuildEvidence(root, recipe.ID)
+	if err != nil {
+		return false
+	}
+	intro, carr, derr := engine.DomainInvariantKinds(filepath.Join(state.RecipeDir(root, recipe.ID), "domain.md"))
+	if derr != nil || len(intro)+len(carr) == 0 {
+		return false
+	}
+	hash, _ := engine.CodeHash(root, recipe.ID)
+	return engine.CheckFalsifiersRed(ev, intro, hash, recipe.ID) == "" && engine.CheckCarriedGreen(ev, carr, hash, recipe.ID) == ""
+}
+
+// buildTailHint is the next step for a build recipe in phase falsify,
+// which covers steps 8 to 13: falsify, the empirical questions, final.md,
+// its one review and DONE.  Keyed to the phase alone, the hint said "Run
+// /bts-falsify" through all of them, four times on swift-eagle after its
+// falsifiers were recorded, once at SessionStart after a compaction (trial
+// problem #101).
+func buildTailHint(root string, recipe *state.RecipeState) string {
+	if !buildFalsifiersRecorded(root, recipe) {
+		return fmt.Sprintf("Run /bts-falsify %s: one failing test per invariant, recorded with `bts falsifier run`.", recipe.ID)
+	}
+	gate, reason, _, _ := buildSpecGate(root, recipe)
+	switch gate {
+	case "":
+		return fmt.Sprintf("Every build gate holds for %s: output <bts>DONE</bts> (bts-recipe-build step 13).", recipe.ID)
+	case "final_md":
+		return fmt.Sprintf("Falsifiers are recorded for %s. Write final.md (bts-recipe-build step 10), then review it once (step 11).", recipe.ID)
+	default:
+		return fmt.Sprintf("Next for %s (DONE gate %s): %s", recipe.ID, gate, firstSentence(reason))
+	}
+}
+
+// firstSentence cuts a gate message at its first sentence, for a hint.
+func firstSentence(s string) string {
+	if i := strings.Index(s, ". "); i > 0 {
+		s = s[:i+1]
+	}
+	return state.TruncateRunes(s, 300)
+}
+
+// buildUnmutatedInvariants counts the introduced invariants with neither a
+// mutation run nor a no-guard reason: Step 5.2's work still to do.
+func buildUnmutatedInvariants(root string, recipe *state.RecipeState) int {
+	ev, err := state.LoadBuildEvidence(root, recipe.ID)
+	if err != nil {
+		return 0
+	}
+	intro, _, derr := engine.DomainInvariantKinds(filepath.Join(state.RecipeDir(root, recipe.ID), "domain.md"))
+	if derr != nil {
+		return 0
+	}
+	n := 0
+	for _, id := range intro {
+		f := ev.Falsifiers[id]
+		if f == nil || (f.Mutation == nil && strings.TrimSpace(f.NotMutable) == "") {
+			n++
+		}
+	}
+	return n
 }
 
 // buildReviewClean is gate build_review_clean: final.md had one full

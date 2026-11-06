@@ -384,6 +384,13 @@ func reportTemplateResult(res *template.UpdateResult, err error) {
 	}
 }
 
+// interrogateVerified reports whether `bts interrogate verify` has read
+// the adversaries' reports for the current round.
+func interrogateVerified(root, recipeID string) bool {
+	run, err := state.LoadInterrogateRun(root, recipeID)
+	return err == nil && run != nil && strings.TrimSpace(run.VerifiedAt) != ""
+}
+
 // nextStepHint returns a specific next-action hint based on recipe phase and state files.
 // For implementation phases, always guides back to the orchestrator (/bts-implement)
 // to maintain flow continuity, with a description of what step comes next.
@@ -406,6 +413,8 @@ func nextStepHint(root string, recipe *state.RecipeState) string {
 		return fmt.Sprintf("Spec finalized. Run /bts-implement %s to start implementation.", recipe.ID)
 	case recipe.Phase == "skeleton":
 		return fmt.Sprintf("Run /bts-skeleton %s: write the decomposition as code that compiles, then `bts check build`.", recipe.ID)
+	case recipe.Phase == "falsify" && recipe.Type == "build":
+		return buildTailHint(root, recipe)
 	case recipe.Phase == "falsify":
 		return fmt.Sprintf("Run /bts-falsify %s: one failing test per invariant, recorded with `bts falsifier run`.", recipe.ID)
 	case recipe.Type == "build" && !state.IsImplementPhase(recipe.Phase):
@@ -429,17 +438,25 @@ func nextStepHint(root string, recipe *state.RecipeState) string {
 			detail = "continue task implementation"
 		}
 	case "test":
+		// The order of the bts-implement resume table.  The hint used to
+		// skip Step 5.2 and to send an agent to drive the app as soon as
+		// `bts interrogate prepare` had written interrogate.json, before
+		// any adversary reported (trial problem #101).
 		switch {
-		case exists("test-results.json") && exists("prove.json") && exists("review.md"):
-			detail = "sync spec with implementation"
-		case exists("test-results.json") && exists("prove.json"):
-			detail = "run code review"
-		case exists("test-results.json") && exists("interrogate.json"):
-			detail = "drive the app (/bts-prove)"
-		case exists("test-results.json"):
-			detail = "run the prove stage: /bts-interrogate, then /bts-prove"
-		default:
+		case !exists("test-results.json"):
 			detail = "run tests"
+		case recipe.Type == "build" && buildUnmutatedInvariants(root, recipe) > 0:
+			detail = "show each falsifier can fail (Step 5.2): break each introduced invariant's guard and record it with `bts falsifier mutate`"
+		case exists("prove.json") && exists("review.md"):
+			detail = "sync spec with implementation"
+		case exists("prove.json"):
+			detail = "run code review"
+		case interrogateVerified(root, recipe.ID):
+			detail = "drive the app (/bts-prove)"
+		case exists("interrogate.json"):
+			detail = "finish the interrogate round: read each adversary's report and record it with `bts interrogate verify`"
+		default:
+			detail = "run the prove stage: /bts-interrogate, then /bts-prove"
 		}
 	case "review":
 		if exists("review.md") {
