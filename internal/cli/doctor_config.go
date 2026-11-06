@@ -179,6 +179,7 @@ var settingsKeysRead = map[string]bool{
 	"vision.max_roadmap_items":                  true,
 	"vision.min_roadmap_items":                  true,
 	"agents":                                    true, // free-form map of agent → model
+	"statusline":                                true, // template.MergeHookSettings, removeBtsStatusLine
 }
 
 // checkUnreadSettings reports settings.yaml keys nothing consults.

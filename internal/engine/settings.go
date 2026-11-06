@@ -19,6 +19,12 @@ type Settings struct {
 	// finding_batch is still read, into Defend when defend sets none.
 	Simulate legacySimulateSettings `yaml:"simulate"`
 	Verify   VerifySettings         `yaml:"verify"`
+	// Statusline registers bts's own statusLine in the project's
+	// .claude/settings.local.json.  Off by default (jongyoon, 11-06): a
+	// project entry overrides the statusline a person configures in their
+	// own Claude Code settings, and Claude Code customises its statusline
+	// itself now.
+	Statusline bool `yaml:"statusline"`
 }
 
 // ImplementSettings controls the implementation loop's retry limits and

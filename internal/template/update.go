@@ -79,6 +79,7 @@ func update(root, current string, deploy bool) (*UpdateResult, error) {
 	res.note(cleanupLegacyForge(root))
 	res.note(removeRetiredTemplates(root, &res.Warnings))
 	res.note(migrateHookSettings(root))
+	res.note(removeBtsStatusLine(root, &res.Warnings))
 	res.note(pruneDeadSettings(root, &res.Warnings))
 	res.note(moveSimulateFindingBatch(root, &res.Warnings))
 

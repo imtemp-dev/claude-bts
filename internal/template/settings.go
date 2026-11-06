@@ -2,15 +2,78 @@ package template
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/imtemp-dev/claude-bts/internal/engine"
 )
 
-// MergeHookSettings ensures all bts hooks and statusline are registered
-// in .claude/settings.local.json. Uses absolute paths to avoid CWD
-// resolution issues. Fixes stale entries (wrong paths, underscore naming)
-// and adds missing hooks.
+// statuslineEnabled reports whether the project turned bts's statusLine on
+// (`statusline: true` in .bts/config/settings.yaml).  Off by default.
+func statuslineEnabled(root string) bool {
+	s, err := engine.LoadSettings(root)
+	return err == nil && s.Statusline
+}
+
+// isBtsStatusLine reports whether a statusLine entry is the one bts writes:
+// a command running .bts/status_line.sh (or the pre-rename .forge one).
+func isBtsStatusLine(v interface{}) bool {
+	sl, _ := v.(map[string]interface{})
+	cmd, _ := sl["command"].(string)
+	cmd = filepath.ToSlash(strings.TrimSpace(cmd))
+	for _, script := range []string{".bts/status_line.sh", ".forge/status_line.sh"} {
+		if cmd == script || strings.HasSuffix(cmd, "/"+script) {
+			return true
+		}
+	}
+	return false
+}
+
+// dropBtsStatusLine removes bts's own statusLine entry from parsed settings
+// and reports whether it did; any other statusLine stays.
+func dropBtsStatusLine(settings map[string]interface{}) bool {
+	if !isBtsStatusLine(settings["statusLine"]) {
+		return false
+	}
+	delete(settings, "statusLine")
+	return true
+}
+
+// removeBtsStatusLine is the cleanup step that drops bts's statusLine from
+// .claude/settings.local.json when the project has not turned it on.  It
+// runs on every update and session start, so a project mid-recipe, whose
+// template deploy is held, loses it too.
+func removeBtsStatusLine(root string, warnings *[]string) string {
+	if statuslineEnabled(root) {
+		return ""
+	}
+	path := filepath.Join(root, ".claude", "settings.local.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	var settings map[string]interface{}
+	if json.Unmarshal(data, &settings) != nil || !dropBtsStatusLine(settings) {
+		return ""
+	}
+	out, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		*warnings = append(*warnings, fmt.Sprintf("remove bts statusLine: %v", err))
+		return ""
+	}
+	if err := os.WriteFile(path, append(out, '\n'), 0644); err != nil {
+		*warnings = append(*warnings, fmt.Sprintf("remove bts statusLine: %v", err))
+		return ""
+	}
+	return "Removed bts's statusLine from .claude/settings.local.json (statusline is off by default; set statusline: true in .bts/config/settings.yaml to keep it)"
+}
+
+// MergeHookSettings ensures all bts hooks are registered in
+// .claude/settings.local.json, and bts's statusLine only when the project
+// turned it on. Uses absolute paths to avoid CWD resolution issues. Fixes
+// stale entries (wrong paths, underscore naming) and adds missing hooks.
 func MergeHookSettings(projectRoot string) error {
 	absRoot, err := filepath.Abs(projectRoot)
 	if err != nil {
@@ -31,14 +94,20 @@ func MergeHookSettings(projectRoot string) error {
 
 	changed := false
 
-	// StatusLine — use absolute path
-	slPath := filepath.Join(absRoot, ".bts", "status_line.sh")
-	sl, _ := settings["statusLine"].(map[string]interface{})
-	if sl == nil || !isAbsolutePath(sl["command"]) {
-		settings["statusLine"] = map[string]interface{}{
-			"type":    "command",
-			"command": slPath,
+	// StatusLine — only when the project turns it on (statusline: true in
+	// .bts/config/settings.yaml); otherwise an entry bts wrote earlier is
+	// dropped, and a person's own statusLine is left alone.
+	if statuslineEnabled(absRoot) {
+		slPath := filepath.Join(absRoot, ".bts", "status_line.sh")
+		sl, _ := settings["statusLine"].(map[string]interface{})
+		if sl == nil || !isAbsolutePath(sl["command"]) {
+			settings["statusLine"] = map[string]interface{}{
+				"type":    "command",
+				"command": slPath,
+			}
+			changed = true
 		}
+	} else if dropBtsStatusLine(settings) {
 		changed = true
 	}
 

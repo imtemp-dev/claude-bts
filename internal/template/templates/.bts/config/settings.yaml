@@ -178,3 +178,12 @@ agents:
 # session's orchestrator wrote 443K output tokens at xhigh and re-read them on
 # every call), status = low.
 # Unset skills (assess, implement, test, …) inherit the session effort.
+
+# bts's own statusline (recipe, phase, context bar) in Claude Code.  Off by
+# default: it is written as a project statusLine into
+# .claude/settings.local.json, which overrides the statusline you configure
+# in your own Claude Code settings, and Claude Code customises its statusline
+# itself now.  true registers it; with false, an entry bts wrote earlier is
+# removed at the next update or session start (a statusLine of your own is
+# never touched).
+statusline: false
