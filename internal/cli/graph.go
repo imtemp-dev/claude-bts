@@ -25,13 +25,17 @@ func init() {
 // judges specification coverage per path instead of enumerating paths
 // itself (which miscounts on large diagrams).
 var graphPathsCmd = &cobra.Command{
-	Use:   "paths <file>",
+	Use:   "paths <file> | [recipe-id] --doc <file>",
 	Short: "Enumerate mermaid diagram paths, cycles, dead-ends, and orphans in a document",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		data, err := os.ReadFile(args[0])
+		path, err := docArgument(cmd, args)
 		if err != nil {
-			return fmt.Errorf("read %s: %w", args[0], err)
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", path, err)
 		}
 		fmt.Print(engine.AnalyzeMermaidDocument(string(data)))
 		return nil

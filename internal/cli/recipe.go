@@ -781,9 +781,9 @@ var recipeLogCmd = &cobra.Command{
 // focus hints — full re-verification still applies; this only directs
 // extra scrutiny at changed sections and their ripple effects.
 var recipeVerifyFocusCmd = &cobra.Command{
-	Use:   "verify-focus <doc-path>",
+	Use:   "verify-focus <doc-path> | [recipe-id] --doc <doc-path>",
 	Short: "Print changes since the doc's last verified snapshot (focus hints for /bts-verify)",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()
 		root, err := state.FindRoot(cwd)
@@ -791,7 +791,10 @@ var recipeVerifyFocusCmd = &cobra.Command{
 			return fmt.Errorf("not a bts project: %w", err)
 		}
 
-		docPath := args[0]
+		docPath, err := docArgument(cmd, args)
+		if err != nil {
+			return err
+		}
 		recipeID := state.RecipeIDFromDocPath(docPath)
 		if recipeID == "" {
 			fmt.Println("Not a recipe document (no recipes/<id>/ in path) — no focus hints. Full verification only.")
