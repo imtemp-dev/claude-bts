@@ -666,36 +666,41 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 		return out, nil
 	}
 	if recipe.Type == "build" {
-		if out := buildFalsifiersGreen(root, recipe.ID); out != nil {
+		if out := implementGate(root, recipe.ID, "falsifiers_green", buildFalsifiersGreen(root, recipe.ID)); out != nil {
 			return out, nil
 		}
-		if out := buildFalsifiersAbleToFail(root, recipe.ID); out != nil {
+		if out := implementGate(root, recipe.ID, "falsifiers_able_to_fail", buildFalsifiersAbleToFail(root, recipe.ID)); out != nil {
 			return out, nil
 		}
 	}
 	if out := generatedCurrent(root, recipe.ID); out != nil {
 		return out, nil
 	}
-	if out := interrogateClean(root, recipe.ID); out != nil {
+	if out := implementGate(root, recipe.ID, "interrogate_clean", interrogateClean(root, recipe.ID)); out != nil {
 		return out, nil
 	}
-	if out := appProven(root, recipe.ID); out != nil {
+	if out := implementGate(root, recipe.ID, "app_proven", appProven(root, recipe.ID)); out != nil {
 		return out, nil
 	}
 
 	// 3. Check that review has run (review.md exists)
 	reviewPath := filepath.Join(state.RecipeDir(root, recipe.ID), "review.md")
 	if _, err := os.Stat(reviewPath); os.IsNotExist(err) {
-		return blockOutput(fmt.Sprintf("No review.md found. Run %s to complete review.", implCmd)), nil
-	}
-	if out := reviewCriticalsProven(reviewPath); out != nil {
+		if out := implementGate(root, recipe.ID, "review_before_done",
+			blockOutput(fmt.Sprintf("No review.md found. Run %s to complete review.", implCmd))); out != nil {
+			return out, nil
+		}
+	} else if out := reviewCriticalsProven(reviewPath); out != nil {
 		return out, nil
 	}
 
 	// 4. Check that sync has run (deviation.md exists)
 	deviationPath := filepath.Join(state.RecipeDir(root, recipe.ID), "deviation.md")
 	if _, err := os.Stat(deviationPath); os.IsNotExist(err) {
-		return blockOutput(fmt.Sprintf("No deviation.md found. Run %s to sync spec with code.", implCmd)), nil
+		if out := implementGate(root, recipe.ID, "sync_after_test",
+			blockOutput(fmt.Sprintf("No deviation.md found. Run %s to sync spec with code.", implCmd))); out != nil {
+			return out, nil
+		}
 	}
 	// deviation.md content is a REPORT, not a gate.
 	// Deviations and not-implemented items become follow-up work,
@@ -983,6 +988,17 @@ func overrideFooter(recipeID, gate, doc string) string {
 	if !engine.IsOverridableGate(gate) {
 		return ""
 	}
+	if engine.GatePinsCode(gate) {
+		// On cool-crow the user said to finish without the remaining
+		// steps, and with no recorded way the session cancelled a finished
+		// recipe (trial problem #125).
+		return fmt.Sprintf(
+			"If the user decides to finish without this step, record that rather than working around it:\n"+
+				"  bts recipe override grant %s --gate %s --no-findings --reason \"<the user's decision>\"\n"+
+				"It is pinned to the code as it is now, and the recipe reports as overridden in status, doctor "+
+				"and stats.  Do not cancel a finished recipe or move its phase by hand.",
+			recipeID, gate)
+	}
 	selector := "--no-findings"
 	if engine.GateExcusesFindings(gate) {
 		selector = "--finding <F-...>"
@@ -998,6 +1014,26 @@ func overrideFooter(recipeID, gate, doc string) string {
 			"The recipe then reports as overridden in status, doctor and stats — which an "+
 			"undocumented bypass does not.",
 		recipeID, gate, docArg, selector)
+}
+
+// implementGate applies a recorded override to an implement gate's block.
+// With one in force on the code as it is now, the gate is passed and says
+// so; without one, the block names how the user's decision to finish
+// without the step is recorded (trial problem #125).
+func implementGate(root, recipeID, gate string, out *HookOutput) *HookOutput {
+	if out == nil || out.Decision != "block" {
+		return out
+	}
+	if hash, err := state.RecipeImplHash(root, recipeID); err == nil && hash != "" {
+		if ok, note := overrideAllows(root, recipeID, gate, state.CodeDoc, hash); ok {
+			fmt.Fprintf(os.Stderr, "[bts] %s\n", note)
+			return nil
+		}
+	}
+	if footer := overrideFooter(recipeID, gate, ""); footer != "" {
+		out.Reason += "\n" + footer
+	}
+	return out
 }
 
 func overrideAllows(root, recipeID, gate, docBase, docHash string) (bool, string) {

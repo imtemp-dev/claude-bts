@@ -642,3 +642,24 @@ When all steps are done:
 If unresolved blocked tasks remain:
 - Report which tasks are blocked and why
 - Ask user for guidance
+
+### When the user decides to finish early
+
+The user may decide to finish without a step that is left: the interrogate
+round, the drive, the review or sync, or a falsifier or mutation rerun.  Do
+not cancel the recipe, and do not move its phase with `bts recipe log
+--phase`: a cancelled recipe reads as abandoned, and a hand-moved phase
+hides which steps never ran.  For each gate the decision leaves unmet,
+record it, in the project's record language:
+
+```bash
+bts recipe override grant {id} --gate <gate> --no-findings --reason "<the user's decision>"
+```
+
+The gates are `falsifiers_green`, `falsifiers_able_to_fail`,
+`interrogate_clean`, `app_proven`, `review_before_done` and
+`sync_after_test`; each IMPLEMENT DONE block names its gate and the
+command.  An override is pinned to the code as it is now, so a later code
+change makes it stale.  Then output `<bts>IMPLEMENT DONE</bts>`, and say
+in the completion summary which steps were skipped and why.  The tests,
+generated files and the records' own consistency cannot be overridden.

@@ -51,6 +51,11 @@ type OverrideRecord struct {
 	Revoked bool `json:"revoked,omitempty"`
 }
 
+// CodeDoc is the document an override of an implement gate names: it is
+// pinned to the recipe's code fingerprint (RecipeImplHash), not to a
+// file's text, and goes stale when the code changes (trial problem #125).
+const CodeDoc = "(code)"
+
 // OverridesPath returns the override ledger path for a recipe. It lives
 // under specs/ rather than local/ because an override is part of the
 // spec's provenance — it must travel with the branch, not sit in a
@@ -214,6 +219,12 @@ func CurrentDocHashes(root, recipeID string, records []OverrideRecord) map[strin
 	out := map[string]string{}
 	for _, r := range records {
 		if r.Doc == "" || out[r.Doc] != "" {
+			continue
+		}
+		if r.Doc == CodeDoc {
+			if h, err := RecipeImplHash(root, recipeID); err == nil && h != "" {
+				out[CodeDoc] = h
+			}
 			continue
 		}
 		if h, ok, err := FileContentHash(filepath.Join(RecipeDir(root, recipeID), r.Doc)); err == nil && ok {

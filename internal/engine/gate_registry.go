@@ -327,7 +327,35 @@ var overridableGates = map[string]bool{
 	// named yet belongs in Known Uncertainties — but that is the
 	// operator's call to record, not a wall.
 	"falsifier_assigned": true,
+	// The implement gates a user may decide to finish without: on
+	// cool-crow the user said to close a recipe whose implementation was
+	// complete and tests green, without the interrogate round or the
+	// drive, and with none of these overridable the session cancelled a
+	// finished recipe (trial problem #125).  They are about the code, so
+	// a grant is pinned to its fingerprint (codePinnedGates).  The tests,
+	// generated files and the records' own consistency stay hard.
+	"falsifiers_green":        true,
+	"falsifiers_able_to_fail": true,
+	"interrogate_clean":       true,
+	"app_proven":              true,
+	"review_before_done":      true,
+	"sync_after_test":         true,
 }
+
+// codePinnedGates are the overridable gates whose subject is the recipe's
+// code rather than a document: an override is pinned to the code's
+// fingerprint and goes stale when the code changes.
+var codePinnedGates = map[string]bool{
+	"falsifiers_green":        true,
+	"falsifiers_able_to_fail": true,
+	"interrogate_clean":       true,
+	"app_proven":              true,
+	"review_before_done":      true,
+	"sync_after_test":         true,
+}
+
+// GatePinsCode reports whether an override of gate is pinned to the code.
+func GatePinsCode(gate string) bool { return codePinnedGates[gate] }
 
 // IsOverridableGate reports whether gate accepts an override record.
 func IsOverridableGate(gate string) bool { return overridableGates[gate] }
@@ -365,7 +393,7 @@ var recipeScopedGates = map[string]bool{}
 // a permanent project-wide bypass filed under the command whose whole
 // purpose is to keep bypasses narrow.
 func GateIsDocumentScoped(gate string) bool {
-	return overridableGates[gate] && !recipeScopedGates[gate]
+	return overridableGates[gate] && !recipeScopedGates[gate] && !codePinnedGates[gate]
 }
 
 // OverridableGates returns the registry entries an override may name.

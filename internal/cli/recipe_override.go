@@ -59,7 +59,16 @@ This makes that bypass explicit and narrow:
 An override names ONE gate, enumerates the findings it excuses, and pins the
 revision it was granted on — edit the document and it goes stale, because the
 judgement was about that text. It lives in tracked state and shows up in
-status, doctor and stats for the life of the recipe.`,
+status, doctor and stats for the life of the recipe.
+
+The implement gates (falsifiers_green, falsifiers_able_to_fail,
+interrogate_clean, app_proven, review_before_done, sync_after_test) are
+about the code, for a user who decides to finish without that step: their
+override takes no --doc, is pinned to the code as it is now, and goes
+stale when the code changes.
+
+  bts recipe override grant <id> --gate interrogate_clean --no-findings \
+      --reason "the user decided to finish without the interrogate round"`,
 }
 
 var recipeOverrideGrantCmd = &cobra.Command{
@@ -89,6 +98,22 @@ var recipeOverrideGrantCmd = &cobra.Command{
 			return fmt.Errorf("name the findings this override excuses with --finding, or pass --no-findings if the gate is not about findings.\n" +
 				"An override without an enumerated set is a blanket pass, which is the thing this command exists to prevent")
 		}
+		// An implement gate is about the code, so its override is pinned to
+		// the code's fingerprint and goes stale when the code changes
+		// (trial problem #125).
+		var codeHash string
+		if engine.GatePinsCode(gate) {
+			if doc != "" {
+				return fmt.Errorf("%s is about the code, not a document: drop --doc.  The override is pinned to the code as it is now, "+
+					"and a change to the code makes it stale", gate)
+			}
+			h, herr := state.RecipeImplHash(root, recipeID)
+			if herr != nil || h == "" {
+				return fmt.Errorf("could not fingerprint the recipe's code to pin this override (%v); "+
+					"an override that is not pinned keeps applying after the code changes", herr)
+			}
+			codeHash = h
+		}
 		if engine.GateIsDocumentScoped(gate) && doc == "" {
 			return fmt.Errorf("--doc is required for %s: it is a judgement about one document's text.\n"+
 				"Without it the record matches every document at every revision and never goes stale, "+
@@ -99,6 +124,9 @@ var recipeOverrideGrantCmd = &cobra.Command{
 			Gate:     gate,
 			Reason:   reason,
 			Findings: findings,
+		}
+		if codeHash != "" {
+			rec.Doc, rec.DocHash = state.CodeDoc, codeHash
 		}
 		if doc != "" {
 			rec.Doc = filepath.Base(doc)
@@ -153,9 +181,12 @@ var recipeOverrideGrantCmd = &cobra.Command{
 			fmt.Printf(" excusing %d finding(s)", len(findings))
 		}
 		fmt.Println()
-		if rec.DocHash == "" {
+		switch {
+		case rec.Doc == state.CodeDoc:
+			fmt.Println("  Pinned to the code as it is now. Changing the code makes it stale.")
+		case rec.DocHash == "":
 			fmt.Println("  NOT pinned to a revision — it will keep applying after the document changes.")
-		} else {
+		default:
 			fmt.Println("  Pinned to the current revision. Editing the document makes it stale.")
 		}
 		fmt.Printf("  This recipe now reports as overridden in `bts recipe status`, `bts doctor` and `bts stats`.\n")

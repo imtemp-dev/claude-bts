@@ -24,7 +24,12 @@ import (
 func runQuiet(t *testing.T, cmd *cobra.Command, args ...string) error {
 	t.Helper()
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
-		_ = f.Value.Set(f.DefValue)
+		// A slice flag appends on Set, so it is emptied instead.
+		if sv, ok := f.Value.(interface{ Replace([]string) error }); ok {
+			_ = sv.Replace(nil)
+		} else {
+			_ = f.Value.Set(f.DefValue)
+		}
 		f.Changed = false
 	})
 	saved := os.Stdout
