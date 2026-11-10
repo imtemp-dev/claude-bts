@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -63,11 +64,14 @@ var falsifierMutateCmd = &cobra.Command{
 		switch {
 		case rerun:
 			results, err := executeMutateRerun(root, id, timeout, os.Stdout)
-			if err != nil {
+			var notRerun *notRerunError
+			if err != nil && !errors.As(err, &notRerun) {
 				return err
 			}
 			bad := 0
-			fmt.Println("\n[bts] mutations, rerun on the current code:")
+			if len(results) > 0 {
+				fmt.Println("\n[bts] mutations, rerun on the current code:")
+			}
 			for _, inv := range sortedMutationKeys(results) {
 				r := results[inv]
 				mark := "killed"
@@ -79,6 +83,11 @@ var falsifierMutateCmd = &cobra.Command{
 			}
 			if bad > 0 {
 				fmt.Printf("[bts] %d of %d falsifiers did not fail with their guard broken\n", bad, len(results))
+			}
+			if notRerun != nil {
+				return notRerun
+			}
+			if bad > 0 {
 				os.Exit(1)
 			}
 			return nil
@@ -186,6 +195,12 @@ func executeMutateRerun(root, recipeID string, timeoutSec int, sink io.Writer) (
 	}
 	results := map[string]*state.MutationRun{}
 	var order []string
+	// A stored patch stops applying when the code it broke changes, which
+	// is what the rerun is for.  One that cannot run is set aside, and the
+	// rest still run and are recorded: on cool-crow the first stale patch
+	// ended the rerun and seven finished reruns were lost (trial problem
+	// #127).
+	notRerun := map[string]string{}
 	for _, inv := range engine.FalsifierIDs(ev) {
 		f := ev.Falsifiers[inv]
 		if f == nil || f.Mutation == nil || f.NotMutable != "" {
@@ -194,18 +209,24 @@ func executeMutateRerun(root, recipeID string, timeoutSec int, sink io.Writer) (
 		prev := f.Mutation
 		patch, err := os.ReadFile(filepath.Join(state.RecipeDir(root, recipeID), filepath.FromSlash(prev.Patch)))
 		if err != nil {
-			return nil, fmt.Errorf("%s: read stored patch: %w", inv, err)
+			notRerun[inv] = "read stored patch: " + err.Error()
+			continue
 		}
 		fmt.Fprintf(sink, "\n[bts] %s: %s (patch %s)\n", inv, f.Command, prev.Patch)
 		m, err := runMutation(root, recipeID, inv, f.Command, patch, prev.Patch, prev.Files, prev.Expect, prev.Setup, timeoutSec, sink)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", inv, err)
+			fmt.Fprintf(sink, "[bts] %s not rerun: %v\n", inv, err)
+			notRerun[inv] = err.Error()
+			continue
 		}
 		results[inv] = m
 		order = append(order, inv)
 	}
-	if len(results) == 0 {
+	if len(results) == 0 && len(notRerun) == 0 {
 		return nil, fmt.Errorf("no mutations recorded; record each with `bts falsifier mutate %s --inv <id> --patch <file> --expect \"<test id>\"`", recipeID)
+	}
+	if len(results) == 0 {
+		return nil, &notRerunError{recipeID: recipeID, reasons: notRerun}
 	}
 	// Read again after the runs (trial problem #117): a falsifier recorded
 	// anew, given another patch or marked not mutable meanwhile keeps what
@@ -236,8 +257,43 @@ func executeMutateRerun(root, recipeID string, timeoutSec int, sink io.Writer) (
 		}
 	}
 	hash, _ := engine.CodeHash(root, recipeID)
-	appendEvidenceChangelog(root, recipeID, "mutate", fmt.Sprintf("rerun: %d of %d killed", killed, len(results)), hash)
+	summary := fmt.Sprintf("rerun: %d of %d killed", killed, len(results))
+	if len(notRerun) > 0 {
+		summary += fmt.Sprintf("; not rerun: %s", strings.Join(sortedReasonKeys(notRerun), ", "))
+	}
+	appendEvidenceChangelog(root, recipeID, "mutate", summary, hash)
+	if len(notRerun) > 0 {
+		return results, &notRerunError{recipeID: recipeID, reasons: notRerun}
+	}
 	return results, nil
+}
+
+// notRerunError names the mutations a rerun could not run, each with why.
+// The reruns that did run are recorded and returned beside it.
+type notRerunError struct {
+	recipeID string
+	reasons  map[string]string
+}
+
+func (e *notRerunError) Error() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d stored mutation(s) could not be rerun on the current code; the reruns that ran are recorded:", len(e.reasons))
+	for _, inv := range sortedReasonKeys(e.reasons) {
+		fmt.Fprintf(&b, "\n  %s: %s", inv, e.reasons[inv])
+	}
+	fmt.Fprintf(&b, "\nFor each, break its guard again in a new patch against the current code: "+
+		"`bts falsifier mutate %s --inv <id> --patch <file> --expect \"<its test id>\"`, "+
+		"or record `--not-mutable \"<reason>\"` if the guard is gone.", e.recipeID)
+	return b.String()
+}
+
+func sortedReasonKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // loadFalsifierFor returns the recorded falsifier of an invariant declared
