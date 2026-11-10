@@ -59,6 +59,7 @@ A worker that dies is replaced by a new session running `bts recipe claim <id>`.
 ## As built (slices 2 and 3)
 
 - `recipe.json` has `owner_session`; `bts recipe status` shows it.  The PostToolUse hook binds it after a successful `bts recipe create` (only while the recipe has no owner) or `bts recipe claim <id>` (always), and logs the changelog action `claim`.
+- Since trial problem #124, PostToolUseFailure binds too, reading the created recipe's id from `error`.  A compound call can fail after its create succeeded: on cool-crow a `sed` after `bts recipe create` failed, and r-005 never got an owner.  The request the CLI run leaves still decides, so a failed call that ran no bts binds nothing.
 - Another session gets: Stop allows, and a tagged marker is refused once with the owner named; no PreToolUse breadcrumbs, budget or spec-phase warnings, but a warning naming the owner and `bts recipe claim` when it writes one of the recipe's files (#56); SessionStart says the recipe is worked by another session; PreCompact and SessionEnd do nothing; tool and subagent events are `observer: true` with no `recipe_id`, so they stay out of the recipe's metrics.
 - Checked end to end with two Claude Code sessions in a project initialised by this build: the creating session became the owner (`claim` logged); the second session's events were observers, its `<bts>DONE</bts>` was refused with the owner named, and the recipe's phase did not move.
 

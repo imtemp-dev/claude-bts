@@ -45,6 +45,12 @@ func (h *postToolUseFailureHandler) EventType() EventType {
 var exitCodeRe = regexp.MustCompile(`^Exit code (\d+)`)
 
 func (h *postToolUseFailureHandler) Handle(input *HookInput) (*HookOutput, error) {
+	// A create or claim can succeed in a call that fails afterwards: on
+	// cool-crow a `sed` after `bts recipe create` failed, and r-005 never
+	// got an owner (trial problem #124).
+	if root, err := input.ProjectRoot(); err == nil {
+		bindOwnership(root, input)
+	}
 	var code *int
 	if m := exitCodeRe.FindStringSubmatch(input.Error); m != nil {
 		if n, err := strconv.Atoi(m[1]); err == nil {

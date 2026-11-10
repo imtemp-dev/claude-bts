@@ -14,9 +14,12 @@ import (
 
 // A recipe belongs to one Claude Code session (docs/research/
 // session-ownership-design.md). The session id reaches bts only through
-// hook input, so ownership is bound here, from the successful Bash call
-// that ran `bts recipe create` or `bts recipe claim <id>`. A session id
-// survives /compact and --resume; --fork-session starts a new one.
+// hook input, so ownership is bound here, from the Bash call that ran
+// `bts recipe create` or `bts recipe claim <id>`: from PostToolUse, and
+// from PostToolUseFailure, since a compound call can fail after the create
+// succeeded (trial problem #124).  The request the CLI run leaves is what
+// proves it ran. A session id survives /compact and --resume;
+// --fork-session starts a new one.
 
 // ownerRequestMaxAge bounds how long a create or claim request waits for
 // the hook of the Bash call that ran it.
@@ -45,8 +48,13 @@ func bindOwnership(root string, input *HookInput) {
 		state.TakeOwnerRequest(root, m[1], "claim", ownerRequestMaxAge) {
 		id, claim = m[1], true
 	} else if recipeCreateRe.MatchString(cmd) {
-		stdout, _ := input.ToolResponse["stdout"].(string)
-		for _, cand := range recipeIDRe.FindAllString(stdout, -1) {
+		out, _ := input.ToolResponse["stdout"].(string)
+		if out == "" {
+			// A call that failed after the create carries its output in
+			// error, not tool_response (trial problem #124).
+			out = input.Error
+		}
+		for _, cand := range recipeIDRe.FindAllString(out, -1) {
 			if r, err := state.LoadRecipeState(root, cand); err == nil && r.OwnerSession == "" &&
 				state.TakeOwnerRequest(root, cand, "create", ownerRequestMaxAge) {
 				id = cand
