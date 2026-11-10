@@ -18,7 +18,8 @@ import (
 // --doc" (trial problem #119).  The first two now take it too.
 func init() {
 	for _, c := range []*cobra.Command{recipeVerifyFocusCmd, graphPathsCmd} {
-		c.Flags().String("doc", "", "The document, as `bts recipe findings carry-forward` takes it; with a recipe id, a bare file name is that recipe's document")
+		// pflag shows a back-quoted word as the value's name.
+		c.Flags().String("doc", "", "The `doc-path`, as bts recipe findings carry-forward takes it; with a recipe id, a bare file name is that recipe's document")
 	}
 }
 

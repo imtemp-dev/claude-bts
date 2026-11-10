@@ -73,3 +73,13 @@ func TestDocArgument_VerifyFocusAndGraphPathsTakeTheCarryForwardForm(t *testing.
 		t.Errorf("the document given twice must be refused; got %v", err)
 	}
 }
+
+// pflag reads a back-quoted word in a flag's usage as its value's name,
+// so the help showed `--doc bts recipe findings carry-forward`.
+func TestDocArgument_HelpNamesTheDocPath(t *testing.T) {
+	for _, c := range []*cobra.Command{recipeVerifyFocusCmd, graphPathsCmd} {
+		if name, _ := pflag.UnquoteUsage(c.Flags().Lookup("doc")); name != "doc-path" {
+			t.Errorf("%s --doc shows its value as %q, want doc-path", c.Name(), name)
+		}
+	}
+}
