@@ -96,9 +96,9 @@ func executeFalsifierRepoint(root, recipeID, inv, cmdStr, expect string, timeout
 	if f == nil || f.Command == "" {
 		return nil, fmt.Errorf("no falsifier recorded for %s: record it with `bts falsifier run %s --inv %s --cmd \"<test command>\"`", inv, recipeID, inv)
 	}
-	slot, prev := &f.Red, f.Red
-	if f.Green != nil {
-		slot, prev = &f.Green, f.Green
+	oldCmd, prev, wasGreen := f.Command, f.Red, f.Green != nil
+	if wasGreen {
+		prev = f.Green
 	}
 	if prev == nil {
 		return nil, fmt.Errorf("%s has no recorded run to compare with: run `bts falsifier check %s` first", inv, recipeID)
@@ -118,12 +118,25 @@ func executeFalsifierRepoint(root, recipeID, inv, cmdStr, expect string, timeout
 		}
 		return nil, fmt.Errorf("%s: the new command must %s (exit %d); nothing was changed", inv, want, run.ExitCode)
 	}
-	f.Command = cmdStr
-	*slot = run
-	if f.Mutation != nil {
-		f.Mutation.Expect = expect
-	}
-	if err := state.SaveBuildEvidence(root, recipeID, ev); err != nil {
+	// Read again after the run (trial problem #117): a falsifier recorded
+	// anew meanwhile is not the one this run was compared with.
+	err = state.UpdateBuildEvidence(root, recipeID, func(ev *state.BuildEvidence) error {
+		f := ev.Falsifiers[inv]
+		if f == nil || f.Command != oldCmd || (f.Green != nil) != wasGreen {
+			return fmt.Errorf("%s's falsifier was recorded again while the new command ran; nothing was changed", inv)
+		}
+		f.Command = cmdStr
+		if wasGreen {
+			f.Green = run
+		} else {
+			f.Red = run
+		}
+		if f.Mutation != nil {
+			f.Mutation.Expect = expect
+		}
+		return nil
+	})
+	if err != nil {
 		return nil, fmt.Errorf("save build evidence: %w", err)
 	}
 	appendEvidenceChangelog(root, recipeID, "falsify", fmt.Sprintf("%s repointed exit=%d", inv, run.ExitCode), run.CodeHash)
@@ -383,7 +396,6 @@ func executeFalsifierCheck(root, recipeID string, red bool, timeoutSec int, sink
 	// so under --red its rerun is still its green run (trial problem #41).
 	carried := carriedInvariants(root, recipeID)
 	results := map[string]*state.CommandRun{}
-	passed := 0
 	for _, id := range engine.FalsifierIDs(ev) {
 		f := ev.Falsifiers[id]
 		fmt.Fprintf(sink, "\n[bts] %s: %s\n", id, f.Command)
@@ -391,18 +403,39 @@ func executeFalsifierCheck(root, recipeID string, red bool, timeoutSec int, sink
 		if err != nil {
 			return nil, err
 		}
-		if red && !carried[id] {
-			f.Red = run
-		} else {
-			f.Green = run
-		}
 		results[id] = run
+	}
+	// Every falsifier can take minutes, so the evidence is read again and
+	// what another command recorded meanwhile is kept (trial problem #117).
+	// A falsifier recorded anew with another command keeps its own run.
+	var replaced []string
+	err = state.UpdateBuildEvidence(root, recipeID, func(ev *state.BuildEvidence) error {
+		for _, id := range sortedKeys(results) {
+			f := ev.Falsifiers[id]
+			if f == nil || f.Command != results[id].Command {
+				replaced = append(replaced, id)
+				delete(results, id)
+				continue
+			}
+			if red && !carried[id] {
+				f.Red = results[id]
+			} else {
+				f.Green = results[id]
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("save build evidence: %w", err)
+	}
+	if len(replaced) > 0 {
+		fmt.Fprintf(sink, "\n[bts] %s recorded again while the check ran; the runs here were not recorded\n", strings.Join(replaced, ", "))
+	}
+	passed := 0
+	for _, run := range results {
 		if run.Passed() {
 			passed++
 		}
-	}
-	if err := state.SaveBuildEvidence(root, recipeID, ev); err != nil {
-		return nil, fmt.Errorf("save build evidence: %w", err)
 	}
 	want := "green"
 	if red {

@@ -115,7 +115,7 @@ var (
 )
 
 func executeFalsifierMutate(root, recipeID string, o mutateOptions, sink io.Writer) (*state.MutationRun, error) {
-	f, ev, err := loadFalsifierFor(root, recipeID, o.Inv)
+	f, _, err := loadFalsifierFor(root, recipeID, o.Inv)
 	if err != nil {
 		return nil, err
 	}
@@ -144,9 +144,17 @@ func executeFalsifierMutate(root, recipeID string, o mutateOptions, sink io.Writ
 	if err != nil {
 		return nil, err
 	}
-	f.Mutation = m
-	f.NotMutable = ""
-	if err := state.SaveBuildEvidence(root, recipeID, ev); err != nil {
+	// Read again after the run, so what another command recorded meanwhile
+	// is kept (trial problem #117).
+	err = state.UpdateBuildEvidence(root, recipeID, func(ev *state.BuildEvidence) error {
+		g := ev.Falsifiers[o.Inv]
+		if g == nil || g.Command != f.Command {
+			return fmt.Errorf("%s's falsifier was recorded again while the mutation ran; run the mutation again", o.Inv)
+		}
+		g.Mutation, g.NotMutable = m, ""
+		return nil
+	})
+	if err != nil {
 		return nil, fmt.Errorf("save build evidence: %w", err)
 	}
 	appendEvidenceChangelog(root, recipeID, "mutate", mutationSummary(o.Inv, m), m.BaseHash)
@@ -177,6 +185,7 @@ func executeMutateRerun(root, recipeID string, timeoutSec int, sink io.Writer) (
 		return nil, fmt.Errorf("load build evidence: %w", err)
 	}
 	results := map[string]*state.MutationRun{}
+	var order []string
 	for _, inv := range engine.FalsifierIDs(ev) {
 		f := ev.Falsifiers[inv]
 		if f == nil || f.Mutation == nil || f.NotMutable != "" {
@@ -192,14 +201,33 @@ func executeMutateRerun(root, recipeID string, timeoutSec int, sink io.Writer) (
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", inv, err)
 		}
-		f.Mutation = m
 		results[inv] = m
+		order = append(order, inv)
 	}
 	if len(results) == 0 {
 		return nil, fmt.Errorf("no mutations recorded; record each with `bts falsifier mutate %s --inv <id> --patch <file> --expect \"<test id>\"`", recipeID)
 	}
-	if err := state.SaveBuildEvidence(root, recipeID, ev); err != nil {
+	// Read again after the runs (trial problem #117): a falsifier recorded
+	// anew, given another patch or marked not mutable meanwhile keeps what
+	// it has now.
+	var changed []string
+	err = state.UpdateBuildEvidence(root, recipeID, func(ev *state.BuildEvidence) error {
+		for _, inv := range order {
+			m, f := results[inv], ev.Falsifiers[inv]
+			if f == nil || f.Command != m.Command || f.Mutation == nil || f.Mutation.Patch != m.Patch || f.NotMutable != "" {
+				changed = append(changed, inv)
+				delete(results, inv)
+				continue
+			}
+			f.Mutation = m
+		}
+		return nil
+	})
+	if err != nil {
 		return nil, fmt.Errorf("save build evidence: %w", err)
+	}
+	if len(changed) > 0 {
+		fmt.Fprintf(sink, "\n[bts] %s recorded again while the mutations ran; the runs here were not recorded\n", strings.Join(changed, ", "))
 	}
 	killed := 0
 	for _, m := range results {

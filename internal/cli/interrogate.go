@@ -271,9 +271,25 @@ func executeInterrogatePin(root, recipeID string, o pinOptions, sink io.Writer) 
 	if err := os.WriteFile(filepath.Join(state.RecipeDir(root, recipeID), filepath.FromSlash(rel)), patch, 0644); err != nil {
 		return nil, fmt.Errorf("store the revert patch: %w", err)
 	}
-	f.Status, f.Recheck = state.InterrogateFixed, cr
-	f.Pin = &state.InterrogatePin{Command: o.Command, Expect: o.Expect, Revert: m}
-	if err := state.SaveInterrogateRun(root, recipeID, run); err != nil {
+	// Read again after the runs (trial problem #117): what another command
+	// recorded meanwhile is kept, and a finding waived or pinned meanwhile
+	// is no longer the one this pin was checked against.
+	findingID := f.ID
+	err = state.UpdateInterrogateRun(root, recipeID, func(cur *state.InterrogateRun) error {
+		f = nil
+		for _, cand := range cur.Findings {
+			if cand.ID == findingID {
+				f = cand
+			}
+		}
+		if f == nil || f.Status != state.InterrogateReproduced {
+			return fmt.Errorf("%s changed while its pin ran; nothing was recorded", findingID)
+		}
+		f.Status, f.Recheck = state.InterrogateFixed, cr
+		f.Pin = &state.InterrogatePin{Command: o.Command, Expect: o.Expect, Revert: m}
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 	appendEvidenceChangelog(root, recipeID, "interrogate", fmt.Sprintf("pinned %s by %s (fix reverted: exit=%d)", f.ID, o.Command, m.ExitCode), cr.CodeHash)
@@ -436,7 +452,9 @@ func executeInterrogateVerify(root, recipeID string, timeoutSec int, sink io.Wri
 		seats = append(seats, a)
 		reports = append(reports, &rep)
 	}
-	n := len(run.Findings)
+	before := len(run.Findings)
+	n := before
+	var found []*state.InterrogateFinding
 	for i, rep := range reports {
 		adv := seats[i]
 		for _, r := range rep.Findings {
@@ -445,7 +463,7 @@ func executeInterrogateVerify(root, recipeID string, timeoutSec int, sink io.Wri
 				ID: fmt.Sprintf("F-%03d", n), Adversary: adv.Name, Title: r.Title,
 				Command: strings.TrimSpace(r.Command), Expected: r.Expected, Observed: r.Observed,
 			}
-			run.Findings = append(run.Findings, f)
+			found = append(found, f)
 			if f.Command == "" {
 				f.Status, f.DropReason = state.InterrogateDropped, "no command to rerun"
 				continue
@@ -470,8 +488,19 @@ func executeInterrogateVerify(root, recipeID string, timeoutSec int, sink io.Wri
 			}
 		}
 	}
-	run.VerifiedAt = time.Now().UTC().Format(time.RFC3339)
-	if err := state.SaveInterrogateRun(root, recipeID, run); err != nil {
+	// The reruns can take minutes, so interrogate.json is read again and a
+	// waiver or pin recorded meanwhile is kept (trial problem #117).
+	round := run.CurrentRound()
+	err = state.UpdateInterrogateRun(root, recipeID, func(cur *state.InterrogateRun) error {
+		if cur.VerifiedAt != "" || cur.CurrentRound() != round || len(cur.Findings) != before {
+			return fmt.Errorf("round %d was verified or rescoped while this verify ran; nothing was recorded", round)
+		}
+		cur.Findings = append(cur.Findings, found...)
+		cur.VerifiedAt = time.Now().UTC().Format(time.RFC3339)
+		run = cur
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 	for _, a := range seats {
@@ -491,7 +520,8 @@ func executeInterrogateRecheck(root, recipeID string, timeoutSec int, sink io.Wr
 	if run == nil || run.VerifiedAt == "" {
 		return nil, fmt.Errorf("no verified interrogate run to recheck; run `bts interrogate verify %s` first", recipeID)
 	}
-	fixed, open := 0, 0
+	reruns := map[string]*state.CommandRun{}
+	ranPin := map[string]string{} // the pinned test a rerun ran; none for a repro
 	for _, f := range run.Findings {
 		if f.Status != state.InterrogateReproduced && f.Status != state.InterrogateFixed {
 			continue
@@ -513,17 +543,46 @@ func executeInterrogateRecheck(root, recipeID string, timeoutSec int, sink io.Wr
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", f.ID, err)
 		}
-		f.Recheck = cr
-		if cr.Passed() {
-			f.Status = state.InterrogateFixed
-			fixed++
-		} else {
-			f.Status = state.InterrogateReproduced
-			open++
+		reruns[f.ID] = cr
+		if f.Pin != nil {
+			ranPin[f.ID] = f.Pin.Command
 		}
 	}
-	if err := state.SaveInterrogateRun(root, recipeID, run); err != nil {
+	// The reruns can take minutes, so interrogate.json is read again (trial
+	// problem #117): a finding waived or pinned meanwhile keeps what it has.
+	fixed, open := 0, 0
+	var changed []string
+	err = state.UpdateInterrogateRun(root, recipeID, func(cur *state.InterrogateRun) error {
+		for _, f := range cur.Findings {
+			cr, ok := reruns[f.ID]
+			if !ok {
+				continue
+			}
+			pin := ""
+			if f.Pin != nil {
+				pin = f.Pin.Command
+			}
+			if (f.Status != state.InterrogateReproduced && f.Status != state.InterrogateFixed) || pin != ranPin[f.ID] {
+				changed = append(changed, f.ID)
+				continue
+			}
+			f.Recheck = cr
+			if cr.Passed() {
+				f.Status = state.InterrogateFixed
+				fixed++
+			} else {
+				f.Status = state.InterrogateReproduced
+				open++
+			}
+		}
+		run = cur
+		return nil
+	})
+	if err != nil {
 		return nil, err
+	}
+	if len(changed) > 0 {
+		fmt.Fprintf(sink, "\n[bts] %s waived or pinned while the recheck ran; the reruns here were not recorded\n", strings.Join(changed, ", "))
 	}
 	hash, _ := engine.CodeHash(root, recipeID)
 	appendEvidenceChangelog(root, recipeID, "interrogate", fmt.Sprintf("recheck: %d fixed, %d open", fixed, open), hash)

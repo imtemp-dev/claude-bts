@@ -244,8 +244,7 @@ func executeProveRun(root, recipeID, journey, cmdStr string, evidence []string, 
 	if err != nil {
 		return nil, err
 	}
-	j := rec.Journeys[journey]
-	if j == nil {
+	if rec.Journeys[journey] == nil {
 		return nil, fmt.Errorf("%s is not a planned journey; plan it first with `bts prove plan %s --journey %s`", journey, recipeID, journey)
 	}
 	if strings.TrimSpace(verdict) == "" {
@@ -261,8 +260,7 @@ func executeProveRun(root, recipeID, journey, cmdStr string, evidence []string, 
 	if err != nil {
 		return nil, err
 	}
-	j.Verdict = verdict
-	j.Checks, j.ChecksFailed, j.VerdictError = readVerdict(filepath.Join(root, verdict), started)
+	checks, failed, verdictErr := readVerdict(filepath.Join(root, verdict), started)
 	var missing []string
 	for _, e := range evidence {
 		info, serr := os.Stat(filepath.Join(root, e))
@@ -270,8 +268,20 @@ func executeProveRun(root, recipeID, journey, cmdStr string, evidence []string, 
 			missing = append(missing, e)
 		}
 	}
-	j.Run, j.Evidence, j.EvidenceMissing, j.Deferred = run, evidence, missing, nil
-	if err := state.SaveProveRecord(root, recipeID, rec); err != nil {
+	// prove.json is read again, not written back from the copy read before
+	// the drive: neat-wolf deferred another journey four seconds into a
+	// drive that ran for minutes (trial problem #117).
+	var j *state.Journey
+	err = state.UpdateProveRecord(root, recipeID, func(rec *state.ProveRecord) error {
+		if j = rec.Journeys[journey]; j == nil {
+			return fmt.Errorf("%s left prove.json while it was driven; the drive was not recorded", journey)
+		}
+		j.Verdict = verdict
+		j.Checks, j.ChecksFailed, j.VerdictError = checks, failed, verdictErr
+		j.Run, j.Evidence, j.EvidenceMissing, j.Deferred = run, evidence, missing, nil
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 	result := "passed"
