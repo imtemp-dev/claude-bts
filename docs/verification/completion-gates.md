@@ -87,7 +87,13 @@ Loop bound: the same block reason may fire at most
 own 8-block override, after which bts stands down with a visible message
 naming the unresolved issue. Progress changes the reason text and restarts
 the count, so a model that is actually fixing things never exhausts it.
-Covered by the three `TestStopBlockBudget_*` cases above.
+Once bts has stood down, the same session is not blocked on the same reason
+again; later stops get a one-line reminder instead. Before this, every later
+turn met two more blocks and another stand-down: on one trial, four turns of
+a conversation about other things gave eight blocks while a document stayed
+unverified (trial problem #118). Another reason, another session, or an
+allowed stop arms the gate again. Covered by the `TestStopBlockBudget_*`
+cases above.
 
 ## G3 — A question for the user survives the session that raised it
 

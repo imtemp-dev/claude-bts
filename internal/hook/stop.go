@@ -42,13 +42,22 @@ func (h *stopHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return out, nil
 	}
 
+	// The gate already stood down on this reason in this session.  The
+	// session heard it twice; blocking every later turn on a state it has
+	// not changed only adds noise (trial problem #118).
+	if state.StoodDown(root, input.SessionID, out.Reason) {
+		fmt.Fprintf(os.Stderr, "[bts] Still unresolved (the completion gate stood down on it earlier in this session): %s\n",
+			firstSentence(out.Reason))
+		return &HookOutput{}, nil
+	}
+
 	// Bound the block loop. The identity is the reason text itself: when
 	// the model makes progress the message changes (different counts,
 	// different gate) and the count restarts, so only a genuinely
 	// unchanging complaint burns the budget.
 	count, exhausted := state.ChargeStopBlock(root, input.SessionID, out.Reason, state.DefaultStopBlockBudget)
 	if exhausted {
-		state.ClearStopBudget(root)
+		state.MarkStoodDown(root, input.SessionID, out.Reason)
 		fmt.Fprintf(os.Stderr,
 			"[bts] The completion gate blocked %d times on the same issue and is standing down.\n"+
 				"      Unresolved: %s\n"+

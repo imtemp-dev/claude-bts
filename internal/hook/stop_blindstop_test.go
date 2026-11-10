@@ -303,10 +303,11 @@ func TestStopBlockBudget_StandsDownAfterThreeIdenticalBlocks(t *testing.T) {
 	if final.Decision == "block" {
 		t.Fatalf("budget of %d exhausted — must stand down", state.DefaultStopBlockBudget)
 	}
-	// Standing down clears the counter, so the next episode gets a full
-	// budget rather than being permanently disarmed.
-	if again := blindStop(t, root); again.Decision != "block" {
-		t.Fatal("budget must reset after standing down, so the gate re-arms")
+	// The gate is not disarmed for good: a session that has not heard the
+	// reason is blocked on it (the session that has is not; trial problem
+	// #118, stop_standdown_test.go).
+	if other := stopAs(t, root, "s-2"); other.Decision != "block" {
+		t.Fatal("the gate must re-arm for another session after standing down")
 	}
 }
 
