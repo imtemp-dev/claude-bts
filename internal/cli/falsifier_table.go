@@ -15,7 +15,7 @@ import (
 
 func init() {
 	falsifierCmd.AddCommand(falsifierTableCmd)
-	falsifierTableCmd.Flags().Bool("write", false, "Replace the table under final.md's `## 2.` heading with the rendered one")
+	falsifierTableCmd.Flags().Bool("write", false, "Replace the table under final.md's \"## 2.\" heading with the rendered one")
 }
 
 var falsifierTableCmd = &cobra.Command{

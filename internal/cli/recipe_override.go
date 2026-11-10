@@ -19,7 +19,8 @@ func init() {
 		recipeOverrideGrantCmd, recipeOverrideListCmd, recipeOverrideRevokeCmd,
 	)
 
-	recipeOverrideGrantCmd.Flags().String("gate", "", "Gate to bypass (see `bts recipe override list --gates`)")
+	// pflag shows the first back-quoted word as the value's name (#126).
+	recipeOverrideGrantCmd.Flags().String("gate", "", "The `gate` to bypass (bts recipe override list --gates lists them)")
 	recipeOverrideGrantCmd.Flags().String("reason", "", "Why proceeding past this gate is the right call")
 	recipeOverrideGrantCmd.Flags().String("doc", "", "Document the override applies to — also pins the revision it was granted on")
 	recipeOverrideGrantCmd.Flags().StringArray("finding", nil, "Finding ID this override excuses (repeatable). Required unless --no-findings.")
