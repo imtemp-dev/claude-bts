@@ -171,7 +171,8 @@ func CheckScopeCoverage(finalPath string) []Issue {
 func scopeCoverageFormat(items int) string {
 	return fmt.Sprintf("Add `## 6. Scope coverage` with a table `| Scope item | Held by |` and one row per In Scope item of "+
 		"scope.md (%d, numbered in order, bullets too), naming the invariants, falsifiers or eval that hold it, or "+
-		"`decision <key>` for a resolved decision that changed it.", items)
+		"`decision <key>` for a resolved decision that changed it, as in `| 1 | INV-001, INV-004 |` and "+
+		"`| 3 | narrowed to new PRs only: decision scope-3-new-only |`.", items)
 }
 
 // resolvedDecisionKeys returns the recipe's resolved decision keys.  dir is

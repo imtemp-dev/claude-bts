@@ -178,6 +178,30 @@ that uncertainty safe: if the harness never emits the event, every round is
 the live behavior would upgrade this from evidence to proof; until then it is
 labelled evidence deliberately.
 
+## G5 — A gate carries its own instruction
+
+A running recipe keeps the templates it started with: `bts update` holds them
+while a recipe is active. A gate added to the binary later still meets that
+recipe, so the gate's message is the only place its agent learns what the gate
+wants. On one trial (trial problem #123) the binary brought the scope_coverage
+gate to a build recipe whose template does not describe final.md § 6, and the
+next-step hint cut the gate's message at its first sentence, so the model read
+only "final.md has no Scope coverage section."
+
+The rule for every gate: its message says what to write, where, and gives an
+example, and the next-step hint shows the whole message (capped at 900 runes),
+not its first sentence. A gate that would cost a recipe in flight too much
+could also report without blocking for recipes started before it (option a of
+#123); none does yet.
+
+```
+Verification date: 2026-11-11, go1.26.1 darwin/arm64
+$ go test ./internal/hook/ -run 'TestNextStepHint_CarriesTheGatesWholeInstruction|TestBuildSpecDone_NeedsEveryScopeItemCovered' -v
+--- PASS: TestNextStepHint_CarriesTheGatesWholeInstruction (0.01s)
+--- PASS: TestBuildSpecDone_NeedsEveryScopeItemCovered (0.01s)
+ok  	github.com/imtemp-dev/claude-bts/internal/hook	0.360s
+```
+
 ## Whole suite
 
 ```

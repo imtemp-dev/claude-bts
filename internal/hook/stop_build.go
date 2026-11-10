@@ -147,7 +147,12 @@ func buildTailHint(root string, recipe *state.RecipeState) string {
 	case "final_md":
 		return fmt.Sprintf("Falsifiers are recorded for %s. Write final.md (bts-recipe-build step 10), then review it once (step 11).", recipe.ID)
 	default:
-		return fmt.Sprintf("Next for %s (DONE gate %s): %s", recipe.ID, gate, firstSentence(reason))
+		// The whole reason, not its first sentence: a gate's message
+		// carries its instruction for a recipe whose held templates
+		// predate the gate, and the cut left cool-crow's SessionStart with
+		// "final.md has no Scope coverage section." alone (trial problem
+		// #123).
+		return fmt.Sprintf("Next for %s (DONE gate %s): %s", recipe.ID, gate, state.TruncateRunes(reason, 900))
 	}
 }
 

@@ -49,6 +49,23 @@ func TestNextStepHint_BuildTailNamesTheFirstUnmetGate(t *testing.T) {
 	}
 }
 
+// Trial problem #123: a binary upgraded mid-recipe brought the
+// scope_coverage gate to cool-crow's r-005, whose held templates do not
+// describe final.md § 6.  The gate's message says how to write it, but the
+// hint cut the message at its first sentence, so the NEXT line the model
+// read at SessionStart was only "final.md has no Scope coverage section."
+// (11-07 19:46Z).
+func TestNextStepHint_CarriesTheGatesWholeInstruction(t *testing.T) {
+	root, id := setupBuildRoot(t)
+	recordEvidence(t, root, id, 0, "INV-001", "INV-002")
+	_ = os.WriteFile(filepath.Join(state.RecipeDir(root, id), "scope.md"),
+		[]byte("## In Scope\n\n1. One issue per PR.\n2. Never post as the user.\n\n## Out of Scope\n"), 0644)
+	h := hintFor(t, root, id)
+	if !strings.Contains(h, "DONE gate scope_coverage") || !strings.Contains(h, "| Scope item | Held by |") || !strings.Contains(h, "| 1 | INV-001") {
+		t.Fatalf("the hint must carry how to write the section, with an example row, got %q", h)
+	}
+}
+
 func TestNextStepHint_TestPhaseFollowsTheResumeTable(t *testing.T) {
 	root, id := setupBuildRoot(t)
 	recordEvidence(t, root, id, 0, "INV-001", "INV-002")
