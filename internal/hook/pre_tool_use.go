@@ -2,6 +2,7 @@ package hook
 
 import (
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -96,18 +97,47 @@ func (h *preToolUseHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return &HookOutput{}, nil
 	}
 
-	// Source code file during spec phase → warn (not block)
+	// Nor is a gitignored file: report-build's research subagent tried a
+	// dependency bump in a copy of the project under .agent-ephemeral/ and
+	// was told to put code snippets in the spec (trial problem #121).
+	if gitIgnored(root, input.CWD, filePath) {
+		return &HookOutput{}, nil
+	}
+
+	// Source code file during spec phase → warn (not block), in the
+	// recipe's own terms: a build recipe runs throwaway probes before its
+	// skeleton, and was told "Blueprint creates specs" (trial problem #121).
+	advice := "Blueprint creates specs, not code. Save code snippets in the spec document instead."
+	switch recipe.Type {
+	case "build":
+		advice = fmt.Sprintf("The build recipe writes product code from its skeleton step on. "+
+			"A throwaway run that answers a question belongs in .bts/specs/recipes/%s/probes/ or a gitignored scratch directory.", recipe.ID)
+	case "blueprint", "":
+	default:
+		advice = fmt.Sprintf("A %s recipe states its spec in this phase, not code. Save code snippets in the spec document instead.", recipe.Type)
+	}
 	return &HookOutput{
 		HookSpecificOutput: &HookSpecificOutput{
-			HookEventName: "PreToolUse",
-			AdditionalContext: fmt.Sprintf(
-				"[bts] Writing source code during spec phase (%s). "+
-					"Blueprint creates specs, not code. "+
-					"Save code snippets in the spec document instead.",
-				recipe.Phase,
-			),
+			HookEventName:     "PreToolUse",
+			AdditionalContext: fmt.Sprintf("[bts] Writing source code during spec phase (%s). %s", recipe.Phase, advice),
 		},
 	}, nil
+}
+
+// gitIgnored reports whether git ignores path in the project: a scratch
+// copy, a probe or a tool's output is never shipped code.  Outside a git
+// repository, or without git, nothing is ignored.
+func gitIgnored(root, cwd, path string) bool {
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(cwd, path)
+	}
+	// Relative to the root: an absolute path through a symlinked prefix
+	// (macOS /var and /private/var) reads to git as outside the repository.
+	rel, err := filepath.Rel(root, filepath.Clean(path))
+	if err != nil {
+		return false
+	}
+	return exec.Command("git", "-C", root, "check-ignore", "-q", "--", rel).Run() == nil
 }
 
 // appendToolTraceBreadcrumb records a single tool-trace entry for a subset
