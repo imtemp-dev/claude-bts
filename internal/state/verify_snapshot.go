@@ -241,20 +241,57 @@ func citedDocsChanged(root, recipeID string, entries []VerifyLogEntry, doc strin
 	return changed
 }
 
-// DescribeDirty renders DirtyVerifiedDocs' names for a message, naming the
-// cited document that changed where the document itself did not, as
-// "final.md (domain.md changed after its review read it)".  An agent told
-// only "final.md changed" looks at an unchanged final.md (trial problem
-// #106).
+// DescribeDirty says what is stale about DirtyVerifiedDocs' documents, as
+// the clause a message starts with: "final.md changed after its last
+// verification", or, where only a document its review read changed,
+// "final.md's review is out of date: domain.md changed after the review
+// read it".  An agent told only "final.md changed" looks at an unchanged
+// final.md (trial problem #106).  The names this gave before, with the
+// cited document in parentheses, were followed in every message by
+// "changed after its last verification", which said final.md changed when
+// only domain.md had (trial problem #122).
 func DescribeDirty(root, recipeID string, dirty []string) string {
-	out := make([]string, 0, len(dirty))
+	entries, _ := ReadVerifyLog(root, recipeID)
+	verified := LastFullPassHashes(entries)
+	paths := LastFullPassPaths(entries)
+	var own, parts []string
 	for _, d := range dirty {
-		if cited := CitedDocsChanged(root, recipeID, d); len(cited) > 0 {
-			d = fmt.Sprintf("%s (%s changed after its review read it)", d, strings.Join(cited, ", "))
+		if want, recorded := verified[d]; recorded && !ownTextChanged(root, recipeID, entries, paths, d, want) {
+			if cited := citedDocsChanged(root, recipeID, entries, d); len(cited) > 0 {
+				parts = append(parts, fmt.Sprintf("%s's review is out of date: %s changed after the review read it", d, strings.Join(cited, ", ")))
+				continue
+			}
 		}
-		out = append(out, d)
+		own = append(own, d)
 	}
-	return strings.Join(out, ", ")
+	switch len(own) {
+	case 0:
+	case 1:
+		parts = append([]string{own[0] + " changed after its last verification"}, parts...)
+	default:
+		parts = append([]string{strings.Join(own, ", ") + " changed after their last verification"}, parts...)
+	}
+	return strings.Join(parts, "; ")
+}
+
+// ownTextChanged reports whether doc's own text differs from the text its
+// rounds verified: want, or what a delta chain absorbed since.
+func ownTextChanged(root, recipeID string, entries []VerifyLogEntry, paths map[string]string, doc, want string) bool {
+	if deltaAbsorbs(root, recipeID, doc) {
+		if h, ok := LastDeltaChain(VerifyEntriesForDoc(entries, doc)).AbsorbedHash(); ok {
+			want = h
+		}
+	}
+	// Where the round said it read the document, if it said. A
+	// basename joined to the recipe directory is the fallback, and
+	// was the only rule — which silently exempted every verified
+	// document living anywhere else from rule 3.
+	at := filepath.Join(RecipeDir(root, recipeID), doc)
+	if p := paths[doc]; p != "" {
+		at = filepath.Join(root, p)
+	}
+	got, ok, err := FileContentHash(at)
+	return err == nil && ok && got != want
 }
 
 func DirtyVerifiedDocs(root, recipeID string) ([]string, error) {
@@ -269,24 +306,7 @@ func DirtyVerifiedDocs(root, recipeID string) ([]string, error) {
 
 	var dirty []string
 	for doc, want := range verified {
-		if deltaAbsorbs(root, recipeID, doc) {
-			if h, ok := LastDeltaChain(VerifyEntriesForDoc(entries, doc)).AbsorbedHash(); ok {
-				want = h
-			}
-		}
-		// Where the round said it read the document, if it said. A
-		// basename joined to the recipe directory is the fallback, and
-		// was the only rule — which silently exempted every verified
-		// document living anywhere else from rule 3.
-		at := filepath.Join(recipeDir, doc)
-		if p := paths[doc]; p != "" {
-			at = filepath.Join(root, p)
-		}
-		got, ok, herr := FileContentHash(at)
-		if herr != nil || !ok {
-			continue
-		}
-		if got != want {
+		if ownTextChanged(root, recipeID, entries, paths, doc, want) {
 			dirty = append(dirty, doc)
 		}
 	}

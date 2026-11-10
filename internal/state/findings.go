@@ -737,31 +737,55 @@ func CarryForwardBlock(states []*FindingState) string {
 // round" for every one, which on swift-eagle named two causes for a
 // deferred finding when neither applied (trial problem #102).
 func ExplainConfirmSkips(root, recipeID string, round *VerifyLogEntry, ids []string, reported []ReportedFinding) []string {
+	skips := ConfirmSkips(root, recipeID, round, ids, reported)
+	out := make([]string, 0, len(skips))
+	for _, s := range skips {
+		out = append(out, s.String())
+	}
+	return out
+}
+
+// ConfirmSkip is a confirmed_fixed ID that ConfirmFixedFindings left alone,
+// with its reason.  Settled is true when nothing is left to do: the
+// finding was already fixed or dismissed.  cool-crow heard those as a
+// warning, which invites the agent to act on them (trial problem #122).
+type ConfirmSkip struct {
+	ID, Reason string
+	Settled    bool
+}
+
+func (s ConfirmSkip) String() string { return s.ID + " (" + s.Reason + ")" }
+
+// ConfirmSkips gives each skipped confirmed_fixed ID its reason.
+func ConfirmSkips(root, recipeID string, round *VerifyLogEntry, ids []string, reported []ReportedFinding) []ConfirmSkip {
 	docBase := filepath.Base(round.Doc)
+	out := make([]ConfirmSkip, 0, len(ids))
 	events, err := ReadFindingEvents(root, recipeID)
 	if err != nil {
-		return ids
+		for _, id := range ids {
+			out = append(out, ConfirmSkip{ID: id, Reason: "left as it was"})
+		}
+		return out
 	}
 	prior := FoldFindings(events)
 	reportedNow := map[string]bool{}
 	for _, rf := range reported {
 		reportedNow[FindingID(docBase, rf.Title)] = true
 	}
-	out := make([]string, 0, len(ids))
 	for _, id := range ids {
 		st, ok := prior[id]
-		reason := "left as it was"
+		s := ConfirmSkip{ID: id, Reason: "left as it was"}
 		switch {
 		case !ok || st.Doc != docBase:
-			reason = "no such finding on " + docBase
+			s.Reason = "no such finding on " + docBase
 		case reportedNow[id]:
-			reason = "reported again this round"
+			s.Reason = "reported again this round"
 		case st.Status == FindingFixed:
-			reason = "already fixed"
+			s.Reason, s.Settled = "already fixed", true
 		case st.Status == FindingDismissed:
-			reason = "dismissed"
+			s.Reason, s.Settled = "dismissed", true
 		}
-		out = append(out, id+" ("+reason+")")
+		out = append(out, s)
 	}
 	return out
 }

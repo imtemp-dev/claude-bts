@@ -230,12 +230,12 @@ func (h *stopHandler) handleBlindStop(root string, recipe *state.RecipeState) (*
 		// notification, and keep the rule for when no fork is running
 		// (trial problem #8).  The completion gates still require the round.
 		if running, since := state.VerifyInFlight(root); running {
-			fmt.Fprintf(os.Stderr, "[bts] %s changed after its last verification; a verify fork started at %s is still running, so the turn may end. Record its round when it returns.\n",
+			fmt.Fprintf(os.Stderr, "[bts] %s; a verify fork started at %s is still running, so the turn may end. Record its round when it returns.\n",
 				state.DescribeDirty(root, recipe.ID, dirty), since.Local().Format("15:04"))
 			return allow()
 		}
 		return blockOutput(fmt.Sprintf(
-			"%s changed after its last verification. Rule 3: every modification requires /bts-verify. "+
+			"%s. Rule 3: every modification requires /bts-verify. "+
 				"Either re-verify and record it, or tell the user the doc is left unverified — do not end the turn as if it were still verified.",
 			state.DescribeDirty(root, recipe.ID, dirty),
 		)), nil
@@ -460,7 +460,7 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 			"[bts] warning: dirty-doc check failed: %v (proceeding without check)\n", derr)
 	} else if len(dirty) > 0 {
 		return blockOutput(fmt.Sprintf(
-			"%s modified after last verification. Rule 3: every modification requires /bts-verify. Re-verify the modified doc(s), record with `bts recipe log %s --from-verification .bts/specs/recipes/%s/verification.md --doc <doc-path>`, then re-emit DONE.",
+			"%s. Rule 3: every modification requires /bts-verify. Re-verify the modified doc(s), record with `bts recipe log %s --from-verification .bts/specs/recipes/%s/verification.md --doc <doc-path>`, then re-emit DONE.",
 			state.DescribeDirty(root, recipe.ID, dirty), recipe.ID, recipe.ID,
 		)), nil
 	}
@@ -840,7 +840,7 @@ func (h *stopHandler) handleFixDone(root string, recipe *state.RecipeState) (*Ho
 			"[bts] warning: dirty-doc check failed: %v (proceeding without check)\n", derr)
 	} else if len(dirty) > 0 {
 		return blockOutput(fmt.Sprintf(
-			"%s modified after last verification. Rule 3: re-verify the modified doc(s), record with `bts recipe log %s --from-verification ... --doc <doc-path>`, then re-emit FIX DONE.",
+			"%s. Rule 3: re-verify the modified doc(s), record with `bts recipe log %s --from-verification ... --doc <doc-path>`, then re-emit FIX DONE.",
 			state.DescribeDirty(root, recipe.ID, dirty), recipe.ID,
 		)), nil
 	}

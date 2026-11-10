@@ -620,9 +620,21 @@ var recipeLogCmd = &cobra.Command{
 						fmt.Fprintf(os.Stderr, "[bts] confirmed fixed by this round: %s\n", strings.Join(fixed, ", "))
 						absorbConfirmedFixed(sync, fixed)
 					}
-					if len(skipped) > 0 {
-						fmt.Fprintf(os.Stderr, "[bts] warning: confirmed_fixed left as they were: %s\n",
-							strings.Join(state.ExplainConfirmSkips(root, recipeID, entry, skipped, reported), ", "))
+					// An ID already fixed or dismissed needs nothing, so it
+					// is no warning (trial problem #122).
+					var settled, unapplied []string
+					for _, s := range state.ConfirmSkips(root, recipeID, entry, skipped, reported) {
+						if s.Settled {
+							settled = append(settled, s.String())
+						} else {
+							unapplied = append(unapplied, s.String())
+						}
+					}
+					if len(settled) > 0 {
+						fmt.Fprintf(os.Stderr, "[bts] confirmed_fixed, nothing more to do: %s\n", strings.Join(settled, ", "))
+					}
+					if len(unapplied) > 0 {
+						fmt.Fprintf(os.Stderr, "[bts] warning: confirmed_fixed not applied: %s\n", strings.Join(unapplied, ", "))
 					}
 				}
 			}

@@ -37,7 +37,7 @@ func TestDirtyDocWarning_SpecPhasesOnly(t *testing.T) {
 		recipe, _ := state.LoadRecipeState(root, id)
 		recipe.Phase = phase
 		got := dirtyDocWarning(root, recipe)
-		if wantWarning != strings.Contains(got, "final.md modified after last verification") {
+		if wantWarning != strings.Contains(got, "final.md changed after its last verification") {
 			t.Errorf("phase %s: warning %q, want warning=%v", phase, got, wantWarning)
 		}
 	}

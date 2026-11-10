@@ -70,6 +70,29 @@ func TestRecipeLog_ConfirmRoundEndsTheReview(t *testing.T) {
 	}
 }
 
+// Trial problem #122: an ID a round lists as confirmed_fixed that is
+// already fixed was reported as "[bts] warning: confirmed_fixed left as
+// they were: F-... (already fixed)" on cool-crow (11-07 21:33Z).  Nothing
+// is wrong with it, and a warning invites the agent to act.
+func TestRecipeLog_AnAlreadyFixedConfirmedIDIsNoWarning(t *testing.T) {
+	root := buildRecipeForConfirm(t, "r-c122")
+	logFull(t, root, "r-c122", confirmBlock(0, 0, 1,
+		`{"severity": "minor_resolvable", "title": "U-002 names no command", "anchor": "U-002"}`, ""))
+	writeRecipeFile(t, root, "r-c122", "final.md", "# Build spec\n\nfirst, U-002 fixed\n")
+	id := state.FindingID("final.md", "U-002 names no command")
+	logConfirm(t, root, "r-c122", confirmBlock(0, 0, 0, "", `"`+id+`"`))
+
+	writeRecipeFile(t, root, "r-c122", "final.md", "# Build spec\n\nfirst, U-002 fixed, reworded\n")
+	v := writeRecipeFile(t, root, "r-c122", "verification.md", confirmBlock(0, 0, 0, "", `"`+id+`"`)+"\nDelta round after a rewording.\n")
+	out := runRecipeLog(t, root, "r-c122", "--from-verification", v, "--doc", "final.md", "--scope", "delta", "--dimension", "verify")
+	if strings.Contains(out, "warning: confirmed_fixed") {
+		t.Fatalf("an ID that is already fixed is no warning:\n%s", out)
+	}
+	if !strings.Contains(out, id+" (already fixed)") {
+		t.Fatalf("the ID is still named, as already fixed:\n%s", out)
+	}
+}
+
 func TestRecipeLog_ConfirmFollowsACompletingReview(t *testing.T) {
 	root := buildRecipeForConfirm(t, "r-c2")
 	logFull(t, root, "r-c2", confirmBlock(0, 1, 0,

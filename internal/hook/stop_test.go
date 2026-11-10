@@ -605,7 +605,7 @@ func TestStopSpecDone_BlocksDirtyDoc(t *testing.T) {
 	if out.Decision != "block" {
 		t.Fatalf("expected block, got %q (reason=%q)", out.Decision, out.Reason)
 	}
-	if !strings.Contains(out.Reason, "draft.md") || !strings.Contains(out.Reason, "modified after last verification") {
+	if !strings.Contains(out.Reason, "draft.md changed after its last verification") {
 		t.Errorf("reason should name the dirty doc and rule: %q", out.Reason)
 	}
 }

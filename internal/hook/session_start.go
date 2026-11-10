@@ -269,7 +269,7 @@ func dirtyDocWarning(root string, recipe *state.RecipeState) string {
 		return ""
 	}
 	return fmt.Sprintf(
-		"\n⚠ %s modified after last verification — run /bts-verify before continuing (rule 3).",
+		"\n⚠ %s — run /bts-verify before continuing (rule 3).",
 		state.DescribeDirty(root, recipe.ID, dirty))
 }
 
