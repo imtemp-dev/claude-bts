@@ -1,6 +1,6 @@
 # Design: bts on Multica
 
-Status: direction agreed in discussion on 2026-11-11.  Smoke checks against the real instance, run before any code, are recorded below; they changed decisions 3, 5 and open question 2.  S0 is built on `feat/multica-s0` (not yet released): its CLI side passed a real run (AGEN-162); hooks following the pointer in a run wait for an installed build, since a run's hooks call the `bts` on the daemon's `PATH` and Multica refuses `PATH` in an agent's custom environment.
+Status: direction agreed in discussion on 2026-11-11.  Smoke checks against the real instance, run before any code, are recorded below; they changed decisions 3, 5 and open question 2.  S0 is released as v0.20.0 (`a340e9a`) and passed end to end in a real run (AGEN-162): with only the `.bts-root` pointer in the workdir, the installed `bts`'s hooks recorded the resumed session's events in the worktree's metrics, bound `owner_session` on `bts recipe create`, and the phase reached the issue's metadata, with `git status` clean throughout.  (A run's hooks call the `bts` on the daemon's `PATH`, and Multica refuses `PATH` in an agent's custom environment, so this needed the installed release.)
 
 S0 as built differs in one place: a decision hold does not set the issue to `blocked`.  The Multica runtime writes the issue's status at the end of every turn, so a status bts wrote would be overwritten; status moves with the manager in S2.  S0 mirrors `bts.recipe_id` and `bts.phase` only.  Multica here is the self-hosted instance the Desktop app runs (`localhost:8080`, workspace `agent-tron`), read against a local clone of `multica-ai/multica` at `b115ec80f`.
 
@@ -153,6 +153,44 @@ Not yet checked: a real draft pull request (no remote write was allowed in smoke
 3. The feature store's exact path, and whether it moves to a spec repository later.
 
 Resolved by smoke: a dead child run is caught by a failure wakeup on the child; review pages and prototypes can be `html` blocks rendered in Multica, so publishing an artifact from a run is no longer on the critical path.
+
+## S1 specification (revised after review, 2026-11-11)
+
+A first S1 proposal was reviewed by a separate session (verdict: proceed with changes; seven must-fix items).  This is the version the user approved.
+
+**Store.**  `$BTS_FEATURE_STORE` or `~/.bts/features/`, then a repository key, then the feature: `<store>/<key>/f-NNN-<slug>/`.  The key is `RepoKey(origin URL)`: host, owner and name in lower case, with the user, port, `.git` and trailing slash dropped, so SSH and HTTPS clones agree (`git@github.com:Carepatron/Carepatron-App.git` → `github.com/carepatron/carepatron-app`).  With no origin it is `local/<name>-<hash of the git common dir>`.  Ids are unique across the store: `f-NNN` is reserved by `os.Mkdir(<store>/.ids/f-NNN)`, which records the feature's directory, so every command finds a feature by id, never by key; only `create` needs the key (`--repo` overrides it).  `create` with a `--ticket` that already has a feature returns that feature.
+
+**One writer per file.**
+
+```
+f-001-<slug>/
+├─ feature.json      manager only: the plan (items: id, title, type, express, depends_on),
+│                    decisions (skip, defer, release, close, cancel, each with the user's words),
+│                    confirmations[], the reconcile cursor; schema and rev; changed under a lock
+├─ intent.md, contracts.md   working copies the manager edits
+├─ confirmed/<n>/    intent.md, contracts.md and plan.json as confirmed the n-th time
+├─ changelog.jsonl   manager only
+└─ items/<item>/a<N>/            one directory per attempt, child only
+   ├─ claim.json                 written once at claim
+   └─ snapshot/{manifest.json, recipe/}   replaced whole on every sync
+```
+
+- A binary refuses to write a file whose `schema` is newer than it knows, so a rollback cannot drop fields it does not understand.  Mutating manager commands take a lock directory (`os.Mkdir`, stale after a bound) and bump `rev`.
+- **Item state is derived, not stored**: no attempt → planned; latest attempt not terminal → active; an attempt finished in its type's terminal phase (`complete`; `finalize` for spec-only types, which S1 does not allow as items) → done, with `completed_via` gate or forced; a cancelled or released latest attempt → claimable again; a skip or defer decision overrides.  The feature is draft until confirmed, then active, ready for review when every item is done, skipped or deferred, and done or cancelled only by a decision.
+
+**Confirm pins.**  `bts feature confirm <f> --answer "<the user's words>"` checks the plan (at least one item, no unknown dependency, no cycle, `--express` only on build, a non-empty intent), records `{n, answer, time, hashes of intent, contracts and plan}` and copies the three into `confirmed/<n>/`.  A later change to the plan or a contract is pending until the next confirmation; `next`, claims and `context` use the latest confirmed plan and say when the working copies differ.
+
+**Claim.**  `bts recipe create --feature <f> --item <i>` (type and topic from the item) refuses unless the feature is confirmed and open, the item is in the confirmed plan and not skipped or deferred, every dependency is done, this worktree has no active recipe, and no earlier attempt of the item is still open.  It then takes `items/<i>/a<N>` with `os.Mkdir` (exactly one of two concurrent claims wins) and writes `claim.json`: attempt, recipe id, feature directory, confirmation number, worktree root, `start_sha`, branch, Multica issue, bts version, time.  recipe.json records `feature`, `feature_item`, `feature_attempt` and `feature_dir`.  On an item that is already done, `--type fix` opens a fix-forward attempt and restores the done attempt's recipe into the worktree so it can be amended.  The worktree's recipe-id collisions are harmless: each attempt has its own directory.
+
+**Sync, not a one-off harvest.**  One idempotent function copies the recipe's whole directory and its metrics into a staging directory in the attempt and swaps it in as `snapshot/`, with `manifest.json` (phase, type, mode, terminal, `completed_via`, active overrides, branch, `head_sha`, `dirty`, bts version, content hash, time).  It runs on every phase change of a feature-bound recipe, through the phase observers (the store first, then Multica); `bts recipe cancel` goes through the phase log too; every SessionStart re-syncs feature-bound recipes whose snapshot is behind; `bts feature harvest` is the manual form.  A failure is a warning and never blocks a gate.  A feature-bound recipe gets no project-roadmap hints at completion.
+
+**Context.**  `bts feature context <f> <i>` assembles the confirmed intent, contracts and item, and each transitive dependency's latest done attempt (direct ones in full: final or fix spec, deviation, review), from the store, so it works after the dependency's worktree is gone.  It warns when a dependency's `head_sha` is not an ancestor of HEAD, and records what it served in the recipe directory.
+
+**Commands.**  `feature create | list | status [--json] | path | item add|edit|remove|skip|defer|release | confirm | next | context | harvest | reconcile | close | cancel`, plus `recipe create --feature --item`.
+
+Deferred: a manager-session binding and warnings (S2), git history in the store, the stage an item was dispatched with (S2).
+
+**As built (2026-11-11, after a code review by the same reviewer: ship after fixes, five must-fix defects, each reproduced).**  A finished attempt's snapshot is frozen: once its manifest records an outcome in the phase the recipe is still in, no sync rewrites it, so its head, branch and metrics stay those of the worktree that finished it (`completed_at` marks the moment).  The confirmed copy is read through one checked reader: an edited or missing file under `confirmed/<n>/` is an error, never served.  An item removed after a confirmation stays in force, shown as pending removal, and cannot be claimed.  `context` serves every done attempt of a dependency in order, the build's documents and then each fix-forward's.  A fix-forward refuses a worktree whose recipe with the amended id belongs to another item.  Also: the lock is an `flock`; `.ids` entries are relative to the store; keys with `.` or `..` segments are refused; attempt numbers are fixed before the state is read and continue from the highest; a skip or defer waits for an open attempt and `item restore` undoes it; a plain `--amends` on a feature item's recipe is refused in favour of `--feature --item --type fix`; a worktree with a recipe at `finalize` takes no second item; `dirty` ignores `.bts`, `.claude` and `.verify`; a snapshot left aside by a sync that died is read and put back.  A regression test covers each finding, one runs a feature item's completion through the Stop hook's gates, and a CLI smoke (`s1-smoke.sh` in the session scratchpad) runs the built binary through two worktrees, a session root and a missed sync caught by `bts hook session-start`.
 
 ## Slices
 
