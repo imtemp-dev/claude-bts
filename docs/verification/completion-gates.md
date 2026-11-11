@@ -202,6 +202,40 @@ $ go test ./internal/hook/ -run 'TestNextStepHint_CarriesTheGatesWholeInstructio
 ok  	github.com/imtemp-dev/claude-bts/internal/hook	0.360s
 ```
 
+## G6 — An express recipe's gates trim the fixed process, not the evidence
+
+Seven build recipes spent 70-120 active minutes on process whatever the size
+of the change: the architect's runners and debate, the review loop on
+final.md (19-121 minutes) and two interrogate adversaries (29-39 minutes).
+An express build recipe (`bts recipe create --type build --express`, feature
+#132) keeps the gates that rest on runs and drops the review round:
+
+- At DONE, `skeleton_builds`, `falsifiers_red` and `scope_coverage` stay.
+  `build_verify_clean` takes the place of `build_review_clean`: the gate runs
+  the mechanical `bts verify` on final.md as it is now and blocks on any
+  critical or major, naming each and the command.  There is no review round
+  to record, so nothing goes stale after an edit.
+- At IMPLEMENT DONE every gate stays.  `bts interrogate prepare` seats one
+  adversary by default, aimed at the scope items, and `interrogate_clean`
+  judges that round as it judges any other.
+- A recipe moved to the full recipe (`bts recipe mode <id> full`) takes the
+  review round and two seats from then on, and a session resuming an express
+  recipe is told it is express.
+
+```
+Verification date: 2026-11-11, go1.26.1 darwin/arm64
+$ go test ./internal/hook/ -run 'TestBuildSpecDone_ExpressTakesTheMechanicalVerifyInPlaceOfTheReview|TestBuildSpecDone_FullAndUpgradedRecipesKeepTheReview|TestNextStepHint_ExpressBuildTailNamesTheMechanicalVerify|TestNextStepHint_ResumingAnExpressRecipeSaysItIsExpress' -v
+--- PASS: TestBuildSpecDone_ExpressTakesTheMechanicalVerifyInPlaceOfTheReview (0.02s)
+--- PASS: TestBuildSpecDone_FullAndUpgradedRecipesKeepTheReview (0.01s)
+--- PASS: TestNextStepHint_ExpressBuildTailNamesTheMechanicalVerify (0.01s)
+--- PASS: TestNextStepHint_ResumingAnExpressRecipeSaysItIsExpress (0.00s)
+ok  	github.com/imtemp-dev/claude-bts/internal/hook	0.240s
+$ go test ./internal/cli/ -run 'TestInterrogatePrepare_ExpressTakesOneAdversaryAimedAtTheScope|TestInterrogatePrepare_SeatCountsFollowTheMode' -v
+--- PASS: TestInterrogatePrepare_ExpressTakesOneAdversaryAimedAtTheScope (0.02s)
+--- PASS: TestInterrogatePrepare_SeatCountsFollowTheMode (0.06s)
+ok  	github.com/imtemp-dev/claude-bts/internal/cli	0.311s
+```
+
 ## Whole suite
 
 ```

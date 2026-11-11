@@ -418,6 +418,14 @@ func nextStepHint(root string, recipe *state.RecipeState) string {
 
 	// Spec phases — guide to specific commands
 	switch {
+	case recipe.IsExpress() && (recipe.Phase == "research" || recipe.Phase == "domain-model" ||
+		recipe.Phase == "architect" || recipe.Phase == "wireframe"):
+		// Where express differs from the full recipe.  A session that
+		// resumes it without being told would run the full recipe's
+		// steps (feature #132).
+		return fmt.Sprintf("Resume /bts-recipe-build %s from its phase. It is an express recipe: follow § Express mode "+
+			"(research only for owner questions, invariants with owners, and the decision block in wireframe.md "+
+			"written without /bts-architect).", recipe.ID)
 	case recipe.Phase == "discovery":
 		return "Continue intent discovery — read intent.md and resume conversation."
 	case recipe.Phase == "scoping":

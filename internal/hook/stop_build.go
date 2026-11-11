@@ -22,7 +22,10 @@ import (
 //     that passes there (trial problem #41);
 //   - build_review_clean: one full verify pass over the short final.md left
 //     no critical or major finding, and final.md has not changed since, or
-//     a clean delta review of what changed after it covers final.md now.
+//     a clean delta review of what changed after it covers final.md now;
+//   - build_verify_clean, in its place for an express recipe (feature
+//     #132): the mechanical `bts verify` of final.md as it is now finds no
+//     critical or major.
 //
 // None is overridable. Each remedy is to run something again, which is
 // cheap; an override could only mean "trust the prose instead".
@@ -66,6 +69,10 @@ func buildSpecGate(root string, recipe *state.RecipeState) (gate, reason string,
 
 	finalPath := filepath.Join(recipeDir, "final.md")
 	if _, err := os.Stat(finalPath); os.IsNotExist(err) {
+		if recipe.IsExpress() {
+			return "final_md", fmt.Sprintf("No final.md. An express build recipe finalizes a short build spec (bts-recipe-build, Build spec); "+
+				"write it, check it with `bts verify %s`, then complete.", finalRel(recipe.ID)), 0, 0
+		}
 		return "final_md", "No final.md. A build recipe finalizes a short build spec (bts-recipe-build, Build spec); write it, review it once, then complete.", 0, 0
 	}
 
@@ -108,10 +115,52 @@ func buildSpecGate(root string, recipe *state.RecipeState) (gate, reason string,
 		return "scope_coverage", "Scope coverage: " + strings.Join(details, " "), len(intro), len(carr)
 	}
 
+	if recipe.IsExpress() {
+		if reason := buildVerifyClean(root, recipe.ID); reason != "" {
+			return "build_verify_clean", reason, len(intro), len(carr)
+		}
+		return "", "", len(intro), len(carr)
+	}
 	if out := buildReviewClean(root, recipe.ID); out != nil {
 		return "build_review_clean", out.Reason, len(intro), len(carr)
 	}
 	return "", "", len(intro), len(carr)
+}
+
+// finalRel is a recipe's final.md from the project root, as a command
+// takes it.
+func finalRel(recipeID string) string {
+	return filepath.ToSlash(filepath.Join(".bts", "specs", "recipes", recipeID, "final.md"))
+}
+
+// buildVerifyClean is gate build_verify_clean, an express recipe's DONE
+// gate in place of build_review_clean (feature #132): the mechanical
+// `bts verify` of final.md, run here on final.md as it is now, finds no
+// critical or major.  Express has no review round on final.md, whose
+// review loop cost 19-121 active minutes per recipe; the code review at
+// the end reads final.md with the code.  "" when it holds.
+func buildVerifyClean(root, recipeID string) string {
+	res, err := engine.VerifyDocument(filepath.Join(state.RecipeDir(root, recipeID), "final.md"), root, true)
+	if err != nil {
+		return fmt.Sprintf("final.md could not be checked (%v).", err)
+	}
+	if res.Summary.Critical == 0 && res.Summary.Major == 0 {
+		return ""
+	}
+	var found []string
+	for _, is := range res.Issues {
+		if is.Severity != engine.SeverityCritical && is.Severity != engine.SeverityMajor {
+			continue
+		}
+		found = append(found, fmt.Sprintf("%s %s %s: %s", is.Severity, is.Category, is.Claim, state.TruncateRunes(is.Detail, 200)))
+	}
+	if len(found) > 5 {
+		found = append(found[:5], fmt.Sprintf("and %d more", len(found)-5))
+	}
+	return fmt.Sprintf("`bts verify` finds %d critical and %d major in final.md: %s. "+
+		"Fix each where it lives (final.md, the skeleton, or a falsifier), rerun what the fix touched, and check again with "+
+		"`bts verify %s`. An express recipe has no review round on final.md; the code review at the end reads it with the code.",
+		res.Summary.Critical, res.Summary.Major, strings.Join(found, "; "), finalRel(recipeID))
 }
 
 // buildFalsifiersRecorded reports whether falsify's own work is done:
@@ -145,6 +194,10 @@ func buildTailHint(root string, recipe *state.RecipeState) string {
 	case "":
 		return fmt.Sprintf("Every build gate holds for %s: output <bts>DONE</bts> (bts-recipe-build step 13).", recipe.ID)
 	case "final_md":
+		if recipe.IsExpress() {
+			return fmt.Sprintf("Falsifiers are recorded for %s. Write final.md (bts-recipe-build step 10, the short express form), "+
+				"then check it with `bts verify %s` (express step 11).", recipe.ID, finalRel(recipe.ID))
+		}
 		return fmt.Sprintf("Falsifiers are recorded for %s. Write final.md (bts-recipe-build step 10), then review it once (step 11).", recipe.ID)
 	default:
 		// The whole reason, not its first sentence: a gate's message

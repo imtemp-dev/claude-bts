@@ -40,10 +40,15 @@ var adversaryAngles = []string{
 // changed since the round before, which that round could not have seen.
 const rescopeAngle = "the change since the last interrogate round (the scope lists its files): what it broke, or let through, that the earlier round could not have seen"
 
+// expressAngle is the one seat of an express recipe's round (feature
+// #132): what the change promises, attacked from the angles two or three
+// seats split between them.
+const expressAngle = "the change's scope: each In Scope item of scope.md and the invariants that hold it, broken by order, retries, malformed or hostile input, errors from external tools, or a restart mid-step"
+
 func init() {
 	rootCmd.AddCommand(interrogateCmd)
 	interrogateCmd.AddCommand(interrogatePrepareCmd, interrogateVerifyCmd, interrogateWaiveCmd)
-	interrogatePrepareCmd.Flags().Int("adversaries", 2, "Adversary seats: 2, or 3 for a contested or security-sensitive change (with --rescope: 1 by default, up to 3)")
+	interrogatePrepareCmd.Flags().Int("adversaries", 2, "Adversary seats: 2, or 3 for a contested or security-sensitive change; an express recipe takes 1 by default, up to 3 (with --rescope: 1 by default, up to 3)")
 	interrogatePrepareCmd.Flags().Bool("rescope", false, "After a large change to a verified run: a new round on the files changed since the last one")
 	interrogateVerifyCmd.Flags().Bool("recheck", false, "After fixes: rerun open and fixed findings on the current code")
 	interrogateVerifyCmd.Flags().Int("timeout", 600, "Seconds before each run is killed")
@@ -95,6 +100,9 @@ var interrogatePrepareCmd = &cobra.Command{
 				fmt.Printf("  %s\n", f)
 			}
 		} else {
+			if !cmd.Flags().Changed("adversaries") {
+				n = 0 // the recipe's own default: 1 for express, else 2
+			}
 			run, err = executeInterrogatePrepare(root, args[0], n)
 			if err != nil {
 				return err
@@ -309,12 +317,25 @@ type adversaryReport struct {
 	} `json:"findings"`
 }
 
+// executeInterrogatePrepare seats n adversaries; n 0 is the recipe's
+// default, one seat for an express recipe and two for any other.
 func executeInterrogatePrepare(root, recipeID string, n int) (*state.InterrogateRun, error) {
-	if _, err := state.LoadRecipeState(root, recipeID); err != nil {
+	recipe, err := state.LoadRecipeState(root, recipeID)
+	if err != nil {
 		return nil, fmt.Errorf("load recipe %s: %w", recipeID, err)
 	}
-	if n < 2 || n > len(adversaryAngles) {
-		return nil, fmt.Errorf("--adversaries must be 2 or 3, got %d", n)
+	least := 2
+	if recipe.IsExpress() {
+		least = 1
+	}
+	if n == 0 {
+		n = least
+	}
+	if n < least || n > len(adversaryAngles) {
+		if recipe.IsExpress() {
+			return nil, fmt.Errorf("--adversaries must be 1 to 3 for an express recipe, got %d", n)
+		}
+		return nil, fmt.Errorf("--adversaries must be 2 or 3, got %d; one seat is for an express build recipe", n)
 	}
 	if existing, err := state.LoadInterrogateRun(root, recipeID); err != nil {
 		return nil, err
@@ -324,6 +345,9 @@ func executeInterrogatePrepare(root, recipeID string, n int) (*state.Interrogate
 	}
 	run := &state.InterrogateRun{PreparedAt: time.Now().UTC().Format(time.RFC3339), Round: 1}
 	angles := adversaryAngles[:n]
+	if n == 1 {
+		angles = []string{expressAngle}
+	}
 	if err := seatAdversaries(root, recipeID, run, angles); err != nil {
 		return nil, err
 	}

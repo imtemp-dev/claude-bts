@@ -89,6 +89,12 @@ var HardGates = []HardGate{
 		Summary:     "Build recipe DONE blocked unless final.md had a full verify pass, and either that pass has no critical or major and final.md is unchanged since, or every delta pass after it has no critical or major and the last one covers final.md as it is now",
 	},
 	{
+		ID:          "build_verify_clean",
+		Rule:        "bts-recipe-build SKILL.md, Express mode",
+		Enforcement: "internal/hook/stop_build.go:buildVerifyClean (express build recipes, in place of build_review_clean)",
+		Summary:     "Express build recipe DONE blocked unless the mechanical `bts verify` of final.md, which the gate runs on final.md as it is now, finds no critical or major",
+	},
+	{
 		ID:          "falsifiers_green",
 		Rule:        "bts-recipe-build SKILL.md, Implement",
 		Enforcement: "internal/hook/stop_build.go:buildFalsifiersGreen (handleImplementDone, build recipes)",
