@@ -92,7 +92,7 @@ Required fields:
 Optional fields:
 - `ref_recipe` (string): referenced recipe ID (for fix recipes that reference the original); set with `bts recipe create --ref`
 - `amends` (string): the completed recipe a fix recipe changes; set with `bts recipe create --type fix --amends`.  Once the fix completes, its records answer for the files it touched
-- `mode` (string): absent for the full recipe; "express" for a small build recipe made with `bts recipe create --type build --express` (no architect runners or debate, no review round on final.md, one interrogate adversary); "full" once `bts recipe mode <id> full` has moved an express recipe to the full recipe, which is one way.  Each choice or move is a changelog entry with action `mode`
+- `mode` (string): absent for the full recipe; "express" for a small build recipe (no architect runners or debate, no review round on final.md, one interrogate adversary), made with `bts recipe create --type build --express` or, before its architect step, `bts recipe mode <id> express`; "full" once `bts recipe mode <id> full` has moved an express recipe to the full recipe, which is one way.  Each choice or move is a changelog entry with action `mode`.  bts asks about the mode through decisions `express-mode` (a confirmed scope of at most three In Scope items) and `full-mode` (an express recipe whose domain.md introduces more than eight invariants)
 
 ## diagnosis.md (fix recipe)
 

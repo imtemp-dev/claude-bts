@@ -196,6 +196,16 @@ var recipeLogCmd = &cobra.Command{
 				fmt.Fprintf(os.Stderr, "warning: append changelog: %v\n", err)
 			}
 			fmt.Printf("Phase → %s\n", phase)
+			// Past the domain model, an express recipe's size shows in
+			// its invariants (feature #132).
+			switch phase {
+			case "architect", "wireframe", "skeleton", "falsify":
+				if q, err := suggestFull(root, recipe); err != nil {
+					fmt.Fprintf(os.Stderr, "[bts] warning: the full-recipe question was not held: %v\n", err)
+				} else if q != "" {
+					printModeQuestion(recipeID, fullModeKey, q)
+				}
+			}
 		}
 
 		// A verify round is recorded only when neither --action nor

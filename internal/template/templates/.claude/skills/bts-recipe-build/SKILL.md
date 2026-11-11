@@ -74,7 +74,9 @@ decision hold`).
    § Intent Check, § Vision & Roadmap Check and § Scoping exactly. Scope
    ends CONFIRMED through `bts recipe confirm {id} scope --answer "..."`,
    and a scope revised later (after research) is confirmed again the same
-   way, once the user has seen the revision.
+   way, once the user has seen the revision.  When the confirmation holds
+   decision `express-mode` (a small scope), ask the user before research
+   (§ Express mode).
 3. **Research.** `/bts-research`, scoped by `scope.md`, including its
    `## Official Guidance` and its `## Open questions that decide an owner`.
    Each step below that names a phase starts with `bts recipe log {id}
@@ -171,7 +173,12 @@ active minutes whatever the size of the change.
 
 **When.** At most three In Scope items, no new external integration, and
 no migration or irreversible step.  Create the recipe with
-`bts recipe create --type build --express --topic "<feature>"`.
+`bts recipe create --type build --express --topic "<feature>"`, or let bts
+ask: confirming a full build recipe's scope with at most three In Scope
+items holds decision `express-mode`.  Ask the user; on express, run
+`bts recipe mode {id} express --reason "<their words>"`; either way,
+resolve the decision with their words.  A recipe becomes express only
+before its architect step.
 
 **What changes.** Every step not named here runs as written.
 
@@ -211,12 +218,13 @@ no migration or irreversible step.  Create the recipe with
   `final.md` against the code, since no review round read it before.
 
 **Moving to the full recipe.** When `domain.md` introduces more than
-eight invariants, or the change turns out to add a boundary (a new
-external integration, service or persisted format), express no longer
-fits.  Hold `bts recipe decision hold {id} --key full-mode --question "..."`
-with what outgrew it, and on the user's yes run
-`bts recipe mode {id} full --reason "<what outgrew express>"` and resolve
-the decision.  The move is one way.  The full steps apply from the step
+eight invariants, express no longer fits, and the next phase change
+holds decision `full-mode`.  When the change turns out to add a boundary
+(a new external integration, service or persisted format), hold it
+yourself: `bts recipe decision hold {id} --key full-mode --question "..."`,
+naming the boundary.  Ask the user; on full, run
+`bts recipe mode {id} full --reason "<their words>"`; either way, resolve
+the decision with their words.  The move is one way.  The full steps apply from the step
 the recipe is on: `/bts-architect` if it has not passed step 5, the review
 round of step 11 for `final.md`, and two interrogate adversaries.
 

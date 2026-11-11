@@ -41,7 +41,18 @@ var recipeConfirmCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("[bts] %s.md CONFIRMED; the user's words are decision %s\n", strings.TrimSuffix(strings.ToLower(args[1]), ".md"), key)
+		which := strings.TrimSuffix(strings.ToLower(args[1]), ".md")
+		fmt.Printf("[bts] %s.md CONFIRMED; the user's words are decision %s\n", which, key)
+		// A small scope on a full build recipe is the first point where
+		// express can be weighed (feature #132).
+		if which == "scope" {
+			q, err := suggestExpress(root, args[0])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "[bts] warning: the express question was not held: %v\n", err)
+			} else if q != "" {
+				printModeQuestion(args[0], expressModeKey, q)
+			}
+		}
 		return nil
 	},
 }

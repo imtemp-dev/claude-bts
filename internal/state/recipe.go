@@ -50,9 +50,28 @@ const (
 	ModeFull    = "full"
 )
 
+// The size express is for (feature #132): bts asks about express when a
+// confirmed scope has at most ExpressMaxInScope In Scope items, and about
+// the full recipe when an express recipe's domain.md introduces more than
+// ExpressMaxInvariants invariants.
+const (
+	ExpressMaxInScope    = 3
+	ExpressMaxInvariants = 8
+)
+
 // IsExpress reports whether the recipe runs the express build recipe.
 func (r *RecipeState) IsExpress() bool {
 	return r != nil && r.Mode == ModeExpress
+}
+
+// ExpressFitsPhase reports whether a recipe in phase may still become
+// express: before its architect step, so nothing express trims has run.
+func ExpressFitsPhase(phase string) bool {
+	switch phase {
+	case "discovery", "scoping", "research", "domain-model":
+		return true
+	}
+	return false
 }
 
 // TaskState represents the tasks.json file for implementation tracking.

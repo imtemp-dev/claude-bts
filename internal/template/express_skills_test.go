@@ -44,8 +44,10 @@ func TestExpressMode_TheBuildSkillHasTheSectionTheCodeNames(t *testing.T) {
 		t.Fatal("bts-recipe-build has no § Express mode, which the resume hint and the gate registry name")
 	}
 	// The commands the code gives an express recipe: how it is made, how
-	// final.md is checked in place of the review round, how it leaves.
-	for _, cmd := range []string{"--express", "bts verify .bts/specs/recipes/{id}/final.md", "bts recipe mode {id} full"} {
+	// final.md is checked in place of the review round, how it leaves, and
+	// the decisions bts holds about the mode (step 4).
+	for _, cmd := range []string{"--express", "bts verify .bts/specs/recipes/{id}/final.md",
+		"bts recipe mode {id} express", "bts recipe mode {id} full", "express-mode", "full-mode"} {
 		if !strings.Contains(express, cmd) {
 			t.Errorf("§ Express mode does not give %q", cmd)
 		}
