@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -454,6 +456,32 @@ func checkCodeReferences(content string, projectRoot, docDir string, result *Ver
 					Detail:   fmt.Sprintf("%d tracked files end with this path (%s): name the one meant from the project root", len(matches), strings.Join(shown, ", ")),
 				})
 				result.Summary.Major++
+			} else if cands := plannedByTail(planned, fp); len(cands) == 1 && completed {
+				result.Issues = append(result.Issues, Issue{
+					Category: "file_ref",
+					Claim:    fp,
+					Severity: SeverityMajor,
+					Detail:   fmt.Sprintf("Planned (create) in the wireframe as %s, and gone after the recipe completed: the code moved on without the spec", cands[0]),
+				})
+				result.Summary.Major++
+			} else if len(cands) == 1 {
+				// A shorter name for a file the wireframe plans to create:
+				// a diagram label (trial problem #129).
+				result.Issues = append(result.Issues, Issue{
+					Category: "file_ref",
+					Claim:    fp,
+					Severity: SeverityInfo,
+					Detail:   fmt.Sprintf("File to be created (not yet existing): %s in the wireframe", cands[0]),
+				})
+				result.Summary.Info++
+			} else if len(cands) > 1 {
+				result.Issues = append(result.Issues, Issue{
+					Category: "file_ref",
+					Claim:    fp,
+					Severity: SeverityMajor,
+					Detail:   fmt.Sprintf("%d files the wireframe plans to create match this path (%s): name the one meant from the project root", len(cands), strings.Join(cands, ", ")),
+				})
+				result.Summary.Major++
 			} else {
 				result.Issues = append(result.Issues, Issue{
 					Category: "file_ref",
@@ -500,6 +528,48 @@ func isCreateReference(content, filePath string) bool {
 // File Structure rows, and the files its `generate` rows' generators write
 // (one may not exist yet: trial problem #66); empty when the document is
 // not in a recipe.
+// plannedByTail finds the planned (create or generate) files a shorter
+// reference names: those whose path ends with it by segments, or failing
+// that, those with the same file name whose directories hold the
+// reference's directories in order.  A diagram names files briefly, and an
+// exact match missed the very files a design is about: on cool-crow
+// `Tests/SwapLinkTests.swift` named the planned
+// `app/Tests/SlackPRRelayKitTests/SwapLinkTests.swift` (trial problem #129).
+func plannedByTail(planned map[string]bool, ref string) []string {
+	ref = strings.TrimPrefix(filepath.ToSlash(filepath.Clean(ref)), "./")
+	var refDirs []string
+	if d := path.Dir(ref); d != "." {
+		refDirs = strings.Split(d, "/")
+	}
+	var tails, names []string
+	for p := range planned {
+		switch {
+		case strings.HasSuffix("/"+p, "/"+ref):
+			tails = append(tails, p)
+		case path.Base(p) == path.Base(ref) && dirsInOrder(strings.Split(path.Dir(p), "/"), refDirs):
+			names = append(names, p)
+		}
+	}
+	out := tails
+	if len(out) == 0 {
+		out = names
+	}
+	sort.Strings(out)
+	return out
+}
+
+// dirsInOrder reports whether want's directories appear in have in order,
+// not necessarily side by side.
+func dirsInOrder(have, want []string) bool {
+	i := 0
+	for _, h := range have {
+		if i < len(want) && h == want[i] {
+			i++
+		}
+	}
+	return i == len(want)
+}
+
 func plannedFiles(docDir string) map[string]bool {
 	out := map[string]bool{}
 	if docDir == "" {
