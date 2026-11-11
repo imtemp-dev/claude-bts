@@ -12,6 +12,7 @@ import (
 
 	"github.com/imtemp-dev/claude-bts/internal/engine"
 	"github.com/imtemp-dev/claude-bts/internal/metrics"
+	"github.com/imtemp-dev/claude-bts/internal/multica"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 	"github.com/spf13/cobra"
 )
@@ -936,6 +937,11 @@ func executeRecipeCreate(root, recipeType, topic, amends, ref string, express bo
 	}
 	if express {
 		recipe.Mode = state.ModeExpress
+	}
+	// Inside a Multica run, the recipe belongs to the run's issue; set before
+	// the first phase change so that change already reaches the issue.
+	if tc := multica.FindTaskContext(root); tc != nil && tc.IssueID != "" {
+		recipe.MulticaIssue = tc.IssueID
 	}
 
 	if err := state.SaveRecipeState(root, recipe); err != nil {

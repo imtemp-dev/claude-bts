@@ -42,6 +42,11 @@ type RecipeState struct {
 	// adversary; ModeFull once `bts recipe mode <id> full` has moved an
 	// express recipe to the full recipe.  That move is one way.
 	Mode string `json:"mode,omitempty"`
+	// MulticaIssue is the Multica issue whose run created the recipe, read
+	// from the task's .multica/daemon_task_context.json at create.  When set,
+	// every phase change is mirrored onto the issue's metadata
+	// (bts.recipe_id, bts.phase).  Empty outside Multica.
+	MulticaIssue string `json:"multica_issue,omitempty"`
 }
 
 // Recipe modes (RecipeState.Mode).

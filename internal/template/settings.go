@@ -75,12 +75,31 @@ func removeBtsStatusLine(root string, warnings *[]string) string {
 // turned it on. Uses absolute paths to avoid CWD resolution issues. Fixes
 // stale entries (wrong paths, underscore naming) and adds missing hooks.
 func MergeHookSettings(projectRoot string) error {
-	absRoot, err := filepath.Abs(projectRoot)
+	return mergeHookSettings(projectRoot, projectRoot)
+}
+
+// MergeSessionHookSettings registers the hooks of the bts project at btsRoot
+// in sessionRoot's .claude/settings.local.json.  A Multica run starts Claude
+// in its task's workdir, one level above the repository worktree that holds
+// .bts/, and Claude reads settings only from the directory it started in.
+// The script paths are absolute, so they still run the worktree's hooks.
+func MergeSessionHookSettings(sessionRoot, btsRoot string) error {
+	return mergeHookSettings(sessionRoot, btsRoot)
+}
+
+// mergeHookSettings writes into settingsRoot's settings.local.json the hooks
+// and statusLine of the bts project at btsRoot.
+func mergeHookSettings(settingsRoot, btsRoot string) error {
+	absRoot, err := filepath.Abs(btsRoot)
 	if err != nil {
-		absRoot = projectRoot
+		absRoot = btsRoot
+	}
+	absSettingsRoot, err := filepath.Abs(settingsRoot)
+	if err != nil {
+		absSettingsRoot = settingsRoot
 	}
 
-	settingsPath := filepath.Join(absRoot, ".claude", "settings.local.json")
+	settingsPath := filepath.Join(absSettingsRoot, ".claude", "settings.local.json")
 
 	var settings map[string]interface{}
 	data, err := os.ReadFile(settingsPath)

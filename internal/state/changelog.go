@@ -65,6 +65,9 @@ func LogPhaseChange(root, recipeID, from, to string) error {
 	if from == to {
 		return nil
 	}
+	if PhaseObserver != nil {
+		PhaseObserver(root, recipeID, from, to)
+	}
 	if from == "" {
 		from = "(new)"
 	}
@@ -73,6 +76,13 @@ func LogPhaseChange(root, recipeID, from, to string) error {
 		Result: from + " → " + to,
 	})
 }
+
+// PhaseObserver, when set, is told of every phase change LogPhaseChange
+// records, which is every phase change: `bts recipe create`, `bts recipe
+// log --phase`, reconcile and the Stop hook's finalize and complete all
+// go through it.  from is "" for a new recipe.  The cli package sets it to
+// mirror phases onto a Multica issue; it must not fail or block for long.
+var PhaseObserver func(root, recipeID, from, to string)
 
 // ReadChangelog returns all parseable changelog entries in file order.
 // Malformed lines are skipped — the changelog is append-only and one

@@ -74,3 +74,25 @@ func TestProjectRoot_TheSessionsProjectBeforeTheCwd(t *testing.T) {
 		t.Error("no project anywhere must be an error, as before")
 	}
 }
+
+// A Multica run starts Claude in the task's workdir; the repository worktree
+// holding .bts/ is below it, and the workdir's .bts-root pointer names it.
+// The hooks' CLAUDE_PROJECT_DIR is the workdir, so they must follow the
+// pointer, whether the session has cd'd into the worktree or not.
+func TestProjectRoot_FollowsTheSessionRootPointer(t *testing.T) {
+	workdir := t.TempDir()
+	repo := filepath.Join(workdir, "Repo")
+	if err := os.MkdirAll(filepath.Join(repo, ".bts"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workdir, state.PointerFile), []byte("Repo\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(ProjectEnv, workdir)
+	for _, cwd := range []string{workdir, repo} {
+		got, err := (&HookInput{CWD: cwd}).ProjectRoot()
+		if err != nil || got != repo {
+			t.Errorf("cwd %s: root = %q, %v; want %q", cwd, got, err, repo)
+		}
+	}
+}

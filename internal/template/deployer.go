@@ -117,6 +117,13 @@ func DeployForce(projectRoot string, skipFiles []string) ([]string, error) {
 // Deploy walks the embedded filesystem and writes all files to projectRoot.
 // Existing files are NOT overwritten (user files take precedence).
 func Deploy(projectRoot string) ([]string, error) {
+	return DeployExcept(projectRoot, nil)
+}
+
+// DeployExcept is Deploy without the template paths skip reports; a skipped
+// directory is skipped whole.  `bts init --exclude` uses it to leave out
+// files a product repository should not gain (SkipInExcludeMode).
+func DeployExcept(projectRoot string, skip func(path string) bool) ([]string, error) {
 	tmplFS, err := EmbeddedTemplates()
 	if err != nil {
 		return nil, fmt.Errorf("load templates: %w", err)
@@ -128,7 +135,7 @@ func Deploy(projectRoot string) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		if isRuntimeState(path) {
+		if isRuntimeState(path) || (skip != nil && path != "." && skip(path)) {
 			if d.IsDir() {
 				return fs.SkipDir
 			}

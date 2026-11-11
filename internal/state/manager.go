@@ -9,7 +9,36 @@ import (
 	"strings"
 )
 
-// FindRoot searches for .bts/ directory starting from cwd upward.
+// PointerFile, in a directory with no .bts/, names the bts project it stands
+// for: a path relative to that directory, or absolute.  `bts init --multica`
+// and `--session-root` write one at a Claude session root that sits above the
+// repository worktree holding .bts/ (template.LinkSession).
+const PointerFile = ".bts-root"
+
+// followPointer returns the bts project dir's pointer file names, or "" when
+// dir has no pointer or it names a directory without .bts/.
+func followPointer(dir string) string {
+	data, err := os.ReadFile(filepath.Join(dir, PointerFile))
+	if err != nil {
+		return ""
+	}
+	target := strings.TrimSpace(string(data))
+	if target == "" {
+		return ""
+	}
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(dir, target)
+	}
+	target = filepath.Clean(target)
+	if fi, err := os.Stat(filepath.Join(target, ".bts")); err != nil || !fi.IsDir() {
+		return ""
+	}
+	return target
+}
+
+// FindRoot searches for .bts/ directory starting from cwd upward.  A
+// directory with no .bts/ but a PointerFile resolves to the project the
+// pointer names.
 // Automatically migrates old .bts/state/ layout to specs/ + local/ if needed.
 func FindRoot(cwd string) (string, error) {
 	dir := cwd
@@ -21,6 +50,10 @@ func FindRoot(cwd string) (string, error) {
 		if _, err := os.Stat(btsDir); err == nil {
 			_ = maybeMigrate(dir)
 			return dir, nil
+		}
+		if target := followPointer(dir); target != "" {
+			_ = maybeMigrate(target)
+			return target, nil
 		}
 
 		// Legacy: rename .forge/ → .bts/
