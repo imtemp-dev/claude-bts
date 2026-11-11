@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/imtemp-dev/claude-bts/internal/feature"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 	"github.com/spf13/cobra"
 )
@@ -23,7 +24,66 @@ import (
 func init() {
 	recipeCmd.AddCommand(recipeConfirmCmd)
 	recipeConfirmCmd.Flags().String("answer", "", "The user's confirmation, in their words and in the project's record language")
-	_ = recipeConfirmCmd.MarkFlagRequired("answer")
+	recipeConfirmCmd.Flags().String("by", "user", "Who confirms: user (the default; --answer is their words); feature (intent of a feature item: the feature's confirmation is the user's, recorded with its number and words); manager (a feature item: the feature manager's words, within the feature's confirmation)")
+}
+
+// confirmAnswer turns --by and --answer into the answer recorded, with where
+// it came from.  Only the user's own words are recorded bare.
+func confirmAnswer(root, recipeID, which, by, answer string) (string, error) {
+	answer = strings.TrimSpace(answer)
+	switch by {
+	case "", "user":
+		if answer == "" {
+			return "", errors.New("--answer is required: the user's confirmation, in their words")
+		}
+		return answer, nil
+	case "feature", "manager":
+	default:
+		return "", fmt.Errorf("--by takes user, feature or manager, got %q", by)
+	}
+	r, err := state.LoadRecipeState(root, recipeID)
+	if err != nil {
+		return "", err
+	}
+	if r.Feature == "" {
+		return "", fmt.Errorf("--by %s is for a feature item's recipe; %s is bound to no feature", by, recipeID)
+	}
+	dir, err := feature.Find(r.Feature)
+	if err != nil {
+		return "", err
+	}
+	f, err := feature.Load(dir)
+	if err != nil {
+		return "", err
+	}
+	snap, err := feature.ReadConfirmed(dir, f)
+	if err != nil {
+		return "", err
+	}
+	if snap == nil {
+		return "", fmt.Errorf("feature %s is not confirmed", f.ID)
+	}
+	inPlan := false
+	for _, p := range snap.Plan {
+		inPlan = inPlan || p.ID == r.FeatureItem
+	}
+	if !inPlan {
+		return "", fmt.Errorf("item %s is not in confirmation %d of %s", r.FeatureItem, snap.N, f.ID)
+	}
+	c := f.Confirmations[len(f.Confirmations)-1]
+	if by == "feature" {
+		if which != "intent" {
+			return "", errors.New("--by feature confirms intent only: the feature's confirmation covers the item, not the scope its recipe works out")
+		}
+		if answer != "" {
+			return "", errors.New("--by feature records the feature's confirmation; drop --answer")
+		}
+		return fmt.Sprintf("Confirmed through feature %s, confirmation %d (%s), item %s: %s", f.ID, c.N, c.At, r.FeatureItem, c.Answer), nil
+	}
+	if answer == "" {
+		return "", errors.New("--by manager needs --answer: the manager's words")
+	}
+	return fmt.Sprintf("Confirmed by the feature manager within feature %s, confirmation %d: %s", f.ID, c.N, answer), nil
 }
 
 var recipeConfirmCmd = &cobra.Command{
@@ -37,12 +97,21 @@ var recipeConfirmCmd = &cobra.Command{
 			return err
 		}
 		answer, _ := cmd.Flags().GetString("answer")
+		by, _ := cmd.Flags().GetString("by")
+		which := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(args[1])), ".md")
+		answer, err = confirmAnswer(root, args[0], which, by, answer)
+		if err != nil {
+			return err
+		}
 		key, err := executeRecipeConfirm(root, args[0], args[1], answer)
 		if err != nil {
 			return err
 		}
-		which := strings.TrimSuffix(strings.ToLower(args[1]), ".md")
-		fmt.Printf("[bts] %s.md CONFIRMED; the user's words are decision %s\n", which, key)
+		source := "the user's words are"
+		if by == "feature" || by == "manager" {
+			source = "its source (" + by + ") is recorded in"
+		}
+		fmt.Printf("[bts] %s.md CONFIRMED; %s decision %s\n", which, source, key)
 		// A small scope on a full build recipe is the first point where
 		// express can be weighed (feature #132).
 		if which == "scope" {

@@ -264,12 +264,14 @@ const lockTimeout = 5 * time.Second
 // lock takes an exclusive flock on the feature's .lock file and returns its
 // release.  The kernel drops the lock when the process ends, so a crashed
 // command leaves nothing to clean up and no stale rule is needed.
-func lock(dir string) (func(), error) {
+func lock(dir string) (func(), error) { return lockFor(dir, lockTimeout) }
+
+func lockFor(dir string, wait time.Duration) (func(), error) {
 	f, err := os.OpenFile(filepath.Join(dir, ".lock"), os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err
 	}
-	deadline := time.Now().Add(lockTimeout)
+	deadline := time.Now().Add(wait)
 	for {
 		err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 		if err == nil {

@@ -17,8 +17,8 @@ import (
 // Schema is the version of feature.json, claim.json and manifest.json this
 // build writes.  A build refuses to write a file whose schema is newer: its
 // structs would drop the fields it does not know (a rollback to an older
-// release must not erase a fork point).
-const Schema = 1
+// release must not erase a fork point).  2 added feature.json's multica link.
+const Schema = 2
 
 // File names inside a feature directory.
 const (
@@ -52,6 +52,7 @@ type Feature struct {
 	Confirmations []Confirmation  `json:"confirmations,omitempty"`
 	Closed        *Decision       `json:"closed,omitempty"`
 	Seen          map[string]Seen `json:"seen,omitempty"`
+	Multica       *MulticaLink    `json:"multica,omitempty"`
 }
 
 // Item is one planned piece of the feature, worked as one recipe.
@@ -163,7 +164,13 @@ var ErrNoChange = errors.New("no change")
 // refuses one written by a newer bts, applies fn, bumps rev and writes it
 // back, and logs the change in the manager's changelog.
 func Mutate(dir, action string, fn func(f *Feature) (string, error)) (*Feature, error) {
-	unlock, err := lock(dir)
+	return MutateWait(dir, action, lockTimeout, fn)
+}
+
+// MutateWait is Mutate waiting up to wait for the lock, for a change whose
+// function talks to Multica while it holds the lock.
+func MutateWait(dir, action string, wait time.Duration, fn func(f *Feature) (string, error)) (*Feature, error) {
+	unlock, err := lockFor(dir, wait)
 	if err != nil {
 		return nil, err
 	}

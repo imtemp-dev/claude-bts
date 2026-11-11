@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/imtemp-dev/claude-bts/internal/comment"
+	"github.com/imtemp-dev/claude-bts/internal/feature"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 	"github.com/imtemp-dev/claude-bts/pkg/version"
 	"github.com/spf13/cobra"
@@ -202,6 +203,22 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			fmt.Printf("   ✓ roadmap.md (%d/%d done — next: %s)\n", done, total, nextItem)
 		} else {
 			fmt.Printf("   ✓ roadmap.md (%d/%d done)\n", done, total)
+		}
+	}
+
+	// Feature items: a bound recipe whose records have not reached the
+	// feature store (a sync failed or the hook ran out of time).
+	if recipes, err := state.ListRecipes(root); err == nil {
+		var behind []string
+		for _, r := range recipes {
+			if feature.Behind(root, r) {
+				behind = append(behind, fmt.Sprintf("%s (item %s of %s)", r.ID, r.FeatureItem, r.Feature))
+			}
+		}
+		if len(behind) > 0 {
+			fmt.Printf("   ⚠ not synced to the feature store: %s\n", strings.Join(behind, ", "))
+			fmt.Println("     → bts feature harvest")
+			totalWarnings++
 		}
 	}
 

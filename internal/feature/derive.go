@@ -234,6 +234,7 @@ type Status struct {
 	Pending      []string      `json:"pending,omitempty"`
 	Items        []*ItemStatus `json:"items"`
 	Rev          int           `json:"rev"`
+	Multica      *MulticaLink  `json:"multica,omitempty"`
 }
 
 // Derive computes the feature's and every item's state from feature.json and
@@ -253,7 +254,7 @@ func Derive(dir string, f *Feature) (*Status, error) {
 	}
 	s := &Status{
 		ID: f.ID, Title: f.Title, Ticket: f.Ticket, Dir: dir, Repo: f.Repo, BaseBranch: f.BaseBranch,
-		Confirmation: n, Pending: Pending(dir, f), Rev: f.Rev,
+		Confirmation: n, Pending: Pending(dir, f), Rev: f.Rev, Multica: f.Multica,
 	}
 	// The working items, then any confirmed item the working plan dropped:
 	// it stays in force until the user confirms the removal.

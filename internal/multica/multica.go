@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/imtemp-dev/claude-bts/internal/state"
@@ -69,28 +70,59 @@ func FindTaskContext(dir string) *TaskContext {
 // hook, which finalizes and completes recipes, has 10 s in all.
 const notifyBudget = 4 * time.Second
 
-// runCLI runs the multica CLI.  Tests replace it.  The CLI authenticates from
+// Runner runs the multica CLI with stdin and returns its standard output.
+type Runner func(ctx context.Context, stdin string, args ...string) ([]byte, error)
+
+// runner runs the multica CLI.  Tests replace it.  The CLI authenticates from
 // the run's environment (MULTICA_TOKEN, MULTICA_SERVER_URL), which every
-// command and hook in the run inherits.
-var runCLI = func(ctx context.Context, args ...string) error {
+// command and hook in the run inherits; outside a run it uses the profile
+// `multica login` set up.
+var runner Runner = func(ctx context.Context, stdin string, args ...string) ([]byte, error) {
 	path, err := exec.LookPath("multica")
 	if err != nil {
-		return fmt.Errorf("multica CLI not on PATH")
+		return nil, fmt.Errorf("multica CLI not on PATH")
 	}
-	out, err := exec.CommandContext(ctx, path, args...).CombinedOutput()
+	cmd := exec.CommandContext(ctx, path, args...)
+	if stdin != "" {
+		cmd.Stdin = strings.NewReader(stdin)
+	}
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("multica %s: %v: %s", args[0], err, firstLine(out))
+		msg := firstLine([]byte(stderr.String()))
+		if msg == "" {
+			msg = firstLine(out)
+		}
+		return out, fmt.Errorf("multica %s: %v: %s", strings.Join(args[:min(2, len(args))], " "), err, msg)
 	}
-	return nil
+	return out, nil
 }
 
-// SetCLIRunner replaces how the multica CLI is run and returns a function that
+func runCLI(ctx context.Context, args ...string) error {
+	_, err := runner(ctx, "", args...)
+	return err
+}
+
+// Run runs the multica CLI and returns its standard output.
+func Run(ctx context.Context, stdin string, args ...string) ([]byte, error) {
+	return runner(ctx, stdin, args...)
+}
+
+// SetRunner replaces how the multica CLI is run and returns a function that
 // restores the previous runner.  For tests in other packages, which must
 // never reach a real Multica server.
+func SetRunner(f Runner) (restore func()) {
+	prev := runner
+	runner = f
+	return func() { runner = prev }
+}
+
+// SetCLIRunner is SetRunner for a fake that needs no stdin or output.
 func SetCLIRunner(f func(ctx context.Context, args ...string) error) (restore func()) {
-	prev := runCLI
-	runCLI = f
-	return func() { runCLI = prev }
+	return SetRunner(func(ctx context.Context, _ string, args ...string) ([]byte, error) {
+		return nil, f(ctx, args...)
+	})
 }
 
 func firstLine(b []byte) string {
