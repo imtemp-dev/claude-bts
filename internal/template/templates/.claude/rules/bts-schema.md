@@ -119,7 +119,7 @@ Each line is a JSON object:
 
 Required fields:
 - `time` (string): ISO 8601 timestamp. **Key name is "time", not "timestamp".**
-- `action` (string): one of "discover", "research", "domain-model", "architect", "wireframe", "draft", "improve", "verify", "debate", "simulate", "audit", "assess", "sync-check", "finalize", "implement", "test", "sync", "status", "adjudicate", "review", "comment-apply", "resolve-uncertainties", "midrun-review", "defend" (must match `validActions` in engine/validator.go)
+- `action` (string): one of "discover", "research", "domain-model", "architect", "wireframe", "draft", "improve", "verify", "debate", "simulate", "audit", "assess", "sync-check", "finalize", "implement", "test", "sync", "status", "adjudicate", "review", "comment-apply", "resolve-uncertainties", "midrun-review", "defend"; and, written by bts commands and hooks, "skeleton", "falsify", "falsifier-check", "mutate", "generated", "claim", "interrogate", "prove", "phase", "confirm", "amended" (the same set as `ChangelogActions` in engine/validator.go; a test checks it)
 
 Optional fields:
 - `input` (string): what was acted on

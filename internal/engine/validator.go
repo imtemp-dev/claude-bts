@@ -1067,4 +1067,10 @@ var ChangelogActions = map[string]bool{
 	"prove": true,
 	// every phase change, with the bts build that made it (trial problem #55)
 	"phase": true,
+	// written by `bts recipe confirm` when the user confirms intent or scope
+	// (#88), and into a completed recipe a fix recipe amends (#90).  Both
+	// were left out, so `bts validate` rejected every row they wrote (trial
+	// problem #130); a test now reads the source for every action written.
+	"confirm": true,
+	"amended": true,
 }
