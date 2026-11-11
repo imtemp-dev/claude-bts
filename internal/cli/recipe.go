@@ -29,7 +29,10 @@ func init() {
 	recipeCreateCmd.Flags().String("amends", "", "A completed recipe this fix recipe changes (--type fix); its records answer for the files the fix touches once it completes")
 	recipeCreateCmd.Flags().String("ref", "", "A recipe this one reads for context (sets ref_recipe)")
 	recipeCreateCmd.Flags().Bool("express", false, "Express mode for a small build recipe (--type build): no architect runners or debate, no review round on final.md, one interrogate adversary. bts recipe mode <id> full moves it to the full recipe later")
-	_ = recipeCreateCmd.MarkFlagRequired("topic")
+	recipeCreateCmd.Flags().String("feature", "", "Take an item of this feature (with --item): its type, mode and title come from the plan, and the recipe is synced to the feature store")
+	recipeCreateCmd.Flags().String("item", "", "The feature item to take (with --feature); on a done item, --type fix opens a fix-forward attempt")
+	// --topic is required except for a feature item, whose title is the
+	// topic; RunE checks it, since cobra cannot make a flag conditional.
 	recipeReconcileCmd.Flags().Bool("dry-run", false, "Print the plan without writing")
 	recipeReconcileCmd.Flags().Bool("force", false, "Bypass blueprint-phase whitelist (implement-phase still protected)")
 }
@@ -193,7 +196,7 @@ var recipeLogCmd = &cobra.Command{
 					PreviousPhase: previousPhase,
 				})
 			}
-			if err := state.LogPhaseChange(root, recipeID, previousPhase, phase); err != nil {
+			if err := state.LogPhaseChangeVia(root, recipeID, previousPhase, phase, state.PhaseViaCLI); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: append changelog: %v\n", err)
 			}
 			fmt.Printf("Phase → %s\n", phase)
@@ -872,6 +875,32 @@ var recipeCreateCmd = &cobra.Command{
 		amends, _ := cmd.Flags().GetString("amends")
 		ref, _ := cmd.Flags().GetString("ref")
 		express, _ := cmd.Flags().GetBool("express")
+		featureID, _ := cmd.Flags().GetString("feature")
+		itemID, _ := cmd.Flags().GetString("item")
+
+		if featureID != "" || itemID != "" {
+			if featureID == "" || itemID == "" {
+				return fmt.Errorf("--feature and --item go together")
+			}
+			if amends != "" || ref != "" || cmd.Flags().Changed("express") {
+				return fmt.Errorf("an item's recipe takes its type, mode and amended recipe from the feature; drop --amends, --ref and --express")
+			}
+			typeFlag := ""
+			if cmd.Flags().Changed("type") {
+				typeFlag = recipeType
+			}
+			refreshTemplatesBeforeCreate(root)
+			id, err := createFeatureRecipe(root, featureID, itemID, typeFlag, topic)
+			if err != nil {
+				cmd.SilenceUsage = true
+				return err
+			}
+			fmt.Println(id)
+			return nil
+		}
+		if strings.TrimSpace(topic) == "" {
+			return fmt.Errorf(`required flag(s) "topic" not set`)
+		}
 
 		refreshTemplatesBeforeCreate(root)
 		id, err := executeRecipeCreate(root, recipeType, topic, amends, ref, express)
@@ -892,6 +921,14 @@ var recipeCreateCmd = &cobra.Command{
 // documents by hand (trial problem #90).  express makes a build recipe an
 // express one (feature #132).
 func executeRecipeCreate(root, recipeType, topic, amends, ref string, express bool) (string, error) {
+	return executeRecipeCreateWith(root, recipeType, topic, amends, ref, express, nil)
+}
+
+// executeRecipeCreateWith is executeRecipeCreate with beforeSave, which runs
+// once the id is known and before the recipe is first saved, so it can bind
+// the recipe (a feature item's claim) before the first phase change reaches
+// the phase observers.
+func executeRecipeCreateWith(root, recipeType, topic, amends, ref string, express bool, beforeSave func(id string, r *state.RecipeState) error) (string, error) {
 	if express && recipeType != "build" {
 		return "", fmt.Errorf("--express is a mode of the build recipe; use --type build")
 	}
@@ -903,6 +940,12 @@ func executeRecipeCreate(root, recipeType, topic, amends, ref string, express bo
 		target, err := state.LoadRecipeState(root, amends)
 		if err != nil || target == nil {
 			return "", fmt.Errorf("--amends %s: no such recipe", amends)
+		}
+		// A feature item's recipe is changed through the feature, so the
+		// change is an attempt the manager and the store can see.
+		if target.Feature != "" && beforeSave == nil {
+			return "", fmt.Errorf("--amends %s: it is item %s of feature %s; change it with bts recipe create --feature %s --item %s --type fix",
+				amends, target.FeatureItem, target.Feature, target.Feature, target.FeatureItem)
 		}
 		if target.Phase != "complete" {
 			return "", fmt.Errorf("--amends %s: it is in phase %s, not complete; continue it instead", amends, target.Phase)
@@ -942,6 +985,11 @@ func executeRecipeCreate(root, recipeType, topic, amends, ref string, express bo
 	// the first phase change so that change already reaches the issue.
 	if tc := multica.FindTaskContext(root); tc != nil && tc.IssueID != "" {
 		recipe.MulticaIssue = tc.IssueID
+	}
+	if beforeSave != nil {
+		if err := beforeSave(id, recipe); err != nil {
+			return "", err
+		}
 	}
 
 	if err := state.SaveRecipeState(root, recipe); err != nil {
@@ -999,9 +1047,22 @@ var recipeCancelCmd = &cobra.Command{
 			return nil
 		}
 
+		previousPhase := recipe.Phase
 		recipe.Phase = "cancelled"
 		if err := state.SaveRecipeState(root, recipe); err != nil {
 			return fmt.Errorf("save: %w", err)
+		}
+		// Through the phase log, so the observers see it: a feature-bound
+		// recipe's cancellation reaches the feature store, and its item
+		// can be claimed again.  The metric matches every other path.
+		_ = metrics.Append(root, &metrics.MetricsEvent{
+			Kind:          metrics.KindPhaseChange,
+			RecipeID:      recipe.ID,
+			Phase:         "cancelled",
+			PreviousPhase: previousPhase,
+		})
+		if err := state.LogPhaseChangeVia(root, recipe.ID, previousPhase, "cancelled", state.PhaseViaCLI); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: append changelog: %v\n", err)
 		}
 
 		fmt.Printf("Recipe %s cancelled.\n", recipe.ID)

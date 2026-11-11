@@ -11,6 +11,7 @@ import (
 
 	"github.com/imtemp-dev/claude-bts/internal/comment"
 	"github.com/imtemp-dev/claude-bts/internal/engine"
+	"github.com/imtemp-dev/claude-bts/internal/feature"
 	"github.com/imtemp-dev/claude-bts/internal/metrics"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 )
@@ -603,7 +604,7 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 		Phase:         "finalize",
 		PreviousPhase: prevPhase,
 	})
-	_ = state.LogPhaseChange(root, recipe.ID, prevPhase, "finalize")
+	_ = state.LogPhaseChangeVia(root, recipe.ID, prevPhase, "finalize", state.PhaseViaGate)
 
 	fmt.Fprintf(os.Stderr, "[bts] Spec verified ✓ Next: /bts-implement %s\n", recipe.ID)
 	return &HookOutput{}, nil
@@ -764,8 +765,11 @@ func (h *stopHandler) handleImplementDone(root string, recipe *state.RecipeState
 		Phase:         "complete",
 		PreviousPhase: prevPhase,
 	})
-	_ = state.LogPhaseChange(root, recipe.ID, prevPhase, "complete")
+	_ = state.LogPhaseChangeVia(root, recipe.ID, prevPhase, "complete", state.PhaseViaGate)
 
+	if recipe.Feature != "" {
+		return featureDoneHint(root, recipe, "Implementation complete."), nil
+	}
 	if err := state.MarkRoadmapItemDone(root, recipe.ID); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: update roadmap: %v\n", err)
 	}
@@ -895,12 +899,29 @@ func (h *stopHandler) handleFixDone(root string, recipe *state.RecipeState) (*Ho
 		Phase:         "complete",
 		PreviousPhase: prevPhase,
 	})
-	_ = state.LogPhaseChange(root, recipe.ID, prevPhase, "complete")
+	_ = state.LogPhaseChangeVia(root, recipe.ID, prevPhase, "complete", state.PhaseViaGate)
 
+	if recipe.Feature != "" {
+		return featureDoneHint(root, recipe, "Fix complete."), nil
+	}
 	if err := state.MarkRoadmapItemDone(root, recipe.ID); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: update roadmap: %v\n", err)
 	}
 	return roadmapHint(root, "Fix complete."), nil
+}
+
+// featureDoneHint replaces the roadmap hint for a recipe that is one item of
+// a feature: what comes next is the feature manager's call, not the next
+// roadmap item.  It says whether the phase observer's sync reached the
+// feature store.
+func featureDoneHint(root string, recipe *state.RecipeState, prefix string) *HookOutput {
+	where := "its records are in the feature store"
+	if feature.Behind(root, recipe) {
+		where = "its records did not reach the feature store yet (the next session start retries, or run bts feature harvest)"
+	}
+	fmt.Fprintf(os.Stderr, "[bts] %s %s is item %s (attempt %d) of feature %s; %s, and the feature's manager decides what is next.\n",
+		prefix, recipe.ID, recipe.FeatureItem, recipe.FeatureAttempt, recipe.Feature, where)
+	return &HookOutput{}
 }
 
 // roadmapHint logs roadmap progress to stderr (Stop hook cannot use hookSpecificOutput).

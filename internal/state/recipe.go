@@ -47,6 +47,16 @@ type RecipeState struct {
 	// every phase change is mirrored onto the issue's metadata
 	// (bts.recipe_id, bts.phase).  Empty outside Multica.
 	MulticaIssue string `json:"multica_issue,omitempty"`
+	// Feature, FeatureItem, FeatureAttempt and FeatureDir bind the recipe to
+	// one attempt at one item of a feature in the feature store, set by
+	// `bts recipe create --feature --item`.  FeatureDir is the feature's
+	// absolute directory, so syncing never recomputes the store location.
+	// The claim in the store is the durable record; these let the worktree
+	// find it.
+	Feature        string `json:"feature,omitempty"`
+	FeatureItem    string `json:"feature_item,omitempty"`
+	FeatureAttempt int    `json:"feature_attempt,omitempty"`
+	FeatureDir     string `json:"feature_dir,omitempty"`
 }
 
 // Recipe modes (RecipeState.Mode).

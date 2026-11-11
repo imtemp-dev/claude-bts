@@ -26,6 +26,9 @@ type ChangelogEntry struct {
 	// on test and review entries, so a review can be matched to the code
 	// it judged and the tests that ran on it.
 	ImplHash string `json:"impl_hash,omitempty"`
+	// Via is where a phase change came from (PhaseViaGate, PhaseViaCLI);
+	// empty on other actions and on entries written before it existed.
+	Via string `json:"via,omitempty"`
 	// BtsVersion is the bts build that wrote the entry
 	// (version.GetTemplateVersion), stamped by AppendChangelog. r-003
 	// started on one build and finished on another because a session start
@@ -59,30 +62,55 @@ func AppendChangelog(root, recipeID string, entry *ChangelogEntry) error {
 // own history could not say which build ran which phase (trial problem
 // #55). from is "" for a recipe's first phase.
 func LogPhaseChange(root, recipeID, from, to string) error {
+	return LogPhaseChangeVia(root, recipeID, from, to, "")
+}
+
+// Phase-change sources LogPhaseChangeVia records.  A completion through the
+// Stop hook's gates is PhaseViaGate; a phase set on the command line
+// (`bts recipe log --phase`, `bts recipe cancel`) is PhaseViaCLI, which for
+// complete or finalize means --force.  The feature store reads it to tell a
+// gated completion from a forced one.
+const (
+	PhaseViaGate = "gate"
+	PhaseViaCLI  = "cli"
+)
+
+// LogPhaseChangeVia is LogPhaseChange with the source of the change, kept on
+// the changelog entry.
+func LogPhaseChangeVia(root, recipeID, from, to, via string) error {
 	// A move to the phase the recipe is already in is no transition: it
 	// wrote "discovery → discovery" rows that `bts stats` printed as extra
 	// 0 s stages (trial problem #94).
 	if from == to {
 		return nil
 	}
-	if PhaseObserver != nil {
-		PhaseObserver(root, recipeID, from, to)
+	shown := from
+	if shown == "" {
+		shown = "(new)"
 	}
-	if from == "" {
-		from = "(new)"
-	}
-	return AppendChangelog(root, recipeID, &ChangelogEntry{
+	err := AppendChangelog(root, recipeID, &ChangelogEntry{
 		Action: "phase",
-		Result: from + " → " + to,
+		Result: shown + " → " + to,
+		Via:    via,
 	})
+	// Observers run after the entry is written, so they can read it.
+	for _, o := range phaseObservers {
+		o(root, recipeID, from, to)
+	}
+	return err
 }
 
-// PhaseObserver, when set, is told of every phase change LogPhaseChange
-// records, which is every phase change: `bts recipe create`, `bts recipe
-// log --phase`, reconcile and the Stop hook's finalize and complete all
-// go through it.  from is "" for a new recipe.  The cli package sets it to
-// mirror phases onto a Multica issue; it must not fail or block for long.
-var PhaseObserver func(root, recipeID, from, to string)
+// AddPhaseObserver registers f to be told of every phase change
+// LogPhaseChange records, which is every phase change: `bts recipe create`,
+// `bts recipe log --phase`, `bts recipe cancel`, reconcile and the Stop
+// hook's finalize and complete all go through it.  Observers run in the
+// order added; from is "" for a new recipe.  An observer must not fail or
+// block for long: the Stop hook has 10 s in all.
+func AddPhaseObserver(f func(root, recipeID, from, to string)) {
+	phaseObservers = append(phaseObservers, f)
+}
+
+var phaseObservers []func(root, recipeID, from, to string)
 
 // ReadChangelog returns all parseable changelog entries in file order.
 // Malformed lines are skipped — the changelog is append-only and one

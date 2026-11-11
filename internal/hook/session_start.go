@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/imtemp-dev/claude-bts/internal/feature"
 	"github.com/imtemp-dev/claude-bts/internal/metrics"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 	"github.com/imtemp-dev/claude-bts/internal/template"
@@ -42,6 +43,15 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 					"the recipe's next step belongs to the main session.",
 			},
 		}, nil
+	}
+
+	// A feature-bound recipe whose snapshot in the feature store is behind,
+	// because a sync failed or the Stop hook ran out of time, is synced
+	// again here.  Never fatal: the store reports, it does not gate.
+	if synced, err := feature.SyncPending(root); err != nil {
+		fmt.Fprintf(os.Stderr, "[bts] warning: feature store sync: %v\n", err)
+	} else if len(synced) > 0 {
+		fmt.Fprintf(os.Stderr, "[bts] synced %v to the feature store\n", synced)
 	}
 
 	// Auto-update templates if binary version changed; held is the line

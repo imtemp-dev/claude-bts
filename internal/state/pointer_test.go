@@ -71,9 +71,7 @@ func TestLogPhaseChangeTellsObserver(t *testing.T) {
 		t.Fatal(err)
 	}
 	var calls [][3]string
-	prev := PhaseObserver
-	PhaseObserver = func(_, id, from, to string) { calls = append(calls, [3]string{id, from, to}) }
-	t.Cleanup(func() { PhaseObserver = prev })
+	t.Cleanup(setPhaseObserversForTest(func(_, id, from, to string) { calls = append(calls, [3]string{id, from, to}) }))
 
 	_ = LogPhaseChange(root, "r-001-x", "", "research")
 	_ = LogPhaseChange(root, "r-001-x", "research", "research") // no transition

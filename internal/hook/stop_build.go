@@ -47,7 +47,7 @@ func (h *stopHandler) handleBuildSpecDone(root string, recipe *state.RecipeState
 		Phase:         "finalize",
 		PreviousPhase: prevPhase,
 	})
-	_ = state.LogPhaseChange(root, recipe.ID, prevPhase, "finalize")
+	_ = state.LogPhaseChangeVia(root, recipe.ID, prevPhase, "finalize", state.PhaseViaGate)
 	fmt.Fprintf(os.Stderr, "[bts] Build spec ready ✓ skeleton builds, %d falsifier(s) red, %d carried green. Next: /bts-implement %s\n", introduced, carried, recipe.ID)
 	return &HookOutput{}, nil
 }
