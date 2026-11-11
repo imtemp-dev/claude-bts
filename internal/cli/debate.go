@@ -20,6 +20,23 @@ func init() {
 	debateLogCmd.Flags().String("id", "", "Debate ID (auto-generated if empty)")
 	debateLogCmd.Flags().String("conclusion", "", "The debate's conclusion (sets it)")
 	debateLogCmd.Flags().Bool("decided", false, "Mark the debate decided")
+	debateLogCmd.Flags().String("followup-of", "", "Start the next follow-up of this `debate-id`: <id>-followup, then <id>-followup-2, ... (the id is printed; log its later rounds with --id)")
+}
+
+// nextFollowupID is the first follow-up name of parent with no recorded
+// state: <parent>-followup, then <parent>-followup-2, and so on.  It is the
+// directory name bts-architect's EXTEND step gives a follow-up debate, so
+// the rounds written there and the state share one id (trial problem #131).
+func nextFollowupID(root, parent string) string {
+	for n := 1; ; n++ {
+		id := parent + "-followup"
+		if n > 1 {
+			id = fmt.Sprintf("%s-followup-%d", parent, n)
+		}
+		if _, err := state.LoadDebateState(root, id); err != nil {
+			return id
+		}
+	}
 }
 
 var debateCmd = &cobra.Command{
@@ -75,6 +92,24 @@ var debateLogCmd = &cobra.Command{
 		debateID, _ := cmd.Flags().GetString("id")
 		conclusion, _ := cmd.Flags().GetString("conclusion")
 		decided, _ := cmd.Flags().GetBool("decided")
+		followupOf, _ := cmd.Flags().GetString("followup-of")
+
+		// A follow-up debate takes the name bts-architect gives its
+		// directory: --topic alone minted another id, and the rounds and
+		// the state never matched (trial problem #131).
+		if followupOf != "" {
+			if debateID != "" {
+				return fmt.Errorf("--followup-of starts a new debate and names it; drop --id, and log the follow-up's later rounds with --id <the printed id>")
+			}
+			parent, perr := state.LoadDebateState(root, followupOf)
+			if perr != nil {
+				return fmt.Errorf("no debate %s to follow up: log it first with `bts debate log --id %s --topic \"...\"`", followupOf, followupOf)
+			}
+			debateID = nextFollowupID(root, followupOf)
+			if topic == "" {
+				topic = parent.Topic + " (follow-up)"
+			}
+		}
 
 		if topic == "" && debateID == "" {
 			return fmt.Errorf("--topic or --id required")
@@ -138,6 +173,9 @@ var debateLogCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Debate %s: round %d logged (topic: %s)\n", debateID, round, ds.Topic)
+		if followupOf != "" {
+			fmt.Printf("  a follow-up of %s: write its rounds in the recipe's debates/%s/ and log them with --id %s\n", followupOf, debateID, debateID)
+		}
 		return nil
 	},
 }

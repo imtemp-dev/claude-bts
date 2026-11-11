@@ -194,9 +194,11 @@ and act on its verdict:
   Reservations section to `reservations.md` as bts-adjudicate Step 5
   says.
 - `EXTEND N/3` → run its Preparation Brief (bts-adjudicate Step 4: the
-  research, then a follow-up debate in a new `-followup` directory),
-  adding or revising an alternative where the brief asks for one. Then
-  spawn a fresh adjudicator on the follow-up debate. Max 3 extensions.
+  research, then a follow-up debate started with `bts debate log
+  --followup-of <the first debate's id>`, which names it `<id>-followup`,
+  then `<id>-followup-2`, and prints the id for its rounds), adding or
+  revising an alternative where the brief asks for one. Then spawn a
+  fresh adjudicator on the follow-up debate. Max 3 extensions.
 - `SCOPE CHANGE` → the adjudicator cannot ask the user. Ask with
   bts-adjudicate Step 2b's question; on approval update `scope.md` and
   spawn a fresh adjudicator, on rejection extend the debate with the

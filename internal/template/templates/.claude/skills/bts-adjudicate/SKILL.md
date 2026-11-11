@@ -150,7 +150,11 @@ If VERDICT is EXTEND DEBATE:
      c. Preparation Brief + research results (new evidence gathered)
    - Experts must address ALL items in the brief with concrete evidence
    - Use Skill("bts-debate") with this combined context as arguments
-   - Save the follow-up debate in a new directory: `debates/{next-seq}-{topic}-followup/`
+   - Start it with `bts debate log --followup-of <the first debate's id> --topic "<topic above>"`.
+     It takes the next free id, `<id>-followup` and then `<id>-followup-2`, and prints it.
+     Save the rounds in `debates/<that id>/` beside the recipe and log them with
+     `--id <that id>`, so the rounds and the debate's state share one id; a
+     directory named any other way has no state, and `bts validate` reports it.
 
 5. **Re-evaluate**: After the follow-up debate concludes, go back to Step 1
    and evaluate the NEW conclusion. This is a self-loop:
