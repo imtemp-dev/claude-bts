@@ -42,12 +42,19 @@ Run the recipe's own skill: `/bts-recipe-build`, `/bts-recipe-blueprint`, `/bts-
 
 - You cannot use AskUserQuestion.  A question only the user can answer becomes a decision (`bts recipe decision hold …`), one comment with the question and numbered options, the issue set to `blocked`, a mention of the manager, and the end of your turn.  The manager answers what the confirmed intent and contracts already answer.
 - Discovery and scoping take the item from the context document; do not re-ask what the feature settled.
+- An express item's recipe is express from the start (`bts recipe status` shows `Mode: express`); follow the build skill's Express mode section.  A mode question bts holds (`express-mode`, `full-mode`) goes to the manager like any other.
 - Run everything in the foreground: no background tasks or subagents, no sleep loops.
-- Push nothing and open no pull request.
+- Commit the item's work on the worktree's branch as the recipe goes.  Never push with `git push` and never use `gh pr` yourself: the only push and pull request this item gets go through `bts feature pr`.
 
 ## Finish
 
-The recipe is finished when the Stop hook completes it.  Its records reach the feature store by themselves; if a message says they did not, run `bts feature harvest`.  Then:
+The recipe is finished when the Stop hook completes it.  Its records reach the feature store by themselves; if a message says they did not, run `bts feature harvest`.  Then, in the repository:
 
-1. Post one comment: what the item delivered, the tests, and any deviation from the spec.
-2. Set the issue to `in_review`.  Never `done`: that is the user's.
+1. Commit anything left, then `bts feature pr <feature> <item>`.  It names the branch, pushes it, and opens a draft pull request against the item's base; it prints the URL.  If it refuses, report its message.
+2. Post one comment: what the item delivered, the tests, any deviation from the spec, and the draft pull request's URL.
+3. Set the issue to `in_review`.  Never `done`, never ready for review: those are the user's.
+
+## When you are asked again
+
+- **Restack.**  When a comment says the item you are stacked on merged: `bts feature restack <feature> <item>`, then run the recipe's tests again (the command is in `test-results.json`) and report both in one comment.  A conflict stops the restack and leaves the branch as it was: report it, set the issue to `blocked`, and mention the manager.
+- **A change to a finished item** (review feedback, a contract the manager says it broke): `bts recipe create --feature <feature> --item <item> --type fix` opens a fix-forward attempt that amends the finished recipe; work it with `/bts-recipe-fix`, then finish as above.  `bts feature pr` pushes it to the same pull request.

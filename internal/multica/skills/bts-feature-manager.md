@@ -36,6 +36,13 @@ Read `.multica/daemon_task_context.json` in your working directory:
    bts feature item add <feature> --title "<title>" --type build|blueprint|fix|debug [--express] [--depends-on i1,i2]
    ```
 
+   Choose each build item's mode:
+
+   - **Express** (`--express`) for a small item or a feature that is not hard to get right: at most three In Scope points, no new external integration, no migration or irreversible step, a narrow change in an area the code already has.  Express keeps what makes a build trustworthy (confirmed intent and scope, invariants with one owner each, a skeleton that compiles, a test per invariant that fails first, the prove stage, one code review, sync) and drops the fixed process a small change does not need (the architect's runners and debate, the review loop on `final.md`, a second interrogate adversary).
+   - **Full** (no flag) for anything larger, anything that adds an integration or a migration, crosses a boundary between systems, or where getting the design wrong is costly.
+
+   Express is a mode of the build recipe only.  When you show the plan, say which items are express and why; the user's confirmation covers the choice.
+
 4. Show the user the intent, the contracts and the plan (items, stages, dependencies).  When they confirm, record their words exactly:
 
    ```bash
@@ -54,8 +61,9 @@ Never confirm or publish on your own judgement.  Both are the user's decisions.
 
 1. `bts feature status <feature> --json` and `bts feature reconcile <feature>`.
 2. For each item whose attempt finished since you last looked, read what it delivered in the store (`<feature dir>/items/<item>/a<N>/snapshot/recipe/`: `final.md` or `fix-spec.md`, `deviation.md`, `review.md`) and check it against `contracts.md`.  If a deviation breaks a contract that a later item relies on, do not dispatch the dependents: post one comment on the parent issue for the user, naming the contract, the deviation and the choices (amend the contract, or fix the item), and stop.
-3. `bts feature dispatch <feature>`.  It creates missing sub-issues in backlog with their stages, starts the ready items, restarts a claimable item that has no run, cancels items the user skipped or deferred, and moves the parent to in_review when every item is settled.  It is safe to run again.
-4. When dispatch moved the parent to in_review, post one short summary comment there: each item with its attempt, `completed_via`, and any deviation.  Leave `done` to the user.
+3. `bts feature dispatch <feature>`.  It records pull requests that merged and asks an item stacked on one to restack; creates missing sub-issues in backlog with their stages; starts each ready item on its base (the base branch, or the branch of the one unmerged item it depends on, at most two unmerged levels deep) and says why the others wait; restarts a claimable item that has no run; cancels items the user skipped or deferred; and moves the parent to in_review once every item is settled with its draft pull request.  It is safe to run again.
+4. When dispatch moved the parent to in_review, post one short summary comment there: each item with its attempt, `completed_via`, any deviation, and its draft pull request.  Marking pull requests ready, merging them and `done` are the user's.
+5. Merges reach you only when you run.  When the user says a pull request merged, run dispatch: it records the merge, asks the item stacked on it to restack, and starts what waited for it.
 5. A change to the plan or the contracts is the user's to confirm (`bts feature confirm` again).  Propose it on the parent issue; never apply it yourself.
 
 ## Answer on an item (sub-issue)
@@ -65,6 +73,7 @@ You were woken on a sub-issue by a failure, a review, or a mention.  Start with 
 - **A failed or cancelled run.**  Look at it: `multica issue runs <issue>` and `multica issue run-messages <run-id>` (the tail).  A spend or session limit: do nothing now and say so in one comment; rerun later.  A transient failure: `multica issue rerun <issue>` once.  The same failure twice: ask the user on the parent issue.  An attempt whose worktree is gone needs the user's word before you release it (`bts feature item release <feature> <item> --answer "<the user's words>"`).
 - **A question from the worker.**  Answer it only when the confirmed intent and contracts answer it, citing them, and mention the worker so it continues.  Anything else goes to the user on the parent issue.
 - **A scope to confirm.**  The worker posts its `scope.md` summary.  If every in-scope point serves the item as confirmed and breaks no contract, reply `Scope confirmed within confirmation <n>: <one line on why>` and mention the worker.  Otherwise ask the user on the parent issue.
+- **A mode question.**  bts asks about the mode when a full build item's confirmed scope turns out small (decision `express-mode`) or an express item's domain model grows past eight invariants (decision `full-mode`).  If the plan the user confirmed already settles it, answer by citing the plan; otherwise ask the user on the parent issue.  A move to full is one way.
 - **An item in review.**  Go to **Run the feature** and act on the parent issue.
 
 ## Rules

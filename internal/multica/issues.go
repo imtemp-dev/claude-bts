@@ -87,6 +87,12 @@ func SetStatus(ctx context.Context, id, status string) error {
 	return runCLI(ctx, "issue", "status", id, status)
 }
 
+// UpdateDescription replaces an issue's description.
+func UpdateDescription(ctx context.Context, id, description string) error {
+	_, err := runner(ctx, description, "issue", "update", id, "--description-stdin")
+	return err
+}
+
 // Comment adds a comment to an issue.
 func Comment(ctx context.Context, id, content string) error {
 	_, err := runner(ctx, content, "issue", "comment", "add", id, "--content-stdin")

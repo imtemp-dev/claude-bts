@@ -179,6 +179,7 @@ type ItemStatus struct {
 	Latest      *AttemptRef `json:"latest,omitempty"`
 	DoneAttempt *AttemptRef `json:"done_attempt,omitempty"`
 	Removed     bool        `json:"removed_pending_confirmation,omitempty"`
+	Merged      bool        `json:"merged,omitempty"`
 
 	latest, done *Attempt
 	doneAll      []*Attempt // every done attempt, oldest first
@@ -197,6 +198,9 @@ type AttemptRef struct {
 	HeadSHA      string `json:"head_sha,omitempty"`
 	SyncedAt     string `json:"synced_at,omitempty"`
 	Released     bool   `json:"released,omitempty"`
+	PRURL        string `json:"pr_url,omitempty"`
+	PRBranch     string `json:"pr_branch,omitempty"`
+	PRBase       string `json:"pr_base,omitempty"`
 }
 
 func ref(a *Attempt) *AttemptRef {
@@ -209,6 +213,9 @@ func ref(a *Attempt) *AttemptRef {
 	}
 	if a.Manifest != nil {
 		r.Phase, r.Outcome, r.CompletedVia, r.HeadSHA, r.SyncedAt = a.Manifest.Phase, a.Manifest.Outcome, a.Manifest.CompletedVia, a.Manifest.HeadSHA, a.Manifest.SyncedAt
+	}
+	if p := readPR(a.Dir); p != nil {
+		r.PRURL, r.PRBranch, r.PRBase = p.URL, p.Branch, p.Base
 	}
 	return r
 }
@@ -311,6 +318,12 @@ func Derive(dir string, f *Feature) (*Status, error) {
 		}
 		if is.Removed {
 			is.Note = strings.TrimSpace(is.Note + " removed from the plan; the removal awaits the user's confirmation")
+		}
+		if f.Multica != nil {
+			if mi := f.Multica.Items[it.ID]; mi != nil && mi.Merged != nil {
+				is.Merged = true
+				is.Note = strings.TrimSpace(is.Note + " merged " + short(mi.Merged.SHA))
+			}
 		}
 		if is.InConfirmed && is.State != StateDone && is.State != StateSkipped && is.State != StateDeferred {
 			allSettled = false

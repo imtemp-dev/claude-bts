@@ -21,20 +21,36 @@ type MulticaLink struct {
 	Items     map[string]*MulticaItem `json:"items,omitempty"`
 }
 
-// MulticaItem is one item's sub-issue.
+// MulticaItem is one item's sub-issue, and what the manager decided and saw
+// about its branch.
 type MulticaItem struct {
-	Issue string `json:"issue"`
-	Key   string `json:"key,omitempty"`
-	Stage int    `json:"stage"`
-	At    string `json:"at"`
+	Issue      string       `json:"issue"`
+	Key        string       `json:"key,omitempty"`
+	Stage      int          `json:"stage"`
+	At         string       `json:"at"`
+	Base       string       `json:"base,omitempty"`        // the branch the item started from
+	BaseItem   string       `json:"base_item,omitempty"`   // the unmerged item it is stacked on
+	Merged     *MergeRecord `json:"merged,omitempty"`      // its pull request merged
+	RestackFor string       `json:"restack_for,omitempty"` // the merged item a restack was asked for
 }
 
-// MulticaConfig names the agents a store's features use, written by
-// `bts multica setup` into <store>/multica.json.
-type MulticaConfig struct {
-	Manager string `json:"manager_agent"`
-	Worker  string `json:"worker_agent"`
+// MergeRecord is a merged pull request.
+type MergeRecord struct {
+	SHA string `json:"sha"`
+	At  string `json:"at"`
 }
+
+// MulticaConfig names the agents a store's features use, and the branch
+// prefix for item branches, written by `bts multica setup` into
+// <store>/multica.json.
+type MulticaConfig struct {
+	Manager      string `json:"manager_agent"`
+	Worker       string `json:"worker_agent"`
+	BranchPrefix string `json:"branch_prefix,omitempty"`
+}
+
+// MaxStack is how many unmerged items deep a stack may go.
+const MaxStack = 2
 
 const multicaConfigFile = "multica.json"
 
@@ -86,19 +102,27 @@ func parentBrief(f *Feature, dir string) string {
 	return b.String()
 }
 
-func workerBrief(f *Feature, p PlanItem, stage int) string {
+func workerBrief(f *Feature, p PlanItem, stage int, base, baseItem string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "bts feature **%s**, item **%s**: %s (%s", f.ID, p.ID, p.Title, p.Type)
 	if p.Express {
 		b.WriteString(", express")
 	}
 	fmt.Fprintf(&b, "), stage %d.\n\n", stage)
+	if base == "" {
+		b.WriteString("Waiting in backlog: the manager starts it, and sets its base branch here, when its dependencies allow.\n")
+		return b.String()
+	}
 	b.WriteString("Work it with the bts-feature-worker skill.  The steps that start it:\n\n")
 	repo := f.Repo.URL
 	if repo == "" {
 		repo = "<the repository>"
 	}
-	fmt.Fprintf(&b, "1. `multica repo checkout %s --ref %s`\n", repo, f.BaseBranch)
+	fmt.Fprintf(&b, "1. `multica repo checkout %s --ref %s`", repo, base)
+	if baseItem != "" {
+		fmt.Fprintf(&b, " (stacked on %s, which has not merged yet)", baseItem)
+	}
+	b.WriteString("\n")
 	b.WriteString("2. From this task's workdir: `bts init --multica`\n")
 	fmt.Fprintf(&b, "3. In the repository: `bts recipe create --feature %s --item %s`, then `bts feature context %s %s`\n", f.ID, p.ID, f.ID, p.ID)
 	if len(p.DependsOn) > 0 {
@@ -159,11 +183,62 @@ func Publish(dir, manager, worker string) (*MulticaLink, bool, error) {
 	return link, false, nil
 }
 
-// Action is one thing Dispatch did.
+// Action is one thing Dispatch did, or, with Note, one thing it is waiting
+// for.
 type Action struct {
 	Item  string
 	Issue string
 	What  string
+	Note  bool
+}
+
+// chooseBase decides where a ready item starts: the feature's base branch
+// when every dependency has merged; the branch of its one unmerged
+// dependency, stacked, when that dependency has a draft pull request and the
+// stack stays within MaxStack; otherwise it waits, and wait says why.
+func chooseBase(dir string, f *Feature, p PlanItem) (base, baseItem, wait string) {
+	link := f.Multica
+	var unmerged []string
+	for _, d := range p.DependsOn {
+		if mi := link.Items[d]; mi == nil || mi.Merged == nil {
+			unmerged = append(unmerged, d)
+		}
+	}
+	switch len(unmerged) {
+	case 0:
+		return f.BaseBranch, "", ""
+	case 1:
+	default:
+		return "", "", fmt.Sprintf("%s have not merged; an item stacks on one unmerged item at most", strings.Join(unmerged, ", "))
+	}
+	d := unmerged[0]
+	it := f.Item(d)
+	if it == nil {
+		return "", "", d + " is not in the plan"
+	}
+	pr, _ := itemPR(dir, it)
+	if pr == nil {
+		return "", "", d + " has no draft pull request yet"
+	}
+	if depth := stackDepth(link, d) + 1; depth > MaxStack {
+		return "", "", fmt.Sprintf("stacking on %s would make %d unmerged levels (at most %d); waits for a merge", d, depth, MaxStack)
+	}
+	return pr.Branch, d, ""
+}
+
+// stackDepth is how many unmerged items an item and those under it make.
+func stackDepth(link *MulticaLink, id string) int {
+	depth := 0
+	for seen := map[string]bool{}; id != "" && !seen[id]; {
+		seen[id] = true
+		mi := link.Items[id]
+		if mi == nil || mi.Merged != nil {
+			break
+		}
+		depth++
+		id = mi.BaseItem
+	}
+	return depth
 }
 
 var closedStatuses = map[string]bool{"done": true, "cancelled": true}
@@ -222,6 +297,27 @@ func Dispatch(dir string) ([]Action, error) {
 		}
 
 		changed := false
+		// Merges first, so a merge seen now frees what waited for it in
+		// this same dispatch.
+		for _, id := range sortedKeys(link.Items) {
+			mi := link.Items[id]
+			it := f.Item(id)
+			if it == nil || mi.Merged != nil {
+				continue
+			}
+			pr, _ := itemPR(dir, it)
+			if pr == nil {
+				continue
+			}
+			ps, err := prState(pr.URL)
+			if err != nil || ps.State != "MERGED" {
+				continue
+			}
+			mi.Merged = &MergeRecord{SHA: ps.MergeCommit.OID, At: ps.MergedAt}
+			changed = true
+			actions = append(actions, Action{Item: id, Issue: mi.Key, What: "merged " + short(ps.MergeCommit.OID)})
+		}
+
 		for _, p := range snap.Plan {
 			is := s.item(p.ID)
 			if is == nil || is.Removed {
@@ -234,7 +330,7 @@ func Dispatch(dir string) ([]Action, error) {
 			}
 			if child == nil {
 				c, err := multica.CreateIssue(ctx, multica.IssueSpec{
-					Title: fmt.Sprintf("%s: %s", p.ID, p.Title), Description: workerBrief(f, p, st[p.ID]),
+					Title: fmt.Sprintf("%s: %s", p.ID, p.Title), Description: workerBrief(f, p, st[p.ID], "", ""),
 					Parent: link.Parent, Stage: st[p.ID], AssigneeID: link.Worker, Status: "backlog",
 				})
 				if err != nil {
@@ -261,7 +357,7 @@ func Dispatch(dir string) ([]Action, error) {
 				changed = true
 				c.Status = "backlog"
 				child = c
-				actions = append(actions, Action{p.ID, c.Identifier, fmt.Sprintf("created in backlog, stage %d", st[p.ID])})
+				actions = append(actions, Action{Item: p.ID, Issue: c.Identifier, What: fmt.Sprintf("created in backlog, stage %d", st[p.ID])})
 			} else if link.Items[p.ID] == nil {
 				link.Items[p.ID] = &MulticaItem{Issue: child.ID, Key: child.Identifier, Stage: st[p.ID], At: now()}
 				changed = true
@@ -275,13 +371,28 @@ func Dispatch(dir string) ([]Action, error) {
 					}
 					d := f.Item(p.ID).Decision
 					_ = multica.Comment(ctx, child.ID, fmt.Sprintf("Not worked: the user decided to %s it (%q).", d.Kind, d.Answer))
-					actions = append(actions, Action{p.ID, child.Identifier, "cancelled (" + d.Kind + ")"})
+					actions = append(actions, Action{Item: p.ID, Issue: child.Identifier, What: "cancelled (" + d.Kind + ")"})
 				}
 			case isReady[p.ID] && child.Status == "backlog":
+				base, baseItem, wait := chooseBase(dir, f, p)
+				if wait != "" {
+					actions = append(actions, Action{Item: p.ID, Issue: child.Identifier, What: "waits: " + wait, Note: true})
+					continue
+				}
+				if err := multica.UpdateDescription(ctx, child.ID, workerBrief(f, p, st[p.ID], base, baseItem)); err != nil {
+					return "", err
+				}
 				if err := multica.SetStatus(ctx, child.ID, "todo"); err != nil {
 					return "", err
 				}
-				actions = append(actions, Action{p.ID, child.Identifier, "started"})
+				mi := link.Items[p.ID]
+				mi.Base, mi.BaseItem = base, baseItem
+				changed = true
+				what := "started on " + base
+				if baseItem != "" {
+					what += " (stacked on " + baseItem + ")"
+				}
+				actions = append(actions, Action{Item: p.ID, Issue: child.Identifier, What: what})
 			case isReady[p.ID] && is.State == StateClaimable:
 				if n, err := multica.ActiveRuns(ctx, child.ID); err == nil && n == 0 {
 					if child.Status != "todo" {
@@ -292,25 +403,62 @@ func Dispatch(dir string) ([]Action, error) {
 					if err := multica.Rerun(ctx, child.ID); err != nil {
 						return "", err
 					}
-					actions = append(actions, Action{p.ID, child.Identifier, "restarted"})
+					actions = append(actions, Action{Item: p.ID, Issue: child.Identifier, What: "restarted"})
 				}
 			}
 		}
 
-		if s.State == FeatureReady {
+		// An item stacked on one that merged is asked to restack onto the
+		// base branch.
+		for _, id := range sortedKeys(link.Items) {
+			mi := link.Items[id]
+			if mi.BaseItem == "" || mi.Merged != nil || mi.RestackFor == mi.BaseItem {
+				continue
+			}
+			under := link.Items[mi.BaseItem]
+			it := f.Item(id)
+			if under == nil || under.Merged == nil || it == nil {
+				continue
+			}
+			if pr, _ := itemPR(dir, it); pr == nil || pr.Base == f.BaseBranch {
+				continue
+			}
+			msg := fmt.Sprintf("[@worker](mention://agent/%s) %s merged (%s). Restack this item onto %s: in the worktree, `bts feature restack %s %s`, then rerun the recipe's tests and report them.",
+				link.Worker, mi.BaseItem, short(under.Merged.SHA), f.BaseBranch, f.ID, id)
+			if err := multica.Comment(ctx, mi.Issue, msg); err != nil {
+				return "", err
+			}
+			mi.RestackFor = mi.BaseItem
+			changed = true
+			actions = append(actions, Action{Item: id, Issue: mi.Key, What: "asked to restack onto " + f.BaseBranch})
+		}
+
+		// The parent goes to review once every item is settled and every
+		// done item has its draft pull request.
+		allPRs := true
+		for _, is := range s.Items {
+			if is.State == StateDone {
+				if pr, _ := itemPR(dir, f.Item(is.ID)); pr == nil {
+					allPRs = false
+				}
+			}
+		}
+		if s.State == FeatureReady && allPRs {
 			if parent, err := multica.GetIssue(ctx, link.Parent); err == nil && parent.Status != "in_review" && !closedStatuses[parent.Status] {
 				if err := multica.SetStatus(ctx, link.Parent, "in_review"); err != nil {
 					return "", err
 				}
-				actions = append(actions, Action{"", link.ParentKey, "every item settled: parent in review"})
+				actions = append(actions, Action{Issue: link.ParentKey, What: "every item settled with its draft pull request: parent in review"})
 			}
-		}
-		if !changed && len(actions) == 0 {
-			return "", ErrNoChange
 		}
 		var what []string
 		for _, a := range actions {
-			what = append(what, strings.TrimSpace(a.Item+" "+a.What))
+			if !a.Note {
+				what = append(what, strings.TrimSpace(a.Item+" "+a.What))
+			}
+		}
+		if !changed && len(what) == 0 {
+			return "", ErrNoChange
 		}
 		return strings.Join(what, "; "), nil
 	})

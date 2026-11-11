@@ -235,6 +235,9 @@ var featureStatusCmd = &cobra.Command{
 					detail += "  in " + l.Worktree
 				}
 				fmt.Println(detail)
+				if l.PRURL != "" {
+					fmt.Printf("        draft %s (%s → %s)\n", l.PRURL, l.PRBranch, l.PRBase)
+				}
 			}
 			if it.Note != "" {
 				fmt.Printf("        note: %s\n", it.Note)

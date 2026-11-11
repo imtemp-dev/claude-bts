@@ -194,6 +194,15 @@ func writeAttempt(t *testing.T, dir, item string, n int, phase, outcome, via str
 
 func itoa(n int) string { return strconv.Itoa(n) }
 
+// writeJSONFile writes a file into an attempt directory.
+func writeJSONFile(dir, item string, n int, name string, v interface{}) error {
+	ad := filepath.Join(dir, ItemsDir, item, "a"+itoa(n))
+	if err := os.MkdirAll(ad, 0755); err != nil {
+		return err
+	}
+	return state.WriteJSON(filepath.Join(ad, name), v)
+}
+
 func TestDeriveAndNext(t *testing.T) {
 	dir, _ := newFeature(t)
 	i1, _ := AddItem(dir, ItemSpec{Title: ptr("a"), Type: ptr("build")})
