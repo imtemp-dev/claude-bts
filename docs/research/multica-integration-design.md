@@ -202,7 +202,16 @@ Agents: `bts-manager` and `bts-worker` (Opus, effort max), invocable by the user
 - `bts doctor` lists bound recipes not synced to the store.
 - feature.json schema 2 (the `multica` link), so a v0.21 build refuses to rewrite it.
 
+**Smoke (2026-11-11, v0.22.0, AGEN-164 to AGEN-167).**  A three-item feature (i1 and i3 in stage 1, i2 depending on i1) was published to the real `bts-manager` (Opus, effort max) with a dry-run worker that claimed, read the context, confirmed intent `--by feature` and forced completion.  The manager's first run dispatched i1 and i3 and parked i2 in backlog; the two `in_review` wakeups, close together, brought one manager run that checked both results against the contracts and started i2, which was claimed after i1 had completed; the third run's dispatch moved the parent to `in_review`, 263 s after publish, and the manager left `done` and closing the feature to the user.  Not yet seen in a real run: the manager's handling of a failed run (the wakeup itself was proven in S0) and real recipe work, which comes with S3's draft pull requests.
+
 The worker starts from the feature's base branch; work that builds on another item's unmerged code waits for S3's stacking, and `bts feature context` warns when a dependency's code is not in HEAD's history.  The `child_done` instruction is not customised: no CLI sets it, and the platform default already says to check dependencies and move the next stage out of backlog.
+
+## S3 specification (approved 2026-11-11)
+
+- **Base and stacking, decided by dispatch.**  A ready item starts on the feature's base branch when every dependency has merged; on the branch of its one unmerged dependency when that dependency has a draft pull request and the stack stays within two unmerged levels; otherwise it waits, and dispatch says why.  The base goes into the sub-issue's description (`--ref`) when the item starts and into feature.json; the claim's `start_sha` is the fork point.
+- **`bts feature pr`** (worker, once the recipe completes): renames a branch Multica named (`agent/…`) to `<prefix><ticket>-<issue key>-<slug>` (prefix from `bts multica setup --branch-prefix`, ticket `NA` when the feature has none; the issue key lets Multica link the pull request when GitHub is connected), refuses a dirty worktree, a branch with no commits since the fork point, or a protected branch, pushes the item's own branch, and opens a draft pull request titled `[<ticket>] <item title>` against the base; the record goes to the attempt's `pr.json`.  Run again, or from a fix-forward attempt, it pushes to the same pull request.  It runs gh inside bts, so the user's permission asks on typed `git push` and `gh pr` stay in force for everything else.
+- **Merges and restack.**  Dispatch checks each item's pull request with `gh pr view` (read only), records a merge, and asks an item stacked on it to restack, once.  `bts feature restack` (worker) runs `git rebase --onto origin/<base> <fork point> <branch>`, aborts on a conflict, pushes the item's branch with `--force-with-lease`, points its pull request at the base branch (`gh pr edit --base`), and logs the move in `restack.json`, whose new fork point a later restack uses.
+- The parent moves to review once every item is settled with its draft pull request.  Ready for review, merging and `done` stay with the user.
 
 ## Slices
 
