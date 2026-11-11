@@ -854,6 +854,7 @@ var recipeCreateCmd = &cobra.Command{
 		amends, _ := cmd.Flags().GetString("amends")
 		ref, _ := cmd.Flags().GetString("ref")
 
+		refreshTemplatesBeforeCreate(root)
 		id, err := executeRecipeCreate(root, recipeType, topic, amends, ref)
 		if err != nil {
 			return err
