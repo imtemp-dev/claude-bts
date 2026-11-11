@@ -23,6 +23,16 @@ import (
 // its output discarded.
 func runQuiet(t *testing.T, cmd *cobra.Command, args ...string) error {
 	t.Helper()
+	_, err := runOutput(t, cmd, args...)
+	return err
+}
+
+// runOutput runs the root command with args, cmd's flags reset first
+// (cobra keeps flag values between runs), and returns its stdout.  The
+// pipe is read while the command runs, so a long output cannot fill it
+// and block the command.
+func runOutput(t *testing.T, cmd *cobra.Command, args ...string) (string, error) {
+	t.Helper()
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
 		// A slice flag appends on Set, so it is emptied instead.
 		if sv, ok := f.Value.(interface{ Replace([]string) error }); ok {
@@ -32,17 +42,27 @@ func runQuiet(t *testing.T, cmd *cobra.Command, args ...string) error {
 		}
 		f.Changed = false
 	})
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := make(chan string, 1)
+	go func() {
+		b, _ := io.ReadAll(r)
+		out <- string(b)
+	}()
 	saved := os.Stdout
-	_, w, _ := os.Pipe()
 	os.Stdout = w
 	rootCmd.SetErr(io.Discard)
 	rootCmd.SetArgs(args)
-	err := rootCmd.Execute()
+	err = rootCmd.Execute()
 	_ = w.Close()
 	os.Stdout = saved
 	rootCmd.SetErr(nil)
 	rootCmd.SetArgs(nil)
-	return err
+	printed := <-out
+	_ = r.Close()
+	return printed, err
 }
 
 func TestDocArgument_VerifyFocusAndGraphPathsTakeTheCarryForwardForm(t *testing.T) {

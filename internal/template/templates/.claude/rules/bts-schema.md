@@ -92,6 +92,7 @@ Required fields:
 Optional fields:
 - `ref_recipe` (string): referenced recipe ID (for fix recipes that reference the original); set with `bts recipe create --ref`
 - `amends` (string): the completed recipe a fix recipe changes; set with `bts recipe create --type fix --amends`.  Once the fix completes, its records answer for the files it touched
+- `mode` (string): absent for the full recipe; "express" for a small build recipe made with `bts recipe create --type build --express` (no architect runners or debate, no review round on final.md, one interrogate adversary); "full" once `bts recipe mode <id> full` has moved an express recipe to the full recipe, which is one way.  Each choice or move is a changelog entry with action `mode`
 
 ## diagnosis.md (fix recipe)
 
@@ -119,7 +120,7 @@ Each line is a JSON object:
 
 Required fields:
 - `time` (string): ISO 8601 timestamp. **Key name is "time", not "timestamp".**
-- `action` (string): one of "discover", "research", "domain-model", "architect", "wireframe", "draft", "improve", "verify", "debate", "simulate", "audit", "assess", "sync-check", "finalize", "implement", "test", "sync", "status", "adjudicate", "review", "comment-apply", "resolve-uncertainties", "midrun-review", "defend"; and, written by bts commands and hooks, "skeleton", "falsify", "falsifier-check", "mutate", "generated", "claim", "interrogate", "prove", "phase", "confirm", "amended" (the same set as `ChangelogActions` in engine/validator.go; a test checks it)
+- `action` (string): one of "discover", "research", "domain-model", "architect", "wireframe", "draft", "improve", "verify", "debate", "simulate", "audit", "assess", "sync-check", "finalize", "implement", "test", "sync", "status", "adjudicate", "review", "comment-apply", "resolve-uncertainties", "midrun-review", "defend"; and, written by bts commands and hooks, "skeleton", "falsify", "falsifier-check", "mutate", "generated", "claim", "interrogate", "prove", "phase", "confirm", "amended", "mode" (the same set as `ChangelogActions` in engine/validator.go; a test checks it)
 
 Optional fields:
 - `input` (string): what was acted on

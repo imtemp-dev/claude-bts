@@ -1073,4 +1073,7 @@ var ChangelogActions = map[string]bool{
 	// problem #130); a test now reads the source for every action written.
 	"confirm": true,
 	"amended": true,
+	// written by `bts recipe create --express` and `bts recipe mode`
+	// (feature #132): the recipe's mode, chosen or changed
+	"mode": true,
 }

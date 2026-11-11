@@ -27,6 +27,7 @@ func init() {
 	recipeCreateCmd.Flags().String("topic", "", "Recipe topic description")
 	recipeCreateCmd.Flags().String("amends", "", "A completed recipe this fix recipe changes (--type fix); its records answer for the files the fix touches once it completes")
 	recipeCreateCmd.Flags().String("ref", "", "A recipe this one reads for context (sets ref_recipe)")
+	recipeCreateCmd.Flags().Bool("express", false, "Express mode for a small build recipe (--type build): no architect runners or debate, no review round on final.md, one interrogate adversary. bts recipe mode <id> full moves it to the full recipe later")
 	_ = recipeCreateCmd.MarkFlagRequired("topic")
 	recipeReconcileCmd.Flags().Bool("dry-run", false, "Print the plan without writing")
 	recipeReconcileCmd.Flags().Bool("force", false, "Bypass blueprint-phase whitelist (implement-phase still protected)")
@@ -70,6 +71,12 @@ var recipeStatusCmd = &cobra.Command{
 		fmt.Printf("  Type:         %s\n", recipe.Type)
 		fmt.Printf("  Topic:        %s\n", recipe.Topic)
 		fmt.Printf("  Phase:        %s\n", recipe.Phase)
+		switch recipe.Mode {
+		case state.ModeExpress:
+			fmt.Printf("  Mode:         express (`bts recipe mode %s full` moves it to the full recipe)\n", recipe.ID)
+		case state.ModeFull:
+			fmt.Printf("  Mode:         full (moved from express)\n")
+		}
 		if recipe.OwnerSession != "" {
 			fmt.Printf("  Owner:        session %.8s\n", recipe.OwnerSession)
 		}
@@ -853,9 +860,10 @@ var recipeCreateCmd = &cobra.Command{
 		topic, _ := cmd.Flags().GetString("topic")
 		amends, _ := cmd.Flags().GetString("amends")
 		ref, _ := cmd.Flags().GetString("ref")
+		express, _ := cmd.Flags().GetBool("express")
 
 		refreshTemplatesBeforeCreate(root)
-		id, err := executeRecipeCreate(root, recipeType, topic, amends, ref)
+		id, err := executeRecipeCreate(root, recipeType, topic, amends, ref, express)
 		if err != nil {
 			return err
 		}
@@ -870,8 +878,12 @@ var recipeCreateCmd = &cobra.Command{
 // for context.  Both used to be hand edits of recipe.json (bts-recipe-fix
 // step 2 said "Set ref_recipe in recipe.json"), and a change to a completed
 // recipe had no path at all: true-shark's PR review was applied to sealed
-// documents by hand (trial problem #90).
-func executeRecipeCreate(root, recipeType, topic, amends, ref string) (string, error) {
+// documents by hand (trial problem #90).  express makes a build recipe an
+// express one (feature #132).
+func executeRecipeCreate(root, recipeType, topic, amends, ref string, express bool) (string, error) {
+	if express && recipeType != "build" {
+		return "", fmt.Errorf("--express is a mode of the build recipe; use --type build")
+	}
 	amends, ref = strings.TrimSpace(amends), strings.TrimSpace(ref)
 	if amends != "" {
 		if recipeType != "fix" {
@@ -912,6 +924,9 @@ func executeRecipeCreate(root, recipeType, topic, amends, ref string) (string, e
 		RefRecipe: ref,
 		Amends:    amends,
 	}
+	if express {
+		recipe.Mode = state.ModeExpress
+	}
 
 	if err := state.SaveRecipeState(root, recipe); err != nil {
 		return "", fmt.Errorf("create recipe: %w", err)
@@ -928,6 +943,14 @@ func executeRecipeCreate(root, recipeType, topic, amends, ref string) (string, e
 	// problem #55). Diagnostics go to stderr: stdout is the ID alone.
 	if err := state.LogPhaseChange(root, id, "", initialPhase); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: append changelog: %v\n", err)
+	}
+	if express {
+		if err := state.AppendChangelog(root, id, &state.ChangelogEntry{
+			Action: "mode",
+			Result: "express (chosen at create)",
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: append changelog: %v\n", err)
+		}
 	}
 	if amends != "" {
 		_ = state.AppendChangelog(root, amends, &state.ChangelogEntry{

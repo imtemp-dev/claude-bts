@@ -35,6 +35,24 @@ type RecipeState struct {
 	// sessions in the project get no gates and are metered as observers.
 	// Empty (every recipe made before this field) means any session.
 	OwnerSession string `json:"owner_session,omitempty"`
+	// Mode is how much fixed process a build recipe runs (feature #132):
+	// "" for the full recipe; ModeExpress for a small change (`bts recipe
+	// create --type build --express`), which skips the architect's runners
+	// and debate, the review round on final.md and the second interrogate
+	// adversary; ModeFull once `bts recipe mode <id> full` has moved an
+	// express recipe to the full recipe.  That move is one way.
+	Mode string `json:"mode,omitempty"`
+}
+
+// Recipe modes (RecipeState.Mode).
+const (
+	ModeExpress = "express"
+	ModeFull    = "full"
+)
+
+// IsExpress reports whether the recipe runs the express build recipe.
+func (r *RecipeState) IsExpress() bool {
+	return r != nil && r.Mode == ModeExpress
 }
 
 // TaskState represents the tasks.json file for implementation tracking.

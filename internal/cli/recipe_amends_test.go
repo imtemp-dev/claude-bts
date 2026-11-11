@@ -19,7 +19,7 @@ func TestRecipeCreate_AmendsACompletedRecipe(t *testing.T) {
 	root := newRecipeFixture(t, "r-003", "complete", 3, 0, nil)
 	t.Chdir(root)
 
-	id, err := executeRecipeCreate(root, "fix", "Match numbers as stored (PR review)", "r-003", "")
+	id, err := executeRecipeCreate(root, "fix", "Match numbers as stored (PR review)", "r-003", "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,13 +32,13 @@ func TestRecipeCreate_AmendsACompletedRecipe(t *testing.T) {
 		t.Errorf("the original's changelog names its amendment, got %q", last)
 	}
 
-	if _, err := executeRecipeCreate(root, "build", "x", "r-003", ""); err == nil {
+	if _, err := executeRecipeCreate(root, "build", "x", "r-003", "", false); err == nil {
 		t.Error("only a fix recipe amends")
 	}
-	if _, err := executeRecipeCreate(root, "fix", "x", "r-nope", ""); err == nil {
+	if _, err := executeRecipeCreate(root, "fix", "x", "r-nope", "", false); err == nil {
 		t.Error("an unknown recipe cannot be amended")
 	}
-	if _, err := executeRecipeCreate(root, "fix", "x", id, ""); err == nil {
+	if _, err := executeRecipeCreate(root, "fix", "x", id, "", false); err == nil {
 		t.Error("a recipe still in progress is not amended; it is continued")
 	}
 }
