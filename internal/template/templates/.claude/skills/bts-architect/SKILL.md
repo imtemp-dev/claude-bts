@@ -275,6 +275,9 @@ AND file estimate ≤ 3 in scope.md), the architect step can be skipped:
 This keeps wireframe's header-presence gate consistent while avoiding
 unnecessary process overhead on trivial additions.
 
+An express build recipe does not run this skill: its orchestrator writes
+the decision block itself (bts-recipe-build § Express mode).
+
 ## Escalate mode
 
 `/bts-architect escalate {id} {task-id}` is called during implementation,

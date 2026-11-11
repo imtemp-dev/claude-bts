@@ -64,7 +64,11 @@ If standalone (no recipe):
 - Read `.bts/specs/project-map.md` for layer structure.
 - Read `.bts/specs/layers/{name}.md` for the relevant layer's patterns.
 - If inside a recipe:
-  - Read `final.md` for design intent.
+  - Read `final.md` for design intent.  For an express build recipe
+    (`Mode: express` in `bts recipe status`) no review round read
+    `final.md`, so report also where it disagrees with the code: an
+    invariant the code does not hold as stated, or a scope-coverage row
+    whose test does not hold its item.
   - Read `wireframe.md` for the planned component diagram and, if
     present, the `<!-- architect-decision -->` block showing which
     decomposition was selected and why.

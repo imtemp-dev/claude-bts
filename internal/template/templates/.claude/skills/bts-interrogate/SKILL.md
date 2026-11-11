@@ -20,9 +20,13 @@ it itself in a fresh copy, and keeps only what fails again.
 ## Step 1: Prepare the seats
 
 ```bash
-bts interrogate prepare {id}            # two adversaries
+bts interrogate prepare {id}            # two adversaries; one for an express recipe
 bts interrogate prepare {id} --adversaries 3   # a contested or security-sensitive change
 ```
+
+An express build recipe (`Mode: express` in `bts recipe status`) takes one
+seat by default, whose angle is the change's scope: each In Scope item and
+the invariants that hold it.  Its spawn, verify and fixes run as below.
 
 It prints the scope (the recipe's code files) and, for each seat, its
 angle, its private copy and its report path. It also records, in

@@ -118,7 +118,7 @@ The fork gates (verify, audit, defend) run on their agent file's model, which se
 | Recipe | Lifecycle | Output |
 |--------|-----------|--------|
 | `/bts-recipe-blueprint` | discover → scope → wireframe → adaptive loop → implement → test → review → sync | Level 3 spec → code → tests |
-| `/bts-recipe-build` | discover → scope → domain → architect → wireframe → skeleton → falsify → one review → implement until the falsifiers pass | build spec + skeleton → code → tests |
+| `/bts-recipe-build` | discover → scope → domain → architect → wireframe → skeleton → falsify → one review → implement until the falsifiers pass; for a small change, `--express` drops the architect's runners and the review round | build spec + skeleton → code → tests |
 | `/bts-recipe-fix` | diagnose → fix-spec → implement → test | Fix spec → code → tests |
 | `/bts-recipe-debug` | 6-perspective analysis → cross-reference → fix-spec → implement → test | Root cause → fix |
 | `/bts-recipe-design` | research → draft ←→ verify → finalize | Level 2 design doc |

@@ -6,7 +6,8 @@ description: >
   then the design is stated as a skeleton that compiles and one failing
   test per invariant, reviewed once, and implemented until those tests
   pass. Truth comes from the compiler and the tests, not from rounds of
-  verification over prose.
+  verification over prose. An express mode drops the architect's runners
+  and the review round for a small change.
 user-invocable: true
 allowed-tools: Read Write Edit Grep Glob Bash Agent AskUserQuestion mcp__context7__resolve-library-id mcp__context7__get-library-docs
 argument-hint: "\"feature description\""
@@ -58,13 +59,17 @@ bts recipe status
 | `finalize` | Step 13 |
 | implement phases | `/bts-implement {id}` |
 
+`bts recipe status` shows `Mode: express` for an express recipe: where
+§ Express mode changes a step, it wins.
+
 ## Steps
 
 Run them in order, without stopping between them to summarize. Stop only
 for a question only the user can answer (record it with `bts recipe
 decision hold`).
 
-1. **Create.** `bts recipe create --type build --topic "<feature>"`.
+1. **Create.** `bts recipe create --type build --topic "<feature>"`, with
+   `--express` for a small change (§ Express mode).
 2. **Intent and scope.** Follow `.claude/skills/bts-recipe-blueprint/SKILL.md`
    § Intent Check, § Vision & Roadmap Check and § Scoping exactly. Scope
    ends CONFIRMED through `bts recipe confirm {id} scope --answer "..."`,
@@ -145,14 +150,75 @@ decision hold`).
 12. **Status.** `Skill("bts-status")` with `{id}`.
 13. **Finalize.** Output `<bts>DONE</bts>`. The stop hook checks
     `skeleton_builds`, `falsifiers_red` (introduced invariants red,
-    carried ones green) and `build_review_clean`, and moves the recipe to
-    `finalize`.
+    carried ones green), `scope_coverage` and `build_review_clean`, and
+    moves the recipe to `finalize`.
 14. **Implement.** `/bts-implement {id}`. The skeleton is the starting
     point: a `create` task fills the file the skeleton wrote and keeps its
     public signatures; changing one is a deviation, recorded by sync.
     Before `<bts>IMPLEMENT DONE</bts>`, run `bts falsifier check {id}`; the
     stop hook adds `falsifiers_green` (carried invariants included) to the
     implement gates.
+
+## Express mode
+
+Express keeps what makes a build trustworthy (intent and scope the user
+confirmed, invariants with one owner each, a skeleton that compiles, a
+test per invariant that failed first and can still fail, the prove stage,
+one code review, sync) and drops the fixed process a small change does not
+need.  On seven recipes, the architect's runners and debate, the review
+loop on `final.md` and a second interrogate adversary cost 70 to 120
+active minutes whatever the size of the change.
+
+**When.** At most three In Scope items, no new external integration, and
+no migration or irreversible step.  Create the recipe with
+`bts recipe create --type build --express --topic "<feature>"`.
+
+**What changes.** Every step not named here runs as written.
+
+- **Step 3, research:** only for a question that decides an owner or an
+  enforcement point, answered as step 4 says.  Every other open question
+  goes to `final.md`'s Known Uncertainties, for implementation to resolve
+  (`/bts-implement` Step 5.7).
+- **Step 4, domain:** invariants with one owner each; illegal cells only
+  for the refusals the scope asks for.
+- **Step 5, architect:** no `/bts-architect`, no runners, debate or
+  adjudicator.  Go straight to the wireframe phase with
+  `bts recipe log {id} --phase wireframe`, write the decision block at the
+  top of `wireframe.md` yourself, in the form of `bts-architect` Step 4:
+  `Selected:`, `Basis: custom: {why}` (or an official basis with its
+  Source URL), `Rationale:`, `Rejected:` with the alternative you weighed
+  and why not, and `Invariant ownership:` for every invariant `domain.md`
+  introduces.  Record it with
+  `bts recipe log {id} --action architect --output wireframe.md --based-on domain.md --doc-type architect-decision --result "express: selected {name}; rejected {alternative}"`,
+  then run step 6 as written: `/bts-wireframe` adds its sections below
+  the block.
+- **Step 9, empirical questions:** deferred.  Record each in `final.md` as
+  a Known Uncertainty, with the run that will answer it during
+  implementation.
+- **Step 10, build spec:** § 1 in two sentences, § 2, § 6 and the Known
+  Uncertainties.  Write §§ 3 to 5 only for a boundary contract or an
+  irreversible step, which a change small enough for express rarely has.
+- **Step 11, check:** no `/bts-verify` round and no `verification.md`.
+  Run `bts verify .bts/specs/recipes/{id}/final.md` and fix every critical
+  and major where it lives (`final.md`, the skeleton, or a falsifier),
+  rerunning what the fix touched.  Minors are fixed or left to the code
+  review.
+- **Step 13, finalize:** the DONE gates are `skeleton_builds`,
+  `falsifiers_red`, `scope_coverage` and `build_verify_clean`, which runs
+  the same `bts verify` on `final.md` as it is then.
+- **Step 14, implement:** as written.  `bts interrogate prepare` seats one
+  adversary, aimed at the scope items, and the code review reads
+  `final.md` against the code, since no review round read it before.
+
+**Moving to the full recipe.** When `domain.md` introduces more than
+eight invariants, or the change turns out to add a boundary (a new
+external integration, service or persisted format), express no longer
+fits.  Hold `bts recipe decision hold {id} --key full-mode --question "..."`
+with what outgrew it, and on the user's yes run
+`bts recipe mode {id} full --reason "<what outgrew express>"` and resolve
+the decision.  The move is one way.  The full steps apply from the step
+the recipe is on: `/bts-architect` if it has not passed step 5, the review
+round of step 11 for `final.md`, and two interrogate adversaries.
 
 ## Build spec (`final.md`)
 

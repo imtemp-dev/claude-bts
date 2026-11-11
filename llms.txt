@@ -122,7 +122,7 @@ Inside Claude Code, invoke skills with `/skill-name`:
 | Skill | Purpose |
 |-------|---------|
 | /bts-recipe-blueprint | Full spec-to-code lifecycle |
-| /bts-recipe-build | Code-first: a skeleton that compiles and a failing test per invariant, one review, then implement until they pass |
+| /bts-recipe-build | Code-first: a skeleton that compiles and a failing test per invariant, one review, then implement until they pass; an express mode drops the architect's runners and the review round for a small change |
 | /bts-recipe-design | Design spec (Level 2) |
 | /bts-recipe-analyze | Analysis spec (Level 1) |
 | /bts-recipe-fix | Bug fix with diagnosis |

@@ -33,7 +33,8 @@ Design the high-level structure for: $ARGUMENTS
      the block: use Edit to add content BELOW it, not Write on the file.
    - Block missing → STOP and run `/bts-architect` first
      (`bts verify wireframe.md` raises missing_architect_decision_block
-     as major otherwise).
+     as major otherwise).  An express build recipe has no architect step:
+     its orchestrator writes the block (bts-recipe-build § Express mode).
 
 ## Step 1: Component Diagram
 

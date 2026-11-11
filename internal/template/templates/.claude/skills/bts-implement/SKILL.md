@@ -42,7 +42,12 @@ Use settings values if present, otherwise use defaults noted in each step.
      Minors do not hold a build recipe;
      they are fixed or carried to `/bts-sync`. Do not ask a build recipe
      for "converged".
-   - If verify-log is missing or the bar is not met →
+   - **build, express** (`Mode: express` in `bts recipe status`): the gate
+     is `build_verify_clean`: `bts verify .bts/specs/recipes/{id}/final.md`
+     finds no critical or major.  An express recipe has no review of
+     `final.md` in `verify-log.jsonl`; do not ask for one.
+   - If the bar is not met (for any recipe but an express one, a missing
+     verify-log means it is not) →
      "Spec not verified. Finish the recipe's review before implementing."
    - This prevents implementing from unverified or manually-created specs.
 
