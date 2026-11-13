@@ -213,6 +213,8 @@ The worker starts from the feature's base branch; work that builds on another it
 - **Merges and restack.**  Dispatch checks each item's pull request with `gh pr view` (read only), records a merge, and asks an item stacked on it to restack, once.  `bts feature restack` (worker) runs `git rebase --onto origin/<base> <fork point> <branch>`, aborts on a conflict, pushes the item's branch with `--force-with-lease`, points its pull request at the base branch (`gh pr edit --base`), and logs the move in `restack.json`, whose new fork point a later restack uses.
 - The parent moves to review once every item is settled with its draft pull request.  Ready for review, merging and `done` stay with the user.
 
+**Smoke (2026-11-11, v0.23.0, AGEN-168 to AGEN-170, Carepatron-App).**  A two-item feature (i2 depending on i1) ran with the real manager and a dry-run worker that committed one smoke file per item.  i1 opened draft #24154, `JongYoon-Lim/NA-AGEN-169-pr-a` → master; the manager then started i2 on i1's branch, and i2 opened draft #24155 against `JongYoon-Lim/NA-AGEN-169-pr-a`, whose diff held only i2's file; the parent reached review 242 s after publish.  Both drafts were closed and their branches deleted.  Multica did not link the pull requests to the sub-issues: this workspace has no GitHub connection, so merges reach the manager only when it runs for another reason or the user tells it, and no `--until-pr merged` wakeup is registered.
+
 ## Slices
 
 Each slice ends with a smoke test on the real Multica instance.
