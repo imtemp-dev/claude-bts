@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/imtemp-dev/claude-bts/internal/feature"
+	"github.com/imtemp-dev/claude-bts/internal/review"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 	"github.com/spf13/cobra"
 )
@@ -25,6 +26,33 @@ func init() {
 	recipeCmd.AddCommand(recipeConfirmCmd)
 	recipeConfirmCmd.Flags().String("answer", "", "The user's confirmation, in their words and in the project's record language")
 	recipeConfirmCmd.Flags().String("by", "user", "Who confirms: user (the default; --answer is their words); feature (intent of a feature item: the feature's confirmation is the user's, recorded with its number and words); manager (a feature item: the feature manager's words, within the feature's confirmation)")
+	recipeConfirmCmd.Flags().String("via", "", "review: the user confirmed on the review page; needs --hash, the fingerprint they confirmed")
+	recipeConfirmCmd.Flags().String("hash", "", "With --via review: the document fingerprint on the confirm row the user pressed")
+}
+
+// reviewConfirmAnswer checks a confirmation made on the review page and
+// returns the answer to record: the fingerprint must be the document's
+// current one and the page may hold no open work on it.
+func reviewConfirmAnswer(root, recipeID, which, by, hash, answer string) (string, error) {
+	if by != "" && by != "user" {
+		return "", errors.New("--via review is the user's confirmation; it does not combine with --by " + by)
+	}
+	if strings.TrimSpace(answer) == "" {
+		return "", errors.New("--answer is required: the user's words on the confirm row")
+	}
+	doc := which + ".md"
+	if err := review.ConfirmCheck(root, recipeID, doc, hash); err != nil {
+		return "", err
+	}
+	s, err := review.Load(root, recipeID)
+	if err != nil {
+		return "", err
+	}
+	v := 0
+	if d := s.Docs[doc]; d != nil {
+		v = d.Version
+	}
+	return fmt.Sprintf("Confirmed on the review page, %s v%d (%s): %s", doc, v, strings.TrimSpace(hash), strings.TrimSpace(answer)), nil
 }
 
 // confirmAnswer turns --by and --answer into the answer recorded, with where
@@ -98,8 +126,23 @@ var recipeConfirmCmd = &cobra.Command{
 		}
 		answer, _ := cmd.Flags().GetString("answer")
 		by, _ := cmd.Flags().GetString("by")
+		via, _ := cmd.Flags().GetString("via")
+		hash, _ := cmd.Flags().GetString("hash")
 		which := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(args[1])), ".md")
-		answer, err = confirmAnswer(root, args[0], which, by, answer)
+		switch via {
+		case "":
+			if hash != "" {
+				return errors.New("--hash goes with --via review")
+			}
+			answer, err = confirmAnswer(root, args[0], which, by, answer)
+		case "review":
+			if which != "intent" && which != "scope" {
+				return fmt.Errorf("confirm takes intent or scope, got %q", which)
+			}
+			answer, err = reviewConfirmAnswer(root, args[0], which, by, hash, answer)
+		default:
+			return fmt.Errorf("--via takes review, got %q", via)
+		}
 		if err != nil {
 			return err
 		}

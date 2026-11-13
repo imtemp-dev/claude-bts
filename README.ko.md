@@ -100,12 +100,12 @@ bts는 작업을 **스펙**과 **구현** 두 단계로 나눕니다. 각 레시
 
 ## 기능
 
-### 30개 스킬
+### 31개 스킬
 
 | 카테고리 | 스킬 |
 |----------|------|
 | **레시피** | blueprint, build, design, analyze, fix, debug |
-| **탐색** | discover, wireframe |
+| **탐색** | discover, wireframe, review-page |
 | **검증** | verify, cross-check, audit, assess, sync-check, defend |
 | **분석** | research, debate, adjudicate |
 | **구현** | skeleton, falsify, implement, test, sync, status |
@@ -121,6 +121,7 @@ bts는 작업을 **스펙**과 **구현** 두 단계로 나눕니다. 각 레시
 | session-end | 세션 간 재개를 위한 작업 상태 영속화 |
 | post-tool-use | 도구 사용 메트릭스 추적 (도구명, 파일, 성공/실패) |
 | subagent-start/stop | 서브에이전트 라이프사이클 메트릭스 추적 |
+| user-prompt-submit | 리뷰 페이지에 아직 읽지 않은 라운드가 있을 수 있을 때 세션에 알림 |
 
 ### 메트릭스 & 비용 추정
 
@@ -215,7 +216,7 @@ flowchart LR
 
 **Go 바이너리** — 단일 정적 링크 바이너리 (~5ms 시작). 상태 관리, 완료 검증, 템플릿 배포, 메트릭스 추적. Go 외에 런타임 의존성이 없습니다.
 
-**Claude Code 통합** — 30개 스킬이 레시피 프로토콜을, 9개 라이프사이클 훅이 세션 이벤트(재개, 완료 게이트, 메트릭스)를, 7개 규칙이 제약 조건을 처리합니다. 검증은 항상 별도 에이전트 컨텍스트에서 실행됩니다.
+**Claude Code 통합** — 31개 스킬이 레시피 프로토콜을, 10개 라이프사이클 훅이 세션 이벤트(재개, 완료 게이트, 메트릭스)를, 7개 규칙이 제약 조건을 처리합니다. 검증은 항상 별도 에이전트 컨텍스트에서 실행됩니다.
 
 ## 모델 & 설정
 

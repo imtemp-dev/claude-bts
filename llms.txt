@@ -149,6 +149,7 @@ Inside Claude Code, invoke skills with `/skill-name`:
 | /bts-sync | Sync spec with implementation |
 | /bts-status | Project status aggregation |
 | /bts-comment-apply | Apply review comments back into the spec |
+| /bts-review-page | Review intent and scope on an artifact page: pinned notes in rounds, proposals, Update plan, confirm a fingerprinted version |
 
 ## Models
 

@@ -20,6 +20,8 @@ const (
 	EventPostToolUseFailure EventType = "post-tool-use-failure"
 	EventSubagentStart      EventType = "subagent-start"
 	EventSubagentStop       EventType = "subagent-stop"
+	// EventUserPromptSubmit fires when the user sends a prompt.
+	EventUserPromptSubmit EventType = "user-prompt-submit"
 )
 
 // IsSubagent reports whether the hook runs inside a subagent rather than

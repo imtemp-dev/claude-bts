@@ -145,7 +145,7 @@ bts version                 Show versions
 
 **Go binary** — single statically-linked binary (~5ms startup), zero runtime dependencies. Manages state, validates completion, deploys templates, tracks metrics.
 
-**Claude Code integration** — 30 skills, 9 lifecycle hooks, 7 rules. Verification always runs in separate agent contexts.
+**Claude Code integration** — 31 skills, 10 lifecycle hooks, 7 rules. Verification always runs in separate agent contexts.
 
 **File structure:**
 

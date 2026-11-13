@@ -100,12 +100,12 @@ bts 将工作分为**规范**和**实现**两个阶段。每种配方类型有�
 
 ## 功能
 
-### 30 个技能
+### 31 个技能
 
 | 类别 | 技能 |
 |------|------|
 | **配方** | blueprint, build, design, analyze, fix, debug |
-| **发现** | discover, wireframe |
+| **发现** | discover, wireframe, review-page |
 | **验证** | verify, cross-check, audit, assess, sync-check, defend |
 | **分析** | research, debate, adjudicate |
 | **实现** | skeleton, falsify, implement, test, sync, status |
@@ -121,6 +121,7 @@ bts 将工作分为**规范**和**实现**两个阶段。每种配方类型有�
 | session-end | 为跨会话恢复持久化工作状态 |
 | post-tool-use | 工具使用指标追踪（工具名、文件、成功/失败） |
 | subagent-start/stop | 子代理生命周期指标追踪 |
+| user-prompt-submit | 审阅页面可能有未读的轮次时提醒会话 |
 
 ### 指标与成本估算
 
@@ -215,7 +216,7 @@ flowchart LR
 
 **Go 二进制文件** — 单一静态链接二进制文件（约 5ms 启动）。管理状态、验证完成、部署模板、追踪指标。除 Go 之外零运行时依赖。
 
-**Claude Code 集成** — 30 个技能提供配方协议，9 个生命周期钩子处理会话事件（恢复、完成门控、指标），7 个规则强制约束。验证始终在独立的代理上下文中运行。
+**Claude Code 集成** — 31 个技能提供配方协议，10 个生命周期钩子处理会话事件（恢复、完成门控、指标），7 个规则强制约束。验证始终在独立的代理上下文中运行。
 
 ## 模型与配置
 

@@ -41,6 +41,7 @@ func runHook(cmd *cobra.Command, args []string) error {
 		hook.NewSessionEndHandler(),
 		hook.NewSubagentStartHandler(),
 		hook.NewSubagentStopHandler(),
+		hook.NewUserPromptSubmitHandler(),
 	)
 
 	output, err := registry.Dispatch(input)

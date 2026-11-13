@@ -71,8 +71,11 @@ decision hold`).
 1. **Create.** `bts recipe create --type build --topic "<feature>"`, with
    `--express` for a small change (§ Express mode).
 2. **Intent and scope.** Follow `.claude/skills/bts-recipe-blueprint/SKILL.md`
-   § Intent Check, § Vision & Roadmap Check and § Scoping exactly. Scope
-   ends CONFIRMED through `bts recipe confirm {id} scope --answer "..."`,
+   § Intent Check, § Vision & Roadmap Check and § Scoping exactly; with
+   `review.surface: artifact` both reviews run on the recipe's review page
+   (`/bts-review-page`), in express mode too. Scope
+   ends CONFIRMED through `bts recipe confirm {id} scope --answer "..."`
+   (`--via review --hash` from the page),
    and a scope revised later (after research) is confirmed again the same
    way, once the user has seen the revision.  When the confirmation holds
    decision `express-mode` (a small scope), ask the user before research

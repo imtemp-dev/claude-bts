@@ -373,7 +373,13 @@ bts recipe log {id} --phase scoping
    even before user confirms. This persists the conversation state so it
    survives compaction or session breaks.
 
-**5. MUST use AskUserQuestion** to confirm scope — do NOT ask as text output:
+**5. Confirm scope.**  When `review.surface` in `.bts/config/settings.yaml`
+   is `artifact` (the default) and the Artifact tool is available here, run
+   it on the recipe's review page: `/bts-review-page {id} scope` extends the
+   page, turns the user's notes into proposals, applies the accepted ones
+   (Update plan) and records the confirmation with
+   `bts recipe confirm {id} scope --via review`; then go to step 7.
+   Otherwise **MUST use AskUserQuestion** — do NOT ask as text output:
    - "Confirm scope and proceed" → `bts recipe confirm {id} scope --answer "<the user's words>"`
      (sets Status: CONFIRMED with the user's words on record; never by hand) → exit loop
    - "Adjust scope" → user provides feedback → update scope.md → ask again

@@ -187,3 +187,12 @@ agents:
 # removed at the next update or session start (a statusLine of your own is
 # never touched).
 statusline: false
+
+# Review
+review:
+  surface: artifact              # Where the user reviews intent and scope. "artifact": a review page
+                                 # Claude publishes with the review kit, where the user pins notes
+                                 # (typed or spoken) and confirms a fingerprinted version
+                                 # (/bts-review-page). "ask": AskUserQuestion, as before. `bts review
+                                 # page` refuses when this is "ask". A run that cannot publish an
+                                 # artifact (headless, Multica) asks either way.

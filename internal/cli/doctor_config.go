@@ -180,6 +180,7 @@ var settingsKeysRead = map[string]bool{
 	"vision.min_roadmap_items":                  true,
 	"agents":                                    true, // free-form map of agent → model
 	"statusline":                                true, // template.MergeHookSettings, removeBtsStatusLine
+	"review.surface":                            true, // bts review page
 }
 
 // missingSettingsKeys returns, as "parent.key" in table order, the keys

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -25,7 +26,22 @@ type Settings struct {
 	// own Claude Code settings, and Claude Code customises its statusline
 	// itself now.
 	Statusline bool `yaml:"statusline"`
+	// Review picks where the user reviews a recipe's documents.
+	Review ReviewSettings `yaml:"review"`
 }
+
+// ReviewSettings: `surface` is "artifact" (a review page with pinned
+// notes, /bts-review-page) or "ask" (AskUserQuestion).  `bts review page`
+// refuses when it is "ask".
+type ReviewSettings struct {
+	Surface string `yaml:"surface"`
+}
+
+// ReviewSurfaceArtifact and ReviewSurfaceAsk are the values of review.surface.
+const (
+	ReviewSurfaceArtifact = "artifact"
+	ReviewSurfaceAsk      = "ask"
+)
 
 // ImplementSettings controls the implementation loop's retry limits and
 // mid-run review cadence. These were previously hard-coded in three
@@ -179,6 +195,7 @@ func DefaultSettings() *Settings {
 			MaxDocumentLines:    400,
 			SectionSpanSeverity: SeverityMajor,
 		},
+		Review: ReviewSettings{Surface: ReviewSurfaceArtifact},
 	}
 }
 
@@ -230,6 +247,12 @@ func LoadSettings(root string) (*Settings, error) {
 	}
 	if s.Verify.MaxIterations <= 0 {
 		s.Verify.MaxIterations = def.Verify.MaxIterations
+	}
+	switch strings.ToLower(strings.TrimSpace(s.Review.Surface)) {
+	case ReviewSurfaceAsk:
+		s.Review.Surface = ReviewSurfaceAsk
+	default:
+		s.Review.Surface = def.Review.Surface
 	}
 	if s.Verify.ConfirmPasses <= 0 {
 		s.Verify.ConfirmPasses = def.Verify.ConfirmPasses

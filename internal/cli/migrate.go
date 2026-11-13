@@ -1349,6 +1349,13 @@ var settingsInsertions = []settingsInsertion{
 		Comment: "The project's formatter, run before every recorded command so a formatting build does not make records stale.",
 		Since:   "v0.18.0",
 	},
+	{
+		Parent:  "review",
+		Key:     "surface",
+		Value:   "artifact",
+		Comment: "Where the user reviews intent and scope: artifact (a review page, /bts-review-page) or ask (AskUserQuestion).",
+		Since:   "v0.24.0",
+	},
 }
 
 func runMigrateSettings(cmd *cobra.Command, args []string) error {

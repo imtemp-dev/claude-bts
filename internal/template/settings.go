@@ -154,6 +154,9 @@ func mergeHookSettings(settingsRoot, btsRoot string) error {
 		// A failing tool call (a Bash command exiting non-zero) sends this
 		// instead of PostToolUse; without it, failures leave no metrics.
 		{"PostToolUseFailure", filepath.Join(absRoot, ".claude", "hooks", "bts-handle-post-tool-use-failure.sh"), 5},
+		// A review page's round may wait unread when the user comes back
+		// to the terminal before the platform notifies the session.
+		{"UserPromptSubmit", filepath.Join(absRoot, ".claude", "hooks", "bts-handle-user-prompt-submit.sh"), 5},
 	}
 
 	makeEntry := func(script string, timeout int) []interface{} {
