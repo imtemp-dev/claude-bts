@@ -27,6 +27,11 @@ type InterrogateRun struct {
 	// round before it. Empty for a first round, whose scope is the
 	// recipe's code files.
 	Scope []string `json:"scope,omitempty"`
+	// ScopeLines gives, for a file of Scope that was changed rather than
+	// added, the line ranges of the change ("12-30, 58"), when the round
+	// before kept the code it saw (trial problem #139: an adversary was
+	// told by hand that a rebased file was in scope for two docstrings).
+	ScopeLines map[string]string `json:"scope_lines,omitempty"`
 	// Seen is the code the current round's adversaries took their copies
 	// of, so interrogate_clean can tell a small change after them from a
 	// large one (trial problem #52: a clean run never went stale, so code

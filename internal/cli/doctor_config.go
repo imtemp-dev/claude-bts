@@ -181,6 +181,7 @@ var settingsKeysRead = map[string]bool{
 	"agents":                                    true, // free-form map of agent → model
 	"statusline":                                true, // template.MergeHookSettings, removeBtsStatusLine
 	"review.surface":                            true, // bts review page
+	"interrogate.max_rescope_rounds":            true, // engine.InterrogateRescope
 }
 
 // missingSettingsKeys returns, as "parent.key" in table order, the keys

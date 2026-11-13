@@ -196,3 +196,13 @@ review:
                                  # (/bts-review-page). "ask": AskUserQuestion, as before. `bts review
                                  # page` refuses when this is "ask". A run that cannot publish an
                                  # artifact (headless, Multica) asks either way.
+
+# Interrogate (prove stage, P3)
+interrogate:
+  max_rescope_rounds: 2          # After a verified interrogate run, a large change (a new code file, or
+                                 # more than two code files whose code changed; comments, docstrings
+                                 # and what a rebase brought in do not count) needs a scoped round
+                                 # (`bts interrogate prepare --rescope`). Once a recipe has held this
+                                 # many scoped rounds, a further large change passes interrogate_clean
+                                 # with a notice instead; the tests, falsifiers and drives still rerun
+                                 # on the current code. 1 or more.

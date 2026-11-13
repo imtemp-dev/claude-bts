@@ -28,6 +28,16 @@ type Settings struct {
 	Statusline bool `yaml:"statusline"`
 	// Review picks where the user reviews a recipe's documents.
 	Review ReviewSettings `yaml:"review"`
+	// Interrogate bounds the prove stage's adversary rounds.
+	Interrogate InterrogateSettings `yaml:"interrogate"`
+}
+
+// InterrogateSettings: `max_rescope_rounds` is how many scoped rounds a
+// large change after a verified interrogate run requires, at most, before
+// interrogate_clean lets a further large change through with a notice
+// (trial problem #140).  1 or more; the default is 2.
+type InterrogateSettings struct {
+	MaxRescopeRounds int `yaml:"max_rescope_rounds"`
 }
 
 // ReviewSettings: `surface` is "artifact" (a review page with pinned
@@ -195,7 +205,8 @@ func DefaultSettings() *Settings {
 			MaxDocumentLines:    400,
 			SectionSpanSeverity: SeverityMajor,
 		},
-		Review: ReviewSettings{Surface: ReviewSurfaceArtifact},
+		Review:      ReviewSettings{Surface: ReviewSurfaceArtifact},
+		Interrogate: InterrogateSettings{MaxRescopeRounds: 2},
 	}
 }
 
@@ -247,6 +258,9 @@ func LoadSettings(root string) (*Settings, error) {
 	}
 	if s.Verify.MaxIterations <= 0 {
 		s.Verify.MaxIterations = def.Verify.MaxIterations
+	}
+	if s.Interrogate.MaxRescopeRounds <= 0 {
+		s.Interrogate.MaxRescopeRounds = def.Interrogate.MaxRescopeRounds
 	}
 	switch strings.ToLower(strings.TrimSpace(s.Review.Surface)) {
 	case ReviewSurfaceAsk:

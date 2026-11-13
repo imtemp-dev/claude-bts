@@ -116,7 +116,7 @@ var HardGates = []HardGate{
 		ID:          "interrogate_clean",
 		Rule:        "bts-implement SKILL.md, Step 5.4 Interrogate",
 		Enforcement: "internal/hook/stop_build.go:interrogateClean (handleImplementDone, handleFixDone)",
-		Summary:     "IMPLEMENT and FIX DONE blocked unless a verified interrogate run exists, every finding that failed again on a fresh copy is fixed on the current code or waived with the user's reason, and the code has not changed past the rescope rule (a new code file, or more than two changed code files) since the adversaries' copies without a scoped round on the change",
+		Summary:     "IMPLEMENT and FIX DONE blocked unless a verified interrogate run exists, every finding that failed again on a fresh copy is fixed on the current code or waived with the user's reason, and the code has not changed past the rescope rule (a new code file, or more than two code files whose code changed; comment-only changes and what a rebase brought in from upstream do not count) since the adversaries' copies without a scoped round on the change, until the recipe has held interrogate.max_rescope_rounds scoped rounds",
 	},
 	{
 		ID:          "app_proven",

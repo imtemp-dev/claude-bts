@@ -189,7 +189,7 @@ Specs complete when ALL of these hold for the gated document:
 
 Output `<bts>DONE</bts>`. This sets phase to `finalize`.
 
-Implementation completes when: all tasks done, tests pass, a verified interrogate run has nothing open (after a new code file or more than two changed code files since its copies, a scoped round on the change, `bts interrogate prepare --rescope`), every planned journey is driven or deferred, review.md exists, deviation.md exists. Output `<bts>IMPLEMENT DONE</bts>`.
+Implementation completes when: all tasks done, tests pass, a verified interrogate run has nothing open (after a new code file or more than two code files whose code changed since its copies, a scoped round on the change, `bts interrogate prepare --rescope`, up to `interrogate.max_rescope_rounds` scoped rounds; comment-only changes and upstream changes a rebase brought in do not count), every planned journey is driven or deferred, review.md exists, deviation.md exists. Output `<bts>IMPLEMENT DONE</bts>`.
 
 Fix completes when: fix-spec.md exists, tests pass, and the same prove-stage records are clean. Output `<bts>FIX DONE</bts>`.
 

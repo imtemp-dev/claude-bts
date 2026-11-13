@@ -1356,6 +1356,13 @@ var settingsInsertions = []settingsInsertion{
 		Comment: "Where the user reviews intent and scope: artifact (a review page, /bts-review-page) or ask (AskUserQuestion).",
 		Since:   "v0.24.0",
 	},
+	{
+		Parent:  "interrogate",
+		Key:     "max_rescope_rounds",
+		Value:   "2",
+		Comment: "Scoped interrogate rounds a large change requires at most; after them it passes with a notice.",
+		Since:   "v0.25.0",
+	},
 }
 
 func runMigrateSettings(cmd *cobra.Command, args []string) error {

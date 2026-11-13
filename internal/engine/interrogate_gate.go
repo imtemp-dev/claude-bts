@@ -27,10 +27,14 @@ func SeeCode(root, recipeID string) (*state.CodeSeen, error) {
 // InterrogateDrift is what changed in the recipe's code since the current
 // interrogate round's adversaries took their copies, counting only files
 // that can carry behaviour: tests are left out (the interrogate skill asks
-// for a regression test per fix) and so are documentation files. ok=false
-// when the run recorded nothing to compare with: a run written before the
-// record existed, or one taken outside a git repository for a recipe that
-// names no code files.
+// for a regression test per fix) and so are documentation files.  When the
+// run kept the code it saw (a git repository, bts 0.25 on), a file whose
+// change is comments only, or only what a rebase or merge brought in from
+// upstream, is set aside in CommentOnly or Upstream and does not count
+// (trial problems #139 and #140), and each counted file carries the line
+// ranges that changed.  ok=false when the run recorded nothing to compare
+// with: a run written before the record existed, or one taken outside a
+// git repository for a recipe that names no code files.
 func InterrogateDrift(root, recipeID string, run *state.InterrogateRun) (state.CodeChange, bool, error) {
 	if run == nil || run.Seen == nil {
 		return state.CodeChange{}, false, nil
@@ -39,7 +43,18 @@ func InterrogateDrift(root, recipeID string, run *state.InterrogateRun) (state.C
 	if err != nil {
 		return state.CodeChange{}, false, err
 	}
-	return state.CodeChange{Added: rescopeCounted(c.Added), Changed: rescopeCounted(c.Changed)}, true, nil
+	raw := state.CodeChange{Added: rescopeCounted(c.Added), Changed: rescopeCounted(c.Changed)}
+	return refineDrift(root, run.Seen, raw), true, nil
+}
+
+// RescopeVerdict is what the freshness half of interrogate_clean says
+// about a run.  Block is set when a scoped round must attack the change
+// before the gate passes; Notice when the change is as large but the
+// recipe has held its budget of scoped rounds, so the gate passes without
+// one and says so.  Both are "" for a small change.
+type RescopeVerdict struct {
+	Block  string
+	Notice string
 }
 
 // CheckInterrogateRescope is the freshness half of gate interrogate_clean
@@ -48,11 +63,17 @@ func InterrogateDrift(root, recipeID string, run *state.InterrogateRun) (state.C
 // before the gate passes. The rule: a code file the adversaries did not
 // see (a new one), or more than InterrogateRescopeFiles changed code
 // files. A smaller change keeps the cheap path, the tests, falsifiers and
-// drives rerun on the current code. It returns "" when no rescope is
-// needed.
-func CheckInterrogateRescope(change state.CodeChange, recipeID string) string {
+// drives rerun on the current code.
+//
+// budget is interrogate.max_rescope_rounds: once the run has held that
+// many scoped rounds, a large change no longer requires another (trial
+// problem #140: every fix round touched the same three files, so each
+// forced the next and the recipe did not converge).  The tests, falsifiers
+// and drives still rerun on the current code, and the Notice says that the
+// budget, not a round, let the change through.
+func CheckInterrogateRescope(change state.CodeChange, run *state.InterrogateRun, budget int, recipeID string) RescopeVerdict {
 	if len(change.Added) == 0 && len(change.Changed) <= InterrogateRescopeFiles {
-		return ""
+		return RescopeVerdict{}
 	}
 	var parts []string
 	if len(change.Added) > 0 {
@@ -62,9 +83,50 @@ func CheckInterrogateRescope(change state.CodeChange, recipeID string) string {
 		parts = append(parts, fmt.Sprintf("%d changed code files (more than %d): %s",
 			len(change.Changed), InterrogateRescopeFiles, strings.Join(change.Changed, ", ")))
 	}
-	return fmt.Sprintf("The code changed too much since the adversaries' copies to rely on that interrogate run: %s. "+
+	what := strings.Join(parts, "; ") + notCounted(change)
+	round := 1
+	if run != nil {
+		round = run.CurrentRound()
+	}
+	if held := round - 1; budget > 0 && held >= budget {
+		return RescopeVerdict{Notice: fmt.Sprintf("The code changed beyond the rescope rule since round %d's copies (%s), "+
+			"but %s has held %d scoped round(s), its budget (interrogate.max_rescope_rounds: %d), so no further round is required: "+
+			"the tests, falsifiers and drives rerun on the current code instead. A scoped round is still open to you: "+
+			"`bts interrogate prepare %s --rescope`.", round, what, recipeID, held, budget, recipeID)}
+	}
+	return RescopeVerdict{Block: fmt.Sprintf("The code changed too much since the adversaries' copies to rely on that interrogate run: %s. "+
 		"Run a scoped one on the changed files: `bts interrogate prepare %s --rescope` (one adversary), spawn it, "+
-		"then `bts interrogate verify %s`.", strings.Join(parts, "; "), recipeID, recipeID)
+		"then `bts interrogate verify %s`.", what, recipeID, recipeID)}
+}
+
+// notCounted names the files a change set aside, for a message.
+func notCounted(c state.CodeChange) string {
+	var parts []string
+	if len(c.CommentOnly) > 0 {
+		parts = append(parts, "comments only: "+strings.Join(c.CommentOnly, ", "))
+	}
+	if len(c.Upstream) > 0 {
+		parts = append(parts, "changed only upstream: "+strings.Join(c.Upstream, ", "))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " (not counted, " + strings.Join(parts, "; ") + ")"
+}
+
+// InterrogateRescope reads a run's drift and the project's budget and
+// applies the rule.  ok=false when the run recorded nothing to compare
+// with, as InterrogateDrift.
+func InterrogateRescope(root, recipeID string, run *state.InterrogateRun) (RescopeVerdict, bool, error) {
+	change, ok, err := InterrogateDrift(root, recipeID, run)
+	if err != nil || !ok {
+		return RescopeVerdict{}, ok, err
+	}
+	budget := DefaultSettings().Interrogate.MaxRescopeRounds
+	if st, serr := LoadSettings(root); serr == nil {
+		budget = st.Interrogate.MaxRescopeRounds
+	}
+	return CheckInterrogateRescope(change, run, budget, recipeID), true, nil
 }
 
 // rescopeCounted keeps the paths that count toward a rescope.

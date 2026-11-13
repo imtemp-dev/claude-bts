@@ -394,14 +394,17 @@ func interrogateClean(root, recipeID string) *HookOutput {
 	if reason := engine.CheckInterrogateClean(run, hash, recipeID); reason != "" {
 		return blockOutput(reason)
 	}
-	change, ok, derr := engine.InterrogateDrift(root, recipeID, run)
+	v, ok, derr := engine.InterrogateRescope(root, recipeID, run)
 	if derr != nil {
 		fmt.Fprintf(os.Stderr, "[bts] warning: interrogate drift: %v (rescope not checked)\n", derr)
 		return nil
 	}
 	if ok {
-		if reason := engine.CheckInterrogateRescope(change, recipeID); reason != "" {
-			return blockOutput(reason)
+		if v.Block != "" {
+			return blockOutput(v.Block)
+		}
+		if v.Notice != "" {
+			fmt.Fprintf(os.Stderr, "[bts] %s\n", v.Notice)
 		}
 	}
 	return nil

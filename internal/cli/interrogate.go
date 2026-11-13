@@ -38,7 +38,7 @@ var adversaryAngles = []string{
 
 // rescopeAngle is the first seat of a rescoped round: it attacks what
 // changed since the round before, which that round could not have seen.
-const rescopeAngle = "the change since the last interrogate round (the scope lists its files): what it broke, or let through, that the earlier round could not have seen"
+const rescopeAngle = "the change since the last interrogate round (the scope lists its files, and the changed lines where bts could tell them): what it broke, or let through, that the earlier round could not have seen"
 
 // expressAngle is the one seat of an express recipe's round (feature
 // #132): what the change promises, attacked from the angles two or three
@@ -95,9 +95,13 @@ var interrogatePrepareCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			fmt.Printf("[bts] interrogate round %d prepared for %s. Scope (changed since the last round):\n", run.CurrentRound(), args[0])
+			fmt.Printf("[bts] interrogate round %d prepared for %s. Scope (the code changed since the last round):\n", run.CurrentRound(), args[0])
 			for _, f := range run.Scope {
-				fmt.Printf("  %s\n", f)
+				if lines := run.ScopeLines[f]; lines != "" {
+					fmt.Printf("  %s (lines %s; the rest of the file is context, not scope)\n", f, lines)
+				} else {
+					fmt.Printf("  %s\n", f)
+				}
 			}
 		} else {
 			if !cmd.Flags().Changed("adversaries") {
@@ -153,9 +157,14 @@ var interrogateVerifyCmd = &cobra.Command{
 		hash, _ := engine.CodeHash(root, args[0])
 		if reason := engine.CheckInterrogateClean(run, hash, args[0]); reason != "" {
 			fmt.Printf("[bts] %s\n", reason)
-		} else if change, ok, derr := engine.InterrogateDrift(root, args[0], run); derr == nil && ok {
-			if reason := engine.CheckInterrogateRescope(change, args[0]); reason != "" {
-				fmt.Printf("[bts] %s\n", reason)
+		} else if v, ok, derr := engine.InterrogateRescope(root, args[0], run); derr == nil && ok {
+			switch {
+			case v.Block != "":
+				fmt.Printf("[bts] %s\n", v.Block)
+			case v.Notice != "":
+				fmt.Printf("[bts] %s\n", v.Notice)
+				appendEvidenceChangelog(root, args[0], "interrogate",
+					fmt.Sprintf("rescope budget spent after round %d: a large change passes without a scoped round", run.CurrentRound()), hash)
 			}
 		}
 		return nil
@@ -390,11 +399,33 @@ func executeInterrogateRescope(root, recipeID string, n int) (*state.Interrogate
 	}
 	scope := change.Files()
 	if len(scope) == 0 {
+		var aside []string
+		if len(change.CommentOnly) > 0 {
+			aside = append(aside, "comments only in "+strings.Join(change.CommentOnly, ", "))
+		}
+		if len(change.Upstream) > 0 {
+			aside = append(aside, "upstream changes only in "+strings.Join(change.Upstream, ", "))
+		}
+		if len(aside) > 0 {
+			return nil, fmt.Errorf("no code changed since round %d's copies were made (%s); no rescope is needed",
+				run.CurrentRound(), strings.Join(aside, "; "))
+		}
 		return nil, fmt.Errorf("no code file changed since round %d's copies were made; no rescope is needed", run.CurrentRound())
 	}
 	angles := append([]string{rescopeAngle}, adversaryAngles...)[:n]
 	run.Round = run.CurrentRound() + 1
 	run.Scope = scope
+	run.ScopeLines = nil
+	for f, ranges := range change.Hunks {
+		parts := make([]string, len(ranges))
+		for i, r := range ranges {
+			parts[i] = r.String()
+		}
+		if run.ScopeLines == nil {
+			run.ScopeLines = map[string]string{}
+		}
+		run.ScopeLines[f] = strings.Join(parts, ", ")
+	}
 	run.VerifiedAt = ""
 	if err := seatAdversaries(root, recipeID, run, angles); err != nil {
 		return nil, err

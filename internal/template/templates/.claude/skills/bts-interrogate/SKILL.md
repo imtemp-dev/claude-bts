@@ -120,8 +120,14 @@ either holds, counting code files only (tests and documentation files
 such as `.md` do not count):
 
 - a code file the adversaries did not see exists now (a new file), or
-- more than two of the code files they saw changed (a deleted one
-  counts).
+- more than two of the code files they saw changed their code (a
+  deleted one counts).
+
+A file whose only change is to comments, docstrings or blank lines does
+not count, and neither does what a rebase or merge brought in from
+upstream: bts kept the code the adversaries saw and carries the upstream
+change onto it before comparing. `bts interrogate verify {id} --recheck`
+names the files it set aside.
 
 Then `interrogate_clean` blocks IMPLEMENT DONE and FIX DONE until a scoped
 round has attacked the change, and `bts interrogate verify {id}
@@ -131,14 +137,24 @@ round has attacked the change, and `bts interrogate verify {id}
 bts interrogate prepare {id} --rescope        # one adversary on the changed files
 ```
 
-It refuses when the current round is not verified yet or nothing
-changed. It prints the scope (the files changed since the last round)
-and one seat whose angle is that change. Write the intent as in Step 2,
-spawn the seat as in Step 3 with the scope it printed, then run
+It refuses when the current round is not verified yet or no code
+changed. It prints the scope (the files changed since the last round,
+with the changed lines where bts could tell them) and one seat whose
+angle is that change. Write the intent as in Step 2, spawn the seat as
+in Step 3 with the scope it printed, lines included, then run
 `bts interrogate verify {id}`: it reads only the new seat's report, and
 its findings are numbered after the earlier ones, which keep their
 status. Fix and recheck as in Step 5. Add `--adversaries 2` or `3` for a
 rework of a contested or security-sensitive part.
+
+Scoped rounds are bounded by `interrogate.max_rescope_rounds` in
+`.bts/config/settings.yaml` (2 by default). Once the recipe has held that
+many, a further large change no longer blocks: the recheck prints a
+notice and records it in the changelog, and the tests, falsifiers and
+drives rerun on the current code as for a small change. Do not ask the
+user whether to run another round each time; the setting is the answer.
+A scoped round is still yours to run when the change reworks a contested
+part.
 
 ## Done
 

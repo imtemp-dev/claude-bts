@@ -409,14 +409,22 @@ var (
 		`(?i)depends\s*on|dependenc|imports?\s+from|\bcalls\b|의존|호출|선행|prerequisite`)
 	// A backticked identifier — the way specs name a unit that is not a path.
 	backtickedIdentRe = regexp.MustCompile("`([A-Za-z_][\\w.:<>()-]*)`")
-	// Something going wrong.
+	// Something going wrong, an exception class (`BuildRecordError`) included.
 	failureTermRe = regexp.MustCompile(
 		`(?i)\berrors?\b|\bfail(?:ure|s|ed)?\b|exception|invalid|reject|` +
+			`[A-Za-z]Error\b|` +
 			`에러|오류|실패|거부`)
-	// What is done about it.
+	// What is done about it.  bts-level-criteria.md names a status code, a
+	// fallback and a rejection; a refusal, a raised or thrown error, an exit
+	// code and an error returned to the caller say what happens next as
+	// well (trial problem #138: "rejected and raises ValueError" missed).
 	dispositionRe = regexp.MustCompile(
 		`(?i)\b[45]\d{2}\b|fallback|retry|degrade|surface|swallow|propagate|` +
-			`폴백|재시도|무시|전파|되돌|기본값`)
+			`\brejects?\b|\brejected\b|\brejection\b|\brefus(?:e|es|ed|al)\b|` +
+			`\b(?:raise[sd]?|raising|throws?|thrown|throwing)\b|` +
+			`\bexit(?:s|ed)?\s+(?:with\s+)?(?:code\s+|status\s+)?[1-9]\d*\b|\bexit\s+(?:code|status)\b|` +
+			`\breturn(?:s|ed|ing)?\s+(?:an?\s+|the\s+)?(?:error|err\b|failure)|\babort(?:s|ed)?\b|` +
+			`폴백|재시도|무시|전파|되돌|기본값|거부|던지|반환|종료 코드`)
 	// A recorded choice between alternatives.
 	rationaleRe = regexp.MustCompile(
 		`(?i)architect-decision|\bchosen\b|\bchose\b|\brationale\b|` +

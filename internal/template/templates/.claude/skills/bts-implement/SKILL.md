@@ -627,8 +627,10 @@ When all steps are done:
 - Every recipe: run `bts interrogate verify {id} --recheck`.  No finding
   may be open on the current code; a waived one carries the user's reason
   (`interrogate_clean`).  When it says the code changed too much since the
-  adversaries' copies (a new code file, or more than two changed code
-  files), run the scoped round in `bts-interrogate`, After a large change.
+  adversaries' copies (a new code file, or more than two code files whose
+  code changed), run the scoped round in `bts-interrogate`, After a large
+  change; once `interrogate.max_rescope_rounds` scoped rounds are held it
+  prints a notice instead, and no round is required.
 - Every recipe: rerun `bts prove run` for any journey driven before the
   last code change; `bts prove status {id}` must show every journey driven
   on the current code or deferred (`app_proven`).

@@ -218,6 +218,32 @@ func TestErrorStrategyNeedsADisposition(t *testing.T) {
 	if !hasErrorStrategy("a malformed publish is rejected with 400") {
 		t.Error("failure plus disposition should pass")
 	}
+	// Trial problem #138: the dispositions the rule names, and the ones a
+	// Python or Go spec writes, each say what happens next.
+	for _, s := range []string{
+		"An invalid request is rejected.",
+		"An invalid request is refused.",
+		"An invalid bundle makes the call raise `ValueError`.",
+		"an unreadable record throws `BuildRecordError`",
+		"a bundle with errors makes the CLI print every error and exit 1",
+		"on failure the command exits with code 2",
+		"a malformed row returns an error to the caller",
+		"an invalid state aborts the run",
+		"잘못된 요청은 거부한다",
+	} {
+		if !hasErrorStrategy(s) {
+			t.Errorf("%q names a failure and what happens next", s)
+		}
+	}
+	for _, s := range []string{
+		"errors are handled",
+		"the exit criteria fail when coverage drops",
+		"on failure we log it",
+	} {
+		if hasErrorStrategy(s) {
+			t.Errorf("%q names no disposition", s)
+		}
+	}
 }
 
 func TestUnknownCriterionIsNotMet(t *testing.T) {

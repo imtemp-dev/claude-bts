@@ -45,8 +45,10 @@ Level 3 criteria never delegate: they are the blueprint's own job.
 - [ ] **data_flow_defined** — input reaches output visibly: two or more
       flow arrows, or a mermaid flow diagram. *Delegable.*
 - [ ] **error_strategy_defined** — a failure is named **and** so is what
-      happens next (a status code, a fallback, a rejection). "Handle
-      errors" names the failure and no disposition.
+      happens next: a status code, a fallback, a retry, a rejection or
+      refusal, a raised or thrown error, an exit code, an error returned
+      to the caller. "Handle errors" names the failure and no
+      disposition.
 - [ ] **interfaces_described** — something at a boundary is named.
 - [ ] **tech_choices_rationale** — a choice is recorded as a choice: an
       `architect-decision` block, a stated reason, or the alternative it
