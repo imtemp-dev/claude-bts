@@ -176,6 +176,7 @@ var recipeLogCmd = &cobra.Command{
 			// Pre-condition checks for phase transition
 			force, _ := cmd.Flags().GetBool("force")
 			if err := checkPhasePreConditions(root, recipe, phase, force); err != nil {
+				cmd.SilenceUsage = true // the refusal says what to do; usage would bury it
 				return err
 			}
 			if err := checkCodeEditGo(root, recipe, phase); err != nil {
@@ -1144,6 +1145,43 @@ func actionToDocType(action string) string {
 
 // checkPhasePreConditions warns about missing prerequisites for a phase transition.
 // Warnings go to stderr; phase transition always proceeds (warn, not block).
+// checkIntentConfirmed holds a blueprint or build recipe in discovery until
+// its intent is confirmed, as `bts recipe confirm <id> intent` records it
+// (a resolved intent-confirm decision).  The skills said to wait for the
+// confirmation and nothing in Go did: a headless run, with no user to ask,
+// moved the recipe to scoping with the intent unconfirmed in 4 of 6 runs
+// (trial problem #157).  intent.md's Status line is not read, since a
+// session can write it.  --force does not pass it: the confirmation is the
+// user's, and a forced pass is the same skip.  Moving to cancelled is
+// always allowed, and so are complete and finalize, which take --force on
+// their own and record the completion as forced: they end the recipe
+// rather than carry it past the intent.
+func checkIntentConfirmed(root string, recipe *state.RecipeState, newPhase string) error {
+	if recipe.Phase != "discovery" {
+		return nil
+	}
+	switch newPhase {
+	case "discovery", "cancelled", "complete", "finalize":
+		return nil
+	}
+	if recipe.Type != "blueprint" && recipe.Type != "build" {
+		return nil
+	}
+	decisions, err := state.LoadDecisions(root, recipe.ID)
+	if err != nil {
+		return fmt.Errorf("read %s's decisions to check its intent confirmation: %w", recipe.ID, err)
+	}
+	for _, d := range decisions {
+		if d.Status == state.DecisionResolved && (d.Key == "intent-confirm" || strings.HasPrefix(d.Key, "intent-confirm-")) {
+			return nil
+		}
+	}
+	return fmt.Errorf("intent.md of %s is not confirmed, so it stays in discovery.  Ask the user and record their words: "+
+		"`bts recipe confirm %s intent --answer \"<their words>\"` (`--by feature` for a feature item, `--via review` on a review page).  "+
+		"With no user to ask, hold the question (`bts recipe decision hold %s --key intent-confirm --question \"Confirm the intent in intent.md?\"`) and stop; "+
+		"never write the user's words yourself", recipe.ID, recipe.ID, recipe.ID)
+}
+
 func checkPhasePreConditions(root string, recipe *state.RecipeState, newPhase string, force bool) error {
 	recipeDir := state.RecipeDir(root, recipe.ID)
 	exists := func(name string) bool {
@@ -1156,6 +1194,10 @@ func checkPhasePreConditions(root string, recipe *state.RecipeState, newPhase st
 	}
 	warn := func(msg string) {
 		fmt.Fprintf(os.Stderr, "⚠ %s\n", msg)
+	}
+
+	if err := checkIntentConfirmed(root, recipe, newPhase); err != nil {
+		return err
 	}
 
 	switch newPhase {
