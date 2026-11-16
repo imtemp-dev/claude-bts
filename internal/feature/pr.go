@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -252,13 +253,33 @@ func (pc *prContext) baseFor() string {
 	return pc.f.BaseBranch
 }
 
+// prBody is the draft pull request's description: what the item delivers,
+// its invariants with the tests that hold them, the checks bts recorded,
+// and which recipe documents the text cites, since those live in .bts/
+// and a reviewer of the pull request cannot open them (trial problem
+// #158).  It names no local path: other people read it.
 func prBody(pc *prContext, issueKey string) string {
+	rdir := state.RecipeDir(pc.root, pc.r.ID)
 	var b strings.Builder
 	fmt.Fprintf(&b, "Item %s of bts feature %s: %s.\n\n", pc.plan.ID, pc.f.ID, pc.plan.Title)
-	if text := firstParagraph(filepath.Join(state.RecipeDir(pc.root, pc.r.ID), "final.md")); text != "" {
+	if text := firstParagraph(filepath.Join(rdir, "final.md")); text != "" {
 		b.WriteString(text + "\n\n")
-	} else if text := firstParagraph(filepath.Join(state.RecipeDir(pc.root, pc.r.ID), "fix-spec.md")); text != "" {
+		if table := sectionTable(filepath.Join(rdir, "final.md"), "invariants"); table != "" {
+			b.WriteString("Invariants and the tests that hold them:\n\n" + table + "\n\n")
+		}
+	} else if text := firstParagraph(filepath.Join(rdir, "fix-spec.md")); text != "" {
 		b.WriteString(text + "\n\n")
+	}
+	if checks := recordedChecks(pc.root, pc.r.ID); len(checks) > 0 {
+		b.WriteString("Checks bts recorded:\n\n" + strings.Join(checks, "\n") + "\n\n")
+	}
+	if cited := citedRecords(b.String(), rdir); len(cited) > 0 {
+		verb := "is a bts record"
+		if len(cited) > 1 {
+			verb = "are bts records"
+		}
+		fmt.Fprintf(&b, "%s %s of the item's recipe, kept outside the repository (in the worker's worktree and the bts feature store); not part of this pull request.\n\n",
+			joinNames(cited), verb)
 	}
 	b.WriteString("Draft opened by bts when the item's recipe completed; not ready for review.")
 	if issueKey != "" {
@@ -266,6 +287,150 @@ func prBody(pc *prContext, issueKey string) string {
 	}
 	b.WriteString("\n")
 	return b.String()
+}
+
+// sectionTable is the first table in the section of a Markdown document
+// whose heading contains word (any case), or "".
+func sectionTable(path, word string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	in := false
+	var rows []string
+	for _, line := range strings.Split(string(data), "\n") {
+		l := strings.TrimSpace(line)
+		if strings.HasPrefix(l, "#") {
+			if len(rows) > 0 {
+				break
+			}
+			in = strings.Contains(strings.ToLower(l), strings.ToLower(word))
+			continue
+		}
+		if !in {
+			continue
+		}
+		if strings.HasPrefix(l, "|") {
+			rows = append(rows, l)
+		} else if len(rows) > 0 {
+			break
+		}
+	}
+	return strings.Join(rows, "\n")
+}
+
+// recordedChecks summarises what bts recorded about the recipe's tests,
+// its interrogate run and its deviation report, one line each.
+func recordedChecks(root, recipeID string) []string {
+	var out []string
+	if tr, err := state.LoadTestResults(root, recipeID); err == nil && tr != nil && strings.TrimSpace(tr.Command) != "" {
+		line := fmt.Sprintf("- Tests: `%s`, %s", tr.Command, tr.Status)
+		if tr.Total > 0 {
+			line = fmt.Sprintf("- Tests: `%s`, %d passed", tr.Command, tr.Passed)
+			if tr.Failed > 0 {
+				line += fmt.Sprintf(", %d failed", tr.Failed)
+			}
+		}
+		out = append(out, line)
+	}
+	if run, err := state.LoadInterrogateRun(root, recipeID); err == nil && run != nil && run.VerifiedAt != "" {
+		var fixed, waived, open int
+		for _, f := range run.Findings {
+			switch f.Status {
+			case state.InterrogateFixed:
+				fixed++
+			case state.InterrogateWaived:
+				waived++
+			case state.InterrogateReproduced:
+				open++
+			}
+		}
+		line := "- Interrogate: nothing reproduced"
+		if n := fixed + waived + open; n > 0 {
+			line = fmt.Sprintf("- Interrogate: %d reproduced, %d fixed", n, fixed)
+			if waived > 0 {
+				line += fmt.Sprintf(", %d left unfixed with the user's agreement", waived)
+			}
+			if open > 0 {
+				line += fmt.Sprintf(", %d open", open)
+			}
+		}
+		out = append(out, line)
+	}
+	if dev, ok := deviationCounts(filepath.Join(state.RecipeDir(root, recipeID), "deviation.md")); ok {
+		out = append(out, fmt.Sprintf("- Deviation report: %s, %d not implemented", plural(dev["Deviations"], "deviation"), dev["Not Implemented"]))
+	}
+	return out
+}
+
+// deviationCounts reads the "- Name: N" lines of deviation.md's Summary.
+func deviationCounts(path string) (map[string]int, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false
+	}
+	counts := map[string]int{}
+	in := false
+	for _, line := range strings.Split(string(data), "\n") {
+		l := strings.TrimSpace(line)
+		if strings.HasPrefix(l, "#") {
+			if in {
+				break
+			}
+			in = strings.EqualFold(strings.TrimSpace(strings.TrimLeft(l, "#")), "summary")
+			continue
+		}
+		i := strings.LastIndex(l, ":")
+		if !in || !strings.HasPrefix(l, "- ") || i < 3 {
+			continue
+		}
+		var n int
+		if _, err := fmt.Sscanf(strings.TrimSpace(l[i+1:]), "%d", &n); err == nil {
+			counts[strings.TrimSpace(l[2:i])] = n
+		}
+	}
+	_, ok := counts["Deviations"]
+	return counts, ok
+}
+
+func plural(n int, word string) string {
+	if n == 1 {
+		return "1 " + word
+	}
+	return fmt.Sprintf("%d %ss", n, word)
+}
+
+var backticked = regexp.MustCompile("`([^`\n]+)`")
+
+// citedRecords are the recipe's own files (its documents, probes, records)
+// a text names in backticks, in order: a reviewer of the pull request
+// cannot open them.
+func citedRecords(text, recipeDir string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, m := range backticked.FindAllStringSubmatch(text, -1) {
+		name := strings.TrimSpace(m[1])
+		if seen[name] || strings.ContainsAny(name, " \t") || strings.HasPrefix(name, "/") || strings.Contains(name, "..") {
+			continue
+		}
+		if fi, err := os.Stat(filepath.Join(recipeDir, filepath.FromSlash(name))); err == nil && fi.Mode().IsRegular() {
+			seen[name] = true
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// joinNames is "`a`", "`a` and `b`" or "`a`, `b` and `c`".
+func joinNames(names []string) string {
+	q := make([]string, len(names))
+	for i, n := range names {
+		q[i] = "`" + n + "`"
+	}
+	if len(q) == 1 {
+		return q[0]
+	}
+	return strings.Join(q[:len(q)-1], ", ") + " and " + q[len(q)-1]
 }
 
 // firstParagraph is the first prose paragraph of a Markdown document,
