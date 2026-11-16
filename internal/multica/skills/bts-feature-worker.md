@@ -42,6 +42,7 @@ The recipe asks for two confirmations that normally come from the user.
 
 Run the recipe's own skill: `/bts-recipe-build`, `/bts-recipe-blueprint`, `/bts-recipe-fix` or `/bts-recipe-debug`, by the item's type.  The recipe already exists, so the skill resumes it from `bts recipe status`.  Follow it, with these differences:
 
+- Where the recipe's skill says to end your turn with a completion marker (`<bts>DONE</bts>`, `<bts>IMPLEMENT DONE</bts>`, `<bts>FIX DONE</bts>`), run `bts recipe finish <recipe>` instead.  It runs the gate the Stop hook would run on that marker, now, and a real stop would end this run.  If it refuses, do what its reason says and run it again; when it passes, go on (after the spec's DONE, to the implementation).
 - You cannot use AskUserQuestion.  A question only the user can answer becomes a decision (`bts recipe decision hold …`), one comment with the question and numbered options, the issue set to `blocked`, a mention of the manager, and the end of your turn.  The manager answers what the confirmed intent and contracts already answer.
 - Discovery and scoping take the item from the context document; do not re-ask what the feature settled.
 - An express item's recipe is express from the start (`bts recipe status` shows `Mode: express`); follow the build skill's Express mode section.  A mode question bts holds (`express-mode`, `full-mode`) goes to the manager like any other.
@@ -50,7 +51,7 @@ Run the recipe's own skill: `/bts-recipe-build`, `/bts-recipe-blueprint`, `/bts-
 
 ## Finish
 
-The recipe is finished when the Stop hook completes it.  Its records reach the feature store by themselves; if a message says they did not, run `bts feature harvest`.  Then, in the repository:
+The recipe is finished when `bts recipe finish <recipe>` passes in its last phase and prints `→ complete`.  Its records reach the feature store by themselves; if a message says they did not, run `bts feature harvest`.  Then, in the repository:
 
 1. Commit anything left, then `bts feature pr <feature> <item>`.  It names the branch, pushes it, and opens a draft pull request against the item's base; it prints the URL.  If it refuses, report its message.
 2. Post one comment: what the item delivered, the tests, any deviation from the spec, and the draft pull request's URL.
