@@ -35,6 +35,9 @@ Runs the deterministic per-task checks defined in Phase 10:
   - import_drift:    file imports modules not listed as neighbors in
                      wireframe.md's component diagram
   - symbol_missing:  a modify_scope symbol is no longer in the file
+                     (a -name entry, which the task removes, and
+                     __doc__, the module docstring, are not looked for)
+  - removal_pending: a -name entry the file still declares
   - scope_violation: a modify task changed a public top-level symbol
                      outside its modify_scope, or a private helper that
                      something outside the scope uses (compared with the

@@ -221,16 +221,26 @@ func checkSymbolPresence(task *state.Task, fileContent string) []state.Structure
 	// check is the right place to catch a symbol that survived
 	// declaration but got deleted during implementation.
 	if task.Action == "modify" && !isLegacyScope(task.ModifyScope) {
-		for _, sym := range task.ModifyScope {
-			if sym == "" {
-				continue
-			}
+		for _, sym := range presentScope(task.ModifyScope) {
 			if !ContainsSymbol(fileContent, sym) {
 				findings = append(findings, state.StructureFinding{
 					TaskID:   task.ID,
 					Category: "symbol_missing",
 					Severity: "critical",
-					Detail:   "Task " + task.ID + " declares modify_scope symbol '" + sym + "' but " + task.File + " no longer contains it. Either restore the symbol, update scope, or mark the task blocked.",
+					Detail: "Task " + task.ID + " declares modify_scope symbol '" + sym + "' but " + task.File + " no longer contains it. " +
+						"If the task removes it, declare it as `-" + sym + "` in scope= and modify_scope; otherwise restore the symbol, update the scope, or mark the task blocked.",
+				})
+			}
+		}
+		// A declared removal still declared in the file: the task said it
+		// removes the name.  A report, as every finding below critical is.
+		for _, sym := range removalScope(task.ModifyScope) {
+			if declaresName(task.File, fileContent, sym) {
+				findings = append(findings, state.StructureFinding{
+					TaskID:   task.ID,
+					Category: "removal_pending",
+					Severity: "major",
+					Detail:   "Task " + task.ID + " declares that it removes '" + sym + "' (`-" + sym + "` in its scope), but " + task.File + " still declares it. Remove it, or take the removal out of the scope.",
 				})
 			}
 		}

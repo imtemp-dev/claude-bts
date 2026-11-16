@@ -265,7 +265,8 @@ of tasks.json: `bts check task` rewrites the file after each run.
   and say so; that is a spec change, not an implementation detail.
 - **Modify scope (Phase 14)**: when `task.action == "modify"`, change
   the symbols listed in `task.modify_scope` (the same list that the
-  final.md anchor carries after `scope=`). You may also add or change
+  final.md anchor carries after `scope=`; a `-name` entry is a symbol the
+  task removes, and `__doc__` the module docstring). You may also add or change
   private module-level helpers and constants (a `_PATTERN`, an
   unexported func, a non-exported const) that only those symbols use,
   following the module's conventions: a pattern goes where the module

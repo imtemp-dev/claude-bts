@@ -339,7 +339,13 @@ Task object required fields:
   authorized symbol list; the anchor carries the same list after `scope=`.
   Private module-level helpers and constants that only these symbols use
   may change too; `bts check task` reports any other changed public
-  symbol as `scope_violation` (major, advisory)
+  symbol as `scope_violation` (major, advisory).  A name the task
+  removes is written `-name` (`scope=render,-legacy_render`): it is not
+  looked for in the file, and a declaration of it still there is
+  reported as `removal_pending` (major); a helper only the scope's own or
+  removed code used, and no other file names, may go with it.  `__doc__`
+  stands for the module docstring or leading comment, for a row whose
+  change edits only that.
 
 Task object optional fields:
 - `depends_on` (array of strings): task IDs this depends on

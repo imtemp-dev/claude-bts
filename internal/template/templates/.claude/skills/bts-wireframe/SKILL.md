@@ -140,6 +140,9 @@ directly and every row becomes a task, so it is parsed, not just read:
 - A `modify` row names the symbols it may touch after the action, as
   `modify scope=a,b` (the form a task anchor uses). The task's modify
   scope comes from it, and `bts check task` reports edits outside it.
+  A symbol the change removes is written `-name` (`modify
+  scope=render,-legacy_render`); a row that edits only the module
+  docstring is `modify scope=__doc__`.
   The Action cell holds nothing else; notes go in Responsibility.
 - `generate` marks a file a generator writes from the code: an OpenAPI
   document, client types generated from it, generated headers. It is not

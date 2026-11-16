@@ -21,7 +21,7 @@ var finalTaskAnchorRe = regexp.MustCompile(
 // scopeSuffixRe extracts the scope= value from the trailing text of an
 // anchor. Only the first match is used; further tokens are ignored so
 // authors can add informal notes after the scope.
-var scopeSuffixRe = regexp.MustCompile(`\bscope=([A-Za-z_][A-Za-z0-9_,\-\s]*)`)
+var scopeSuffixRe = regexp.MustCompile(`\bscope=(-?[A-Za-z_][A-Za-z0-9_,\-\s]*)`)
 
 // TaskAnchorKey is the normalized "{path} {action}" string used to
 // match final.md anchors against tasks.json Task.Anchor values.
@@ -420,13 +420,14 @@ func CheckModifyScope(finalPath, tasksPath, projectRoot string) []Issue {
 				scope = declared
 			}
 			if !isLegacyScope(scope) {
-				missing := missingSymbolsInFile(projectRoot, t.File, scope)
+				missing := missingSymbolsInFile(projectRoot, t.File, presentScope(scope))
 				for _, sym := range missing {
 					issues = append(issues, Issue{
 						Category: "modify_scope",
 						Claim:    "scope_symbol_missing: " + t.ID + ":" + sym,
 						Severity: "critical",
-						Detail:   "Task " + t.ID + " declares symbol '" + sym + "' in scope, but " + t.File + " does not contain that identifier. Update scope= in final.md or the task's modify_scope.",
+						Detail: "Task " + t.ID + " declares symbol '" + sym + "' in scope, but " + t.File + " does not contain that identifier. " +
+							"If the task removes it, declare it as `-" + sym + "` in scope= and in the task's modify_scope; otherwise update the scope.",
 					})
 				}
 			}

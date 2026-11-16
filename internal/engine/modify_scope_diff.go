@@ -2,6 +2,7 @@ package engine
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -305,10 +306,11 @@ func checkScopeChanges(projectRoot, recipeDir string, task *state.Task, post str
 	if !ok {
 		return nil
 	}
-	scope := fileScope(recipeDir, task)
+	scope := scopeNames(fileScope(recipeDir, task))
 
 	before := map[string]scopeDecl{}
-	for _, d := range parseScopeDecls(lang, pre) {
+	beforeList := parseScopeDecls(lang, pre)
+	for _, d := range beforeList {
 		if d.name != "" {
 			before[d.name] = d
 		}
@@ -399,6 +401,9 @@ func checkScopeChanges(projectRoot, recipeDir string, task *state.Task, post str
 		if scopeCovers(lang, d, scope) {
 			continue
 		}
+		if d.public && how == "removed" && removedForScope(projectRoot, lang, task.File, name, beforeList, now, scope) {
+			continue // a helper only the scope's own or removed code used
+		}
 		if d.public {
 			findings = append(findings, state.StructureFinding{
 				TaskID: task.ID, Category: "scope_violation", Severity: "major",
@@ -425,6 +430,43 @@ func checkScopeChanges(projectRoot, recipeDir string, task *state.Task, post str
 		})
 	}
 	return findings
+}
+
+// removedForScope reports whether a public declaration the task removed
+// served only the scope: at HEAD some declaration in the file used it,
+// every one that did is in the scope or gone now, and no other file git
+// tracks names it.  Test helpers that only removed tests used are the
+// common case (trial problem #137).
+func removedForScope(projectRoot string, lang *scopeLang, file, name string, beforeList []scopeDecl, now map[string]scopeDecl, scope []string) bool {
+	re := symbolRegexp(name)
+	used := false
+	for i, u := range beforeList {
+		if u.name == name || i == 0 && u.name == "" || !re.MatchString(u.text) {
+			continue
+		}
+		if u.name == "" {
+			return false // top-level code used it
+		}
+		if _, still := now[u.name]; still && !scopeCovers(lang, u, scope) {
+			return false
+		}
+		used = true
+	}
+	return used && !namedElsewhere(projectRoot, file, name)
+}
+
+// namedElsewhere reports whether a file git tracks, other than file and
+// bts's own, names name as a word.  It errs towards true when git cannot
+// say.
+func namedElsewhere(root, file, name string) bool {
+	cmd := exec.Command("git", "-C", root, "grep", "-l", "-w", "-F", "-e", name, "--", ".",
+		":(exclude)"+filepath.ToSlash(filepath.Clean(file)), ":(exclude).bts", ":(exclude).claude")
+	out, err := cmd.Output()
+	if err != nil {
+		var ee *exec.ExitError
+		return !(errors.As(err, &ee) && ee.ExitCode() == 1) // 1: no match
+	}
+	return strings.TrimSpace(string(out)) != ""
 }
 
 // fileScope is the scope of every modify task on the task's file: two
