@@ -238,9 +238,9 @@ var featureStatusCmd = &cobra.Command{
 					detail += "  in " + l.Worktree
 				}
 				fmt.Println(detail)
-				if l.PRURL != "" {
-					fmt.Printf("        draft %s (%s → %s)\n", l.PRURL, l.PRBranch, l.PRBase)
-				}
+			}
+			if p := it.PR; p != nil {
+				fmt.Printf("        draft %s (%s → %s), opened by a%d\n", p.URL, p.Branch, p.Base, p.Attempt)
 			}
 			if it.Note != "" {
 				fmt.Printf("        note: %s\n", it.Note)
@@ -523,7 +523,7 @@ var featureContextCmd = &cobra.Command{
 		fmt.Print(doc)
 		recipeID, _ := cmd.Flags().GetString("recipe")
 		if recipeID == "" && root != "" {
-			if r, _ := state.GetActiveRecipe(root); r != nil && r.FeatureItem == args[1] && strings.HasPrefix(args[0], featurePrefix(r.Feature)) {
+			if r, _ := state.GetActiveRecipe(root); r != nil && r.FeatureItem == args[1] && feature.SameID(args[0], r.Feature) {
 				recipeID = r.ID
 			}
 		}
@@ -539,15 +539,6 @@ var featureContextCmd = &cobra.Command{
 		}
 		return nil
 	},
-}
-
-// featurePrefix is "f-NNN" of a feature id.
-func featurePrefix(id string) string {
-	parts := strings.SplitN(id, "-", 3)
-	if len(parts) >= 2 {
-		return parts[0] + "-" + parts[1]
-	}
-	return id
 }
 
 var featureHarvestCmd = &cobra.Command{

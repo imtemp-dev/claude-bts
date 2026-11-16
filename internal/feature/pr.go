@@ -163,10 +163,9 @@ func boundRecipe(root, featureID, item string) (*state.RecipeState, error) {
 	if err != nil {
 		return nil, err
 	}
-	want := featurePrefix(featureID)
 	var best *state.RecipeState
 	for _, r := range recipes {
-		if r.FeatureItem == item && featurePrefix(r.Feature) == want && (best == nil || r.FeatureAttempt > best.FeatureAttempt) {
+		if r.FeatureItem == item && SameID(r.Feature, featureID) && (best == nil || r.FeatureAttempt > best.FeatureAttempt) {
 			best = r
 		}
 	}
@@ -174,14 +173,6 @@ func boundRecipe(root, featureID, item string) (*state.RecipeState, error) {
 		return nil, fmt.Errorf("this worktree has no recipe for item %s of %s", item, featureID)
 	}
 	return best, nil
-}
-
-func featurePrefix(id string) string {
-	var k int
-	if _, err := fmt.Sscanf(strings.TrimSpace(id), "f-%d", &k); err != nil {
-		return id
-	}
-	return fmt.Sprintf("f-%03d", k)
 }
 
 // BranchName is the branch an item's pull request uses:

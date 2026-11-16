@@ -137,6 +137,8 @@ bts graph [recipe-id]       Document relationship graph
 bts verify <file>           Check document consistency
 bts validate [recipe-id]    JSON schema check
 bts sync-check [recipe-id]  Verify document sync
+bts feature create|confirm|status|next|context|pr   A feature: a confirmed plan of items, one recipe each
+bts multica setup           Run features on a Multica board (manager and worker agents)
 bts update                  Update templates
 bts version                 Show versions
 ```

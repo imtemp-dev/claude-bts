@@ -180,9 +180,22 @@ type ItemStatus struct {
 	DoneAttempt *AttemptRef `json:"done_attempt,omitempty"`
 	Removed     bool        `json:"removed_pending_confirmation,omitempty"`
 	Merged      bool        `json:"merged,omitempty"`
+	// PR is the item's pull request: the newest attempt that opened one,
+	// which need not be the latest attempt.  Status read the latest
+	// attempt's only, so a fix-forward not pushed yet, or an a2 still open
+	// after a1 opened the pull request, showed none (trial problem #151).
+	PR *ItemPRRef `json:"pr,omitempty"`
 
 	latest, done *Attempt
 	doneAll      []*Attempt // every done attempt, oldest first
+}
+
+// ItemPRRef is an item's pull request and the attempt that opened it.
+type ItemPRRef struct {
+	URL     string `json:"url"`
+	Branch  string `json:"branch,omitempty"`
+	Base    string `json:"base,omitempty"`
+	Attempt int    `json:"attempt"`
 }
 
 // AttemptRef is an attempt as status output shows it.
@@ -296,6 +309,9 @@ func Derive(dir string, f *Feature) (*Status, error) {
 			}
 		}
 		is.Latest, is.DoneAttempt = ref(is.latest), ref(is.done)
+		if p, a := itemPR(dir, it); p != nil {
+			is.PR = &ItemPRRef{URL: p.URL, Branch: p.Branch, Base: p.Base, Attempt: a.N}
+		}
 		switch {
 		case it.Decision != nil && it.Decision.Kind == "skip":
 			is.State = StateSkipped

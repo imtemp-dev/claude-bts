@@ -577,13 +577,30 @@ func Dispatch(dir string) ([]Action, error) {
 		}
 
 		// The parent goes to review once every item is settled and every
-		// done item has its draft pull request.
+		// done item has its draft pull request.  A done item without one,
+		// or whose pull request was closed without merging, holds the
+		// parent back, and each says so: it held it silently (trial
+		// problems #150, #153).
 		allPRs := true
 		for _, is := range s.Items {
-			if is.State == StateDone {
-				if pr, _ := itemPR(dir, f.Item(is.ID)); pr == nil {
-					allPRs = false
-				}
+			if is.State != StateDone {
+				continue
+			}
+			key := ""
+			if mi := link.Items[is.ID]; mi != nil {
+				key = mi.Key
+			}
+			pr, _ := itemPR(dir, f.Item(is.ID))
+			if pr == nil {
+				allPRs = false
+				actions = append(actions, Action{Item: is.ID, Issue: key, Note: true,
+					What: fmt.Sprintf("done without a draft pull request, so the parent waits: in its worktree, bts feature pr %s %s", f.ID, is.ID)})
+				continue
+			}
+			if rd, ok := prs[is.ID]; ok && rd.URL == pr.URL && rd.Err == nil && rd.State != nil && rd.State.State == "CLOSED" {
+				allPRs = false
+				actions = append(actions, Action{Item: is.ID, Issue: key, Note: true,
+					What: fmt.Sprintf("its pull request %s was closed without merging, so the parent waits: reopen it, or settle the item with the user", pr.URL)})
 			}
 		}
 		if s.State == FeatureReady && allPRs {

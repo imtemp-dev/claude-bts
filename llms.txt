@@ -108,6 +108,8 @@ bts recipe assess-precheck <id> --doc <doc>   Decide from recorded state (exit 1
 bts recipe leave-unverified <id> --doc <doc> --reason "..."   Record a changed document left unverified for now (rule 3 lets the turn end)
 bts recipe decision hold|list|resolve|drop    Questions only the user can answer
 bts recipe override         Record a deliberate decision to proceed past a hard gate
+bts feature create|confirm|status|next|context|pr|dispatch   A feature: a confirmed plan of items, each built by one recipe (bts recipe create --feature <f> --item <i>); the Multica manager and worker skills drive it, and every command also runs by hand
+bts multica setup --manager <id> --worker <id>   Install the bts-feature-manager and bts-feature-worker skills on a Multica workspace and record the two agents
 bts stats [recipe-id]       Metrics and cost estimation (--json, --csv)
 bts graph [recipe-id]       Document relationship graph (--all)
 bts sync-check [recipe-id]  Verify documents are in sync

@@ -204,6 +204,30 @@ func resolveIDDir(store, entry string) string {
 	return p
 }
 
+// idNumber is a feature id's number: 3 for "f-3", "f-003" and
+// "f-003-slug".
+func idNumber(id string) (int, bool) {
+	id = strings.TrimSpace(id)
+	if idPrefix.FindString(id) == "" {
+		return 0, false
+	}
+	var k int
+	if _, err := fmt.Sscanf(id, "f-%d", &k); err != nil {
+		return 0, false
+	}
+	return k, true
+}
+
+// SameID reports whether two feature ids name the same feature, however
+// each is written ("f-3", "f-003", "f-003-slug").  A comparison of the
+// "f-NNN" prefix as text missed a short or unpadded id (trial problem
+// #152).
+func SameID(a, b string) bool {
+	na, oka := idNumber(a)
+	nb, okb := idNumber(b)
+	return oka && okb && na == nb
+}
+
 // Find returns the directory of the feature with id ("f-001", "f-1" or
 // "f-001-slug"), from anywhere: features are found by id, never by the
 // repository a command happens to run in.
@@ -212,11 +236,8 @@ func Find(id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var k int
-	if idPrefix.FindString(strings.TrimSpace(id)) == "" {
-		return "", fmt.Errorf("%q is not a feature id (f-NNN or f-NNN-slug)", id)
-	}
-	if _, err := fmt.Sscanf(strings.TrimSpace(id), "f-%d", &k); err != nil {
+	k, ok := idNumber(id)
+	if !ok {
 		return "", fmt.Errorf("%q is not a feature id (f-NNN or f-NNN-slug)", id)
 	}
 	num := fmt.Sprintf("f-%03d", k)
