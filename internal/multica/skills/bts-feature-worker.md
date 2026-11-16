@@ -16,6 +16,8 @@ bts feature context <feature> <item>                           # the confirmed i
 
 If `recipe create` refuses, report its message in one comment, set the issue to `blocked`, mention the manager, and stop.  If this run resumes earlier work (`bts recipe status` shows the recipe), skip the steps already done.
 
+The worktree is a fresh checkout: no virtualenv, no `node_modules`.  When `recipe create` prints the feature's setup, run it in the repository before the first build or test; bts runs the same setup in every copy it makes for this item.  When the feature has none and the tests cannot start for want of a dependency, install what the project's README names, and say in your result comment what you ran.
+
 Read the whole context document before anything else.  It is your intent: the feature's confirmed intent and contracts, this item's place in the plan, and what the items you depend on delivered.  If it warns that a dependency's code is not in this worktree's history, say so in a comment and continue.
 
 ## Confirmations
@@ -43,7 +45,7 @@ Run the recipe's own skill: `/bts-recipe-build`, `/bts-recipe-blueprint`, `/bts-
 - You cannot use AskUserQuestion.  A question only the user can answer becomes a decision (`bts recipe decision hold …`), one comment with the question and numbered options, the issue set to `blocked`, a mention of the manager, and the end of your turn.  The manager answers what the confirmed intent and contracts already answer.
 - Discovery and scoping take the item from the context document; do not re-ask what the feature settled.
 - An express item's recipe is express from the start (`bts recipe status` shows `Mode: express`); follow the build skill's Express mode section.  A mode question bts holds (`express-mode`, `full-mode`) goes to the manager like any other.
-- Run everything in the foreground: no background tasks or subagents, no sleep loops.
+- Run everything in the foreground: no background task, no background subagent (`run_in_background: true`), no sleep loop; whatever runs in the background is lost when this run ends.  The subagents the recipe's skills spawn (the interrogate adversaries, the reviewers) are spawned in the foreground, with `run_in_background: false`, and you wait for each.
 - Commit the item's work on the worktree's branch as the recipe goes.  Never push with `git push` and never use `gh pr` yourself: the only push and pull request this item gets go through `bts feature pr`.
 
 ## Finish

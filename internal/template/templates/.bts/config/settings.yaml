@@ -115,6 +115,11 @@ implement:
   format_cmd: ""                 # The project's formatter (e.g. "dotnet csharpier format ."), run before
                                  # every recorded command and before bts fingerprints the code, so a
                                  # build that formats its own sources does not make each record stale.
+  setup_cmd: ""                  # Makes a fresh copy of the project runnable (e.g. "cd agent_server &&
+                                 # uv sync -q --extra dev"): run in every copy bts makes (adversary
+                                 # copies, interrogate reruns, mutations, pins), which hold what git
+                                 # lists and no ignored virtualenv. --setup wins; a feature's setup
+                                 # applies when this is empty.
   retry_ladder:
     syntactic_max: 3             # In-place retries (tier 1) before moving to strategy switch
     semantic_max: 2              # Strategy switches (tier 2) before spec escalation
@@ -199,7 +204,7 @@ review:
 
 # Interrogate (prove stage, P3)
 interrogate:
-  max_rescope_rounds: 2          # After a verified interrogate run, a large change (a new code file, or
+  max_rescope_rounds: 4          # After a verified interrogate run, a large change (a new code file, or
                                  # more than two code files whose code changed; comments, docstrings
                                  # and what a rebase brought in do not count) needs a scoped round
                                  # (`bts interrogate prepare --rescope`). Once a recipe has held this

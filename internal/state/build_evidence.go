@@ -65,7 +65,10 @@ type CommandRun struct {
 	// files as they were, so a gate can tell whether the run still
 	// describes the code on disk.
 	CodeHash string `json:"code_hash,omitempty"`
-	RunAt    string `json:"run_at"`
+	// Setup is the command the run's copy ran first, when it ran in a copy
+	// that needed one.
+	Setup string `json:"setup,omitempty"`
+	RunAt string `json:"run_at"`
 }
 
 // Passed reports whether the run exited 0 without timing out.

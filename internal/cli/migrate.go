@@ -1357,9 +1357,16 @@ var settingsInsertions = []settingsInsertion{
 		Since:   "v0.24.0",
 	},
 	{
+		Parent:  "implement",
+		Key:     "setup_cmd",
+		Value:   `""`,
+		Comment: "Makes a fresh copy of the project runnable (a dependency install); run in every copy bts makes.",
+		Since:   "v0.26.0",
+	},
+	{
 		Parent:  "interrogate",
 		Key:     "max_rescope_rounds",
-		Value:   "2",
+		Value:   "4",
 		Comment: "Scoped interrogate rounds a large change requires at most; after them it passes with a notice.",
 		Since:   "v0.25.0",
 	},

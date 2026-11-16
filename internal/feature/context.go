@@ -87,6 +87,9 @@ func Context(featureID, itemID, worktree string) (string, *Served, error) {
 	if len(item.DependsOn) > 0 {
 		fmt.Fprintf(&b, "- Depends on: %s\n", strings.Join(item.DependsOn, ", "))
 	}
+	if f.Setup != "" {
+		fmt.Fprintf(&b, "- Setup: `%s` makes a fresh checkout runnable; run it in the repository before the recipe's first build or test (bts runs it in every copy it makes)\n", f.Setup)
+	}
 	b.WriteString("\n")
 
 	// Transitive dependencies, nearest first.

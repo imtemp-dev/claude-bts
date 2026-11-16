@@ -67,6 +67,14 @@ its repro files and marks it `reproduced` (failed again) or `dropped` (no
 command, passed, timed out, or a repro that replaced code under test).
 Read the dropped reasons; do not argue them back in.
 
+A copy holds what git lists, so an ignored virtualenv or `node_modules` is
+not in it.  Every copy (the adversaries' too) first runs the project's
+setup: `implement.setup_cmd` in `.bts/config/settings.yaml`, else the
+feature's setup, or `--setup "<command>"` on verify and `--recheck`.
+When reruns stop on a missing dependency and the recipe's own tests fail
+in such a copy too, verify records nothing and says so: give the copies a
+setup and verify again.  A recheck keeps those findings' status.
+
 ## Step 5: Fix what reproduced
 
 For each `reproduced` finding:
@@ -148,7 +156,7 @@ status. Fix and recheck as in Step 5. Add `--adversaries 2` or `3` for a
 rework of a contested or security-sensitive part.
 
 Scoped rounds are bounded by `interrogate.max_rescope_rounds` in
-`.bts/config/settings.yaml` (2 by default). Once the recipe has held that
+`.bts/config/settings.yaml` (4 by default). Once the recipe has held that
 many, a further large change no longer blocks: the recheck prints a
 notice and records it in the changelog, and the tests, falsifiers and
 drives rerun on the current code as for a small change. Do not ask the

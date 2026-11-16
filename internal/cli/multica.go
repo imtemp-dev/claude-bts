@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/imtemp-dev/claude-bts/internal/feature"
 	"github.com/imtemp-dev/claude-bts/internal/multica"
@@ -55,5 +56,8 @@ func createFeatureRecipe(root, featureID, itemID, typeFlag, topic string) (strin
 	ok = true
 	fmt.Fprintf(os.Stderr, "[bts] %s is attempt a%d (%s) of item %s of %s; read its context first: bts feature context %s %s\n",
 		id, c.Attempt, c.Kind, c.Item.ID, c.Feature.ID, c.Feature.ID, c.Item.ID)
+	if s := strings.TrimSpace(c.Feature.Setup); s != "" {
+		fmt.Fprintf(os.Stderr, "[bts] the feature's setup makes a fresh checkout runnable; run it here first: %s\n", s)
+	}
 	return id, nil
 }

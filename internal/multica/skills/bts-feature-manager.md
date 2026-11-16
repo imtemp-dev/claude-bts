@@ -25,9 +25,11 @@ Read `.multica/daemon_task_context.json` in your working directory:
 2. Create the feature and write its documents.  Persisted text is English; reply to the user in their language.
 
    ```bash
-   bts feature create --title "<title>" --repo <remote URL> [--ticket <id>]   # prints the id
-   bts feature path <feature>                                                    # where intent.md and contracts.md live
+   bts feature create --title "<title>" --repo <remote URL> [--ticket <id>] [--setup "<command>"]   # prints the id
+   bts feature path <feature>                                                                       # where intent.md and contracts.md live
    ```
+
+   `--setup` is the command that makes a fresh checkout of the repository runnable, a dependency install such as `cd agent_server && uv sync -q --extra server --extra dev`; read it from the repository's README or its project notes.  Each item's worktree is a fresh checkout: the worker runs the setup there, and bts runs it in every copy it makes.  `bts feature setup <feature> "<command>"` sets it later.
 
    Write `intent.md` (problem, purpose, success criteria, out of scope) and `contracts.md` (each interface or promise between items: who provides it, who relies on it).
 3. Split the work into items, each one recipe that fits one pull request, with its dependencies:

@@ -32,6 +32,7 @@ func init() {
 	featureCreateCmd.Flags().String("ticket", "", "A ticket id (e.g. CU-…); a second create with the same ticket returns the open feature")
 	featureCreateCmd.Flags().String("repo", "", "The repository's remote URL, when not run inside it")
 	featureCreateCmd.Flags().String("base", "", "Base branch (default: origin/HEAD, else main)")
+	featureCreateCmd.Flags().String("setup", "", "Command that makes a fresh checkout runnable (a dependency install); every item's copies run it")
 	featureListCmd.Flags().Bool("json", false, "JSON output")
 	featureStatusCmd.Flags().Bool("json", false, "JSON output (derived states, for review pages)")
 	featureNextCmd.Flags().Bool("json", false, "JSON output")
@@ -52,7 +53,8 @@ func init() {
 	featureItemCmd.AddCommand(featureItemAddCmd, featureItemEditCmd, featureItemRemoveCmd, featureItemSkipCmd, featureItemDeferCmd, featureItemReleaseCmd, featureItemRestoreCmd)
 	featureCmd.AddCommand(featureCreateCmd, featureListCmd, featureStatusCmd, featurePathCmd, featureItemCmd,
 		featureConfirmCmd, featureNextCmd, featureContextCmd, featureHarvestCmd, featureReconcileCmd,
-		featureCloseCmd, featureCancelCmd)
+		featureCloseCmd, featureCancelCmd, featureSetupCmd)
+	featureSetupCmd.Flags().Bool("clear", false, "Remove the feature's setup")
 }
 
 func printJSON(v interface{}) error {
@@ -106,6 +108,7 @@ var featureCreateCmd = &cobra.Command{
 		ticket, _ := cmd.Flags().GetString("ticket")
 		repoFlag, _ := cmd.Flags().GetString("repo")
 		base, _ := cmd.Flags().GetString("base")
+		setup, _ := cmd.Flags().GetString("setup")
 		repo, err := repoForCreate(repoFlag)
 		if err != nil {
 			return err
@@ -114,7 +117,7 @@ var featureCreateCmd = &cobra.Command{
 			cwd, _ := os.Getwd()
 			base = feature.DefaultBase(cwd)
 		}
-		dir, f, existed, err := feature.Create(feature.CreateOptions{Title: title, Ticket: ticket, Repo: repo, Base: base})
+		dir, f, existed, err := feature.Create(feature.CreateOptions{Title: title, Ticket: ticket, Repo: repo, Base: base, Setup: setup})
 		if err != nil {
 			return err
 		}
@@ -267,6 +270,41 @@ var featurePathCmd = &cobra.Command{
 		}
 		fmt.Println(dir)
 		return nil
+	},
+}
+
+var featureSetupCmd = &cobra.Command{
+	Use:   "setup <feature> [command]",
+	Short: "Print or set the command that makes a fresh checkout of the feature's repository runnable",
+	Long: `The setup is a dependency install, such as "cd agent_server && uv sync -q --extra dev".
+An item's worktree starts from a fresh checkout, and bts runs the setup in every copy it makes
+for that item (adversary copies, interrogate reruns, mutations, pins) unless the project's
+implement.setup_cmd or a --setup flag says otherwise.  With no command it prints the setup.`,
+	Args: cobra.RangeArgs(1, 2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dir, err := feature.Find(args[0])
+		if err != nil {
+			return err
+		}
+		clear, _ := cmd.Flags().GetBool("clear")
+		if len(args) == 1 && !clear {
+			f, err := feature.Load(dir)
+			if err != nil {
+				return err
+			}
+			fmt.Println(f.Setup)
+			return nil
+		}
+		setup := ""
+		if len(args) == 2 {
+			if clear {
+				return fmt.Errorf("give a command or --clear, not both")
+			}
+			if setup = strings.TrimSpace(args[1]); setup == "" {
+				return fmt.Errorf("the setup command is empty; use --clear to remove it")
+			}
+		}
+		return feature.SetSetup(dir, setup)
 	},
 }
 

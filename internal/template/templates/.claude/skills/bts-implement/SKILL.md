@@ -476,10 +476,14 @@ keeps, and its test only has to stay green):
      `bts falsifier mutate {id} --inv INV-NNN --not-mutable "<reason>"`.
 
    The copy holds what git lists: tracked files, and untracked ones git
-   does not ignore.  A falsifier that reads an ignored file (a local env
-   file, generated configuration) fails there before it reaches the
-   guard.  Bring the file in with `--setup`, which runs in the copy, by
-   its absolute path in the project:
+   does not ignore.  It runs the project's setup first
+   (`implement.setup_cmd`, else the feature's), which installs what an
+   ignored virtualenv or `node_modules` held.  A falsifier that reads
+   another ignored file (a local env file, generated configuration)
+   fails there before it reaches the guard.  Bring the file in with
+   `--setup`, which replaces the project's setup for this run (chain the
+   two with `&&` when both are needed), by its absolute path in the
+   project:
    `--setup 'mkdir -p .env.d && cp /abs/project/.env.d/test.env .env.d/'`.
    `--rerun` repeats each run's setup.
 

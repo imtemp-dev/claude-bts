@@ -35,7 +35,7 @@ func init() {
 	f.String("inv", "", "Invariant id from domain.md § 2, e.g. INV-003")
 	f.String("patch", "", "Git-style unified diff (a/ and b/ paths) that breaks the invariant's guard in the recipe's code")
 	f.String("expect", "", "Text the failing run must print: the invariant's own test id")
-	f.String("setup", "", "Command run in the copy before the falsifier, e.g. a dependency install")
+	f.String("setup", "", "Command run in the copy before the falsifier, e.g. a dependency install (default: implement.setup_cmd, else the feature's setup)")
 	f.String("not-mutable", "", "Record that the invariant has no code guard to break, with the reason")
 	f.Bool("rerun", false, "Reapply every stored mutation to the current code and rerun its falsifier")
 	f.Int("timeout", 600, "Seconds before each run is killed")
@@ -99,7 +99,7 @@ var falsifierMutateCmd = &cobra.Command{
 			return nil
 		default:
 			m, err := executeFalsifierMutate(root, id, mutateOptions{
-				Inv: inv, PatchFile: patch, Expect: expect, Setup: setup, TimeoutSec: timeout,
+				Inv: inv, PatchFile: patch, Expect: expect, Setup: copySetup(root, id, setup), TimeoutSec: timeout,
 			}, os.Stdout)
 			if err != nil {
 				return err
@@ -213,7 +213,11 @@ func executeMutateRerun(root, recipeID string, timeoutSec int, sink io.Writer) (
 			continue
 		}
 		fmt.Fprintf(sink, "\n[bts] %s: %s (patch %s)\n", inv, f.Command, prev.Patch)
-		m, err := runMutation(root, recipeID, inv, f.Command, patch, prev.Patch, prev.Files, prev.Expect, prev.Setup, timeoutSec, sink)
+		setup := prev.Setup
+		if setup == "" {
+			setup = copySetup(root, recipeID, "")
+		}
+		m, err := runMutation(root, recipeID, inv, f.Command, patch, prev.Patch, prev.Files, prev.Expect, setup, timeoutSec, sink)
 		if err != nil {
 			fmt.Fprintf(sink, "[bts] %s not rerun: %v\n", inv, err)
 			notRerun[inv] = err.Error()
@@ -422,12 +426,8 @@ func runMutation(root, recipeID, inv, falsifierCmd string, patch []byte, patchRe
 	var output bytes.Buffer
 	if setup != "" {
 		fmt.Fprintf(sink, "[bts] setup in the copy: %s\n", setup)
-		s, err := runShellCommand(dir, setup, timeoutSec, sink)
-		if err != nil {
-			return nil, fmt.Errorf("setup %q: %w", setup, err)
-		}
-		if s.ExitCode != 0 || s.TimedOut {
-			return nil, fmt.Errorf("setup %q failed in the copy (exit=%d); the falsifier was not run", setup, s.ExitCode)
+		if err := runCopySetup(dir, setup, timeoutSec, sink); err != nil {
+			return nil, fmt.Errorf("%w; the falsifier was not run", err)
 		}
 	}
 	run, err := runShellCommand(dir, falsifierCmd, timeoutSec, sink)

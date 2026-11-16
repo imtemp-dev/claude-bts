@@ -47,6 +47,7 @@ type Feature struct {
 	Ticket        string          `json:"ticket,omitempty"`
 	Repo          Repo            `json:"repo"`
 	BaseBranch    string          `json:"base_branch"`
+	Setup         string          `json:"setup,omitempty"` // makes a fresh checkout runnable; see SetupFor
 	CreatedAt     string          `json:"created_at"`
 	Items         []Item          `json:"items"`
 	Confirmations []Confirmation  `json:"confirmations,omitempty"`
@@ -233,6 +234,47 @@ type CreateOptions struct {
 	Ticket string
 	Repo   *Repo
 	Base   string
+	Setup  string
+}
+
+// SetSetup records the command that makes a fresh checkout of the
+// feature's repository runnable; "" clears it.
+func SetSetup(dir, setup string) error {
+	_, err := Mutate(dir, "setup", func(f *Feature) (string, error) {
+		setup = strings.TrimSpace(setup)
+		if f.Setup == setup {
+			return "", ErrNoChange
+		}
+		f.Setup = setup
+		if setup == "" {
+			return "setup cleared", nil
+		}
+		return "setup: " + setup, nil
+	})
+	return err
+}
+
+// SetupFor is the setup command of the feature a recipe is bound to, or
+// "".  A Multica worktree's settings are written fresh by bts init, so the
+// feature is where an item's worktree learns how to make the project
+// runnable.
+func SetupFor(r *state.RecipeState) string {
+	if r == nil || r.Feature == "" {
+		return ""
+	}
+	dir := r.FeatureDir
+	if dir == "" || !fileExists(filepath.Join(dir, FeatureFile)) {
+		d, err := Find(r.Feature)
+		if err != nil {
+			return ""
+		}
+		dir = d
+	}
+	f, err := Load(dir)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(f.Setup)
 }
 
 // Create makes a draft feature, or returns the open feature that already
@@ -267,6 +309,7 @@ func Create(o CreateOptions) (dir string, f *Feature, existed bool, err error) {
 		Ticket:     strings.TrimSpace(o.Ticket),
 		Repo:       Repo{URL: o.Repo.URL, Key: o.Repo.Key},
 		BaseBranch: o.Base,
+		Setup:      strings.TrimSpace(o.Setup),
 		CreatedAt:  now(),
 		Items:      []Item{},
 	}

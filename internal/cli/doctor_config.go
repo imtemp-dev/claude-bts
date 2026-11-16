@@ -172,6 +172,7 @@ var settingsKeysRead = map[string]bool{
 	"implement.retry_ladder.architect_escalate": true,
 	"implement.require_edit_go":                 true,
 	"implement.format_cmd":                      true,
+	"implement.setup_cmd":                       true, // cli.copySetup
 	"fix.debate_rounds":                         true,
 	"debug.debate_rounds":                       true,
 	"debug.perspective_count":                   true,

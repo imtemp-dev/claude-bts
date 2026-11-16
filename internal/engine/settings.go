@@ -35,7 +35,10 @@ type Settings struct {
 // InterrogateSettings: `max_rescope_rounds` is how many scoped rounds a
 // large change after a verified interrogate run requires, at most, before
 // interrogate_clean lets a further large change through with a notice
-// (trial problem #140).  1 or more; the default is 2.
+// (trial problem #140).  1 or more; the default is 4: on the Reports PR 3
+// recipe the fourth and fifth scoped rounds still reproduced 12 real
+// defects, while the rounds a comment edit or a rebase forced no longer
+// count.
 type InterrogateSettings struct {
 	MaxRescopeRounds int `yaml:"max_rescope_rounds"`
 }
@@ -77,6 +80,15 @@ type ImplementSettings struct {
 	// one command recorded goes stale on the next (trial problem #69).
 	// Empty: nothing runs.
 	FormatCmd string `yaml:"format_cmd"`
+	// SetupCmd makes a fresh copy of the project runnable (a dependency
+	// install such as "cd agent_server && uv sync -q --extra dev"): bts runs
+	// it in every copy it makes (adversary copies, interrogate reruns,
+	// mutations, pins) before the command under test, since a copy holds
+	// what git lists and no ignored virtualenv or node_modules (trial
+	// problems #141, #156).  A --setup flag wins over it; with neither, a
+	// recipe bound to a feature takes the feature's setup.  Empty: nothing
+	// runs.
+	SetupCmd string `yaml:"setup_cmd"`
 }
 
 // RetryLadderSettings mirrors engine.LadderConfig with yaml tags.
@@ -206,7 +218,7 @@ func DefaultSettings() *Settings {
 			SectionSpanSeverity: SeverityMajor,
 		},
 		Review:      ReviewSettings{Surface: ReviewSurfaceArtifact},
-		Interrogate: InterrogateSettings{MaxRescopeRounds: 2},
+		Interrogate: InterrogateSettings{MaxRescopeRounds: 4},
 	}
 }
 

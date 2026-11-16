@@ -52,6 +52,7 @@ func init() {
 	interrogatePrepareCmd.Flags().Bool("rescope", false, "After a large change to a verified run: a new round on the files changed since the last one")
 	interrogateVerifyCmd.Flags().Bool("recheck", false, "After fixes: rerun open and fixed findings on the current code")
 	interrogateVerifyCmd.Flags().Int("timeout", 600, "Seconds before each run is killed")
+	interrogateVerifyCmd.Flags().String("setup", "", "Command run in each rerun's copy first, e.g. a dependency install (default: implement.setup_cmd, else the feature's setup)")
 	interrogateWaiveCmd.Flags().String("finding", "", "Finding id, e.g. F-002 (required)")
 	interrogateWaiveCmd.Flags().String("reason", "", "Why it is left unfixed, as the user agreed (required)")
 	_ = interrogateWaiveCmd.MarkFlagRequired("finding")
@@ -61,7 +62,7 @@ func init() {
 	interrogatePinCmd.Flags().String("cmd", "", "Command that runs the regression test only (required)")
 	interrogatePinCmd.Flags().String("revert", "", "Patch that reverts the fix in the code, never a test (required)")
 	interrogatePinCmd.Flags().String("expect", "", "The regression test's id, which its failing run must print (required)")
-	interrogatePinCmd.Flags().String("setup", "", "Command run in the copy before the test, e.g. bringing in an ignored file")
+	interrogatePinCmd.Flags().String("setup", "", "Command run in the copy before the test, e.g. a dependency install (default: implement.setup_cmd, else the feature's setup)")
 	interrogatePinCmd.Flags().Int("timeout", 600, "Seconds before each run is killed")
 	for _, f := range []string{"finding", "cmd", "revert", "expect"} {
 		_ = interrogatePinCmd.MarkFlagRequired(f)
@@ -144,11 +145,12 @@ var interrogateVerifyCmd = &cobra.Command{
 		}
 		recheck, _ := cmd.Flags().GetBool("recheck")
 		timeout, _ := cmd.Flags().GetInt("timeout")
+		setup, _ := cmd.Flags().GetString("setup")
 		var run *state.InterrogateRun
 		if recheck {
-			run, err = executeInterrogateRecheck(root, args[0], timeout, os.Stdout)
+			run, err = executeInterrogateRecheckWith(root, args[0], setup, timeout, os.Stdout)
 		} else {
-			run, err = executeInterrogateVerify(root, args[0], timeout, os.Stdout)
+			run, err = executeInterrogateVerifyWith(root, args[0], setup, timeout, os.Stdout)
 		}
 		if err != nil {
 			return err
@@ -207,6 +209,7 @@ var interrogatePinCmd = &cobra.Command{
 		o.RevertFile, _ = cmd.Flags().GetString("revert")
 		o.Expect, _ = cmd.Flags().GetString("expect")
 		o.Setup, _ = cmd.Flags().GetString("setup")
+		o.Setup = copySetup(root, args[0], o.Setup)
 		o.TimeoutSec, _ = cmd.Flags().GetInt("timeout")
 		f, err := executeInterrogatePin(root, args[0], o, os.Stdout)
 		if err != nil {
@@ -450,6 +453,7 @@ func seatAdversaries(root, recipeID string, run *state.InterrogateRun, angles []
 		return fmt.Errorf("record the code the adversaries see: %w", err)
 	}
 	run.Seen = seen
+	setup := copySetup(root, recipeID, "")
 	for _, angle := range angles {
 		name := fmt.Sprintf("a%d", len(run.Adversaries)+1)
 		dir, err := os.MkdirTemp("", "bts-adversary-"+recipeID+"-"+name+"-")
@@ -458,6 +462,13 @@ func seatAdversaries(root, recipeID string, run *state.InterrogateRun, angles []
 		}
 		if _, err := copyProjectTo(root, dir); err != nil {
 			return fmt.Errorf("copy project for %s: %w", name, err)
+		}
+		if err := runCopySetup(dir, setup, 600, io.Discard); err != nil {
+			_ = os.RemoveAll(dir)
+			return fmt.Errorf("copy for %s: %w", name, err)
+		}
+		if setup != "" {
+			fmt.Fprintf(os.Stderr, "[bts] %s's copy ran setup: %s\n", name, setup)
 		}
 		run.Adversaries = append(run.Adversaries, &state.Adversary{
 			Name: name, Angle: angle, Copy: dir, Round: run.CurrentRound(),
@@ -468,6 +479,15 @@ func seatAdversaries(root, recipeID string, run *state.InterrogateRun, angles []
 }
 
 func executeInterrogateVerify(root, recipeID string, timeoutSec int, sink io.Writer) (*state.InterrogateRun, error) {
+	return executeInterrogateVerifyWith(root, recipeID, "", timeoutSec, sink)
+}
+
+// executeInterrogateVerifyWith reruns the current round's findings, each in
+// a fresh copy that first runs the setup (copySetup).  A rerun that stopped
+// on a missing dependency is no reproduction when the recipe's own tests
+// fail in such a copy too: then nothing is recorded, and the error says how
+// to give the copies the project's environment (trial problem #141).
+func executeInterrogateVerifyWith(root, recipeID, setupFlag string, timeoutSec int, sink io.Writer) (*state.InterrogateRun, error) {
 	run, err := state.LoadInterrogateRun(root, recipeID)
 	if err != nil {
 		return nil, err
@@ -509,7 +529,12 @@ func executeInterrogateVerify(root, recipeID string, timeoutSec int, sink io.Wri
 	}
 	before := len(run.Findings)
 	n := before
+	setup := copySetup(root, recipeID, setupFlag)
+	if setup != "" {
+		fmt.Fprintf(sink, "[bts] each rerun's copy runs setup first: %s\n", setup)
+	}
 	var found []*state.InterrogateFinding
+	var suspects []suspectRun
 	for i, rep := range reports {
 		adv := seats[i]
 		for _, r := range rep.Findings {
@@ -528,7 +553,7 @@ func executeInterrogateVerify(root, recipeID string, timeoutSec int, sink io.Wri
 				continue
 			}
 			fmt.Fprintf(sink, "\n[bts] %s (%s): %s\n", f.ID, adv.Name, f.Command)
-			cr, err := rerunFinding(root, recipeID, f, timeoutSec, sink)
+			cr, out, err := rerunFinding(root, recipeID, f, setup, timeoutSec, sink)
 			if err != nil {
 				return nil, fmt.Errorf("%s: %w", f.ID, err)
 			}
@@ -540,8 +565,20 @@ func executeInterrogateVerify(root, recipeID string, timeoutSec int, sink io.Wri
 				f.Status, f.DropReason = state.InterrogateDropped, "passed on a fresh copy of the current code"
 			default:
 				f.Status = state.InterrogateReproduced
+				if why := engine.MissingDependency(out, cr.ExitCode); why != "" {
+					suspects = append(suspects, suspectRun{id: f.ID, why: why})
+				}
 			}
 		}
+	}
+	if len(suspects) > 0 {
+		if passed, control, ok := controlCopyRun(root, recipeID, setup, timeoutSec); !passed {
+			if !ok {
+				control = ""
+			}
+			return nil, couldNotRunError(recipeID, setup, control, suspects, false)
+		}
+		fmt.Fprintf(sink, "\n[bts] the recipe's own tests pass in a fresh copy, so what %s found missing is the finding's own\n", suspectIDs(suspects))
 	}
 	// The reruns can take minutes, so interrogate.json is read again and a
 	// waiver or pin recorded meanwhile is kept (trial problem #117).
@@ -568,6 +605,14 @@ func executeInterrogateVerify(root, recipeID string, timeoutSec int, sink io.Wri
 }
 
 func executeInterrogateRecheck(root, recipeID string, timeoutSec int, sink io.Writer) (*state.InterrogateRun, error) {
+	return executeInterrogateRecheckWith(root, recipeID, "", timeoutSec, sink)
+}
+
+// executeInterrogateRecheckWith reruns the open and fixed findings on the
+// current code.  A repro rerun that stopped on a missing dependency, in a
+// copy where the recipe's own tests fail too, is not recorded: the finding
+// keeps its status, and the error names it (trial problem #141).
+func executeInterrogateRecheckWith(root, recipeID, setupFlag string, timeoutSec int, sink io.Writer) (*state.InterrogateRun, error) {
 	run, err := state.LoadInterrogateRun(root, recipeID)
 	if err != nil {
 		return nil, err
@@ -575,6 +620,11 @@ func executeInterrogateRecheck(root, recipeID string, timeoutSec int, sink io.Wr
 	if run == nil || run.VerifiedAt == "" {
 		return nil, fmt.Errorf("no verified interrogate run to recheck; run `bts interrogate verify %s` first", recipeID)
 	}
+	setup := copySetup(root, recipeID, setupFlag)
+	if setup != "" {
+		fmt.Fprintf(sink, "[bts] each rerun's copy runs setup first: %s\n", setup)
+	}
+	var suspects []suspectRun
 	reruns := map[string]*state.CommandRun{}
 	ranPin := map[string]string{} // the pinned test a rerun ran; none for a repro
 	for _, f := range run.Findings {
@@ -593,7 +643,13 @@ func executeInterrogateRecheck(root, recipeID string, timeoutSec int, sink io.Wr
 			}
 		} else {
 			fmt.Fprintf(sink, "\n[bts] recheck %s: %s\n", f.ID, f.Command)
-			cr, err = rerunFinding(root, recipeID, f, timeoutSec, sink)
+			var out []byte
+			cr, out, err = rerunFinding(root, recipeID, f, setup, timeoutSec, sink)
+			if err == nil && !cr.Passed() {
+				if why := engine.MissingDependency(out, cr.ExitCode); why != "" {
+					suspects = append(suspects, suspectRun{id: f.ID, why: why})
+				}
+			}
 		}
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", f.ID, err)
@@ -601,6 +657,18 @@ func executeInterrogateRecheck(root, recipeID string, timeoutSec int, sink io.Wr
 		reruns[f.ID] = cr
 		if f.Pin != nil {
 			ranPin[f.ID] = f.Pin.Command
+		}
+	}
+	var notRun error
+	if len(suspects) > 0 {
+		if passed, control, ok := controlCopyRun(root, recipeID, setup, timeoutSec); !passed {
+			if !ok {
+				control = ""
+			}
+			for _, s := range suspects {
+				delete(reruns, s.id)
+			}
+			notRun = couldNotRunError(recipeID, setup, control, suspects, true)
 		}
 	}
 	// The reruns can take minutes, so interrogate.json is read again (trial
@@ -640,8 +708,20 @@ func executeInterrogateRecheck(root, recipeID string, timeoutSec int, sink io.Wr
 		fmt.Fprintf(sink, "\n[bts] %s waived or pinned while the recheck ran; the reruns here were not recorded\n", strings.Join(changed, ", "))
 	}
 	hash, _ := engine.CodeHash(root, recipeID)
-	appendEvidenceChangelog(root, recipeID, "interrogate", fmt.Sprintf("recheck: %d fixed, %d open", fixed, open), hash)
-	return run, nil
+	summary := fmt.Sprintf("recheck: %d fixed, %d open", fixed, open)
+	if notRun != nil {
+		summary += fmt.Sprintf("; %s could not run in a fresh copy", suspectIDs(suspects))
+	}
+	appendEvidenceChangelog(root, recipeID, "interrogate", summary, hash)
+	return run, notRun
+}
+
+func suspectIDs(s []suspectRun) string {
+	ids := make([]string, len(s))
+	for i := range s {
+		ids[i] = s[i].id
+	}
+	return strings.Join(ids, ", ")
 }
 
 func executeInterrogateWaive(root, recipeID, findingID, reason string) error {
@@ -708,29 +788,33 @@ func storeReproFiles(root, recipeID string, f *state.InterrogateFinding, advCopy
 }
 
 // rerunFinding runs a finding's command in a fresh copy of the current
-// project with its stored repro files, and records the run with the code
-// hash of the project on disk.
-func rerunFinding(root, recipeID string, f *state.InterrogateFinding, timeoutSec int, sink io.Writer) (*state.CommandRun, error) {
+// project with its stored repro files, after the setup, and records the run
+// with the code hash of the project on disk.  It returns the run's output
+// too, for MissingDependency.
+func rerunFinding(root, recipeID string, f *state.InterrogateFinding, setup string, timeoutSec int, sink io.Writer) (*state.CommandRun, []byte, error) {
 	dir, err := os.MkdirTemp("", "bts-interrogate-*")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer os.RemoveAll(dir)
 	if _, err := copyProjectTo(root, dir); err != nil {
-		return nil, fmt.Errorf("copy project: %w", err)
+		return nil, nil, fmt.Errorf("copy project: %w", err)
 	}
 	store := filepath.Join(state.RecipeDir(root, recipeID), "interrogate", "repro", f.ID)
 	for _, rel := range f.ReproFiles {
 		if err := copyOne(filepath.Join(store, filepath.FromSlash(rel)), filepath.Join(dir, filepath.FromSlash(rel))); err != nil {
-			return nil, fmt.Errorf("restore repro file %s: %w", rel, err)
+			return nil, nil, fmt.Errorf("restore repro file %s: %w", rel, err)
 		}
+	}
+	if err := runCopySetup(dir, setup, timeoutSec, io.Discard); err != nil {
+		return nil, nil, err
 	}
 	// The run's output goes to its log only: on true-shark every repro's
 	// full build output came before the findings summary (trial problem
 	// #87).  The terminal gets one line per finding.
 	sr, err := runShellCommand(dir, f.Command, timeoutSec, io.Discard)
 	if err != nil {
-		return nil, fmt.Errorf("run %q: %w", f.Command, err)
+		return nil, nil, fmt.Errorf("run %q: %w", f.Command, err)
 	}
 	logDir := filepath.Join(state.LocalPath(root), "recipes", recipeID)
 	logPath := filepath.Join(logDir, "interrogate-"+f.ID+".log")
@@ -741,8 +825,8 @@ func rerunFinding(root, recipeID string, f *state.InterrogateFinding, timeoutSec
 	hash, _ := engine.CodeHash(root, recipeID)
 	return &state.CommandRun{
 		Command: f.Command, ExitCode: sr.ExitCode, TimedOut: sr.TimedOut,
-		CodeHash: hash, RunAt: time.Now().UTC().Format(time.RFC3339),
-	}, nil
+		CodeHash: hash, Setup: setup, RunAt: time.Now().UTC().Format(time.RFC3339),
+	}, sr.Output, nil
 }
 
 // printRunLine is the one line a rerun prints: its exit and where its
