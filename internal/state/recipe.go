@@ -3,6 +3,7 @@ package state
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -677,6 +678,42 @@ func GetActiveRecipe(root string) (*RecipeState, error) {
 	}
 
 	return nil, nil
+}
+
+// UnreadableRecipe is a recipe directory whose recipe.json exists but
+// cannot be read or parsed.
+type UnreadableRecipe struct {
+	ID   string
+	Path string // relative to the project root
+	Err  error
+}
+
+// UnreadableRecipes lists the recipes GetActiveRecipe skips because their
+// recipe.json exists and cannot be loaded.  A directory with no
+// recipe.json is not one.  GetActiveRecipe passes over them, so a Stop
+// hook that found no active recipe allowed any completion marker,
+// whatever recipe it was meant for (plan N5, AGEN-78).
+func UnreadableRecipes(root string) []UnreadableRecipe {
+	entries, err := os.ReadDir(filepath.Join(SpecsPath(root), "recipes"))
+	if err != nil {
+		return nil
+	}
+	var out []UnreadableRecipe
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		_, err := LoadRecipeState(root, entry.Name())
+		if err == nil || errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		path := filepath.Join(RecipeDir(root, entry.Name()), "recipe.json")
+		if rel, rerr := filepath.Rel(root, path); rerr == nil {
+			path = rel
+		}
+		out = append(out, UnreadableRecipe{ID: entry.Name(), Path: filepath.ToSlash(path), Err: err})
+	}
+	return out
 }
 
 // GetFinalizedRecipe finds a recipe in "finalize" phase (ready for implementation).

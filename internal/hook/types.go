@@ -88,20 +88,48 @@ func (in *HookInput) MarkerText() string {
 
 // stripCode drops fenced code blocks (``` or ~~~) and inline code spans,
 // keeping everything else.  An unmatched backtick run is kept as text.
+//
+// Fences follow CommonMark: a block opened by a run of n backticks or
+// tildes closes only on a line holding a run of the same character at
+// least n long and nothing else, and a backtick run whose line carries
+// another backtick opens no fence (it is inline code).  Toggling on any
+// line that started with three of either let a ``` line inside a ````
+// block close it, so a marker quoted after it counted as a completion
+// and a real one after the block was dropped (plan N3, AGEN-77).  An
+// unclosed fence runs to the end.  Indentation is not limited, so a
+// fence inside a list item is still a fence.
 func stripCode(s string) string {
 	var out strings.Builder
-	inFence := false
+	var fenceChar byte
+	fenceLen := 0
 	for _, line := range strings.SplitAfter(s, "\n") {
 		t := strings.TrimSpace(line)
-		if strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") {
-			inFence = !inFence
+		if fenceLen > 0 {
+			if c, n := fenceRun(t); c == fenceChar && n >= fenceLen && strings.TrimSpace(t[n:]) == "" {
+				fenceLen = 0
+			}
 			continue
 		}
-		if !inFence {
-			out.WriteString(stripInlineCode(line))
+		if c, n := fenceRun(t); n >= 3 && (c == '~' || !strings.Contains(t[n:], "`")) {
+			fenceChar, fenceLen = c, n
+			continue
 		}
+		out.WriteString(stripInlineCode(line))
 	}
 	return out.String()
+}
+
+// fenceRun is the run of backticks or tildes a line starts with: its
+// character and length, or 0 and 0.
+func fenceRun(t string) (byte, int) {
+	if t == "" || (t[0] != '`' && t[0] != '~') {
+		return 0, 0
+	}
+	n := 0
+	for n < len(t) && t[n] == t[0] {
+		n++
+	}
+	return t[0], n
 }
 
 func stripInlineCode(line string) string {

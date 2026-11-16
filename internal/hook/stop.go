@@ -73,6 +73,42 @@ func (h *stopHandler) Handle(input *HookInput) (*HookOutput, error) {
 	return out, nil
 }
 
+// completionMarkers are the tagged markers that end a recipe stage.
+var completionMarkers = []string{"<bts>DONE</bts>", "<bts>IMPLEMENT DONE</bts>", "<bts>FIX DONE</bts>"}
+
+func hasCompletionMarker(text string) bool {
+	return firstCompletionMarker(text) != ""
+}
+
+// firstCompletionMarker is the first completion marker text carries, or "".
+func firstCompletionMarker(text string) string {
+	for _, m := range completionMarkers {
+		if strings.Contains(text, m) {
+			return m
+		}
+	}
+	return ""
+}
+
+// unresolvedRecipeReason is the block for a completion marker when no
+// active recipe could be read: the recipes directory failed, or a
+// recipe.json does not parse.
+func unresolvedRecipeReason(marker string, dirErr error, bad []state.UnreadableRecipe) string {
+	var why []string
+	if dirErr != nil {
+		why = append(why, fmt.Sprintf("the recipes directory could not be read (%v)", dirErr))
+	}
+	for _, b := range bad {
+		why = append(why, fmt.Sprintf("%s cannot be read (%v)", b.Path, b.Err))
+	}
+	fix := "Fix what cannot be read, then end the turn again."
+	if len(bad) > 0 {
+		fix = fmt.Sprintf("Restore it (`git show HEAD:%s` if it is tracked) or repair the JSON, then end the turn again.", bad[0].Path)
+	}
+	return fmt.Sprintf("%s was not applied: no active recipe could be read, because %s, so bts cannot tell which recipe it completes and completed nothing. %s",
+		marker, strings.Join(why, "; "), fix)
+}
+
 // syncFeatureStore syncs every feature-bound recipe whose snapshot is
 // behind.  Never fatal: the store reports, it does not gate.
 func syncFeatureStore(root string) {
@@ -86,6 +122,17 @@ func syncFeatureStore(root string) {
 func (h *stopHandler) decide(root string, input *HookInput) (*HookOutput, error) {
 	recipe, err := state.GetActiveRecipe(root)
 	if err != nil || recipe == nil {
+		// No active recipe as far as bts can read.  A recipe.json that
+		// exists and does not parse is skipped by GetActiveRecipe, so a
+		// completion marker meant for it used to pass as if no recipe
+		// were running (plan N5, AGEN-78): it blocks instead.
+		bad := state.UnreadableRecipes(root)
+		if marker := firstCompletionMarker(input.MarkerText()); marker != "" && (err != nil || len(bad) > 0) {
+			return blockOutput(unresolvedRecipeReason(marker, err, bad)), nil
+		}
+		for _, b := range bad {
+			fmt.Fprintf(os.Stderr, "[bts] warning: %s cannot be read (%v), so recipe %s is not seen as active\n", b.Path, b.Err, b.ID)
+		}
 		// Check for finalized recipe (ready for implementation)
 		finalized, _ := state.GetFinalizedRecipe(root)
 		if finalized != nil {
@@ -96,14 +143,13 @@ func (h *stopHandler) decide(root string, input *HookInput) (*HookOutput, error)
 
 	// Completion markers count only with their <bts> tags and outside code.
 	// Prose that names a marker, or quotes it in backticks or a code block
-	// (a report, an explanation of a block), is not a completion.
+	// (a report, an explanation of a block), is not a completion.  They are
+	// read from the stop payload alone: a fallback to the transcript, added
+	// for a marker the hook missed on true-shark (trial problem #85), went
+	// on a wrong diagnosis (the hook was reading another project, fixed in
+	// 931fca8), and the transcript may lag the payload at Stop, so it could
+	// only fail silently (plan D2, AGEN-79).
 	text := input.MarkerText()
-	if !hasCompletionMarker(text) {
-		if full := markerTextFromTranscript(input.TranscriptPath, input.StopText()); full != "" {
-			fmt.Fprintf(os.Stderr, "[bts] completion marker read from the transcript: the stop payload's last message (%d chars) did not carry it\n", len(input.StopText()))
-			text = full
-		}
-	}
 
 	// Another session in the project is not held by this recipe's rules,
 	// and cannot complete it: its tagged marker is refused once, with the

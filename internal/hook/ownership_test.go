@@ -219,6 +219,45 @@ func TestStripCode(t *testing.T) {
 	}
 }
 
+// Plan N3 (AGEN-77): fences close on the same character, at least as long
+// as the opening run.
+func TestStripCode_FenceLength(t *testing.T) {
+	cases := []struct{ name, in, want string }{
+		{"a real marker after a 4-backtick block holding a 3-backtick line",
+			"Report:\n````markdown\n```\nquoted\n```\n````\n<bts>DONE</bts>\n",
+			"Report:\n<bts>DONE</bts>\n"},
+		{"a real marker after a 4-backtick block holding one 3-backtick line is kept",
+			"````\n```\n````\n<bts>DONE</bts>\n",
+			"<bts>DONE</bts>\n"},
+		{"a marker quoted in a block after such a block stays code",
+			"````\n```\n````\nthen\n```\n<bts>DONE</bts>\n```\n",
+			"then\n"},
+		{"a tilde line does not close a backtick fence",
+			"```\n~~~\n<bts>DONE</bts>\n```\nafter\n",
+			"after\n"},
+		{"a closing run longer than the opening closes it",
+			"```\ncode\n`````\nafter\n",
+			"after\n"},
+		{"a closing line with text after the run does not close",
+			"```\n``` still code\n<bts>DONE</bts>\n```\nafter\n",
+			"after\n"},
+		{"a backtick run with another backtick on its line is inline code",
+			"```<bts>DONE</bts>```\nafter\n",
+			"\nafter\n"},
+		{"an indented fence in a list item is a fence",
+			"- step:\n    ```\n    <bts>DONE</bts>\n    ```\n- next\n",
+			"- step:\n- next\n"},
+		{"an unclosed fence runs to the end",
+			"before\n````\n```\n<bts>DONE</bts>\n",
+			"before\n"},
+	}
+	for _, c := range cases {
+		if got := stripCode(c.in); got != c.want {
+			t.Errorf("%s: stripCode(%q) = %q, want %q", c.name, c.in, got, c.want)
+		}
+	}
+}
+
 // Trial problem #59: during the r-003 handoff the AGEN-35 owner wrote a
 // report with a heredoc that mentioned the claim command, and the hook,
 // matching the text, made the owner's session the recipe's owner.  A Bash

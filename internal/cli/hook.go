@@ -23,8 +23,11 @@ var hookCmd = &cobra.Command{
 func runHook(cmd *cobra.Command, args []string) error {
 	input, err := hook.ReadInputFor(args[0])
 	if err != nil {
-		// Silent exit on parse failure (don't break Claude Code)
-		os.Exit(0)
+		// Not silent: a payload Claude Code changed would otherwise switch
+		// every hook off with no trace (plan N11, AGEN-78).  Exit 1 is a
+		// non-blocking hook error, which Claude Code reports and goes on.
+		fmt.Fprintln(os.Stderr, payloadErrorMessage(args[0], err))
+		os.Exit(1)
 		return nil
 	}
 
@@ -61,4 +64,11 @@ func runHook(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// payloadErrorMessage is the stderr line for a hook payload bts could not
+// read.
+func payloadErrorMessage(event string, err error) string {
+	return fmt.Sprintf("[bts] the %s hook payload could not be read (%v); bts did nothing for this event. "+
+		"If Claude Code changed its hook payload, update bts.", event, err)
 }

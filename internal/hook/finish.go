@@ -39,6 +39,12 @@ func Finish(root, recipeID, sessionID string) (*FinishResult, error) {
 		return nil, err
 	}
 	if r == nil || r.ID != recipeID {
+		// The recipe's own recipe.json may be what hides it (plan N5).
+		for _, b := range state.UnreadableRecipes(root) {
+			if b.ID == recipeID {
+				return nil, fmt.Errorf("%s cannot be read (%v), so %s is not seen as active; restore it (`git show HEAD:%s` if it is tracked) or repair the JSON", b.Path, b.Err, recipeID, b.Path)
+			}
+		}
 		active := "none"
 		if r != nil {
 			active = r.ID
