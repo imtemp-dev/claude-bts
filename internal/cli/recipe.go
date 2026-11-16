@@ -675,8 +675,12 @@ var recipeLogCmd = &cobra.Command{
 			}
 
 			// A logged round ends any verify fork still marked in flight
-			// (trial problem #8).
+			// (trial problem #8), and the document's leave-unverified
+			// record (#136).
 			defer state.ClearVerifyInFlight(root)
+			if docBase != "" {
+				defer state.ClearLeftUnverified(root, recipeID, docBase)
+			}
 			if err := state.AppendVerifyLog(root, recipeID, entry); err != nil {
 				return fmt.Errorf("log: %w", err)
 			}

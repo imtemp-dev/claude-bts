@@ -232,7 +232,7 @@ func (h *stopHandler) handleBlindStop(root string, recipe *state.RecipeState) (*
 	}
 
 	// A. Verification produced but never recorded.
-	if unlogged, doc := unloggedVerification(root, recipe.ID); unlogged {
+	if unlogged, doc := unloggedVerification(root, recipe); unlogged {
 		return blockOutput(fmt.Sprintf(
 			".bts/specs/recipes/%s/verification.md holds a verification the log does not account for. The findings "+
 				"ledger, convergence budget, and completion gate all read verify-log.jsonl, so this verification did "+
@@ -256,10 +256,26 @@ func (h *stopHandler) handleBlindStop(root string, recipe *state.RecipeState) (*
 				state.DescribeDirty(root, recipe.ID, dirty), since.Local().Format("15:04"))
 			return allow()
 		}
+		// A document left unverified on purpose, with nothing changed since
+		// the record, lets the turn end: the hook cannot see a reply that
+		// tells the user, so the record is that exit (trial problem #136).
+		held, open := state.HeldUnverified(root, recipe.ID, dirty)
+		for _, l := range held {
+			fmt.Fprintf(os.Stderr, "[bts] %s is left unverified: %s. Completion still needs its verify round.\n", l.Doc, l.Reason)
+		}
+		if len(open) == 0 {
+			return allow()
+		}
+		doc := "<doc>"
+		if len(open) == 1 {
+			doc = open[0]
+		}
 		return blockOutput(fmt.Sprintf(
 			"%s. Rule 3: every modification requires /bts-verify. "+
-				"Either re-verify and record it, or tell the user the doc is left unverified — do not end the turn as if it were still verified.",
-			state.DescribeDirty(root, recipe.ID, dirty),
+				"Either re-verify and record it, or, if it must stay unverified for now, record why with "+
+				"`bts recipe leave-unverified %s --doc %s --reason \"...\"` and tell the user. "+
+				"Do not end the turn as if it were still verified.",
+			state.DescribeDirty(root, recipe.ID, open), recipe.ID, doc,
 		)), nil
 	}
 
@@ -301,21 +317,27 @@ func lastVerifyLabel(e *state.VerifyLogEntry) string {
 // Fails closed toward "logged" whenever the evidence is missing or
 // unreadable — an absent hash (a round logged before the field existed)
 // must not manufacture a block.
-func unloggedVerification(root, recipeID string) (bool, string) {
-	recipeDir := state.RecipeDir(root, recipeID)
+func unloggedVerification(root string, recipe *state.RecipeState) (bool, string) {
+	recipeDir := state.RecipeDir(root, recipe.ID)
 	current, ok, err := state.FileContentHash(filepath.Join(recipeDir, "verification.md"))
 	if err != nil || !ok {
 		return false, ""
 	}
+	// The document the spec loop verifies: draft.md, or final.md in a
+	// build recipe, which writes no draft (trial problem #135).
+	specDoc := "draft.md"
+	if recipe.Type == "build" {
+		specDoc = "final.md"
+	}
 	last, err := readLastVerifyEntry(filepath.Join(recipeDir, "verify-log.jsonl"))
 	if err != nil {
 		// verification.md exists with no log at all — the round was never
-		// recorded. Name draft.md, the document the spec loop verifies.
-		return true, "draft.md"
+		// recorded. Name the spec document.
+		return true, specDoc
 	}
 	doc := last.Doc
 	if doc == "" {
-		doc = "draft.md"
+		doc = specDoc
 	}
 	if last.VerificationHash == "" {
 		return false, doc

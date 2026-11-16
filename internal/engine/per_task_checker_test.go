@@ -123,7 +123,7 @@ func TestCheckTaskStructure_LegacyScopeSkipped(t *testing.T) {
 }
 
 // Owner drift — domain.md names a module as invariant owner, and the
-// module's file no longer references that identifier.
+// module's file no longer declares the member its Enforcement point names.
 func TestCheckTaskStructure_OwnerDrift(t *testing.T) {
 	domain := `## 2. Invariants
 
@@ -131,12 +131,12 @@ func TestCheckTaskStructure_OwnerDrift(t *testing.T) {
 |----|-----------|-------|-------------------|
 | INV-001 | stored order is canonical | Arrangement | Arrangement.place() |
 `
-	// File is Arrangement.ts but contains no "Arrangement" identifier.
-	source := `function place() {}
+	// File is Arrangement.ts, and place() is gone from it.
+	source := `function arrange() {}
 function unrelated() {}
 `
 	root, recipeDir := setupPerTask(t, "", domain, "src/Arrangement.ts", source)
-	task := &state.Task{ID: "t-003", File: "src/Arrangement.ts", Action: "modify", ModifyScope: []string{"place"}}
+	task := &state.Task{ID: "t-003", File: "src/Arrangement.ts", Action: "create"}
 	findings := CheckTaskStructure(root, recipeDir, task)
 	var drift *state.StructureFinding
 	for i := range findings {

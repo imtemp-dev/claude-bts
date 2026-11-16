@@ -14,7 +14,10 @@ type Invariant struct {
 	ID        string
 	Statement string
 	Owner     string
-	LineNo    int
+	// Enforcement is the Enforcement point cell: where the owner keeps the
+	// invariant, usually written Owner.member() (the fourth column).
+	Enforcement string
+	LineNo      int
 	// Carried marks an invariant the change keeps rather than introduces:
 	// earlier work established it and a test already holds it.  Its ID
 	// cell carries a `[carried]` tag, which ID does not include.
@@ -156,6 +159,9 @@ func parseInvariantsTable(path string) ([]Invariant, error) {
 			Statement: strings.TrimSpace(cells[1]),
 			Owner:     strings.TrimSpace(cells[2]),
 			LineNo:    lineNo,
+		}
+		if len(cells) > 3 {
+			inv.Enforcement = strings.TrimSpace(cells[3])
 		}
 		if carriedTagRe.MatchString(inv.ID) {
 			inv.ID = strings.TrimSpace(carriedTagRe.ReplaceAllString(inv.ID, ""))

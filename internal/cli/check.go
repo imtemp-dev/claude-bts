@@ -42,8 +42,9 @@ Runs the deterministic per-task checks defined in Phase 10:
                      outside its modify_scope, or a private helper that
                      something outside the scope uses (compared with the
                      file at git HEAD; Python, Go, TypeScript/JavaScript)
-  - owner_drift:     the invariant-owner module identifier disappeared
-                     from the file
+  - owner_drift:     the file is the module domain.md §2 names as an
+                     invariant's owner, and the member its Enforcement
+                     point names (Owner.member()) is no longer declared
 
 Findings are advisory — they do not block the task. Pass --write to
 persist them onto tasks.json for downstream review (mid-run review in

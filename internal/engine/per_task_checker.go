@@ -26,9 +26,9 @@ import (
 //     must still be present (did we accidentally delete one?), and a
 //     public symbol outside the scope must not have changed since the
 //     file's committed version (scope_violation, a major report).
-//  3. Invariant owner delta — when this file is listed as the enforcement
-//     point for an invariant in domain.md § 2, the owner module name
-//     must still appear in the file.
+//  3. Invariant owner delta — when this file is the module domain.md § 2
+//     names as an invariant's owner, the member its Enforcement point
+//     names (Owner.member()) must still be declared in the file.
 //
 // projectRoot is the working directory used to resolve the task's file
 // path. recipeDir is where wireframe.md / domain.md / final.md live.
@@ -248,11 +248,19 @@ func checkSymbolPresence(task *state.Task, fileContent string) []state.Structure
 	return findings
 }
 
-// checkOwnerDelta flags cases where domain.md §2 lists this file's
-// module as the owner of an invariant, but the module's package/
-// namespace identifier is no longer present in the source. The check
-// is intentionally loose — it catches the case where an entire file
-// gets rewritten under a different package.
+// checkOwnerDelta flags an invariant whose enforcement left its owner:
+// domain.md § 2 names this file's module as the owner, its Enforcement
+// point names a member of it (`Arrangement.place()`), and the file no
+// longer declares that member.
+//
+// The owner is matched to the file by module name, the basename without
+// extension, ignoring case, "_" and "-" (`ReportEngine` is
+// report_engine.py).  The file is then that module, so nothing more is
+// asked of its prose: the check used to require the owner's name as a
+// word in the source, and a correct engine.py whose source never spelled
+// "Engine" was recorded critical (trial problem #134).  An Enforcement
+// point that names no member of the owner ("derived, no independent
+// store") is not checked.
 func checkOwnerDelta(task *state.Task, fileContent, recipeDir string) *state.StructureFinding {
 	if recipeDir == "" {
 		return nil
@@ -265,26 +273,55 @@ func checkOwnerDelta(task *state.Task, fileContent, recipeDir string) *state.Str
 	if err != nil || len(inv) == 0 {
 		return nil
 	}
-	// For each invariant whose enforcement refers to this file/module,
-	// check that the owner name appears in the source. We match by
-	// file basename (without extension) as the most portable module hint.
-	base := strings.TrimSuffix(filepath.Base(task.File), filepath.Ext(task.File))
+	module := moduleKey(strings.TrimSuffix(filepath.Base(task.File), filepath.Ext(task.File)))
 	for _, i := range inv {
-		if i.Owner == "" {
+		if i.Owner == "" || moduleKey(i.Owner) != module {
 			continue
 		}
-		// Only check invariants whose owner hint maps to this task file.
-		if !strings.EqualFold(i.Owner, base) {
+		member := enforcementMember(i.Owner, i.Enforcement)
+		if member == "" || declaresName(task.File, fileContent, member) {
 			continue
 		}
-		if !ContainsSymbol(fileContent, i.Owner) {
-			return &state.StructureFinding{
-				TaskID:   task.ID,
-				Category: "owner_drift",
-				Severity: "critical",
-				Detail:   "domain.md §2 names '" + i.Owner + "' as invariant owner, and this task's file is that module — but the identifier no longer appears in " + task.File + ". Rename rolled back or scope escaped.",
-			}
+		return &state.StructureFinding{
+			TaskID:   task.ID,
+			Category: "owner_drift",
+			Severity: "critical",
+			Detail: "domain.md §2 makes '" + i.Owner + "' the owner of " + i.ID + ", enforced at '" + i.Owner + "." + member +
+				"', and this task's file is that module, but " + task.File + " no longer declares '" + member +
+				"'. Restore it, or, if the enforcement moved, update domain.md and its falsifier.",
 		}
 	}
 	return nil
+}
+
+// moduleKey is a module or owner name compared without case, "_" or "-".
+func moduleKey(s string) string {
+	return strings.ToLower(strings.NewReplacer("_", "", "-", "", "`", "").Replace(strings.TrimSpace(s)))
+}
+
+// qualifiedNameRe is a dotted pair, Owner.member, in an Enforcement cell.
+var qualifiedNameRe = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)`)
+
+// fileExtensions are suffixes a dotted pair can be a file name with
+// (`engine.py`), never a member.
+var fileExtensions = map[string]bool{
+	"py": true, "pyi": true, "go": true, "ts": true, "tsx": true, "js": true, "jsx": true,
+	"mjs": true, "cjs": true, "rs": true, "java": true, "kt": true, "cs": true, "rb": true,
+	"swift": true, "php": true, "md": true, "json": true, "yaml": true, "yml": true, "toml": true,
+}
+
+// enforcementMember is the member an Enforcement point names on its
+// owner: `place` in "Arrangement.place()".  "" when it names none.
+func enforcementMember(owner, cell string) string {
+	key := moduleKey(owner)
+	for _, m := range qualifiedNameRe.FindAllStringSubmatchIndex(cell, -1) {
+		if m[2] > 0 && strings.ContainsRune("/.", rune(cell[m[2]-1])) {
+			continue // a path segment, not an owner
+		}
+		left, right := cell[m[2]:m[3]], cell[m[4]:m[5]]
+		if moduleKey(left) == key && !fileExtensions[strings.ToLower(right)] {
+			return right
+		}
+	}
+	return ""
 }

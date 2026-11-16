@@ -3,12 +3,14 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/imtemp-dev/claude-bts/internal/engine"
+	"github.com/imtemp-dev/claude-bts/internal/hook"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 	"github.com/spf13/cobra"
 )
@@ -28,7 +30,7 @@ func init() {
 	recipeFindingsCarryCmd.Flags().String("doc", "", "Document whose adjudicated findings to carry forward")
 	recipeFindingsDismissCmd.Flags().String("reason", "", "Why this finding is not a defect")
 	_ = recipeFindingsDismissCmd.MarkFlagRequired("reason")
-	recipeAssessPrecheckCmd.Flags().String("doc", "", "Document to check (default: the recipe's draft.md)")
+	recipeAssessPrecheckCmd.Flags().String("doc", "", "Document to check (default: the recipe's draft.md; a build recipe's gates read final.md)")
 }
 
 // resolveRecipeID returns the argument if given, else the active recipe.
@@ -273,7 +275,12 @@ alone, letting the loop skip the /bts-assess round entirely:
   VERIFY                   the doc changed since its last verification
 
 Exits 10 with no decision when the situation needs judgement; callers should
-fall through to /bts-assess in that case.`,
+fall through to /bts-assess in that case.
+
+A build recipe has no draft.md and no /bts-assess round: its spec document is
+final.md and its DONE gates decide.  On one, the precheck reads those gates
+(the Stop hook's own): FINALIZE when every one holds, else exit 10 naming the
+first gate not met and what it asks for.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, _ := os.Getwd()
@@ -286,6 +293,12 @@ fall through to /bts-assess in that case.`,
 			return err
 		}
 		doc, _ := cmd.Flags().GetString("doc")
+		if recipe, rerr := state.LoadRecipeState(root, recipeID); rerr == nil && recipe.Type == "build" {
+			if code := precheckBuild(os.Stdout, os.Stderr, root, recipe, doc); code != 0 {
+				os.Exit(code)
+			}
+			return nil
+		}
 		if doc == "" {
 			doc = filepath.Join(state.RecipeDir(root, recipeID), "draft.md")
 		}
@@ -367,8 +380,37 @@ fall through to /bts-assess in that case.`,
 	},
 }
 
+// precheckBuild is the precheck on a build recipe: its DONE gates, read
+// the way the Stop hook reads them, instead of draft.md's verify history.
+// The precheck used to judge draft.md, which a build recipe never writes,
+// and sent the loop to /bts-assess, which it does not have (trial problem
+// #135).
+//
+// It returns the exit code: 0 with a FINALIZE decision, 10 with the first
+// gate not met.
+func precheckBuild(stdout, stderr io.Writer, root string, recipe *state.RecipeState, doc string) int {
+	if doc != "" && filepath.Base(doc) != "final.md" {
+		fmt.Fprintf(stderr, "[bts] %s is a build recipe: its spec document is final.md, and its DONE gates are read instead of %s.\n",
+			recipe.ID, filepath.Base(doc))
+	}
+	gate, reason := hook.BuildSpecGate(root, recipe)
+	if gate == "" {
+		writeDecision(stdout, "FINALIZE", "finalize", "build gates",
+			"every DONE gate of the build recipe holds on final.md and the code as they are now: output <bts>DONE</bts>")
+		return 0
+	}
+	fmt.Fprintf(stdout, "UNDECIDED: build gate %s is not met: %s\n"+
+		"A build recipe has no /bts-assess round: do what the gate asks, then run this again or output <bts>DONE</bts>.\n",
+		gate, reason)
+	return 10
+}
+
 // emitDecision prints the machine-readable block the loop already parses.
 func emitDecision(action, phase, findings, reason string) {
+	writeDecision(os.Stdout, action, phase, findings, reason)
+}
+
+func writeDecision(w io.Writer, action, phase, findings, reason string) {
 	payload := map[string]any{
 		"level":        3.0,
 		"action":       action,
@@ -381,7 +423,7 @@ func emitDecision(action, phase, findings, reason string) {
 		delete(payload, "level")
 	}
 	b, _ := json.MarshalIndent(payload, "", "  ")
-	fmt.Printf("<bts-decision>\n%s\n</bts-decision>\n", b)
+	fmt.Fprintf(w, "<bts-decision>\n%s\n</bts-decision>\n", b)
 }
 
 // precheckUndecided reports that judgement is required. Exit code 10

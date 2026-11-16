@@ -127,6 +127,16 @@ func buildSpecGate(root string, recipe *state.RecipeState) (gate, reason string,
 	return "", "", len(intro), len(carr)
 }
 
+// BuildSpecGate is buildSpecGate for a command: the first build DONE gate
+// not met and its message, or "" when every one holds.  bts recipe
+// assess-precheck reads it on a build recipe, whose spec document is
+// final.md and whose gates are these, not draft.md's verify history
+// (trial problem #135).
+func BuildSpecGate(root string, recipe *state.RecipeState) (gate, reason string) {
+	gate, reason, _, _ = buildSpecGate(root, recipe)
+	return gate, reason
+}
+
 // finalRel is a recipe's final.md from the project root, as a command
 // takes it.
 func finalRel(recipeID string) string {

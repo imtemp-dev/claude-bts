@@ -238,12 +238,29 @@ func checkDirtyVerifiedDocs(root, recipeID string) []doctorIssue {
 	if err != nil || len(dirty) == 0 {
 		return nil
 	}
-	return []doctorIssue{{
-		level:   "warning",
-		section: "verification",
-		message: fmt.Sprintf("%s (rule 3)", state.DescribeDirty(root, recipeID, dirty)),
-		fix:     "run /bts-verify on the modified doc(s), then `bts recipe log " + recipeID + " --from-verification ... --doc <path>`",
-	}}
+	fix := "run /bts-verify on the modified doc(s), then `bts recipe log " + recipeID + " --from-verification ... --doc <path>`"
+	held, open := state.HeldUnverified(root, recipeID, dirty)
+	var issues []doctorIssue
+	if len(open) > 0 {
+		issues = append(issues, doctorIssue{
+			level:   "warning",
+			section: "verification",
+			message: fmt.Sprintf("%s (rule 3)", state.DescribeDirty(root, recipeID, open)),
+			fix:     fix,
+		})
+	}
+	// Left unverified on purpose (bts recipe leave-unverified): still
+	// stale, and completion still needs the round, so it stays a warning
+	// with the recorded reason.
+	for _, l := range held {
+		issues = append(issues, doctorIssue{
+			level:   "warning",
+			section: "verification",
+			message: fmt.Sprintf("%s (rule 3), left unverified on purpose: %s", state.DescribeDirty(root, recipeID, []string{l.Doc}), l.Reason),
+			fix:     fix,
+		})
+	}
+	return issues
 }
 
 // checkUnenforceableRule3 reports documents whose rule-3 gate is

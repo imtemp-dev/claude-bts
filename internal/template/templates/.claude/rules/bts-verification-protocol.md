@@ -37,6 +37,13 @@ principle.
 **Every time a document is modified, /verify MUST run immediately after.**
 This is non-negotiable. The recipe protocol enforces this.
 
+When a changed document must stay unverified for a while (another agent
+is about to rewrite part of it, so a round now would be spent twice),
+record that with `bts recipe leave-unverified {id} --doc <doc> --reason
+"..."` and tell the user. The Stop hook lets the turn end until the
+document, or one its review read, changes again; `<bts>DONE</bts>` still
+needs the round.
+
 ## Severity Classification
 
 - **critical**: Internal contradiction, undefined behavior in scenarios, impossible claims, execution path leading to undefined behavior. Never `[deferred]`.
