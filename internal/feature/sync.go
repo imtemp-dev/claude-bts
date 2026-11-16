@@ -270,7 +270,8 @@ func copyFile(src, dst string) error {
 }
 
 // Behind reports whether a feature-bound recipe's snapshot in the store is
-// missing or older than the recipe in the worktree.  A finished attempt is
+// missing or older than the recipe in the worktree: its documents changed,
+// or the worktree's head moved since the snapshot.  A finished attempt is
 // never behind, and neither is a finished recipe whose attempt is gone.
 func Behind(root string, r *state.RecipeState) bool {
 	if r.Feature == "" || r.FeatureDir == "" {
@@ -292,7 +293,10 @@ func Behind(root string, r *state.RecipeState) bool {
 		return false
 	}
 	h, err := contentHash(state.RecipeDir(root, r.ID))
-	return err != nil || h != m.ContentHash
+	if err != nil || h != m.ContentHash {
+		return true
+	}
+	return m.HeadSHA != "" && headSHA(root) != m.HeadSHA
 }
 
 // SyncPending syncs every feature-bound recipe in the worktree whose
@@ -320,13 +324,13 @@ func SyncPending(root string) ([]string, error) {
 }
 
 // OnPhaseChange is the phase observer that keeps the store in step.  A
-// failure is a warning: the next session start retries it.
+// failure is a warning: the next turn end or session start retries it.
 func OnPhaseChange(root, recipeID, from, to string) {
 	r, err := state.LoadRecipeState(root, recipeID)
 	if err != nil || r == nil || r.Feature == "" {
 		return
 	}
 	if err := Sync(root, recipeID); err != nil {
-		fmt.Fprintf(os.Stderr, "[bts] warning: feature store not updated for %s (%s → %s): %v; the next session start retries it, or run bts feature harvest\n", recipeID, from, to, err)
+		fmt.Fprintf(os.Stderr, "[bts] warning: feature store not updated for %s (%s → %s): %v; the next turn end or session start retries it, or run bts feature harvest\n", recipeID, from, to, err)
 	}
 }

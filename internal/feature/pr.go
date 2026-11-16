@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/imtemp-dev/claude-bts/internal/multica"
 	"github.com/imtemp-dev/claude-bts/internal/state"
@@ -45,20 +46,33 @@ type RestackRecord struct {
 	At      string `json:"at"`
 }
 
+// ghTimeout bounds one GitHub CLI call: a gh waiting on an auth prompt or a
+// dead network must not hold a feature command, or its lock, for good.
+var ghTimeout = 30 * time.Second
+
 // ghRun runs the GitHub CLI in dir.  Tests replace it.  It runs inside bts,
 // not as a typed command, so the user's permission asks on gh pr commands
 // do not apply; bts runs only the pull-request operations its commands own.
-var ghRun = func(dir, stdin string, args ...string) ([]byte, error) {
-	cmd := exec.Command("gh", args...)
+var ghRun = runGH
+
+func runGH(dir, stdin string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), ghTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "gh", args...)
 	cmd.Dir = dir
+	cmd.WaitDelay = time.Second
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)
 	}
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
+	name := strings.Join(args[:min(2, len(args))], " ")
+	if ctx.Err() == context.DeadlineExceeded {
+		return out, fmt.Errorf("gh %s: no answer within %s", name, ghTimeout)
+	}
 	if err != nil {
-		return out, fmt.Errorf("gh %s: %v: %s", strings.Join(args[:min(2, len(args))], " "), err, strings.TrimSpace(stderr.String()))
+		return out, fmt.Errorf("gh %s: %v: %s", name, err, strings.TrimSpace(stderr.String()))
 	}
 	return out, nil
 }
@@ -109,6 +123,37 @@ func itemPR(dir string, it *Item) (*PRRecord, *Attempt) {
 		}
 	}
 	return nil, nil
+}
+
+// itemRestack returns the newest restack of the item's pull request, from
+// whichever attempt recorded it, or nil.
+func itemRestack(atts []*Attempt, pr *PRRecord) *RestackRecord {
+	for i := len(atts) - 1; i >= 0; i-- {
+		if p := readPR(atts[i].Dir); p == nil || p.URL != pr.URL {
+			continue
+		}
+		if rs := latestRestack(atts[i].Dir); rs != nil {
+			return rs
+		}
+	}
+	return nil
+}
+
+// itemFork is where the item's commits on its pull request's branch begin:
+// the newest restack's new fork, else the start of the attempt that opened
+// the pull request.  A fix-forward attempt starts on top of the earlier
+// attempts' commits and pushes to the same pull request, so its own start
+// would leave theirs out of a rebase.
+func itemFork(atts []*Attempt, pr *PRRecord) string {
+	if rs := itemRestack(atts, pr); rs != nil {
+		return rs.NewFork
+	}
+	for _, a := range atts {
+		if p := readPR(a.Dir); p != nil && p.URL == pr.URL && a.Claim != nil {
+			return a.Claim.StartSHA
+		}
+	}
+	return ""
 }
 
 // boundRecipe is the worktree's recipe for the item: its newest attempt.
@@ -372,67 +417,103 @@ func lastLine(s string) string {
 }
 
 // Restack moves the item's branch onto the feature's base branch after the
-// item it was stacked on merged: `git rebase --onto origin/<base> <fork>`,
-// where fork is the commit the item started from (or its last restack's).
-// A conflict aborts the rebase and is reported.  On success it pushes the
-// item's own branch with --force-with-lease and points its pull request at
-// the base branch.
+// item it was stacked on reached it: `git rebase --onto origin/<base>
+// <fork>` on the worktree's HEAD, which must be on the pull request's branch
+// and hold its head.  fork is where the item's commits begin, whichever
+// attempt made them (itemFork).  A conflict aborts the rebase and is
+// reported.  On success it pushes the branch, leased on the head bts last
+// pushed, records the restack, then points the pull request at the base
+// branch; a retry after a failed retarget only retargets.
 func Restack(root, featureID, item string) (*RestackRecord, error) {
 	pc, err := loadPRContext(root, featureID, item)
 	if err != nil {
 		return nil, err
 	}
-	pr := readPR(pc.ad)
+	it := pc.f.Item(item)
+	if it == nil {
+		return nil, fmt.Errorf("no item %s in %s", item, pc.f.ID)
+	}
+	pr, _ := itemPR(pc.dir, it)
 	if pr == nil {
 		return nil, fmt.Errorf("item %s has no pull request to restack", item)
 	}
 	if pc.f.Multica == nil || pc.f.Multica.Items[item] == nil || pc.f.Multica.Items[item].BaseItem == "" {
 		return nil, fmt.Errorf("item %s was not stacked on another item", item)
 	}
-	under := pc.f.Multica.Items[pc.f.Multica.Items[item].BaseItem]
-	if under == nil || under.Merged == nil {
-		return nil, fmt.Errorf("item %s is stacked on %s, which has not merged", item, pc.f.Multica.Items[item].BaseItem)
+	underID := pc.f.Multica.Items[item].BaseItem
+	if !reachedBase(pc.f, underID) {
+		if under := pc.f.Multica.Items[underID]; under != nil && under.Merged != nil {
+			return nil, fmt.Errorf("item %s is stacked on %s, which merged into %s, not %s", item, underID, under.Merged.Into, pc.f.BaseBranch)
+		}
+		return nil, fmt.Errorf("item %s is stacked on %s, which has not merged", item, underID)
+	}
+	target := pc.f.BaseBranch
+	atts := Attempts(pc.dir, it)
+	if last := itemRestack(atts, pr); last != nil && last.ToRef == target && last.HeadSHA == pr.HeadSHA && pr.Base != target {
+		return retarget(pc, pr, last)
 	}
 	if dirty(root) {
 		return nil, fmt.Errorf("uncommitted changes: restack needs a clean worktree")
 	}
-	fork := pc.claim.StartSHA
-	if rs := latestRestack(pc.ad); rs != nil {
-		fork = rs.NewFork
+	if cur := branch(root); cur != pr.Branch {
+		if cur == "" {
+			cur = "a detached HEAD"
+		}
+		return nil, fmt.Errorf("the worktree is on %s; restack runs on the pull request's branch %s (git switch %s)", cur, pr.Branch, pr.Branch)
 	}
-	target := pc.f.BaseBranch
+	if yes, _ := isAncestor(root, pr.HeadSHA); !yes {
+		return nil, fmt.Errorf("the worktree's %s does not contain the pull request's head %s: bring it up to date (git pull --ff-only origin %s), then restack again", pr.Branch, short(pr.HeadSHA), pr.Branch)
+	}
+	fork := itemFork(atts, pr)
+	if fork == "" {
+		return nil, fmt.Errorf("no record of where item %s's commits begin", item)
+	}
 	if _, err := gitRun(root, "fetch", "origin", target); err != nil {
 		return nil, err
 	}
 	onto := "origin/" + target
-	if _, err := gitRun(root, "rebase", "--onto", onto, fork, pr.Branch); err != nil {
+	before := headSHA(root)
+	if _, err := gitRun(root, "rebase", "--onto", onto, fork); err != nil {
 		_, _ = gitRun(root, "rebase", "--abort")
 		return nil, fmt.Errorf("rebase onto %s stopped on a conflict, and was aborted; resolve it by hand: %w", onto, err)
 	}
-	if _, err := gitRun(root, "push", "--force-with-lease", "origin", pr.Branch); err != nil {
-		return nil, err
-	}
-	if _, err := ghRun(root, "", "pr", "edit", pr.URL, "--base", target); err != nil {
-		return nil, fmt.Errorf("rebased and pushed, but retargeting the pull request failed: %w", err)
+	head := headSHA(root)
+	if _, err := gitRun(root, "push", "--force-with-lease="+pr.Branch+":"+pr.HeadSHA, "origin", "HEAD:refs/heads/"+pr.Branch); err != nil {
+		_, _ = gitRun(root, "reset", "-q", "--hard", before)
+		return nil, fmt.Errorf("rebased, but the push was refused (origin's %s is no longer %s?); the branch is back as it was: %w", pr.Branch, short(pr.HeadSHA), err)
 	}
 	newFork, _ := gitRun(root, "merge-base", onto, "HEAD")
-	rec := RestackRecord{Schema: Schema, FromRef: pr.Base, ToRef: target, OldFork: fork, NewFork: newFork, HeadSHA: headSHA(root), At: now()}
+	rec := RestackRecord{Schema: Schema, FromRef: pr.Base, ToRef: target, OldFork: fork, NewFork: newFork, HeadSHA: head, At: now()}
 	var list []RestackRecord
 	_ = state.ReadJSON(filepath.Join(pc.ad, RestackFile), &list)
 	list = append(list, rec)
 	if err := state.WriteJSON(filepath.Join(pc.ad, RestackFile), list); err != nil {
 		return nil, err
 	}
-	pr.Base, pr.HeadSHA, pr.UpdatedAt = target, rec.HeadSHA, now()
+	pr.HeadSHA, pr.UpdatedAt = head, now()
 	if err := state.WriteJSON(filepath.Join(pc.ad, PRFile), pr); err != nil {
 		return nil, err
 	}
-	return &rec, nil
+	return retarget(pc, pr, &rec)
+}
+
+// retarget points the item's pull request at the restack's target branch
+// and records it.
+func retarget(pc *prContext, pr *PRRecord, rec *RestackRecord) (*RestackRecord, error) {
+	if _, err := ghRun(pc.root, "", "pr", "edit", pr.URL, "--base", rec.ToRef); err != nil {
+		return nil, fmt.Errorf("rebased and pushed, but retargeting the pull request to %s failed; run bts feature restack again to retarget it: %w", rec.ToRef, err)
+	}
+	pr.Base, pr.UpdatedAt = rec.ToRef, now()
+	if err := state.WriteJSON(filepath.Join(pc.ad, PRFile), pr); err != nil {
+		return nil, err
+	}
+	return rec, nil
 }
 
 // PRState is a pull request's state on GitHub.
 type PRState struct {
 	State       string `json:"state"` // OPEN, CLOSED, MERGED
+	BaseRefName string `json:"baseRefName"`
 	MergedAt    string `json:"mergedAt"`
 	MergeCommit struct {
 		OID string `json:"oid"`
@@ -440,7 +521,7 @@ type PRState struct {
 }
 
 func prState(url string) (*PRState, error) {
-	out, err := ghRun("", "", "pr", "view", url, "--json", "state,mergedAt,mergeCommit")
+	out, err := ghRun("", "", "pr", "view", url, "--json", "state,baseRefName,mergedAt,mergeCommit")
 	if err != nil {
 		return nil, err
 	}

@@ -23,6 +23,18 @@ type fakeMultica struct {
 	reruns   []string
 	calls    []string
 	prStates map[string]string
+	prBases  map[string]string // the branch a pull request merged into (default main)
+	ghErr    map[string]error  // gh pr view fails for these URLs
+
+	// failAfter lets n calls starting with a prefix succeed and fails the
+	// next one, once.
+	failAfter map[string]int
+
+	// lockDir, when set, is tried from inside gh: a call made while dispatch
+	// holds the feature lock sets ghUnderLock.
+	lockDir     string
+	ghCalls     int
+	ghUnderLock bool
 }
 
 type fakeIssue struct {
@@ -33,22 +45,39 @@ type fakeIssue struct {
 }
 
 func newFakeMultica(t *testing.T) *fakeMultica {
-	fm := &fakeMultica{issues: map[string]*fakeIssue{}, prStates: map[string]string{}}
+	fm := &fakeMultica{issues: map[string]*fakeIssue{}, prStates: map[string]string{}, prBases: map[string]string{},
+		ghErr: map[string]error{}, failAfter: map[string]int{}}
 	t.Cleanup(multica.SetRunner(fm.run))
 	t.Cleanup(SetGHRunner(fm.gh))
 	return fm
 }
 
-// gh answers `gh pr view <url> --json state,…` from prStates (default OPEN).
+// gh answers `gh pr view <url> --json state,…` from prStates (default OPEN)
+// and prBases (default main).
 func (fm *fakeMultica) gh(_ string, _ string, args ...string) ([]byte, error) {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()
+	fm.ghCalls++
+	if fm.lockDir != "" {
+		if unlock, err := lockFor(fm.lockDir, 0); err != nil {
+			fm.ghUnderLock = true
+		} else {
+			unlock()
+		}
+	}
 	if len(args) >= 3 && args[0] == "pr" && args[1] == "view" {
+		if err := fm.ghErr[args[2]]; err != nil {
+			return nil, err
+		}
 		st := fm.prStates[args[2]]
 		if st == "" {
 			st = "OPEN"
 		}
-		return fm.json(map[string]interface{}{"state": st, "mergedAt": "2026-11-11T00:00:00Z", "mergeCommit": map[string]string{"oid": "abc123merge"}}), nil
+		base := fm.prBases[args[2]]
+		if base == "" {
+			base = "main"
+		}
+		return fm.json(map[string]interface{}{"state": st, "baseRefName": base, "mergedAt": "2026-11-11T00:00:00Z", "mergeCommit": map[string]string{"oid": "abc123merge"}}), nil
 	}
 	return nil, fmt.Errorf("fake gh: unexpected %v", args)
 }
@@ -81,7 +110,17 @@ func (fm *fakeMultica) issueJSON(i *fakeIssue) map[string]interface{} {
 func (fm *fakeMultica) run(_ context.Context, stdin string, args ...string) ([]byte, error) {
 	fm.mu.Lock()
 	defer fm.mu.Unlock()
-	fm.calls = append(fm.calls, strings.Join(args, " "))
+	call := strings.Join(args, " ")
+	fm.calls = append(fm.calls, call)
+	for prefix, n := range fm.failAfter {
+		if strings.HasPrefix(call, prefix) {
+			if n == 0 {
+				delete(fm.failAfter, prefix)
+				return nil, fmt.Errorf("fake multica: injected failure on %s", prefix)
+			}
+			fm.failAfter[prefix] = n - 1
+		}
+	}
 	switch {
 	case len(args) >= 2 && args[0] == "issue" && args[1] == "create":
 		fm.n++

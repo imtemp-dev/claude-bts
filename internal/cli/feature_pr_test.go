@@ -26,10 +26,11 @@ func gitT(t *testing.T, dir string, args ...string) string {
 // fakeGH stands in for the GitHub CLI: no pull request exists until
 // `pr create`, which records its arguments.
 type fakeGH struct {
-	mu      sync.Mutex
-	created []string
-	edits   []string
-	byHead  map[string]string
+	mu        sync.Mutex
+	created   []string
+	edits     []string
+	byHead    map[string]string
+	failEdits int // pr edit fails this many times
 }
 
 func (g *fakeGH) run(_ string, _ string, args ...string) ([]byte, error) {
@@ -58,6 +59,10 @@ func (g *fakeGH) run(_ string, _ string, args ...string) ([]byte, error) {
 		}
 		return nil, fmt.Errorf("no pull requests found for branch %q", args[2])
 	case len(args) >= 2 && args[0] == "pr" && args[1] == "edit":
+		if g.failEdits > 0 {
+			g.failEdits--
+			return nil, fmt.Errorf("gh pr edit: HTTP 502")
+		}
 		g.edits = append(g.edits, strings.Join(args, " "))
 		return nil, nil
 	}

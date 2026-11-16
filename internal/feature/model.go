@@ -167,6 +167,18 @@ func Mutate(dir, action string, fn func(f *Feature) (string, error)) (*Feature, 
 	return MutateWait(dir, action, lockTimeout, fn)
 }
 
+// savedError carries an error that MutateWait returns after it saves
+// feature.json as the function left it.
+type savedError struct{ err error }
+
+func (e *savedError) Error() string { return e.err.Error() }
+func (e *savedError) Unwrap() error { return e.err }
+
+// saveAnd, returned by a Mutate function, saves its changes and then
+// returns err: for a function that acted outside the store (on Multica)
+// before it failed, so what it did is kept, not forgotten.
+func saveAnd(err error) error { return &savedError{err: err} }
+
 // MutateWait is Mutate waiting up to wait for the lock, for a change whose
 // function talks to Multica while it holds the lock.
 func MutateWait(dir, action string, wait time.Duration, fn func(f *Feature) (string, error)) (*Feature, error) {
@@ -186,18 +198,33 @@ func MutateWait(dir, action string, wait time.Duration, fn func(f *Feature) (str
 	if err == ErrNoChange {
 		return f, nil
 	}
+	var saved *savedError
+	if errors.As(err, &saved) {
+		if werr := save(dir, action, strings.TrimSpace(detail+" (stopped: "+saved.err.Error()+")"), f); werr != nil {
+			return nil, fmt.Errorf("%w; saving what was done before it also failed: %v", saved.err, werr)
+		}
+		return f, saved.err
+	}
 	if err != nil {
 		return nil, err
 	}
+	if err := save(dir, action, detail, f); err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+// save writes feature.json with its rev bumped and logs the change.
+func save(dir, action, detail string, f *Feature) error {
 	f.Schema = Schema
 	f.Rev++
 	if err := state.WriteJSON(filepath.Join(dir, FeatureFile), f); err != nil {
-		return nil, err
+		return err
 	}
 	_ = state.AppendJSONL(filepath.Join(dir, ChangelogFile), map[string]interface{}{
 		"time": now(), "action": action, "rev": f.Rev, "detail": detail,
 	})
-	return f, nil
+	return nil
 }
 
 // CreateOptions are the inputs of Create.

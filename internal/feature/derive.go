@@ -323,6 +323,9 @@ func Derive(dir string, f *Feature) (*Status, error) {
 			if mi := f.Multica.Items[it.ID]; mi != nil && mi.Merged != nil {
 				is.Merged = true
 				is.Note = strings.TrimSpace(is.Note + " merged " + short(mi.Merged.SHA))
+				if mi.Merged.Into != "" && mi.Merged.Into != f.BaseBranch {
+					is.Note += " into " + mi.Merged.Into
+				}
 			}
 		}
 		if is.InConfirmed && is.State != StateDone && is.State != StateSkipped && is.State != StateDeferred {

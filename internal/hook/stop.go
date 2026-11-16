@@ -31,6 +31,10 @@ func (h *stopHandler) Handle(input *HookInput) (*HookOutput, error) {
 	if err != nil {
 		return &HookOutput{}, nil
 	}
+	// What the turn wrote reaches the feature store at its end, blocked or
+	// not: a phase change syncs only what existed then, and a Multica
+	// worker's session ends with its run, so no session start may follow.
+	defer syncFeatureStore(root)
 
 	out, err := h.decide(root, input)
 	if err != nil {
@@ -67,6 +71,14 @@ func (h *stopHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return &HookOutput{}, nil
 	}
 	return out, nil
+}
+
+// syncFeatureStore syncs every feature-bound recipe whose snapshot is
+// behind.  Never fatal: the store reports, it does not gate.
+func syncFeatureStore(root string) {
+	if _, err := feature.SyncPending(root); err != nil {
+		fmt.Fprintf(os.Stderr, "[bts] warning: feature store sync: %v; the next turn end or session start retries it, or run bts feature harvest\n", err)
+	}
 }
 
 // decide runs the gates and returns the raw decision, before the block
