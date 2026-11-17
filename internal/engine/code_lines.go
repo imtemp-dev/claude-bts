@@ -206,7 +206,7 @@ func (s *codeScanner) scanLine(i int, line string) {
 				s.closeString(i, line[j:])
 				continue
 			}
-			if c == '\\' && !s.syn.sqlQuotes && !(s.multiline && s.syn.rawMulti) && j+1 < len(line) {
+			if c == '\\' && !s.syn.sqlQuotes && (!s.multiline || !s.syn.rawMulti) && j+1 < len(line) {
 				b.WriteString(line[j : j+2])
 				j += 2
 				continue
@@ -222,7 +222,7 @@ func (s *codeScanner) scanLine(i int, line string) {
 			// escaped slash cannot open a comment.
 			emit(line[j : j+2])
 			j += 2
-		case s.lineComment(line[j:]) && !(j > 0 && line[j-1] == ':'):
+		case s.lineComment(line[j:]) && (j == 0 || line[j-1] != ':'):
 			// `//` right after a colon is a URL (`https://` in JSX text),
 			// not a comment.
 			j = len(line)

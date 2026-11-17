@@ -76,10 +76,6 @@ func (h *stopHandler) Handle(input *HookInput) (*HookOutput, error) {
 // completionMarkers are the tagged markers that end a recipe stage.
 var completionMarkers = []string{"<bts>DONE</bts>", "<bts>IMPLEMENT DONE</bts>", "<bts>FIX DONE</bts>"}
 
-func hasCompletionMarker(text string) bool {
-	return firstCompletionMarker(text) != ""
-}
-
 // firstCompletionMarker is the first completion marker text carries, or "".
 func firstCompletionMarker(text string) string {
 	for _, m := range completionMarkers {

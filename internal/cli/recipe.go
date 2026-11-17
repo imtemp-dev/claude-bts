@@ -1328,16 +1328,6 @@ func entersFirstCodePhase(recipe *state.RecipeState, newPhase string) bool {
 	return state.IsImplementPhase(newPhase) && !state.IsImplementPhase(recipe.Phase)
 }
 
-func countNonHidden(entries []os.DirEntry) int {
-	count := 0
-	for _, e := range entries {
-		if !strings.HasPrefix(e.Name(), ".") {
-			count++
-		}
-	}
-	return count
-}
-
 // agentEvidenceSince classifies whether a subagent finished between the
 // previous recorded round for this document and now. Returns "" when the
 // signal cannot be read at all, so an unreadable metrics log records no

@@ -83,6 +83,10 @@ func prSetup(t *testing.T) (bare, main, fid, dir string, items []string, gh *fak
 	if out, err := exec.Command("git", "clone", "-q", bare, main).CombinedOutput(); err != nil {
 		t.Fatalf("%v %s", err, out)
 	}
+	// The restack under test rebases, which needs a committer, and a CI
+	// runner has no global identity.  Worktrees of main share this config.
+	gitT(t, main, "config", "user.name", "t")
+	gitT(t, main, "config", "user.email", "t@t")
 	gitT(t, main, "checkout", "-q", "-B", "master")
 	_ = os.WriteFile(filepath.Join(main, "app.txt"), []byte("base\n"), 0644)
 	gitT(t, main, "add", ".")

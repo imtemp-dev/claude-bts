@@ -322,7 +322,7 @@ func TestStackLimitMergeAndRestackRequest(t *testing.T) {
 	// i1 merges: recorded; i2, stacked on it, is asked to restack; i3 can
 	// now stack on i2 (one unmerged level under it).
 	fm.prStates[u1] = "MERGED"
-	acts, err = Dispatch(dir)
+	_, err = Dispatch(dir)
 	if err != nil {
 		t.Fatal(err)
 	}

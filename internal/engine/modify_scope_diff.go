@@ -238,9 +238,10 @@ func parseScopeDecls(lang *scopeLang, src string) []scopeDecl {
 		}
 		for _, q := range lang.quotes {
 			if strings.Count(line, q)%2 == 1 {
-				if inQuote == "" {
+				switch inQuote {
+				case "":
 					inQuote = q
-				} else if inQuote == q {
+				case q:
 					inQuote = ""
 				}
 			}
@@ -464,7 +465,7 @@ func namedElsewhere(root, file, name string) bool {
 	out, err := cmd.Output()
 	if err != nil {
 		var ee *exec.ExitError
-		return !(errors.As(err, &ee) && ee.ExitCode() == 1) // 1: no match
+		return !errors.As(err, &ee) || ee.ExitCode() != 1 // 1: no match
 	}
 	return strings.TrimSpace(string(out)) != ""
 }

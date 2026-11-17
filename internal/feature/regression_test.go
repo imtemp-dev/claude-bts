@@ -26,13 +26,13 @@ func TestConfirmedCopyIsChecked(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			dir, f := newFeature(t)
+			dir, _ := newFeature(t)
 			_, _ = AddItem(dir, ItemSpec{Title: ptr("a"), Type: ptr("build")})
 			if _, err := Confirm(dir, "go"); err != nil {
 				t.Fatal(err)
 			}
 			tc.tamper(filepath.Join(dir, ConfirmedDir, "1"))
-			f, _ = Load(dir)
+			f, _ := Load(dir)
 			if _, _, err := Confirmed(dir, f); err == nil {
 				t.Fatal("Confirmed must refuse a changed copy")
 			}

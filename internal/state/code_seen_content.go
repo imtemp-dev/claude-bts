@@ -240,7 +240,7 @@ func DiffHunks(a, b []byte) ([]Hunk, error) {
 	cmd := exec.Command("git", "diff", "--no-index", "--no-color", "--no-ext-diff", "-U0", pa, pb)
 	out, err := cmd.Output()
 	var exit *exec.ExitError
-	if err != nil && !(errors.As(err, &exit) && exit.ExitCode() == 1) {
+	if err != nil && (!errors.As(err, &exit) || exit.ExitCode() != 1) {
 		return nil, fmt.Errorf("git diff: %w", err)
 	}
 	var hunks []Hunk

@@ -809,7 +809,7 @@ func ConfirmFixedFindings(root, recipeID string, round *VerifyLogEntry, ids []st
 		st, ok := prior[id]
 		// A deferred finding found fixed closes too: it is a watch-item
 		// someone resolved, not a closed one (trial problem #102).
-		if !ok || st.Doc != docBase || reportedNow[id] || !(NotClosed(st.Status) || st.Status == FindingDeferred) {
+		if !ok || st.Doc != docBase || reportedNow[id] || (!NotClosed(st.Status) && st.Status != FindingDeferred) {
 			skipped = append(skipped, id)
 			continue
 		}
