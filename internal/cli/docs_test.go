@@ -32,34 +32,27 @@ func docsFixture(t *testing.T, files map[string]string, skills []string, hooks, 
 	return repo
 }
 
-// The counted-claim check must catch a stale number in EVERY translation,
-// not just the English one — that is exactly how all four READMEs came to
+// The counted-claim check must catch a stale number in EVERY surface that
+// states one, not just the first — that is how the READMEs once came to
 // claim 21 skills while 24 shipped.
-func TestCheckCountedClaims_CatchesEveryTranslation(t *testing.T) {
+func TestCheckCountedClaims_CatchesEverySurface(t *testing.T) {
 	repo := docsFixture(t, map[string]string{
-		"README.md":    "24 skills, 8 lifecycle hooks, 7 rules",
-		"README.ko.md": "21개 스킬 / 8개 라이프사이클 훅 / 6개 규칙",
-		"README.zh.md": "21 个技能, 8 个生命周期钩子, 7 个规则",
-		"README.ja.md": "24スキル 8ライフサイクルフック 7ルール",
+		"README.md": "24 skills, 8 lifecycle hooks, 7 rules",
+		"llms.txt":  "21 skills / 8 lifecycle hooks / 6 rules",
 	}, []string{"bts-verify", "bts-audit"}, 8, 7)
 
 	inv := &inventory{skills: make([]string, 24), hooks: 8, rules: 7}
-	problems := checkCountedClaims(repo,
-		[]string{"README.md", "README.ko.md", "README.zh.md", "README.ja.md"}, inv)
+	problems := checkCountedClaims(repo, []string{"README.md", "llms.txt"}, inv)
 
 	joined := strings.Join(problems, "\n")
-	for _, want := range []string{"README.ko.md", "README.zh.md"} {
-		if !strings.Contains(joined, want) {
-			t.Errorf("expected a stale-count problem for %s, got:\n%s", want, joined)
-		}
+	if !strings.Contains(joined, "llms.txt") {
+		t.Errorf("expected a stale-count problem for llms.txt, got:\n%s", joined)
 	}
-	for _, unwanted := range []string{"README.md say", "README.ja.md"} {
-		if strings.Contains(joined, unwanted) {
-			t.Errorf("%s is correct and must not be reported, got:\n%s", unwanted, joined)
-		}
+	if strings.Contains(joined, "README.md") {
+		t.Errorf("README.md is correct and must not be reported, got:\n%s", joined)
 	}
-	if len(problems) != 3 { // ko: skills + rules, zh: skills
-		t.Errorf("expected 3 problems (ko skills, ko rules, zh skills), got %d:\n%s", len(problems), joined)
+	if len(problems) != 2 { // llms.txt: skills + rules
+		t.Errorf("expected 2 problems (llms.txt skills, llms.txt rules), got %d:\n%s", len(problems), joined)
 	}
 }
 

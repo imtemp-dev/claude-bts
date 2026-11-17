@@ -21,9 +21,6 @@
   ],
   "surfaces": {
     "README.md": "user-reference",
-    "README.ko.md": "user-reference",
-    "README.zh.md": "user-reference",
-    "README.ja.md": "user-reference",
     "llms.txt": "user-reference",
     "docs/verification/README.md": "maintainer-verification",
     "docs/verification/completion-gates.md": "maintainer-verification",

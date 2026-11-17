@@ -1,46 +1,47 @@
 # claude-bts
 
-**B**ulletproof **T**echnical **S**pecification — catches spec errors before they become debugging sessions.
+**B**ulletproof **T**echnical **S**pecification — a spec-first workflow for Claude Code that settles the direction with you, lands in code early, and proves the change by runs.
 
 [![CI](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml/badge.svg)](https://github.com/imtemp-dev/claude-bts/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/imtemp-dev/claude-bts)](https://github.com/imtemp-dev/claude-bts/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8.svg)](https://go.dev)
+[![Go](https://img.shields.io/badge/Go-1.26+-00ADD8.svg)](https://go.dev)
 
-[한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md) | [For AI Agents](llms.txt)
+[For AI Agents](llms.txt)
 
 ## Why
 
-You already do the right things — reminding AI of the architecture, asking for reviews, checking edge cases. But doing it manually means some sessions you're thorough and some you're not. Mistakes in the plan slip through to code, where they cost builds and debugging instead of a text edit. And once AI is deep in implementation, it loses sight of what the whole system should look like.
+You already do the right things — reminding AI of the architecture, asking for reviews, checking edge cases. But doing it by hand means some sessions are thorough and some are not, and once AI is deep in implementation it loses sight of what the whole change was for.
 
-bts automates what you're already doing:
+bts makes those habits the default:
 
-- **Isolated verification** — a separate AI instance reviews the spec without sharing the blind spots of the session that wrote it
-- **State tracking** — issues found during verification persist across sessions and compactions, so nothing gets lost
-- **Completion gates** — specs can't finalize without passing verification; code can't complete without tests, review, and deviation docs
-- **Big picture first** — intent, scope, and wireframe are established before drafting begins, giving every later step a destination to refer back to
+- **Direction you confirmed** — intent and scope are confirmed by you before any design work; a build or blueprint recipe cannot leave discovery without that confirmation.
+- **Truth from runs** — the design lands as a skeleton that compiles and one failing test per invariant; implementation is done when those tests pass, and every finding an adversary reports must be reproduced by a run.
+- **Isolated review** — verification and code review run in separate agent contexts that do not share the blind spots of the session that did the work.
+- **State that survives** — findings, decisions and phase history persist across sessions and compactions.
+- **Completion gates** — the Stop hook refuses a completion marker until the recipe's gates pass.
 
-The core idea: **fix errors in documents, not in code.** A spec edit is free. A code fix is a build-test-debug cycle.
+The core idea: **argue in prose only what code cannot settle; settle everything else by running it.**
 
 ## Install
 
 ```bash
 # Homebrew (macOS / Linux)
-brew tap imtemp-dev/tap && brew install bts
+brew install imtemp-dev/tap/claude-bts
 
-# Or one-line install
+# Or one-line install (latest release binary)
 curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-bts/main/install.sh | bash
 
-# Or build from source
+# Or build from source (Go 1.26+)
 git clone https://github.com/imtemp-dev/claude-bts.git && cd claude-bts && make install
 ```
 
 ```bash
-# Update
-brew upgrade bts              # or: bts update (templates only)
+# Update the binary; a project's templates follow at its next session start, or now with `bts update`
+brew upgrade claude-bts
 
-# Uninstall
-brew uninstall bts            # binary only — .bts/ and .claude/ stay in your project
+# Uninstall (binary only — .bts/ and .claude/ stay in your project)
+brew uninstall claude-bts
 ```
 
 ## Quick Start
@@ -52,58 +53,88 @@ cd your-project && bts init . && claude
 Then inside Claude Code:
 
 ```bash
-/bts-recipe-blueprint add OAuth2 authentication    # spec → implement → test → prove → review → sync → complete
-/bts-recipe-fix login bcrypt hash comparison fails  # diagnose → fix-spec → implement → test → complete
-/bts-recipe-debug session drops after 5 minutes     # 6-perspective → fix-spec → implement → test → complete
+/bts-recipe-build add OAuth2 login                  # intent → scope → domain → skeleton → falsifiers → implement → prove → complete
+/bts-recipe-fix login bcrypt hash comparison fails  # diagnose → fix-spec → reproduce → implement → complete
+/bts-recipe-debug session drops after 5 minutes     # six perspectives → root cause → fix-spec → implement → complete
 ```
+
+A small build (at most three scope items, no new integration, no migration) runs in **express** mode; bts offers it when you confirm such a scope.
 
 ## How It Works
 
-Blueprint lifecycle — the full spec-to-code cycle:
+The build recipe, from request to merged-ready code:
 
-### 1. Establish the destination
+### 1. Agree on the destination
 
 ```mermaid
 flowchart LR
-    INT["Discover Intent"] --> VIS["Vision & Roadmap"] --> SC["Scope"] --> WF["Wireframe"]
+    INT["Intent"] --> SC["Scope"] --> RS["Research"] --> DM["Domain model"] --> AR["Architect ↗"] --> WF["Wireframe"]
 ```
 
-Before writing anything, bts establishes *what the finished system looks like*. Intent discovery clarifies purpose. Wireframe designs structure with mermaid diagrams. This is the map every later step refers back to.
+You confirm the intent and the scope. By default you review them on a **review page**: Claude publishes the change as a claude.ai artifact, you pin notes on it (typed or spoken) and send them in rounds, Claude answers and proposes edits, and you confirm a fingerprinted version. Set `review.surface: ask` to answer in the chat instead.
 
-### 2. Iterate the spec until it converges
+The domain model names each invariant and the one place that enforces it. The architect step has two independent runners propose decompositions, debates them, and has an adjudicator pick one. The wireframe lays out the structure and the files the change touches. **↗ = separate agent context.**
+
+### 2. Land in code early
 
 ```mermaid
 flowchart LR
-    D["Draft"] --> V["Verify ↗"]
-    V -->|"issues"| A["Assess"]
-    A -->|"improve"| D
-    A -->|"debate"| DB["Debate"] --> D
-    A -->|"audit"| AU["Audit ↗"] --> D
-    V -->|"pass"| F["Finalize"]
+    SK["Skeleton"] --> FA["Falsifiers"] --> EQ["Probes"] --> RV["One review ↗"] --> FN["Finalize"]
 ```
 
-The adaptive loop: draft → verify → assess what's needed → act → verify again. **↗ = fork context** (separate AI instance).
+The design is stated as code: a skeleton that compiles, with bodies that fail loudly, and one test per invariant that fails now for that invariant's own reason. Questions that running something would answer are answered by a throwaway probe, not argued. One review of the build spec (`final.md`) reads what only judgment can see. The Stop hook lets the recipe finalize only when the skeleton builds, every falsifier is recorded red, the scope is covered and the review is clean.
 
-What comes out is a **blueprint, not a transcription**. It carries the part code cannot cheaply falsify — each invariant and the file that keeps it, what crosses every boundary, irreversible order and what undoes it, and the test that would prove each invariant wrong. Function signatures, type definitions and edge-case tables are left out on purpose: a compiler produces them for free, while arguing them in prose costs a verify round each and leaves a claim behind that the next round has to re-check.
-
-The loop ends when verification passes with zero critical and zero major issues, confirmed by two consecutive clean passes over an unchanged spec — one clean round is a sample, not a result. It is also bounded, by a round cap and a no-progress budget. Hitting either means the open questions move to `## Known Uncertainties` and implementation begins, where running code settles them in seconds.
-
-### 3. Generate and validate code
+### 3. Implement and prove
 
 ```mermaid
 flowchart LR
-    F["Level 3 Spec"] --> IMP["Implement"] --> T["Test"]
+    IMP["Implement"] --> T["Test"]
     T -->|"fail"| IMP
-    T -->|"pass"| PR["Prove ↗"] --> RV["Review ↗"] --> SY["Sync"] --> DONE["Complete"]
+    T -->|"pass"| MU["Able to fail"] --> IN["Interrogate ↗"] --> PR["Drive the app"] --> RV["Review ↗"] --> SY["Sync"] --> DONE["Complete"]
 ```
 
-Code is generated from a spec that has survived multiple rounds of independent verification. Test failures loop back to implementation. The prove stage then shows the change works by runs: each falsifier fails with its guard broken, adversaries must reproduce what they find, and user journeys are driven through the real app. Review runs in fork context. Sync documents any spec-code deviations.
+Implementation fills the skeleton until the falsifiers pass. Then the change is proved by runs: each falsifier must still fail with its guard broken; adversaries try to break the change, each in a private copy of the project, and only what a rerun reproduces survives; the user journeys the change touches are driven through the real app with the project's `verify-<app>` skill. Code review runs from three perspectives in separate contexts, and sync records every deviation between the spec and the code.
+
+### Express mode
+
+For a small change, express keeps what makes a build trustworthy — confirmed intent and scope, invariants with one owner each, a skeleton that compiles, a falsifier per invariant, the prove stage, one code review, sync — and drops the architect's runners and debate, the review round on `final.md` and the second adversary. A recipe moves to the full recipe (one way) when it outgrows express.
+
+### Blueprint: when the design must be argued first
+
+`/bts-recipe-blueprint` converges a prose spec before any code: draft → verify ↗ → assess → improve, debate or audit ↗ → verify again. The loop ends at two consecutive clean passes over an unchanged spec, or at a round cap or no-progress budget, which moves the open questions to `## Known Uncertainties` for implementation to settle. It then goes through the same implement and prove stages as the build recipe, without the falsifier steps.
+
+## Recipes
+
+| Recipe | Lifecycle | Output |
+|--------|-----------|--------|
+| `/bts-recipe-build` | intent → scope → research → domain → architect → wireframe → skeleton → falsify → one review → implement → prove → review → sync; `express` drops the architect's runners and the review round | build spec + skeleton → code → tests |
+| `/bts-recipe-blueprint` | intent → scope → wireframe → draft ⇄ verify → finalize → implement → prove → review → sync | Level 3 spec → code → tests |
+| `/bts-recipe-fix` | diagnose → fix-spec (root cause, adversarial validation, reproduction run, expert review) → implement | fix spec → code → tests |
+| `/bts-recipe-debug` | six-perspective analysis → cross-reference → fix-spec → implement | root cause → fix |
+| `/bts-recipe-design` | research → draft ⇄ verify → finalize | Level 2 design doc |
+| `/bts-recipe-analyze` | research → draft ⇄ verify → finalize | Level 1 analysis doc |
+
+## Features
+
+A change too large for one recipe becomes a **feature**: a plan of items you confirm once, each worked as its own recipe in its own worktree, with its own draft pull request stacked on the item it depends on. `bts feature` keeps the plan, the confirmed intent and contracts, and each item's attempts in a store outside the worktrees (`~/.bts/features/`, or `$BTS_FEATURE_STORE`). `bts multica setup` connects features to a Multica board, where a manager agent dispatches ready items to worker agents.
+
+## Settings
+
+`.bts/config/settings.yaml` holds the project's choices, each documented in the file. Among them:
+
+| Setting | Default | What it does |
+|---------|---------|--------------|
+| `review.surface` | `artifact` | Where you review intent and scope: a review page, or `ask` for the chat |
+| `implement.require_edit_go` | `false` | Hold the first product-code edit until you say go |
+| `implement.setup_cmd` | — | Command that makes a fresh copy of the project runnable, run in every copy bts makes (adversaries, reruns, mutations) |
+| `statusline` | `false` | Register bts's status line (recipe, phase, context bar); it overrides your own |
+| `agents.*` | see below | Model for an agent a skill spawns |
 
 ## Models
 
-Core quality gates (verify, audit) use your **session model** in a **fork context** — a separate AI instance that doesn't share the conversation history — and so do the three review agents. Pattern-based checks (cross-check, sync-check, the review validator, and the defend step that argues against a round's findings) use Sonnet. The architect step's two runners and its adjudicator use Opus.
+Verify, audit and the three code reviewers use your **session model** in a separate context that does not share the conversation. The defend step, which argues against a round's findings, and the review validator use Sonnet, as do cross-check and sync-check. The architect's runners and adjudicator and the interrogate adversaries use Opus.
 
-The model of an agent a skill spawns can be set in `.bts/config/settings.yaml`; the skill passes the value as the spawn's `model`:
+A spawned agent's model can be set in `.bts/config/settings.yaml`; the skill passes it as the spawn's `model`:
 
 ```yaml
 agents:
@@ -113,61 +144,55 @@ agents:
 
 The fork gates (verify, audit, defend) run on their agent file's model, which settings cannot change.
 
-## Recipes
-
-| Recipe | Lifecycle | Output |
-|--------|-----------|--------|
-| `/bts-recipe-blueprint` | discover → scope → wireframe → adaptive loop → implement → test → review → sync | Level 3 spec → code → tests |
-| `/bts-recipe-build` | discover → scope → domain → architect → wireframe → skeleton → falsify → one review → implement until the falsifiers pass; for a small change, `--express` drops the architect's runners and the review round | build spec + skeleton → code → tests |
-| `/bts-recipe-fix` | diagnose → fix-spec → implement → test | Fix spec → code → tests |
-| `/bts-recipe-debug` | 6-perspective analysis → cross-reference → fix-spec → implement → test | Root cause → fix |
-| `/bts-recipe-design` | research → draft ←→ verify → finalize | Level 2 design doc |
-| `/bts-recipe-analyze` | research → draft ←→ verify → finalize | Level 1 analysis doc |
-
 ## CLI
 
+The commands you type:
+
 ```
-bts init [dir]              Initialize project
-bts doctor [recipe-id]      Health check
-bts recipe list|status|create|cancel   Manage recipes
-bts recipe log <id>         Record action / phase
-bts recipe decision hold|list|resolve|drop   Questions only you can answer
-bts stats [recipe-id]       Metrics and cost (--json, --csv)
-bts graph [recipe-id]       Document relationship graph
-bts verify <file>           Check document consistency
-bts validate [recipe-id]    JSON schema check
-bts sync-check [recipe-id]  Verify document sync
-bts feature create|confirm|status|next|context|pr   A feature: a confirmed plan of items, one recipe each
-bts multica setup           Run features on a Multica board (manager and worker agents)
-bts update                  Update templates
-bts version                 Show versions
+bts init [dir]                      Set up bts in a project
+bts update                          Bring the project's templates to the binary's version
+bts doctor [recipe-id]              Health check
+bts recipe list|status|cancel       See or stop recipes
+bts recipe decision list|resolve    Questions only you can answer
+bts recipe mode <id> express|full   Switch a build recipe between express and full
+bts recipe finish <id>              Complete a recipe through the Stop hook's gate, without ending the session
+bts stats [recipe-id]               Metrics and cost (--json, --csv)
+bts graph [recipe-id]               Document relationship graph
+bts feature create|confirm|status|next|pr   A feature: a confirmed plan of items, one recipe each
+bts multica setup                   Run features on a Multica board
+bts version                         Show versions
 ```
+
+The skills call the rest — `bts recipe log`, `bts recipe confirm`, `bts check`, `bts falsifier`, `bts interrogate`, `bts prove`, `bts review` and others. `bts help` lists them all.
 
 ## Architecture
 
-**Go binary** — single statically-linked binary (~5ms startup), zero runtime dependencies. Manages state, validates completion, deploys templates, tracks metrics.
+**Go binary** — a single statically linked binary with no runtime dependencies. It keeps recipe state, enforces the completion gates, deploys the templates and records metrics.
 
-**Claude Code integration** — 31 skills, 10 lifecycle hooks, 7 rules. Verification always runs in separate agent contexts.
+**Claude Code integration** — 31 skills, 10 lifecycle hooks, 7 rules. Verification and review always run in separate agent contexts.
 
 **File structure:**
 
 ```
 .bts/
+├── config/    # settings.yaml
 ├── specs/     # git tracked — recipes, vision, roadmap
-└── local/     # gitignored — metrics, work-state
+└── local/     # gitignored — metrics, work state
+~/.bts/features/   # feature store, outside every worktree
 ```
 
 ## Requirements
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - macOS, Linux (Windows via WSL)
-- Go 1.22+ only if building from source ([install](https://go.dev/dl/))
+- Go 1.26+ only if building from source ([install](https://go.dev/dl/))
 
 ## Contributing
 
 ```bash
 git clone https://github.com/imtemp-dev/claude-bts.git && cd claude-bts
-make install && go test -race ./...
+make build && make test && make lint     # lint: go vet and golangci-lint (install it first), as CI runs
+go run ./cmd/bts docs check              # after changing README.md, llms.txt or docs/
 ```
 
 [Open an issue](https://github.com/imtemp-dev/claude-bts/issues) for bugs or feature requests.

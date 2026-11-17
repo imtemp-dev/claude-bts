@@ -14,15 +14,15 @@ import (
 
 // `bts docs check` — structural drift detection across maintained prose.
 //
-// bts ships four README translations plus llms.txt, and every one of them
-// names commands and skills. Nothing checked that those names still exist,
-// so a renamed command silently left four documents wrong. The Go tests
-// cover behavior; nothing covered the documentation surface.
+// bts ships README.md and llms.txt, and both name commands and skills.
+// Nothing checked that those names still exist, so a renamed command
+// silently left the documents wrong. The Go tests cover behavior; nothing
+// covered the documentation surface.
 //
 // The check is deliberately structural. It verifies names resolve, links
 // point somewhere, and counted claims match what is shipped. It does not
-// lint prose, tone, or translation fidelity: those need a human, and a
-// keyword heuristic pretending otherwise would be noise.
+// lint prose or tone: that needs a human, and a keyword heuristic
+// pretending otherwise would be noise.
 //
 // The source of truth for what is shipped is internal/template/templates/,
 // NOT the repo's own deployed .claude/. That directory is an artifact of
@@ -171,7 +171,7 @@ func countFiles(dir, ext string) int {
 // than as prose), and docs/research/ (working notes, not maintained).
 func maintainedSurfaces(repo string) ([]string, error) {
 	var out []string
-	candidates := []string{"README.md", "README.ko.md", "README.zh.md", "README.ja.md", "llms.txt"}
+	candidates := []string{"README.md", "llms.txt"}
 	for _, c := range candidates {
 		if _, err := os.Stat(filepath.Join(repo, c)); err == nil {
 			out = append(out, c)
@@ -271,13 +271,10 @@ var (
 )
 
 // countedClaims are the "N skills" sentences that nobody revisits when a
-// file is added. They are matched per language, because the translations
-// carry the same claim and drift independently — README.md, README.ko.md,
-// README.zh.md and README.ja.md all said 21 skills while 24 shipped.
+// file is added: every surface that states one drifts on its own (the
+// READMEs once all said 21 skills while 24 shipped).
 //
-// Each pattern captures the number immediately preceding a noun. The
-// Korean "개" and Chinese "个" counters are optional so both "21개 스킬"
-// and "21 스킬" match.
+// Each pattern captures the number immediately preceding a noun.
 var countedClaims = []struct {
 	concept string
 	re      *regexp.Regexp
@@ -286,17 +283,17 @@ var countedClaims = []struct {
 }{
 	{
 		"skills",
-		regexp.MustCompile(`(\d+)\s*(?:개|个)?\s*(?:skills|스킬|技能|スキル)`),
+		regexp.MustCompile(`(\d+)\s*skills`),
 		func(i *inventory) int { return len(i.skills) },
 	},
 	{
 		"lifecycle hooks",
-		regexp.MustCompile(`(\d+)\s*(?:개|个)?\s*(?:lifecycle hooks|라이프사이클 훅|生命周期钩子|ライフサイクルフック)`),
+		regexp.MustCompile(`(\d+)\s*lifecycle hooks`),
 		func(i *inventory) int { return i.hooks },
 	},
 	{
 		"rules",
-		regexp.MustCompile(`(\d+)\s*(?:개|个)?\s*(?:rules|규칙|规则|ルール)`),
+		regexp.MustCompile(`(\d+)\s*rules`),
 		func(i *inventory) int { return i.rules },
 	},
 }

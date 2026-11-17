@@ -224,7 +224,7 @@ nothing could have stopped it".
    `/template-eval` before it ships.
 
 4. **Docs.** `docs/` (an indicator goes in `docs/bts-flow-metrics.md`,
-   with `scripts/bts-monitor.ts`), the four READMEs and `llms.txt`. Docs
+   with `scripts/bts-monitor.ts`), `README.md` and `llms.txt`. Docs
    explain; they bind nothing.
 
 When an item goes to Go, name the prose it makes redundant too. That
