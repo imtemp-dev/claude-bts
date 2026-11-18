@@ -98,7 +98,7 @@ When context or time is tight, `hard` gates MUST be upheld first;
 6. **Debate uncertain choices**: Don't guess. Use /debate for technology decisions. {gate: practice}
 7. **Adjudicate every debate**: After /debate, ALWAYS run /adjudicate to evaluate the conclusion. Never accept a debate result without adjudication. {gate: hard}
 8. **Sync-check before finalizing**: All debates reflected, all gaps resolved, all drafts verified. {gate: hard}
-9. **Run /bts-status at finalization**: Every recipe calls bts-status before completion to update roadmap, project-status, and project-map. {gate: hard}
+9. **Run /bts-status at finalization**: Every recipe calls bts-status before completion to update roadmap, project-status, and project-map; a feature item's recipe reports in chat and leaves those project-wide files to the base branch (the PreToolUse hook refuses its writes to them, bts #173). {gate: hard}
 10. **Domain model precedes wireframe** (blueprint/design types): `domain.md` must exist and pass the invariant-owner check before `/bts-wireframe` runs. {gate: invariant}
 11. **One batch, one round**: verify and audit run in one concurrent batch and are recorded as ONE verify-log entry with `bts recipe log --merge`. {gate: practice — `bts recipe log` notes a partial-dimension round, and completion refuses it}
 12. **Defend before IMPROVE** (blueprint type): when a round records critical or major findings, run `/bts-defend` on the ledger and dismiss only on its cited evidence before improving. {gate: practice}

@@ -70,6 +70,18 @@ func (h *preToolUseHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return &HookOutput{}, nil
 	}
 
+	// In every phase: a feature item leaves the project-wide documents to
+	// the base branch.
+	if note := featureItemProjectDoc(recipe, input); note != "" {
+		return &HookOutput{
+			HookSpecificOutput: &HookSpecificOutput{
+				HookEventName:            "PreToolUse",
+				PermissionDecision:       "deny",
+				PermissionDecisionReason: note,
+			},
+		}, nil
+	}
+
 	// Only protect during spec phases (not implement/finalize/complete).
 	// The build recipe writes code on purpose in every phase from the
 	// skeleton on: the skeleton and its failing tests are how it states the

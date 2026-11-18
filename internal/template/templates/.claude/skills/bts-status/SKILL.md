@@ -16,6 +16,15 @@ Update project status for: $ARGUMENTS
 If argument is a recipe ID, update status for that recipe only.
 If argument is "all" or empty, scan all recipes.
 
+**A feature item's recipe** (its `recipe.json` names a `feature`) writes
+neither `project-status.md` nor `project-map.md`, nor `layers/`: give the
+report in the chat reply only, and skip Steps 3 and 4.  Each item works on
+its own branch, which holds only its own recipe, so its copy of a
+project-wide document is partial and the items' pull requests collide on
+it (bts #173); the PreToolUse hook refuses those writes.  `bts feature
+status <feature>` is the view across items, and the base branch
+regenerates these documents with `/bts-status all` after the items merge.
+
 ## The report contract {gate: hard}
 
 Both the chat reply and the "Where things stand" section of

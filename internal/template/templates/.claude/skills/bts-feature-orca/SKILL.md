@@ -75,3 +75,6 @@ your turn.  Reply to a question with
 - When dispatch says every item is settled with its draft pull request,
   give the user one summary per item: what it delivered, its pull request,
   and anything held.  Ready and merge stay theirs.
+- Items leave `.bts/specs/project-status.md` and `project-map.md` alone
+  (each branch holds one recipe).  Once the items have merged, offer to run
+  `/bts-status all` on the base branch to bring them up to date.
