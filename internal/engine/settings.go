@@ -30,6 +30,33 @@ type Settings struct {
 	Review ReviewSettings `yaml:"review"`
 	// Interrogate bounds the prove stage's adversary rounds.
 	Interrogate InterrogateSettings `yaml:"interrogate"`
+	// Orca governs the sessions bts starts through Orca.
+	Orca OrcaSettings `yaml:"orca"`
+}
+
+// OrcaSettings: `launch` is "ask" (default: `bts orca continue` shows what
+// it would start and launches only with --yes, after the user said so),
+// "auto" (it launches without --yes) or "off" (it refuses, and bts offers
+// no Orca continuation).  Every launch is a new session the user pays for
+// and sees, which is why asking is the default.
+type OrcaSettings struct {
+	Launch string `yaml:"launch"`
+}
+
+// Values of orca.launch.
+const (
+	OrcaLaunchAsk  = "ask"
+	OrcaLaunchAuto = "auto"
+	OrcaLaunchOff  = "off"
+)
+
+// LaunchPolicy is orca.launch with an unknown or empty value read as ask.
+func (o OrcaSettings) LaunchPolicy() string {
+	switch v := strings.ToLower(strings.TrimSpace(o.Launch)); v {
+	case OrcaLaunchAuto, OrcaLaunchOff:
+		return v
+	}
+	return OrcaLaunchAsk
 }
 
 // InterrogateSettings: `max_rescope_rounds` is how many scoped rounds a
@@ -222,6 +249,7 @@ func DefaultSettings() *Settings {
 		},
 		Review:      ReviewSettings{Surface: ReviewSurfaceArtifact},
 		Interrogate: InterrogateSettings{MaxRescopeRounds: 4},
+		Orca:        OrcaSettings{Launch: OrcaLaunchAsk},
 	}
 }
 

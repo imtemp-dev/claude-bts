@@ -65,10 +65,11 @@ Never raise a limit to get past it.
 - You or the user: `bts recipe status|list|cancel`, `bts recipe create --type <type> [--express] [--feature <f> --item <i>] [--amends <id>, fix only]`, `bts recipe decision`, `bts recipe mode`, `bts recipe finish`, `bts doctor`, `bts update`, `bts stats`, `bts graph`.
 - The skills: `bts recipe log|confirm|findings|leave-unverified|override|assess-precheck`, `bts check`, `bts falsifier`, `bts interrogate`, `bts prove`, `bts review`, `bts verify`, `bts validate`, `bts sync-check`, `bts task`, `bts test`, `bts debate`, `bts comment`, `bts evidence`.
 - Features: `bts feature` (a confirmed plan of items, one recipe and one stacked draft pull request each) and `bts multica setup` (manager and worker agents on a Multica board).
+- Orca: `bts orca continue [id]` launches a fresh Claude Code session in an Orca terminal that claims the recipe and runs the skill its phase calls for; the launch goes to the changelog.
 
 ## Settings
 
-`.bts/config/settings.yaml` documents every key. The ones that change how a run behaves: `review.surface`, `implement.require_edit_go` (hold the first product-code edit for the user's go), `implement.setup_cmd` (makes a fresh copy runnable; run in every copy bts makes), `implement.format_cmd`, `statusline`, the `verify.*` bounds above, and `agents.*`.
+`.bts/config/settings.yaml` documents every key. The ones that change how a run behaves: `review.surface`, `orca.launch` (`ask`, `auto` or `off` for `bts orca continue`), `implement.require_edit_go` (hold the first product-code edit for the user's go), `implement.setup_cmd` (makes a fresh copy runnable; run in every copy bts makes), `implement.format_cmd`, `statusline`, the `verify.*` bounds above, and `agents.*`.
 
 Models: verifier, auditor and the three code reviewers use the session model; the defender, the review validator, cross-check and sync-check use Sonnet; the architect's runners and adjudicator and the interrogate adversaries use Opus. `agents.*` is passed as the spawn's `model`; fork gates keep their agent file's model.
 

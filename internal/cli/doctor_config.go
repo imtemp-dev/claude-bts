@@ -182,6 +182,7 @@ var settingsKeysRead = map[string]bool{
 	"agents":                                    true, // free-form map of agent → model
 	"statusline":                                true, // template.MergeHookSettings, removeBtsStatusLine
 	"review.surface":                            true, // bts review page
+	"orca.launch":                               true, // bts orca continue
 	"interrogate.max_rescope_rounds":            true, // engine.InterrogateRescope
 }
 

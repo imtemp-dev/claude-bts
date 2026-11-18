@@ -160,6 +160,9 @@ decision hold`).
 14. **Implement.** `/bts-implement {id}`. It starts with the user's
     review of `final.md` (on the review page with `review.surface:
     artifact`), and the move into implement waits for that confirmation.
+    In an Orca terminal, `bts orca continue {id}` can start it in a fresh
+    session instead: ask the user first (unless `orca.launch` is `auto`),
+    add `--yes` on their word, then end the turn.
     The skeleton is the starting
     point: a `create` task fills the file the skeleton wrote and keeps its
     public signatures; changing one is a deviation, recorded by sync.

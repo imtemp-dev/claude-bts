@@ -683,6 +683,9 @@ func (h *stopHandler) handleSpecDone(root string, recipe *state.RecipeState) (*H
 	_ = state.LogPhaseChangeVia(root, recipe.ID, prevPhase, "finalize", state.PhaseViaGate)
 
 	fmt.Fprintf(os.Stderr, "[bts] Spec verified ✓ Next: /bts-implement %s\n", recipe.ID)
+	if offer := orcaContinueOffer(root, recipe); offer != "" {
+		fmt.Fprintf(os.Stderr, "[bts] %s\n", offer)
+	}
 	return &HookOutput{}, nil
 }
 

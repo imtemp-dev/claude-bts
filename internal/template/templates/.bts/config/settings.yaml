@@ -203,6 +203,14 @@ review:
                                  # page` refuses when this is "ask". A run that cannot publish an
                                  # artifact (headless, Multica) asks either way.
 
+# Orca (https://github.com/stablyai/orca)
+orca:
+  launch: ask                    # `bts orca continue` starts a fresh Claude Code session in an Orca
+                                 # terminal that takes the recipe over. "ask": it shows what it would
+                                 # start and launches only with --yes, after the user agreed. "auto":
+                                 # it launches without --yes. "off": it refuses, and bts offers no
+                                 # continuation. Each launch is a new session you pay for and see.
+
 # Interrogate (prove stage, P3)
 interrogate:
   max_rescope_rounds: 4          # After a verified interrogate run, a large change (a new code file, or

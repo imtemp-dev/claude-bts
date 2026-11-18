@@ -215,6 +215,9 @@ func (h *sessionStartHandler) Handle(input *HookInput) (*HookOutput, error) {
 			msg = fmt.Sprintf("[bts] Context compacted. %s \"%s\" (Step: %s)\nNEXT: %s",
 				recipe.Type, recipe.Topic, recipe.Phase, hint)
 		}
+		if offer := orcaContinueOffer(root, recipe); offer != "" {
+			msg += "\n[bts] If the recipe still has far to go, a fresh context serves it better than a compacted one. " + offer
+		}
 	default:
 		msg = fmt.Sprintf(
 			"[bts] Active recipe: %s \"%s\" (Step: %s, Iteration: %d)\nNEXT: %s",

@@ -49,6 +49,9 @@ func (h *stopHandler) handleBuildSpecDone(root string, recipe *state.RecipeState
 	})
 	_ = state.LogPhaseChangeVia(root, recipe.ID, prevPhase, "finalize", state.PhaseViaGate)
 	fmt.Fprintf(os.Stderr, "[bts] Build spec ready ✓ skeleton builds, %d falsifier(s) red, %d carried green. Next: /bts-implement %s\n", introduced, carried, recipe.ID)
+	if offer := orcaContinueOffer(root, recipe); offer != "" {
+		fmt.Fprintf(os.Stderr, "[bts] %s\n", offer)
+	}
 	return &HookOutput{}, nil
 }
 

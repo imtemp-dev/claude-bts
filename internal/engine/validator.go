@@ -1076,4 +1076,7 @@ var ChangelogActions = map[string]bool{
 	// written by `bts recipe create --express` and `bts recipe mode`
 	// (feature #132): the recipe's mode, chosen or changed
 	"mode": true,
+	// written by `bts orca continue`: a fresh session launched in Orca to
+	// take the recipe over
+	"continue": true,
 }

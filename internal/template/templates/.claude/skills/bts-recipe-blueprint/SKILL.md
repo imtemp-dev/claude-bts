@@ -647,6 +647,7 @@ When the precheck or /assess declares Level 3 achieved AND /sync-check passes:
 5. Tell the user (plaintext, after the marker):
    > **Blueprint complete** — `{id}` spec finalized.
    > Next: run `/bts-implement {id}`. It starts with your review of final.md, which implementation waits for.
+   > In Orca, `bts orca continue {id}` starts it in a fresh session.
 
 > **Checkpoint**: Blueprint finalized. Proceed directly to output `<bts>DONE</bts>`.
 > Do NOT /clear — clearing loses context and requires re-reading files.

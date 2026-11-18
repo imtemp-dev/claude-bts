@@ -354,6 +354,7 @@ When verify shows critical=0, major=0:
 4. Tell the user (plaintext, after the marker):
    > **Debug spec complete** — `{id}` finalized.
    > Next: run `/bts-implement {id}` to apply the fix. It starts with your review of final.md, which implementation waits for.
+   > In Orca, `bts orca continue {id}` starts it in a fresh session.
 
 Stop hook validates verify-log → phase=finalize.
 

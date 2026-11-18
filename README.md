@@ -128,6 +128,7 @@ A change too large for one recipe becomes a **feature**: a plan of items you con
 | Setting | Default | What it does |
 |---------|---------|--------------|
 | `review.surface` | `artifact` | Where you review intent, scope and the spec: a review page, or `ask` for the chat |
+| `orca.launch` | `ask` | Whether `bts orca continue` launches only after you agree (`ask`), at once (`auto`), or never (`off`) |
 | `implement.require_edit_go` | `false` | Hold the first product-code edit until you say go |
 | `implement.setup_cmd` | — | Command that makes a fresh copy of the project runnable, run in every copy bts makes (adversaries, reruns, mutations) |
 | `statusline` | `false` | Register bts's status line (recipe, phase, context bar); it overrides your own |
@@ -163,6 +164,7 @@ bts stats [recipe-id]               Metrics and cost (--json, --csv)
 bts graph [recipe-id]               Document relationship graph
 bts feature create|confirm|status|next|pr   A feature: a confirmed plan of items, one recipe each
 bts multica setup                   Run features on a Multica board
+bts orca status|continue [id]       Hand a recipe to a fresh Claude Code session in an Orca terminal
 bts version                         Show versions
 ```
 

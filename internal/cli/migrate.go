@@ -1370,6 +1370,13 @@ var settingsInsertions = []settingsInsertion{
 		Comment: "Scoped interrogate rounds a large change requires at most; after them it passes with a notice.",
 		Since:   "v0.25.0",
 	},
+	{
+		Parent:  "orca",
+		Key:     "launch",
+		Value:   "ask",
+		Comment: "bts orca continue: ask (launch only with --yes, after the user agreed), auto (launch without --yes) or off.",
+		Since:   "v0.31.0",
+	},
 }
 
 func runMigrateSettings(cmd *cobra.Command, args []string) error {

@@ -50,11 +50,15 @@ Seen but not settled:
 - **Permissions.** The spike sessions showed "bypass permissions on": the
   user runs Orca's Claude agents with Orca's "full access" setting (their
   choice, 2026-11-18), which launches Claude Code with
-  `--dangerously-skip-permissions`.  In that mode the user's
-  `permissions.ask` rules (on `git push`, `gh pr *`) prompt no one, and
-  those rules are why `bts feature pr` exists.  Hooks still run in every
-  mode, so the guard belongs in bts's PreToolUse hook: in a session Orca
-  launched, refuse `git push` and `gh pr` outside `bts feature pr`.
+  `--dangerously-skip-permissions`.  The worry was that the user's
+  `permissions.ask` rules (on `git push`, `gh pr *`) would prompt no one
+  there.  Checked in the O1 smoke (Claude Code 2.1.327, an Orca-launched
+  session showing "bypass permissions on"): `git push --dry-run` stopped at
+  "Rule Bash(git push *) from user settings says to ask", and a PreToolUse
+  hook's `ask` decision also stopped a command no rule covered ("Hook
+  PreToolUse:Bash requires confirmation").  Ask rules and hook asks both
+  hold under bypassed permissions, so the user's own rules already guard
+  pushes in Orca workers.
 - **The coordinator must be an Orca agent.**  Waking is input typed into
   the coordinator's Orca terminal, so a session running elsewhere (a herdr
   pane) can start workers but is never woken.
@@ -223,17 +227,17 @@ project's.
 | Slice | Content |
 |---|---|
 | O0 | Spike (done, above). |
-| O1 | Continue: `bts orca continue`, the `orca.launch` setting, the offers at spec DONE and PreCompact, the launch recorded in `recipe.json`; the PreToolUse guard on push and pull requests in Orca-launched sessions. |
+| O1 | Continue: `bts orca continue`, the `orca.launch` setting, the offers at spec DONE (the Stop hook's notice) and after a compaction (SessionStart, since PreCompact cannot add context), the launch recorded as a `continue` changelog entry. |
 | O2 | Delegate: `bts feature dispatch --via orca`, Run and Tasks from the plan, worker skill text for an Orca worker, gates mirrored from decisions, `bts feature next` on `worker_done`. |
 | O3 | Helpers in another agent, starting with one interrogate adversary in Codex. |
 | O4 | Optional Orca plugin: a panel and status bar item showing each workspace's recipe and open decisions (`docs`: plugin manifest v2, `trusted-worker`). |
 
 ## Risks and open questions
 
-- Full access in Orca-launched sessions (above): the hook guard is the only
-  thing standing between a worker and a push, so it fails closed.  Whether
-  Claude Code still applies `deny` rules under
-  `--dangerously-skip-permissions` is unverified; nothing here relies on it.
+- Full access in Orca-launched sessions (above): the user's ask rules hold
+  there in Claude Code 2.1.327.  A later Claude Code that stops honouring
+  them under bypassed permissions would reopen the question; a PreToolUse
+  `ask` from bts is the fallback, and it was seen to work too.
 - Orca must be running; `orca status --json` says whether it is.  A
   `runtime_unavailable` error is transient by Orca's own guide.
 - Waking types into the coordinator's terminal; a duplicate notice can
