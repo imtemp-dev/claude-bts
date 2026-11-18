@@ -12,7 +12,7 @@ import (
 )
 
 // `bts review` keeps the record of a recipe's review page: the page the
-// user reviews intent and scope on (/bts-review-page).  bts cannot read the
+// user reviews intent, scope and the spec on (/bts-review-page).  bts cannot read the
 // page's data; the session exports it with ArtifactData and these commands
 // record what it holds and what was done with it.
 
@@ -21,10 +21,10 @@ func init() {
 	reviewCmd.AddCommand(reviewPageCmd, reviewAttachCmd, reviewImportCmd, reviewDisposeCmd,
 		reviewProposeCmd, reviewApplyCmd, reviewDoneCmd, reviewStatusCmd)
 
-	reviewPageCmd.Flags().String("point", "", "Review point the page now carries: intent or scope")
+	reviewPageCmd.Flags().String("point", "", "Review point the page now carries: intent, scope or spec (final.md, or a fix recipe's fix-spec.md)")
 	reviewPageCmd.Flags().Bool("json", false, "Emit the brief as JSON")
 	reviewAttachCmd.Flags().String("url", "", "The page's claude.ai link")
-	reviewAttachCmd.Flags().String("point", "", "Review point the published page carries: intent or scope")
+	reviewAttachCmd.Flags().String("point", "", "Review point the published page carries: intent, scope or spec")
 	reviewImportCmd.Flags().String("dir", "", "ArtifactData out_dir holding the page's rounds/ and notes/ exports")
 	reviewImportCmd.Flags().Int("round", 0, "Import only this round (default: every round still waiting)")
 	reviewDisposeCmd.Flags().Int("round", 0, "Round the note belongs to")
@@ -48,7 +48,8 @@ func init() {
 var reviewCmd = &cobra.Command{
 	Use:   "review",
 	Short: "Record a recipe's review page: rounds of notes, proposals, document versions",
-	Long: `A review page is an artifact the user reviews intent and scope on: they pin
+	Long: `A review page is an artifact the user reviews intent, scope and the spec
+(final.md, or a fix recipe's fix-spec.md) on: they pin
 notes on what they read, send them in rounds, accept or reject the proposals
 Claude makes, update the plan and confirm a fingerprinted version
 (/bts-review-page).  These commands keep the record in the recipe:
@@ -64,7 +65,7 @@ func intFlag(cmd *cobra.Command, name string) (int, error) {
 }
 
 var reviewPageCmd = &cobra.Command{
-	Use:          "page [recipe-id] --point intent|scope",
+	Use:          "page [recipe-id] --point intent|scope|spec",
 	Short:        "Print what the review page must show, with the kit, capabilities and document versions",
 	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
@@ -125,7 +126,7 @@ func printBrief(b *review.Brief) {
 }
 
 var reviewAttachCmd = &cobra.Command{
-	Use:          "attach [recipe-id] --url <link> --point intent|scope",
+	Use:          "attach [recipe-id] --url <link> --point intent|scope|spec",
 	Short:        "Record the published review page's link and the point it carries",
 	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,

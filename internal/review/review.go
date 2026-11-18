@@ -1,7 +1,7 @@
 // Package review records a recipe's review on an artifact page: the page
-// the user reviews intent and scope on, the rounds of notes they send from
-// it, the proposals Claude makes from those notes, and the versions of the
-// plan documents the accepted proposals produce.
+// the user reviews intent, scope and the spec on, the rounds of notes they
+// send from it, the proposals Claude makes from those notes, and the
+// versions of the plan documents the accepted proposals produce.
 //
 // bts cannot read the page's data: only the session's ArtifactData tool can.
 // The session exports the page's collections with ArtifactData's out_dir,
@@ -31,11 +31,22 @@ const KitVersion = "1"
 // Schema is the version of review.json and the round records.
 const Schema = 1
 
-// Points a page can carry, in the order a recipe reaches them.
-var Points = []string{"intent", "scope"}
+// Points a page can carry, in the order a recipe reaches them.  spec is the
+// document the implementation is built from (SpecDoc).
+var Points = []string{"intent", "scope", "spec"}
 
-// PlanDocs are the documents a review can change and confirm.
-var PlanDocs = []string{"intent.md", "scope.md"}
+// PlanDocs are the documents a review can change and confirm.  A recipe
+// holds at most one of the two spec documents.
+var PlanDocs = []string{"intent.md", "scope.md", "final.md", "fix-spec.md"}
+
+// SpecDoc is the document a recipe of this type implements, the one the
+// spec point reviews: fix-spec.md for a fix recipe, final.md otherwise.
+func SpecDoc(recipeType string) string {
+	if recipeType == "fix" {
+		return "fix-spec.md"
+	}
+	return "final.md"
+}
 
 // Note dispositions.
 const (
@@ -99,7 +110,7 @@ type Item struct {
 	Kind        string   `json:"kind"`
 	Decision    string   `json:"decision,omitempty"` // a Pick: the decision's key
 	Value       string   `json:"value,omitempty"`    // a Pick: the option; a confirm: the fingerprint
-	Doc         string   `json:"doc,omitempty"`      // a confirm: intent or scope
+	Doc         string   `json:"doc,omitempty"`      // a confirm: intent, scope, final or fix-spec
 	Disposition string   `json:"disposition,omitempty"`
 	Proposals   []string `json:"proposals,omitempty"`
 	Why         string   `json:"why,omitempty"`

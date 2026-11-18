@@ -353,7 +353,7 @@ When verify shows critical=0, major=0:
 3. Output `<bts>DONE</bts>`
 4. Tell the user (plaintext, after the marker):
    > **Debug spec complete** — `{id}` finalized.
-   > Next: run `/bts-implement {id}` to apply the fix.
+   > Next: run `/bts-implement {id}` to apply the fix. It starts with your review of final.md, which implementation waits for.
 
 Stop hook validates verify-log → phase=finalize.
 
@@ -363,6 +363,8 @@ After finalization, the debug recipe has produced a verified `final.md`.
 Use Skill("bts-implement") with arguments: {id}
 
 This reuses the entire implement infrastructure:
+- The user's review of final.md, drawn as the failing path today and
+  after the fix; the move into implement waits for its confirmation
 - Task decomposition from final.md
 - Build loop with verification
 - Test (existing + regression from Test Scenarios)

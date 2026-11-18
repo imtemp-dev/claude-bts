@@ -30,16 +30,16 @@ func TestReviewConfirm_RecordsTheFingerprintedVersion(t *testing.T) {
 	}
 	hash := b.Docs[0].Hash
 
-	if _, err := reviewConfirmAnswer(root, "r-rv1", "scope", "user", "000000000000", "yes"); err == nil {
+	if _, err := reviewConfirmAnswer(root, "r-rv1", "scope.md", "user", "000000000000", "yes"); err == nil {
 		t.Error("a fingerprint that is not the file's is refused")
 	}
-	if _, err := reviewConfirmAnswer(root, "r-rv1", "scope", "manager", hash, "yes"); err == nil {
+	if _, err := reviewConfirmAnswer(root, "r-rv1", "scope.md", "manager", hash, "yes"); err == nil {
 		t.Error("--via review is the user's own confirmation; --by manager does not combine")
 	}
-	if _, err := reviewConfirmAnswer(root, "r-rv1", "scope", "user", hash, " "); err == nil {
+	if _, err := reviewConfirmAnswer(root, "r-rv1", "scope.md", "user", hash, " "); err == nil {
 		t.Error("the user's words are still required")
 	}
-	answer, err := reviewConfirmAnswer(root, "r-rv1", "scope", "user", hash, "reads right")
+	answer, err := reviewConfirmAnswer(root, "r-rv1", "scope.md", "user", hash, "reads right")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -22,7 +22,7 @@ Read the whole context document before anything else.  It is your intent: the fe
 
 ## Confirmations
 
-The recipe asks for two confirmations that normally come from the user.
+The recipe asks for three confirmations that normally come from the user.
 
 - **Intent.**  The feature's confirmation covers it:
 
@@ -34,6 +34,14 @@ The recipe asks for two confirmations that normally come from the user.
 
   ```bash
   bts recipe confirm <recipe> scope --by manager --answer "<the manager's words>"
+  ```
+
+  When the user answers instead, record theirs with `--answer` alone.
+
+- **Spec.**  Before implementation starts (`/bts-implement` or the fix recipe's Step 7), post the spec (`final.md`, or `fix-spec.md` for a fix item) in one comment: the parts and their files, each invariant with its owner and test, and the Known Uncertainties, a line each.  Mention the manager, set the issue to `blocked`, and stop.  When the manager answers "Spec confirmed within confirmation N: …", record its words:
+
+  ```bash
+  bts recipe confirm <recipe> spec --by manager --answer "<the manager's words>"
   ```
 
   When the user answers instead, record theirs with `--answer` alone.

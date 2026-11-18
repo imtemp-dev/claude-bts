@@ -195,7 +195,8 @@ statusline: false
 
 # Review
 review:
-  surface: artifact              # Where the user reviews intent and scope. "artifact": a review page
+  surface: artifact              # Where the user reviews intent, scope and the spec (final.md, or a
+                                 # fix recipe's fix-spec.md). "artifact": a review page
                                  # Claude publishes with the review kit, where the user pins notes
                                  # (typed or spoken) and confirms a fingerprinted version
                                  # (/bts-review-page). "ask": AskUserQuestion, as before. `bts review

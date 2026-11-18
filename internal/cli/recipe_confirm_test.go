@@ -56,6 +56,6 @@ func TestRecipeConfirm_RecordsTheWordsAndSetsTheStatus(t *testing.T) {
 		t.Error("a confirmation without the user's words is refused")
 	}
 	if _, err := executeRecipeConfirm(root, "r-c088", "wireframe", "yes"); err == nil {
-		t.Error("only intent and scope are confirmed this way")
+		t.Error("only intent, scope and the spec are confirmed this way")
 	}
 }

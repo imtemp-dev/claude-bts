@@ -6,11 +6,11 @@ description: >
   (typed or spoken) and send them in rounds, answer each round from this
   session, turn change requests into proposals the user accepts or
   rejects, apply them as a new document version, and record the
-  confirmation of a fingerprinted version.  Used by intent and scope
-  confirmation when review.surface is artifact.
+  confirmation of a fingerprinted version.  Used by intent, scope and
+  spec confirmation when review.surface is artifact.
 user-invocable: true
 allowed-tools: Read Write Edit Grep Glob Bash Artifact ArtifactData ArtifactComments AskUserQuestion
-argument-hint: "<recipe-id> <intent|scope>"
+argument-hint: "<recipe-id> <intent|scope|spec>"
 effort: high
 ---
 
@@ -24,9 +24,11 @@ context, never from the comment thread.  bts keeps the record
 proposal, which proposal to which version, which version the user
 confirmed.
 
-Use it when the calling skill reaches intent or scope confirmation and
-`review.surface` in `.bts/config/settings.yaml` is `artifact` (the
-default).  Use AskUserQuestion as the calling skill says when the
+Use it when the calling skill reaches intent, scope or spec confirmation
+and `review.surface` in `.bts/config/settings.yaml` is `artifact` (the
+default).  The spec is the document the code is built from: final.md, or
+fix-spec.md in a fix recipe; `/bts-implement` and `/bts-recipe-fix`
+review it before the first product code.  Use AskUserQuestion as the calling skill says when the
 Artifact tool is not available here (a headless run, Multica), when
 `bts review page` refuses, or when the user says they would rather answer
 in the terminal.  Words the user types in the terminal always count, page
@@ -34,25 +36,35 @@ or not.
 
 ## Build or extend the page
 
-1. `bts review page {id} --point <intent|scope>` prints what the page must
+1. `bts review page {id} --point <intent|scope|spec>` prints what the page must
    show, the document versions and fingerprints, the kit files, the
    capabilities to declare and the config block.  Run it again whenever a
    document changes; its versions are the ones the page shows.
 2. Write the page to `.bts/local/recipes/{id}/review/page.html`.  At the
-   scope point, extend the intent page: earlier sections stay.
+   scope and spec points, extend the page: earlier sections stay.  A fix
+   or debug recipe has no intent or scope, so its page starts at the spec.
    - **Draw this change.**  The page exists to show the mechanism the
      documents describe: where the item fits, today and after side by side
      (a mock of the output when there is one, marked as an illustration),
      one scenario step by step, the shape with this item solid and later
      work dashed, lanes for neighbouring items, decisions as option cards
      drawn side by side.  Follow the brief's section list.
+   - **Draw the spec as the code it will become.**  The parts are boxes
+     with their files, each invariant a marker on the box that owns it
+     with its test beside it, each edge labelled with what crosses it,
+     and the Known Uncertainties as cards saying what is open and what
+     will settle it.  For a fix or debug recipe, the failing path today
+     and after the fix side by side, the cause marked where it lives.
+     The user confirmed a direction at intent and scope; here they see
+     the parts, owners and contracts the code follows, so draw those
+     rather than restating the direction.
    - **Boxes say what they hold and who fills it**, never a code concept
      ("what was read and left out; PR 4 fills it", not "typed,
      harness-facing").  In the pilot two of six rounds asked what a box
      meant.
    - **Mark everything reviewable** with `data-note="<Section> › <part>"`:
-     every card, lane item, diagram node (an SVG `<g>`), assumption and
-     defect.  Keep a label stable across versions: pins and proposals find
+     every card, lane item, diagram node (an SVG `<g>`), assumption,
+     defect, invariant marker, contract and uncertainty.  Keep a label stable across versions: pins and proposals find
      their element by it.  A lane container gets a label too, so a move
      proposal can draw into it.
    - **Decisions:** `<div data-bts-decision="<key>">` around option cards
@@ -65,13 +77,13 @@ or not.
      `<div data-bts-proposals-slot></div>` and
      `<div data-bts-confirm-slot></div>` place them; otherwise they follow
      the main content.
-   - Page text is English (persisted text); facts come from intent.md and
-     scope.md as they stand.  No client or patient data.
+   - Page text is English (persisted text); facts come from the recipe's
+     documents as they stand.  No client or patient data.
 3. Publish it with the Artifact tool: the page file, `files` mapping
    `bts-review-kit.js` and `bts-review-kit.css` to the paths the brief
    printed, the capabilities exactly as printed, and `icon: "notes"` on the
    first publish.  Republish the same file path to keep the URL.
-4. `bts review attach {id} --url <link> --point <intent|scope>`.
+4. `bts review attach {id} --url <link> --point <intent|scope|spec>`.
 5. Tell the user in the terminal, in their language: the link; press N and
    click to pin a note, speak or type, Send when done; Pick on a decision;
    Confirm when it reads right; or answer here.  The first send asks them
@@ -95,7 +107,7 @@ never post another there.
 3. **Review round**, per note:
    - A question: answer it.  `bts review dispose {id} --round N --note <id> --as answered --why "<one line>"`.
    - The page's own wording or drawing is unclear: fix the page, `--as page`.
-   - A change to the plan (intent.md, scope.md), including a Pick: do not
+   - A change to the plan (intent.md, scope.md, the spec), including a Pick: do not
      edit the document.  `bts review propose {id} --round N --note <id>
      --target <doc> --kind <edit|add|remove|move> --summary "…" --before "…"
      --after "…" --why "…"` (a move adds `--to-lane "<lane's data-note>"
@@ -122,11 +134,23 @@ An apply round (the user pressed Update plan) carries the accepted and
 rejected proposal ids.
 
 1. Mark it picked and import it as in Round steps 1 and 2.
-2. Edit intent.md or scope.md for the accepted proposals and nothing else.
+2. Edit the plan documents for the accepted proposals and nothing else.
+   On the spec, a proposal that moves an invariant, a signature, a file
+   or a test also changes it where it lives (the skeleton, the test,
+   domain.md, the wireframe) and reruns what it touched (`bts check build
+   {id} --cmd ...`, `bts falsifier check {id} --red`).
 3. `bts review apply {id} --round M`.  It refuses a target document that
    did not change, records the new version and fingerprint, marks the
    proposals applied or rejected, and prints the proposal documents to
    upload (ArtifactData `update`, collection `proposals`).
+   - On the spec, review the change before the new version goes to the
+     page: `/bts-verify` on the spec at delta scope, recorded with
+     `bts recipe log {id} --doc <spec> --dimension verify --scope delta
+     --from-verification ...`.  An express build reruns `bts verify
+     .bts/specs/recipes/{id}/final.md` instead.  Fix a critical or major
+     it finds the same way (an edit `bts review page` shows as a new
+     version) and review again; the user confirms the version that came
+     out clean.
 4. `bts review page {id} --point <point>`, then update the page to the new
    version: the drawing and lanes as the document now reads, the config
    block's versions, and a short "changed in vN" line naming the proposal.
@@ -138,15 +162,17 @@ rejected proposal ids.
 
 ## Confirm
 
-A confirm round carries one note of kind `confirm`: its `doc` (intent or
-scope), its `value` (the fingerprint on the row the user pressed) and the
-user's words.
+A confirm round carries one note of kind `confirm`: its `doc` (intent,
+scope, final or fix-spec), its `value` (the fingerprint on the row the
+user pressed) and the user's words.
 
 1. Mark it picked and import it.
 2. `bts recipe confirm {id} <doc> --via review --hash <value> --answer
    "<the user's words, in the project's record language>"`.  bts refuses
    when the fingerprint is not the file's current one or the page still
-   has open notes or proposals on that document; it prints why.
+   has open notes or proposals on that document; it prints why.  For the
+   spec it records the decision `spec-confirm`, which the move into
+   implement waits for, and leaves the file as it is.
 3. Write the outcome on the note: `status: applied` with a reply saying it
    is recorded, or `status: declined` with bts's reason in the user's
    words.  Mark the round processed and resolve the thread.

@@ -15,7 +15,7 @@ You already do the right things — reminding AI of the architecture, asking for
 
 bts makes those habits the default:
 
-- **Direction you confirmed** — intent and scope are confirmed by you before any design work; a build or blueprint recipe cannot leave discovery without that confirmation.
+- **Direction you confirmed** — intent and scope are confirmed by you before any design work; a build or blueprint recipe cannot leave discovery without that confirmation. The spec the code is built from (`final.md`, or a fix's `fix-spec.md`) is confirmed by you too, before any implementation.
 - **Truth from runs** — the design lands as a skeleton that compiles and a test for each new invariant that fails first; implementation is done when those tests pass, and every finding an adversary reports must be reproduced by a run.
 - **Isolated review** — verification and code review run in separate agent contexts that do not share the blind spots of the session that did the work.
 - **State that survives** — findings, decisions and phase history persist across sessions and compactions.
@@ -74,7 +74,7 @@ flowchart LR
     INT["Intent"] --> SC["Scope"] --> RS["Research"] --> DM["Domain model"] --> AR["Architect ↗"] --> WF["Wireframe"]
 ```
 
-You confirm the intent and the scope. By default you review them on a **review page**: Claude publishes the change as a claude.ai artifact, you pin notes on it (typed or spoken) and send them in rounds, Claude answers and proposes edits, and you confirm a fingerprinted version. Set `review.surface: ask` to answer in the chat instead; a run without the Artifact tool (headless, or a Multica worker) asks in the chat too.
+You confirm the intent, the scope and, before implementation, the spec. By default you review them on a **review page**: Claude publishes the change as a claude.ai artifact, drawn rather than retold (the spec as its parts and files, each invariant on the part that owns it with its test; a fix as the failing path today and after), you pin notes on it (typed or spoken) and send them in rounds, Claude answers and proposes edits, and you confirm a fingerprinted version. Implementation does not start until the spec is confirmed. Set `review.surface: ask` to answer in the chat instead; a run without the Artifact tool (headless, or a Multica worker) asks in the chat too.
 
 The domain model names each invariant and the one place that enforces it. The architect step has two independent runners propose decompositions, debates them, and has an adjudicator pick one. The wireframe lays out the structure and the files the change touches. **↗ = separate agent context.**
 
@@ -100,7 +100,7 @@ Implementation fills the skeleton until the falsifiers pass. Then the change is 
 
 ### Express mode
 
-For a small change, express keeps what makes a build trustworthy — confirmed intent and scope, invariants with one owner each, a skeleton that compiles, a falsifier per invariant, the prove stage, one code review, sync — and drops the architect's runners and debate, the review round on `final.md` and the second adversary. Research covers only the questions that decide an invariant's owner, other open questions and their probes wait for implementation, and `final.md` keeps only what ships, the invariants, scope coverage and the open questions. A recipe becomes express only before its architect step, and moves to the full recipe (one way) when it outgrows express.
+For a small change, express keeps what makes a build trustworthy — confirmed intent, scope and spec, invariants with one owner each, a skeleton that compiles, a falsifier per invariant, the prove stage, one code review, sync — and drops the architect's runners and debate, the review round on `final.md` and the second adversary. Research covers only the questions that decide an invariant's owner, other open questions and their probes wait for implementation, and `final.md` keeps only what ships, the invariants, scope coverage and the open questions. A recipe becomes express only before its architect step, and moves to the full recipe (one way) when it outgrows express.
 
 ### Blueprint: when the design must be argued first
 
@@ -127,7 +127,7 @@ A change too large for one recipe becomes a **feature**: a plan of items you con
 
 | Setting | Default | What it does |
 |---------|---------|--------------|
-| `review.surface` | `artifact` | Where you review intent and scope: a review page, or `ask` for the chat |
+| `review.surface` | `artifact` | Where you review intent, scope and the spec: a review page, or `ask` for the chat |
 | `implement.require_edit_go` | `false` | Hold the first product-code edit until you say go |
 | `implement.setup_cmd` | — | Command that makes a fresh copy of the project runnable, run in every copy bts makes (adversaries, reruns, mutations) |
 | `statusline` | `false` | Register bts's status line (recipe, phase, context bar); it overrides your own |

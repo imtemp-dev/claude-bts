@@ -51,6 +51,29 @@ Use settings values if present, otherwise use defaults noted in each step.
      "Spec not verified. Finish the recipe's review before implementing."
    - This prevents implementing from unverified or manually-created specs.
 
+2a. **Spec confirmation.**  The move into implement (Step 1, item 6) is refused
+   until the user has confirmed final.md: a resolved `spec-confirm`
+   decision (`bts recipe decision list {id}`).  When the phase is
+   `finalize` and there is none, put final.md in front of the user now,
+   before any task is decomposed from it:
+   - When `review.surface` in `.bts/config/settings.yaml` is `artifact`
+     (the default) and the Artifact tool is available, review it on the
+     recipe's review page: `/bts-review-page {id} spec` adds the spec to
+     the page (an express build's page is one drawing) and runs the
+     rounds; its Confirm step records the confirmation.  Answer each
+     round, and when an accepted proposal changes final.md, review the
+     change as that skill says before the new version goes to the page.
+   - Otherwise ask with AskUserQuestion: the parts and their files, each
+     invariant with its owner and test, and the Known Uncertainties, in
+     a few lines each, with "Confirm final.md as written" and "Change
+     something" as options.  On a confirmation, `bts recipe confirm {id}
+     spec --answer "<their words>"`; on a change, edit final.md, review
+     the change as `/bts-review-page` § Update plan says for the spec,
+     and ask again.
+   - With no user to ask (a headless run), `bts recipe decision hold
+     {id} --key spec-confirm --question "Confirm final.md as written?"`
+     and stop; never write the user's words yourself.
+
 3. Check recipe phase:
    ```bash
    bts recipe status
@@ -201,6 +224,7 @@ If tasks.json exists in the recipe directory:
    ```bash
    bts recipe log {id} --phase implement --action implement --output tasks.json --based-on final.md --result "N tasks decomposed"
    ```
+   It is refused while final.md is not confirmed (Prerequisites 2a).
    This is where a recipe other than build starts writing product code
    (a build recipe passed that point at its skeleton). When
    `.bts/config/settings.yaml` sets `implement.require_edit_go: true`,

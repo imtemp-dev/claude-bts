@@ -13,6 +13,7 @@ import (
 	"github.com/imtemp-dev/claude-bts/internal/engine"
 	"github.com/imtemp-dev/claude-bts/internal/metrics"
 	"github.com/imtemp-dev/claude-bts/internal/multica"
+	"github.com/imtemp-dev/claude-bts/internal/review"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 	"github.com/spf13/cobra"
 )
@@ -1182,6 +1183,54 @@ func checkIntentConfirmed(root string, recipe *state.RecipeState, newPhase strin
 		"never write the user's words yourself", recipe.ID, recipe.ID, recipe.ID)
 }
 
+// specConfirmKey is the decision that records the user's confirmation of
+// the spec, the document the implementation is built from.
+const specConfirmKey = "spec-confirm"
+
+// checkSpecConfirmed refuses the move into the implement phases until the
+// user has confirmed the spec (review.SpecDoc): a resolved spec-confirm
+// decision, recorded by `bts recipe confirm <id> spec`.  The user
+// confirmed intent and scope, and then nothing put the document the code
+// is built from in front of them: what they confirmed was a direction, and
+// the spec settles the parts, owners, contracts and deferred questions the
+// code follows.  --force does not pass it, for the reason the intent gate
+// gives.  A recipe already in an implement phase is not held again.
+func checkSpecConfirmed(root string, recipe *state.RecipeState, newPhase string) error {
+	if !state.IsImplementPhase(newPhase) || state.IsImplementPhase(recipe.Phase) {
+		return nil
+	}
+	switch recipe.Type {
+	case "blueprint", "build", "debug", "fix":
+	default:
+		return nil
+	}
+	decisions, err := state.LoadDecisions(root, recipe.ID)
+	if err != nil {
+		return fmt.Errorf("read %s's decisions to check its spec confirmation: %w", recipe.ID, err)
+	}
+	held := false
+	for _, d := range decisions {
+		if d.Key != specConfirmKey && !strings.HasPrefix(d.Key, specConfirmKey+"-") {
+			continue
+		}
+		if d.Status == state.DecisionResolved {
+			return nil
+		}
+		held = held || d.Status == state.DecisionOpen
+	}
+	doc := review.SpecDoc(recipe.Type)
+	record := fmt.Sprintf("`bts recipe confirm %s spec --answer \"<their words>\"` (`--via review --hash <fingerprint>` from the review page, `--by manager` for a feature item)", recipe.ID)
+	if held {
+		return fmt.Errorf("%s of %s is not confirmed: the decision %s is open, so the recipe cannot enter %s.  When the user answers, record their words with %s; "+
+			"never write them yourself.  --force does not pass this gate", doc, recipe.ID, specConfirmKey, newPhase, record)
+	}
+	return fmt.Errorf("%s of %s is not confirmed, so the recipe cannot enter %s.  Put it in front of the user: "+
+		"on the review page (`/bts-review-page %s spec`) when review.surface is artifact, otherwise ask; then record their words with %s.  "+
+		"With no user to ask, hold the question (`bts recipe decision hold %s --key %s --question \"Confirm %s as written?\"`) and stop; "+
+		"never write the user's words yourself.  --force does not pass this gate",
+		doc, recipe.ID, newPhase, recipe.ID, record, recipe.ID, specConfirmKey, doc)
+}
+
 func checkPhasePreConditions(root string, recipe *state.RecipeState, newPhase string, force bool) error {
 	recipeDir := state.RecipeDir(root, recipe.ID)
 	exists := func(name string) bool {
@@ -1197,6 +1246,9 @@ func checkPhasePreConditions(root string, recipe *state.RecipeState, newPhase st
 	}
 
 	if err := checkIntentConfirmed(root, recipe, newPhase); err != nil {
+		return err
+	}
+	if err := checkSpecConfirmed(root, recipe, newPhase); err != nil {
 		return err
 	}
 

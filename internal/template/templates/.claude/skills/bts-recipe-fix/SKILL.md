@@ -33,8 +33,9 @@ bts recipe status
 If active fix recipe found, read diagnosis.md and fix-spec.md to resume.
 
 **Autonomous execution**: This recipe runs without stopping between steps.
-Do NOT pause to summarize or ask the user. Only stop for [CONVERGENCE FAILED]
-or when experts disagree on root cause (user decision needed).
+Do NOT pause to summarize or ask the user. Only stop for [CONVERGENCE FAILED],
+when experts disagree on root cause (user decision needed), or for the
+user's confirmation of fix-spec.md (Step 6.5).
 
 If no active recipe, create one, naming the most relevant recipe with
 `--ref` (never by editing recipe.json):
@@ -278,7 +279,7 @@ Run /verify on fix-spec.md:
 - Could the fix introduce new issues?
 
 If issues found → update fix-spec.md → re-verify. Do NOT stop to report — fix and continue.
-When critical=0, major=0 → continue immediately to Step 7.
+When critical=0, major=0 → continue immediately to Step 6.5.
 `verify.max_iterations` (default: 3) consecutive rounds without progress →
 `bts recipe log` exits non-zero with `[CONVERGENCE FAILED]` and names the
 stagnant finding IDs → stop and ask the user. Enforced in code, not by
@@ -295,6 +296,27 @@ changelog and phase-change modes, where the counts are accepted and
 dropped — which is what this step used to do, so the convergence budget
 promised just above never ran for a fix recipe. `bts recipe log` now
 refuses the combination rather than exiting 0 on a round it discarded.
+
+## Step 6.5: Confirm the fix spec
+
+The `--phase implement` log in Step 7 is refused until the user has
+confirmed fix-spec.md (a resolved `spec-confirm` decision).  Put it in
+front of them now:
+
+- When `review.surface` in `.bts/config/settings.yaml` is `artifact` (the
+  default) and the Artifact tool is available: `/bts-review-page {id}
+  spec` draws the failing path today and after the fix, the changes and
+  the regression test, and runs the rounds; its Confirm step records the
+  confirmation.  A change the user accepts edits fix-spec.md and is
+  verified again, as that skill says, before the new version goes to the
+  page.
+- Otherwise ask with AskUserQuestion: the root cause, each change and the
+  regression test in a line each, with "Confirm fix-spec.md as written"
+  and "Change something" as options.  On a confirmation, `bts recipe
+  confirm {id} spec --answer "<their words>"`; on a change, edit
+  fix-spec.md, verify it again (Step 6) and ask again.
+- With no user to ask, `bts recipe decision hold {id} --key spec-confirm
+  --question "Confirm fix-spec.md as written?"` and stop.
 
 ## Step 7: Implement
 

@@ -27,6 +27,18 @@ func editGoFixture(t *testing.T, id, typ, phase, settings string) string {
 	return root
 }
 
+// specConfirmed records the user's confirmation of the recipe's spec, which
+// every move into implement needs first (checkSpecConfirmed).
+func specConfirmed(t *testing.T, root, id string) {
+	t.Helper()
+	if _, err := state.HoldDecision(root, id, &state.DecisionEvent{Key: "spec-confirm", Question: "Confirm final.md as written?"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.ResolveDecision(root, id, "spec-confirm", "reads right"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func phaseOf(t *testing.T, root, id string) string {
 	t.Helper()
 	r, err := state.LoadRecipeState(root, id)
@@ -84,6 +96,7 @@ func TestRecipeLogPhase_RequireEditGo_HoldsTheBuildSkeleton(t *testing.T) {
 func TestRecipeLogPhase_RequireEditGo_HoldsTheFirstImplementPhase(t *testing.T) {
 	id := "r-067-blueprint"
 	root := editGoFixture(t, id, "blueprint", "finalize", editGoOn)
+	specConfirmed(t, root, id)
 	if out := runRecipeLog(t, root, id, "--phase", "implement"); !strings.Contains(out, "code-edit-go") {
 		t.Fatalf("a blueprint's implement must be held, got:\n%s", out)
 	}
@@ -93,6 +106,7 @@ func TestRecipeLogPhase_RequireEditGo_HoldsTheFirstImplementPhase(t *testing.T) 
 
 	build := "r-067-build-impl"
 	broot := editGoFixture(t, build, "build", "finalize", editGoOn)
+	specConfirmed(t, broot, build)
 	_ = runRecipeLog(t, broot, build, "--phase", "implement")
 	if got := phaseOf(t, broot, build); got != "implement" {
 		t.Fatalf("a build recipe's implement is not its first code write, phase %q", got)
@@ -108,6 +122,7 @@ func TestRecipeLogPhase_RequireEditGo_OffByDefault(t *testing.T) {
 		t.Fatalf("with the setting absent the skeleton must start, phase %q", got)
 	}
 	explicitOff := editGoFixture(t, "r-067-off2", "blueprint", "finalize", "implement:\n  require_edit_go: false\n")
+	specConfirmed(t, explicitOff, "r-067-off2")
 	_ = runRecipeLog(t, explicitOff, "r-067-off2", "--phase", "implement")
 	if got := phaseOf(t, explicitOff, "r-067-off2"); got != "implement" {
 		t.Fatalf("with the setting false implement must start, phase %q", got)

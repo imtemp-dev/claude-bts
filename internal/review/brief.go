@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/imtemp-dev/claude-bts/internal/state"
 )
 
 // KitFiles are the kit's files, relative to the project root, published
@@ -16,7 +18,9 @@ var KitFiles = []string{
 }
 
 // sections lists what a page must show at each review point.  The intent
-// sections stay when the scope sections are added.
+// sections stay when the scope sections are added, and both stay when the
+// spec sections are.  The spec has three shapes; PageBrief adds its
+// confirm row, which names the recipe's spec document.
 var sections = map[string][]string{
 	"intent": {
 		"Where it fits: the item's place in the roadmap or the feature",
@@ -32,6 +36,38 @@ var sections = map[string][]string{
 		"Assumptions and hard parts",
 		"A confirm row for scope.md",
 	},
+	// A blueprint or full build recipe's final.md.
+	"spec": {
+		"The parts the wireframe settled, drawn as one diagram with their files: each box says what it holds and who fills it",
+		"Each invariant pinned to its owner on that diagram, with the test that proves it (a build recipe's falsifier: red now, a [carried] one green)",
+		"Boundary contracts: what crosses each edge, in which shape, and what happens when it is missing or wrong",
+		"Known Uncertainties: each one resolved and how, or deferred and what will show it",
+		"The order of the work, each step with what it leaves runnable",
+	},
+	// An express build's trimmed final.md: one drawing carries it.
+	"spec-express": {
+		"The parts and files this change touches, drawn as one diagram, each invariant pinned to its owner with its test (red now, a [carried] one green)",
+		"Known Uncertainties: each one resolved and how, or deferred and what will show it",
+	},
+	// A debug recipe's final.md or a fix recipe's fix-spec.md.
+	"spec-fix": {
+		"The failing path today, step by step, with the root cause marked where it lives",
+		"The same path after the fix, drawn beside it",
+		"Each change: the file, what it changes, and why that closes the cause",
+		"The regression test: what it drives and why it fails today",
+		"Risks and Known Uncertainties: what the fix could break and what is not yet known",
+	},
+}
+
+// specShape picks the spec sections for a recipe.
+func specShape(r *state.RecipeState) string {
+	switch {
+	case r.Type == "debug" || r.Type == "fix":
+		return "spec-fix"
+	case r.IsExpress():
+		return "spec-express"
+	}
+	return "spec"
 }
 
 // DocBrief is one plan document as the page must show it.
@@ -75,8 +111,8 @@ func Capabilities() map[string]interface{} {
 // documents for that point do not exist yet.
 func PageBrief(root, recipeID, point string) (*Brief, error) {
 	point = strings.ToLower(strings.TrimSpace(point))
-	if _, ok := sections[point]; !ok {
-		return nil, fmt.Errorf("--point takes %s, got %q", strings.Join(Points, " or "), point)
+	if !contains(Points, point) {
+		return nil, fmt.Errorf("--point takes %s, got %q", strings.Join(Points, ", "), point)
 	}
 	s, err := Load(root, recipeID)
 	if errors.Is(err, ErrNoPage) {
@@ -84,9 +120,13 @@ func PageBrief(root, recipeID, point string) (*Brief, error) {
 	} else if err != nil {
 		return nil, err
 	}
-	need := "intent.md"
-	if point == "scope" {
-		need = "scope.md"
+	need := point + ".md"
+	var recipe *state.RecipeState
+	if point == "spec" {
+		if recipe, err = state.LoadRecipeState(root, recipeID); err != nil {
+			return nil, err
+		}
+		need = SpecDoc(recipe.Type)
 	}
 	if h, err := FileFingerprint(root, recipeID, need); err != nil {
 		return nil, err
@@ -102,9 +142,21 @@ func PageBrief(root, recipeID, point string) (*Brief, error) {
 	}
 	b := &Brief{Recipe: recipeID, Point: point, URL: s.URL, KitVersion: KitVersion,
 		Capabilities: Capabilities(), Revisions: revs, Kit: map[string]string{}}
-	b.Sections = append(b.Sections, sections["intent"]...)
-	if point == "scope" {
+	switch point {
+	case "intent":
+		b.Sections = append(b.Sections, sections["intent"]...)
+	case "scope":
+		b.Sections = append(b.Sections, sections["intent"]...)
 		b.Sections = append(b.Sections, sections["scope"]...)
+	case "spec":
+		// A fix or debug recipe has no intent or scope to keep.
+		for _, p := range []string{"intent", "scope"} {
+			if s.Docs[p+".md"] != nil {
+				b.Sections = append(b.Sections, sections[p]...)
+			}
+		}
+		b.Sections = append(b.Sections, sections[specShape(recipe)]...)
+		b.Sections = append(b.Sections, "A confirm row for "+need)
 	}
 	docsCfg := map[string]interface{}{}
 	for _, doc := range PlanDocs {
@@ -124,6 +176,11 @@ func PageBrief(root, recipeID, point string) (*Brief, error) {
 		b.Kit[filepath.Base(rel)] = abs
 	}
 	b.Config = map[string]interface{}{"recipe": recipeID, "kit": KitVersion, "docs": docsCfg}
+	if point == "spec" {
+		// Intent and scope were confirmed at their own points; a second
+		// row for them here would ask for a sign-off nobody needs.
+		b.Config["confirm"] = []string{strings.TrimSuffix(need, ".md")}
+	}
 	return b, nil
 }
 

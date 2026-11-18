@@ -27,7 +27,7 @@ See `bts-recipe-protocol.md § Mandatory Rules` for the taxonomy
 
 | Skill | Requires |
 |-------|----------|
-| `/implement` | final.md exists, phase is "finalize" or "implement" |
+| `/implement` | final.md exists, phase is "finalize" or "implement"; entering implement needs the user's confirmation of final.md (`spec-confirm`, `bts recipe confirm {id} spec`) |
 | `/test` | tasks.json exists, all tasks done or skipped |
 | `/sync` | test-results.json exists, status=pass |
 | `/status` | No prerequisites (reads whatever exists) |

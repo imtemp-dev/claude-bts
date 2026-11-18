@@ -157,7 +157,10 @@ decision hold`).
     `skeleton_builds`, `falsifiers_red` (introduced invariants red,
     carried ones green), `scope_coverage` and `build_review_clean`, and
     moves the recipe to `finalize`.
-14. **Implement.** `/bts-implement {id}`. The skeleton is the starting
+14. **Implement.** `/bts-implement {id}`. It starts with the user's
+    review of `final.md` (on the review page with `review.surface:
+    artifact`), and the move into implement waits for that confirmation.
+    The skeleton is the starting
     point: a `create` task fills the file the skeleton wrote and keeps its
     public signatures; changing one is a deviation, recorded by sync.
     Before `<bts>IMPLEMENT DONE</bts>`, run `bts falsifier check {id}`; the
@@ -166,8 +169,8 @@ decision hold`).
 
 ## Express mode
 
-Express keeps what makes a build trustworthy (intent and scope the user
-confirmed, invariants with one owner each, a skeleton that compiles, a
+Express keeps what makes a build trustworthy (intent, scope and the spec
+the user confirmed, invariants with one owner each, a skeleton that compiles, a
 test per invariant that failed first and can still fail, the prove stage,
 one code review, sync) and drops the fixed process a small change does not
 need.  On seven recipes, the architect's runners and debate, the review
@@ -216,7 +219,8 @@ before its architect step.
 - **Step 13, finalize:** the DONE gates are `skeleton_builds`,
   `falsifiers_red`, `scope_coverage` and `build_verify_clean`, which runs
   the same `bts verify` on `final.md` as it is then.
-- **Step 14, implement:** as written.  `bts interrogate prepare` seats one
+- **Step 14, implement:** as written, the user's review of `final.md`
+  included; its page is one drawing.  `bts interrogate prepare` seats one
   adversary, aimed at the scope items, and the code review reads
   `final.md` against the code, since no review round read it before.
 

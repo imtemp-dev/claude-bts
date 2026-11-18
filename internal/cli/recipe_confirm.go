@@ -21,11 +21,40 @@ import (
 // scope.md read CONFIRMED with nothing showing who confirmed it (trial
 // problem #88).  Now the status changes only with the user's words beside
 // it.
+//
+// It also records the user's confirmation of the spec, the document the
+// implementation is built from (final.md, or fix-spec.md in a fix recipe),
+// as a resolved spec-confirm decision.  The spec's status line is left
+// alone: verify-log pins the spec's exact content, so writing a line into
+// it would read as an edit made after the review.
+
+// confirmTarget names what `confirm` was asked for and the file it covers.
+// final and fix-spec are the spec under the name the review page's confirm
+// row carries; each is refused in a recipe whose spec is the other one.
+func confirmTarget(root, recipeID, arg string) (which, doc string, err error) {
+	which = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(arg)), ".md")
+	switch which {
+	case "intent", "scope":
+		return which, which + ".md", nil
+	case "spec", "final", "fix-spec":
+	default:
+		return "", "", fmt.Errorf("confirm takes intent, scope or spec, got %q", arg)
+	}
+	r, err := state.LoadRecipeState(root, recipeID)
+	if err != nil {
+		return "", "", err
+	}
+	doc = review.SpecDoc(r.Type)
+	if which != "spec" && which+".md" != doc {
+		return "", "", fmt.Errorf("the spec of %s recipe %s is %s, not %s.md", r.Type, recipeID, doc, which)
+	}
+	return "spec", doc, nil
+}
 
 func init() {
 	recipeCmd.AddCommand(recipeConfirmCmd)
 	recipeConfirmCmd.Flags().String("answer", "", "The user's confirmation, in their words and in the project's record language")
-	recipeConfirmCmd.Flags().String("by", "user", "Who confirms: user (the default; --answer is their words); feature (intent of a feature item: the feature's confirmation is the user's, recorded with its number and words); manager (a feature item: the feature manager's words, within the feature's confirmation)")
+	recipeConfirmCmd.Flags().String("by", "user", "Who confirms: user (the default; --answer is their words); feature (intent of a feature item: the feature's confirmation is the user's, recorded with its number and words); manager (a feature item's scope or spec: the feature manager's words, within the feature's confirmation)")
 	recipeConfirmCmd.Flags().String("via", "", "review: the user confirmed on the review page; needs --hash, the fingerprint they confirmed")
 	recipeConfirmCmd.Flags().String("hash", "", "With --via review: the document fingerprint on the confirm row the user pressed")
 }
@@ -33,14 +62,13 @@ func init() {
 // reviewConfirmAnswer checks a confirmation made on the review page and
 // returns the answer to record: the fingerprint must be the document's
 // current one and the page may hold no open work on it.
-func reviewConfirmAnswer(root, recipeID, which, by, hash, answer string) (string, error) {
+func reviewConfirmAnswer(root, recipeID, doc, by, hash, answer string) (string, error) {
 	if by != "" && by != "user" {
 		return "", errors.New("--via review is the user's confirmation; it does not combine with --by " + by)
 	}
 	if strings.TrimSpace(answer) == "" {
 		return "", errors.New("--answer is required: the user's words on the confirm row")
 	}
-	doc := which + ".md"
 	if err := review.ConfirmCheck(root, recipeID, doc, hash); err != nil {
 		return "", err
 	}
@@ -101,7 +129,7 @@ func confirmAnswer(root, recipeID, which, by, answer string) (string, error) {
 	c := f.Confirmations[len(f.Confirmations)-1]
 	if by == "feature" {
 		if which != "intent" {
-			return "", errors.New("--by feature confirms intent only: the feature's confirmation covers the item, not the scope its recipe works out")
+			return "", errors.New("--by feature confirms intent only: the feature's confirmation covers the item, not the scope or spec its recipe works out")
 		}
 		if answer != "" {
 			return "", errors.New("--by feature records the feature's confirmation; drop --answer")
@@ -115,8 +143,8 @@ func confirmAnswer(root, recipeID, which, by, answer string) (string, error) {
 }
 
 var recipeConfirmCmd = &cobra.Command{
-	Use:          "confirm <recipe-id> <intent|scope>",
-	Short:        "Record the user's confirmation of intent.md or scope.md and set its Status line to CONFIRMED",
+	Use:          "confirm <recipe-id> <intent|scope|spec>",
+	Short:        "Record the user's confirmation of intent.md, scope.md (and set its Status line to CONFIRMED) or the spec (final.md, or a fix recipe's fix-spec.md)",
 	Args:         cobra.ExactArgs(2),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -128,7 +156,10 @@ var recipeConfirmCmd = &cobra.Command{
 		by, _ := cmd.Flags().GetString("by")
 		via, _ := cmd.Flags().GetString("via")
 		hash, _ := cmd.Flags().GetString("hash")
-		which := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(args[1])), ".md")
+		which, doc, err := confirmTarget(root, args[0], args[1])
+		if err != nil {
+			return err
+		}
 		switch via {
 		case "":
 			if hash != "" {
@@ -136,17 +167,14 @@ var recipeConfirmCmd = &cobra.Command{
 			}
 			answer, err = confirmAnswer(root, args[0], which, by, answer)
 		case "review":
-			if which != "intent" && which != "scope" {
-				return fmt.Errorf("confirm takes intent or scope, got %q", which)
-			}
-			answer, err = reviewConfirmAnswer(root, args[0], which, by, hash, answer)
+			answer, err = reviewConfirmAnswer(root, args[0], doc, by, hash, answer)
 		default:
 			return fmt.Errorf("--via takes review, got %q", via)
 		}
 		if err != nil {
 			return err
 		}
-		key, err := executeRecipeConfirm(root, args[0], args[1], answer)
+		key, err := executeRecipeConfirm(root, args[0], which, answer)
 		if err != nil {
 			return err
 		}
@@ -154,7 +182,7 @@ var recipeConfirmCmd = &cobra.Command{
 		if by == "feature" || by == "manager" {
 			source = "its source (" + by + ") is recorded in"
 		}
-		fmt.Printf("[bts] %s.md CONFIRMED; %s decision %s\n", which, source, key)
+		fmt.Printf("[bts] %s CONFIRMED; %s decision %s\n", doc, source, key)
 		// A small scope on a full build recipe is the first point where
 		// express can be weighed (feature #132).
 		if which == "scope" {
@@ -173,14 +201,14 @@ var recipeConfirmCmd = &cobra.Command{
 // confirmed again after a revision gets a new key (scope-confirm-2), since
 // a resolved decision is history and is never reopened.
 func executeRecipeConfirm(root, recipeID, which, answer string) (string, error) {
-	which = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(which)), ".md")
-	if which != "intent" && which != "scope" {
-		return "", fmt.Errorf("confirm takes intent or scope, got %q", which)
+	which, doc, err := confirmTarget(root, recipeID, which)
+	if err != nil {
+		return "", err
 	}
 	if strings.TrimSpace(answer) == "" {
 		return "", errors.New("--answer is required: the user's confirmation, in their words")
 	}
-	path := filepath.Join(state.RecipeDir(root, recipeID), which+".md")
+	path := filepath.Join(state.RecipeDir(root, recipeID), doc)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", path, err)
@@ -216,7 +244,7 @@ func executeRecipeConfirm(root, recipeID, which, answer string) (string, error) 
 			key = fmt.Sprintf("%s-%d", base, n)
 		}
 		if _, err := state.HoldDecision(root, recipeID, &state.DecisionEvent{
-			Key: key, Doc: which + ".md", Question: fmt.Sprintf("Confirm %s.md as written?", which),
+			Key: key, Doc: doc, Question: fmt.Sprintf("Confirm %s as written?", doc),
 		}); err != nil {
 			return "", err
 		}
@@ -224,12 +252,14 @@ func executeRecipeConfirm(root, recipeID, which, answer string) (string, error) 
 	if err := state.ResolveDecision(root, recipeID, key, strings.TrimSpace(answer)); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(path, []byte(state.SetDocStatus(string(data), "CONFIRMED")), 0644); err != nil {
-		return "", err
+	if which != "spec" {
+		if err := os.WriteFile(path, []byte(state.SetDocStatus(string(data), "CONFIRMED")), 0644); err != nil {
+			return "", err
+		}
 	}
 	_ = state.AppendChangelog(root, recipeID, &state.ChangelogEntry{
 		Action: "confirm",
-		Output: which + ".md",
+		Output: doc,
 		Result: fmt.Sprintf("CONFIRMED (%s): %s", key, state.TruncateRunes(strings.TrimSpace(answer), 200)),
 	})
 	return key, nil
