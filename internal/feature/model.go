@@ -17,8 +17,9 @@ import (
 // Schema is the version of feature.json, claim.json and manifest.json this
 // build writes.  A build refuses to write a file whose schema is newer: its
 // structs would drop the fields it does not know (a rollback to an older
-// release must not erase a fork point).  2 added feature.json's multica link.
-const Schema = 2
+// release must not erase a fork point).  2 added feature.json's multica link,
+// 3 its orca link.
+const Schema = 3
 
 // File names inside a feature directory.
 const (
@@ -54,6 +55,7 @@ type Feature struct {
 	Closed        *Decision       `json:"closed,omitempty"`
 	Seen          map[string]Seen `json:"seen,omitempty"`
 	Multica       *MulticaLink    `json:"multica,omitempty"`
+	Orca          *OrcaLink       `json:"orca,omitempty"`
 }
 
 // Item is one planned piece of the feature, worked as one recipe.

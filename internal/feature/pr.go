@@ -236,10 +236,8 @@ func loadPRContext(root, featureID, item string) (*prContext, error) {
 // baseFor is the branch the item's pull request targets: the base dispatch
 // chose (an unmerged dependency's branch when stacked), else the feature's.
 func (pc *prContext) baseFor() string {
-	if pc.f.Multica != nil {
-		if mi := pc.f.Multica.Items[pc.plan.ID]; mi != nil && mi.Base != "" {
-			return mi.Base
-		}
+	if b := branchOf(pc.f, pc.plan.ID); b != nil && b.Base != "" {
+		return b.Base
 	}
 	return pc.f.BaseBranch
 }
@@ -593,12 +591,13 @@ func Restack(root, featureID, item string) (*RestackRecord, error) {
 	if pr == nil {
 		return nil, fmt.Errorf("item %s has no pull request to restack", item)
 	}
-	if pc.f.Multica == nil || pc.f.Multica.Items[item] == nil || pc.f.Multica.Items[item].BaseItem == "" {
+	b := branchOf(pc.f, item)
+	if b == nil || b.BaseItem == "" {
 		return nil, fmt.Errorf("item %s was not stacked on another item", item)
 	}
-	underID := pc.f.Multica.Items[item].BaseItem
+	underID := b.BaseItem
 	if !reachedBase(pc.f, underID) {
-		if under := pc.f.Multica.Items[underID]; under != nil && under.Merged != nil {
+		if under := branchOf(pc.f, underID); under != nil && under.Merged != nil {
 			return nil, fmt.Errorf("item %s is stacked on %s, which merged into %s, not %s", item, underID, under.Merged.Into, pc.f.BaseBranch)
 		}
 		return nil, fmt.Errorf("item %s is stacked on %s, which has not merged", item, underID)

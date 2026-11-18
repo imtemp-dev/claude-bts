@@ -37,7 +37,7 @@ func stackedPair(t *testing.T) *stackFixture {
 	}
 	if _, err := feature.Mutate(dir, "test", func(f *feature.Feature) (string, error) {
 		f.Multica = &feature.MulticaLink{Items: map[string]*feature.MulticaItem{
-			s.i1: {Issue: "x1"}, s.i2: {Issue: "x2", Base: "me/NA-door", BaseItem: s.i1},
+			s.i1: {Issue: "x1"}, s.i2: {Issue: "x2", ItemBranch: feature.ItemBranch{Base: "me/NA-door", BaseItem: s.i1}},
 		}}
 		return "stack", nil
 	}); err != nil {

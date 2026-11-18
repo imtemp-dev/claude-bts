@@ -2,12 +2,15 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
+	"github.com/imtemp-dev/claude-bts/internal/engine"
 	"github.com/imtemp-dev/claude-bts/internal/feature"
 	"github.com/imtemp-dev/claude-bts/internal/multica"
+	"github.com/imtemp-dev/claude-bts/internal/orca"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 	"github.com/spf13/cobra"
 )
@@ -112,19 +115,54 @@ var featurePublishCmd = &cobra.Command{
 
 var featureDispatchCmd = &cobra.Command{
 	Use:   "dispatch <feature>",
-	Short: "Keep the feature's Multica sub-issues in step with the confirmed plan and start the ready items (manager)",
-	Args:  cobra.ExactArgs(1),
+	Short: "Start the feature's ready items and keep its runs in step with the confirmed plan (Multica sub-issues, or Orca workers with --via orca)",
+	Long: `Starts each ready item of a confirmed feature where it should start (the
+feature's base branch, or stacked on one unmerged item's draft pull request),
+records merged pull requests, asks a stacked item to restack once the item
+under it merged, and says when every item is settled.
+
+--via multica (the default for a feature published to Multica) keeps the
+feature's Multica sub-issues in step; the manager agent runs it.
+
+--via orca starts each ready item as an Orca orchestration worker in a child
+worktree of this one, and must run from your Claude session in an Orca
+terminal: Orca binds the workers to the session that started them and wakes
+it when they ask or finish.  A feature dispatched once to Orca stays there.
+orca.launch decides: ask (the default) shows what would start and starts it
+only with --yes, auto starts it, off refuses.`,
+	Args:         cobra.ExactArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dir, err := feature.Find(args[0])
 		if err != nil {
 			return err
 		}
-		actions, err := feature.Dispatch(dir)
+		via, _ := cmd.Flags().GetString("via")
+		if via == "" {
+			via = "multica"
+			if f, err := feature.Load(dir); err == nil && f.Orca != nil {
+				via = "orca"
+			}
+		}
+		var actions []feature.Action
+		switch via {
+		case "multica":
+			actions, err = feature.Dispatch(dir)
+		case "orca":
+			actions, err = dispatchOrca(cmd, args[0], dir)
+		default:
+			return fmt.Errorf("--via takes multica or orca, got %q", via)
+		}
 		for _, a := range actions {
-			if a.Item != "" {
+			switch {
+			case a.Item != "" && a.Issue != "":
 				fmt.Printf("%s %s: %s\n", a.Item, a.Issue, a.What)
-			} else {
+			case a.Item != "":
+				fmt.Printf("%s: %s\n", a.Item, a.What)
+			case a.Issue != "":
 				fmt.Printf("%s: %s\n", a.Issue, a.What)
+			default:
+				fmt.Printf("%s: %s\n", args[0], a.What)
 			}
 		}
 		if err != nil {
@@ -226,4 +264,46 @@ func init() {
 	featurePublishCmd.Flags().String("manager", "", "Manager agent id (default: the store's, from bts multica setup)")
 	featurePublishCmd.Flags().String("worker", "", "Worker agent id (default: the store's)")
 	featureCmd.AddCommand(featurePublishCmd, featureDispatchCmd)
+	featureDispatchCmd.Flags().String("via", "", "multica or orca (default: orca for a feature already dispatched to Orca, else multica)")
+	featureDispatchCmd.Flags().String("agent", "claude", "With --via orca: the Orca agent id workers run")
+	featureDispatchCmd.Flags().String("model", "", "With --via orca: the workers' model (default: your Orca settings)")
+	featureDispatchCmd.Flags().Bool("yes", false, "With --via orca: start the workers (needed while orca.launch is ask)")
+	featureDispatchCmd.Flags().Bool("dry-run", false, "With --via orca: show what would start, start nothing")
+}
+
+// dispatchOrca runs an Orca dispatch under orca.launch, from the
+// coordinator's own session.
+func dispatchOrca(cmd *cobra.Command, fid, dir string) ([]feature.Action, error) {
+	agent, _ := cmd.Flags().GetString("agent")
+	model, _ := cmd.Flags().GetString("model")
+	yes, _ := cmd.Flags().GetBool("yes")
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	policy := engine.OrcaLaunchAsk
+	if root := cwdRoot(); root != "" {
+		if s, err := engine.LoadSettings(root); err == nil {
+			policy = s.Orca.LaunchPolicy()
+		}
+	}
+	if policy == engine.OrcaLaunchOff {
+		return nil, errors.New("orca.launch is off in .bts/config/settings.yaml: bts starts no Orca worker")
+	}
+	opts := feature.OrcaDispatchOptions{Dir: cwd, Agent: agent, Model: model, DryRun: dryRun}
+	if !dryRun && policy == engine.OrcaLaunchAsk && !yes {
+		opts.DryRun = true
+		actions, err := feature.DispatchOrca(dir, opts)
+		if err == nil {
+			actions = append(actions, feature.Action{Note: true,
+				What: fmt.Sprintf("orca.launch is ask: ask the user, and on their yes run `bts feature dispatch %s --via orca --yes`", fid)})
+		}
+		return actions, err
+	}
+	if !opts.DryRun && !orca.InOrca() {
+		return nil, errors.New("run this from your Claude session in an Orca terminal: Orca binds the workers to the session that " +
+			"starts them and wakes it when they ask or finish, so a session outside Orca would never hear from them")
+	}
+	return feature.DispatchOrca(dir, opts)
 }

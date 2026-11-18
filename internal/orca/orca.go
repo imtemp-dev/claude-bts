@@ -161,6 +161,109 @@ type Launch struct {
 	OperationID string // what `--retry-launch` takes if the reply is lost
 }
 
+// WorkerSpec is one supervised worker to start in a child worktree of the
+// caller's: `orca orchestration worker-start --worktree new-child`.
+type WorkerSpec struct {
+	SpecFile string // the task the worker gets, self-contained
+	Title    string // the task's title
+	Name     string // the child worktree's name
+	Base     string // the branch the child worktree starts from
+	Agent    string
+	Model    string // "" for the person's own settings
+	Run      string // the Run to join; "" makes Orca bind a new one to the caller
+}
+
+// Worker is what worker-start reported.
+type Worker struct {
+	Dispatch   string
+	Task       string
+	Run        string
+	RunCreated bool
+	State      string // "ready" once started; "outcome_unknown" when it was typed in but not seen starting
+	Terminal   string
+	Workspace  string // Orca's id of the worker's worktree
+	Next       string // what Orca says to do next, if anything
+}
+
+// WorkerStart starts a supervised worker.  It must run from the
+// coordinator's own Orca terminal: Orca binds the Run, and the worker's
+// questions and reports, to the session that started it.
+func WorkerStart(ctx context.Context, dir string, w WorkerSpec) (*Worker, error) {
+	args := []string{"orchestration", "worker-start", "--spec-file", w.SpecFile, "--worktree", "new-child",
+		"--name", w.Name, "--agent", w.Agent}
+	if w.Base != "" {
+		args = append(args, "--base-branch", w.Base)
+	}
+	if w.Title != "" {
+		args = append(args, "--task-title", w.Title)
+	}
+	if w.Model != "" {
+		args = append(args, "--model", w.Model)
+	}
+	if w.Run != "" {
+		args = append(args, "--run", w.Run)
+	}
+	res, err := call(ctx, dir, args...)
+	if err != nil {
+		return nil, err
+	}
+	var r struct {
+		DispatchID string `json:"dispatchId"`
+		TaskID     string `json:"taskId"`
+		RunID      string `json:"runId"`
+		Run        *struct {
+			ID      string `json:"id"`
+			Created bool   `json:"created"`
+		} `json:"run"`
+		RunCreated  bool             `json:"runCreated"`
+		State       string           `json:"state"`
+		Terminal    string           `json:"terminal"`
+		Workspace   string           `json:"workspace"`
+		Effects     []map[string]any `json:"effects"`
+		FailedStage string           `json:"failedStage"`
+		LastError   string           `json:"lastError"`
+		Next        string           `json:"next"`
+	}
+	if err := json.Unmarshal(res, &r); err != nil {
+		return nil, fmt.Errorf("orca orchestration worker-start: %v", err)
+	}
+	if r.DispatchID == "" {
+		return nil, fmt.Errorf("orca orchestration worker-start: no dispatch in the reply (state %q, failed stage %q: %s)", r.State, r.FailedStage, r.LastError)
+	}
+	out := &Worker{Dispatch: r.DispatchID, Task: r.TaskID, Run: r.RunID, RunCreated: r.RunCreated,
+		State: r.State, Terminal: r.Terminal, Workspace: r.Workspace, Next: r.Next}
+	if r.Run != nil {
+		if out.Run == "" {
+			out.Run = r.Run.ID
+		}
+		out.RunCreated = out.RunCreated || r.Run.Created
+	}
+	for _, e := range r.Effects {
+		id, _ := e["id"].(string)
+		switch e["kind"] {
+		case "worktree":
+			if out.Workspace == "" {
+				out.Workspace = id
+			}
+		case "terminal":
+			if out.Terminal == "" {
+				out.Terminal = id
+			}
+		}
+	}
+	if r.FailedStage != "" && r.State != "ready" && r.State != "outcome_unknown" {
+		return out, fmt.Errorf("orca worker %s failed at %s: %s", r.DispatchID, r.FailedStage, r.LastError)
+	}
+	return out, nil
+}
+
+// Send mails a message to one worker (dispatch id).  A working worker gets
+// it when its turn ends; a finished one gets it as a follow-up task.
+func Send(ctx context.Context, dir, dispatch, subject, body string) error {
+	_, err := call(ctx, dir, "orchestration", "send", "--to", "dispatch:"+dispatch, "--subject", subject, "--body", body)
+	return err
+}
+
 // LaunchAgent starts agent in a new terminal of the Orca worktree that
 // holds dir, and submits prompt once the agent is ready.  model is passed
 // only when set; otherwise the agent starts with the person's own settings.

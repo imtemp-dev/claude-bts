@@ -24,15 +24,12 @@ type MulticaLink struct {
 // MulticaItem is one item's sub-issue, and what the manager decided and saw
 // about its branch.
 type MulticaItem struct {
-	Issue      string       `json:"issue"`
-	Key        string       `json:"key,omitempty"`
-	Stage      int          `json:"stage"`
-	At         string       `json:"at"`
-	Base       string       `json:"base,omitempty"`          // the branch the item started from
-	BaseItem   string       `json:"base_item,omitempty"`     // the unmerged item it is stacked on
-	Merged     *MergeRecord `json:"merged,omitempty"`        // its pull request merged
-	RestackFor string       `json:"restack_for,omitempty"`   // the merged item a restack was asked for
-	Setup      []string     `json:"setup_pending,omitempty"` // sub-issue setup steps still to do, in order
+	Issue string `json:"issue"`
+	Key   string `json:"key,omitempty"`
+	Stage int    `json:"stage"`
+	At    string `json:"at"`
+	ItemBranch
+	Setup []string `json:"setup_pending,omitempty"` // sub-issue setup steps still to do, in order
 }
 
 // MergeRecord is a merged pull request.
@@ -50,30 +47,6 @@ const (
 	setupFailureWakeup = "failure_wakeup"
 	setupReviewWakeup  = "review_wakeup"
 )
-
-// reachedBase reports whether item id's work is on the feature's base
-// branch: its pull request merged into the base, or into the branch of the
-// item it was stacked on, once that item's work reached the base.
-func reachedBase(f *Feature, id string) bool {
-	if f.Multica == nil {
-		return false
-	}
-	for seen := map[string]bool{}; id != "" && !seen[id]; {
-		seen[id] = true
-		mi := f.Multica.Items[id]
-		if mi == nil || mi.Merged == nil {
-			return false
-		}
-		if mi.Merged.Into == "" || mi.Merged.Into == f.BaseBranch {
-			return true
-		}
-		if mi.BaseItem == "" || mi.Merged.Into != mi.Base {
-			return false
-		}
-		id = mi.BaseItem
-	}
-	return false
-}
 
 // MulticaConfig names the agents a store's features use, and the branch
 // prefix for item branches, written by `bts multica setup` into
@@ -233,7 +206,6 @@ type Action struct {
 // request and the stack stays within MaxStack; otherwise it waits, and wait
 // says why.  A dependency that merged into some other branch waits too.
 func chooseBase(dir string, f *Feature, p PlanItem, s *Status) (base, baseItem, wait string) {
-	link := f.Multica
 	var unmerged []string
 	for _, d := range p.DependsOn {
 		if ds := s.item(d); ds != nil && ds.State == StateSkipped {
@@ -242,8 +214,8 @@ func chooseBase(dir string, f *Feature, p PlanItem, s *Status) (base, baseItem, 
 		if reachedBase(f, d) {
 			continue
 		}
-		if mi := link.Items[d]; mi != nil && mi.Merged != nil {
-			return "", "", fmt.Sprintf("%s merged into %s, not %s; waits until that work reaches %s", d, mi.Merged.Into, f.BaseBranch, f.BaseBranch)
+		if b := branchOf(f, d); b != nil && b.Merged != nil {
+			return "", "", fmt.Sprintf("%s merged into %s, not %s; waits until that work reaches %s", d, b.Merged.Into, f.BaseBranch, f.BaseBranch)
 		}
 		unmerged = append(unmerged, d)
 	}
@@ -267,22 +239,6 @@ func chooseBase(dir string, f *Feature, p PlanItem, s *Status) (base, baseItem, 
 		return "", "", fmt.Sprintf("stacking on %s would make %d unmerged levels (at most %d); waits for a merge", d, depth, MaxStack)
 	}
 	return pr.Branch, d, ""
-}
-
-// stackDepth is how many items not yet on the base branch an item and those
-// under it make.
-func stackDepth(f *Feature, id string) int {
-	depth := 0
-	for seen := map[string]bool{}; id != "" && !seen[id]; {
-		seen[id] = true
-		mi := f.Multica.Items[id]
-		if mi == nil || reachedBase(f, id) {
-			break
-		}
-		depth++
-		id = mi.BaseItem
-	}
-	return depth
 }
 
 // finishSetup does a sub-issue's pending setup steps in order, dropping each
@@ -333,13 +289,13 @@ type prRead struct {
 // lock, so a slow gh holds no other feature command.
 func readPRStates(dir string) map[string]prRead {
 	f, err := Load(dir)
-	if err != nil || f.Multica == nil {
+	if err != nil {
 		return nil
 	}
 	out := map[string]prRead{}
-	for _, id := range sortedKeys(f.Multica.Items) {
+	for _, id := range branchIDs(f) {
 		it := f.Item(id)
-		if it == nil || f.Multica.Items[id].Merged != nil {
+		if it == nil || branchOf(f, id).Merged != nil {
 			continue
 		}
 		pr, _ := itemPR(dir, it)
@@ -390,6 +346,9 @@ func Dispatch(dir string) ([]Action, error) {
 		if link == nil || link.Parent == "" {
 			return "", fmt.Errorf("feature %s is not published to Multica (bts feature publish)", f.ID)
 		}
+		if f.Orca != nil && len(f.Orca.Items) > 0 {
+			return "", fmt.Errorf("feature %s runs on Orca (%d items dispatched there); a feature runs on one backend", f.ID, len(f.Orca.Items))
+		}
 		if f.Closed != nil {
 			return "", fmt.Errorf("feature %s is %s", f.ID, f.Closed.Kind)
 		}
@@ -431,33 +390,9 @@ func Dispatch(dir string) ([]Action, error) {
 
 		// Merges first, so a merge seen now frees what waited for it in
 		// this same dispatch.
-		for _, id := range sortedKeys(link.Items) {
-			mi := link.Items[id]
-			it := f.Item(id)
-			if it == nil || mi.Merged != nil {
-				continue
-			}
-			pr, _ := itemPR(dir, it)
-			rd, ok := prs[id]
-			if pr == nil || !ok || rd.URL != pr.URL {
-				continue // opened since the read: the next dispatch reads it
-			}
-			if rd.Err != nil {
-				actions = append(actions, Action{Item: id, Issue: mi.Key, What: "could not read its pull request's state: " + rd.Err.Error(), Note: true})
-				continue
-			}
-			if rd.State.State != "MERGED" {
-				continue
-			}
-			ps := rd.State
-			mi.Merged = &MergeRecord{SHA: ps.MergeCommit.OID, At: ps.MergedAt, Into: ps.BaseRefName}
-			changed = true
-			what := "merged " + short(ps.MergeCommit.OID)
-			if ps.BaseRefName != "" && ps.BaseRefName != f.BaseBranch {
-				what += " into " + ps.BaseRefName
-			}
-			actions = append(actions, Action{Item: id, Issue: mi.Key, What: what})
-		}
+		merged, did := recordMerges(dir, f, prs, func(id string) string { return link.Items[id].Key })
+		actions = append(actions, merged...)
+		changed = changed || did
 
 		for _, p := range snap.Plan {
 			is := s.item(p.ID)

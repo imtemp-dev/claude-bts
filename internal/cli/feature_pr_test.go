@@ -185,7 +185,7 @@ func TestOpenDraftPRAndRestackAfterSquashMerge(t *testing.T) {
 	// The manager stacked i2 on i1's branch.
 	if _, err := feature.Mutate(dir, "test", func(f *feature.Feature) (string, error) {
 		f.Multica = &feature.MulticaLink{Items: map[string]*feature.MulticaItem{
-			i1: {Issue: "x1"}, i2: {Issue: "x2", Base: "me/NA-door", BaseItem: i1},
+			i1: {Issue: "x1"}, i2: {Issue: "x2", ItemBranch: feature.ItemBranch{Base: "me/NA-door", BaseItem: i1}},
 		}}
 		return "stack", nil
 	}); err != nil {

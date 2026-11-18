@@ -165,6 +165,7 @@ bts graph [recipe-id]               Document relationship graph
 bts feature create|confirm|status|next|pr   A feature: a confirmed plan of items, one recipe each
 bts multica setup                   Run features on a Multica board
 bts orca status|continue [id]       Hand a recipe to a fresh Claude Code session in an Orca terminal
+bts feature dispatch <f> --via orca Run a feature's items as Orca workers (coordinate with /bts-feature-orca)
 bts version                         Show versions
 ```
 
@@ -174,7 +175,7 @@ The skills call the rest — `bts recipe log`, `bts recipe confirm`, `bts check`
 
 **Go binary** — a single statically linked binary that drives `git` for copies, mutations and the feature store. It keeps recipe state, enforces the completion gates, deploys the templates and records metrics.
 
-**Claude Code integration** — 31 skills, 10 lifecycle hooks, 7 rules. Verification and review always run in separate agent contexts.
+**Claude Code integration** — 32 skills, 10 lifecycle hooks, 7 rules. Verification and review always run in separate agent contexts.
 
 **File structure:**
 

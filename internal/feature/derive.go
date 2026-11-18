@@ -255,6 +255,7 @@ type Status struct {
 	Items        []*ItemStatus `json:"items"`
 	Rev          int           `json:"rev"`
 	Multica      *MulticaLink  `json:"multica,omitempty"`
+	Orca         *OrcaLink     `json:"orca,omitempty"`
 }
 
 // Derive computes the feature's and every item's state from feature.json and
@@ -274,7 +275,7 @@ func Derive(dir string, f *Feature) (*Status, error) {
 	}
 	s := &Status{
 		ID: f.ID, Title: f.Title, Ticket: f.Ticket, Dir: dir, Repo: f.Repo, BaseBranch: f.BaseBranch,
-		Confirmation: n, Pending: Pending(dir, f), Rev: f.Rev, Multica: f.Multica,
+		Confirmation: n, Pending: Pending(dir, f), Rev: f.Rev, Multica: f.Multica, Orca: f.Orca,
 	}
 	// The working items, then any confirmed item the working plan dropped:
 	// it stays in force until the user confirms the removal.
@@ -335,13 +336,11 @@ func Derive(dir string, f *Feature) (*Status, error) {
 		if is.Removed {
 			is.Note = strings.TrimSpace(is.Note + " removed from the plan; the removal awaits the user's confirmation")
 		}
-		if f.Multica != nil {
-			if mi := f.Multica.Items[it.ID]; mi != nil && mi.Merged != nil {
-				is.Merged = true
-				is.Note = strings.TrimSpace(is.Note + " merged " + short(mi.Merged.SHA))
-				if mi.Merged.Into != "" && mi.Merged.Into != f.BaseBranch {
-					is.Note += " into " + mi.Merged.Into
-				}
+		if b := branchOf(f, it.ID); b != nil && b.Merged != nil {
+			is.Merged = true
+			is.Note = strings.TrimSpace(is.Note + " merged " + short(b.Merged.SHA))
+			if b.Merged.Into != "" && b.Merged.Into != f.BaseBranch {
+				is.Note += " into " + b.Merged.Into
 			}
 		}
 		if is.InConfirmed && is.State != StateDone && is.State != StateSkipped && is.State != StateDeferred {
