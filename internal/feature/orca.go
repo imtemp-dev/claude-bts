@@ -74,9 +74,14 @@ func writeOrcaBrief(dir string, f *Feature, p PlanItem, base, baseItem string) (
 	return path, os.WriteFile(path, b.Bytes(), 0644)
 }
 
-// orcaWorktreeName names an item's child worktree: <feature>-<item>.
+// orcaWorktreeName names an item's child worktree f-NNN-<item>.  The whole
+// feature id would be cut to its first words, and the item id with it: the
+// smoke's two items came out f-004-greeting and f-004-greeting-2.
 func orcaWorktreeName(f *Feature, item string) string {
-	return slugOr(f.ID+"-"+item, item)
+	if n := idPrefix.FindString(f.ID); n != "" {
+		return n + "-" + item
+	}
+	return slugOr(f.ID, "feature") + "-" + item
 }
 
 // orcaBudget bounds a dispatch: each worker start makes a worktree and

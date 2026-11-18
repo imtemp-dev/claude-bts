@@ -27,6 +27,7 @@ The recipe asks for three confirmations that normally come from the user.
 Run the recipe's own skill, `/bts-recipe-{{.Type}}`{{if .Express}} (the recipe is express){{end}}; it resumes from `bts recipe status`.  Follow it, with these differences:
 
 - Where the skill says to end your turn with a completion marker (`<bts>DONE</bts>`, `<bts>IMPLEMENT DONE</bts>`, `<bts>FIX DONE</bts>`), run `bts recipe finish <recipe>` instead: it runs the same gate without ending your turn.  If it refuses, do what its reason says and run it again; when it passes, go on.
+- The recipe's own subagents are part of this task: architect runners, verify and audit forks, interrogate adversaries, reviewers.  Spawn them as the skill says, in the foreground, without asking for leave.
 - A question only the user can answer becomes a decision (`bts recipe decision hold ...`); ask the coordinator with its key and options, end your turn, and record the answer with `bts recipe decision resolve ...`.
 - Commit the item's work on this worktree's branch as the recipe goes.  Never `git push` and never `gh pr`: the item's only push and pull request go through `bts feature pr`.
 

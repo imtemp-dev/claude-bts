@@ -81,6 +81,9 @@ func TestDispatchOrca_StartsStacksAndRestacks(t *testing.T) {
 	}
 	f, _ := Load(dir)
 	a := fo.startedFor(f, i1)
+	if a != nil && flag(a, "--name") != strings.SplitN(f.ID, "-", 3)[0]+"-"+strings.SplitN(f.ID, "-", 3)[1]+"-"+i1 {
+		t.Errorf("the worktree is named f-NNN-<item>, got %q", flag(a, "--name"))
+	}
 	if len(fo.starts) != 1 || a == nil || flag(a, "--base-branch") != "main" || flag(a, "--worktree") != "new-child" ||
 		flag(a, "--agent") != "claude" || flag(a, "--run") != "" || fo.dirs[0] != "/coord" {
 		t.Fatalf("one worker for i1 on main, from the coordinator's directory: %q", fo.starts)
@@ -92,7 +95,8 @@ func TestDispatchOrca_StartsStacksAndRestacks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"bts recipe create --feature " + f.ID + " --item " + i1, "made from `main`", "bts feature pr " + f.ID + " " + i1, "bts recipe finish"} {
+	for _, want := range []string{"bts recipe create --feature " + f.ID + " --item " + i1, "made from `main`", "bts feature pr " + f.ID + " " + i1,
+		"bts recipe finish", "subagents are part of this task"} {
 		if !strings.Contains(string(brief), want) {
 			t.Errorf("the brief must contain %q:\n%s", want, brief)
 		}
