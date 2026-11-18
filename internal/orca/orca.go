@@ -264,6 +264,13 @@ func Send(ctx context.Context, dir, dispatch, subject, body string) error {
 	return err
 }
 
+// OpenTab opens url in a new tab of Orca's built-in browser, split to the
+// right of the caller's terminal, in the worktree that holds dir.
+func OpenTab(ctx context.Context, dir, url string) error {
+	_, err := call(ctx, dir, "tab", "create", "--url", url, "--split", "right")
+	return err
+}
+
 // LaunchAgent starts agent in a new terminal of the Orca worktree that
 // holds dir, and submits prompt once the agent is ready.  model is passed
 // only when set; otherwise the agent starts with the person's own settings.

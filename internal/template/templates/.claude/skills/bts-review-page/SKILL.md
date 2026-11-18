@@ -83,7 +83,11 @@ or not.
    `bts-review-kit.js` and `bts-review-kit.css` to the paths the brief
    printed, the capabilities exactly as printed, and `icon: "notes"` on the
    first publish.  Republish the same file path to keep the URL.
-4. `bts review attach {id} --url <link> --point <intent|scope|spec>`.
+4. `bts review attach {id} --url <link> --point <intent|scope|spec>`.  In
+   an Orca terminal it also opens a new page in Orca's own browser, in a
+   tab beside this terminal (Claude Code has already opened it in the
+   system browser); Orca's browser may ask the user to sign in to claude.ai
+   once.
 5. Tell the user in the terminal, in their language: the link; press N and
    click to pin a note, speak or type, Send when done; Pick on a decision;
    Confirm when it reads right; or answer here.  The first send asks them

@@ -1,12 +1,16 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/imtemp-dev/claude-bts/internal/engine"
+	"github.com/imtemp-dev/claude-bts/internal/orca"
 	"github.com/imtemp-dev/claude-bts/internal/review"
 	"github.com/spf13/cobra"
 )
@@ -140,13 +144,42 @@ var reviewAttachCmd = &cobra.Command{
 		if point != "" && !containsStr(review.Points, point) {
 			return fmt.Errorf("--point takes %s, got %q", strings.Join(review.Points, " or "), point)
 		}
+		prev := ""
+		if old, err := review.Load(root, id); err == nil {
+			prev = old.URL
+		}
 		s, err := review.Attach(root, id, url, point)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("[bts] review page for %s: %s (points: %s)\n", id, s.URL, strings.Join(s.Points, ", "))
+		if s.URL != prev {
+			openReviewInOrca(root, s.URL)
+		}
 		return nil
 	},
+}
+
+// openReviewInOrca shows a newly attached review page in Orca's own
+// browser, in a tab beside the session's terminal, when the session runs
+// in Orca and the project has not turned orca.launch off.  Claude Code
+// opens a published artifact in the system browser, away from the Orca
+// window the user works in.  A failure is a notice, never an error: the
+// link is printed above either way.
+func openReviewInOrca(root, url string) {
+	if !orca.InOrca() {
+		return
+	}
+	if s, err := engine.LoadSettings(root); err == nil && s.Orca.LaunchPolicy() == engine.OrcaLaunchOff {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	if err := orca.OpenTab(ctx, root, url); err != nil {
+		fmt.Fprintf(os.Stderr, "[bts] could not open the page in Orca's browser: %v\n", err)
+		return
+	}
+	fmt.Println("[bts] opened in Orca's browser beside this terminal (sign in to claude.ai there once if it asks)")
 }
 
 func containsStr(list []string, v string) bool {
