@@ -1,261 +1,99 @@
 # claude-bts
 
-> Verify before you code — bts catches spec errors before they become debugging sessions.
+> A spec-first workflow for Claude Code: settle the direction with the user, land in code early, and prove the change by runs.
 
-bts is a CLI tool for Claude Code that structures the spec → verify → implement cycle. It plugs into Claude Code's lifecycle hooks to provide isolated verification, state tracking across sessions, and completion gates.
+bts is a Go CLI plus the Claude Code templates it deploys into a project: 31 skills, 10 lifecycle hooks, 7 rules, and agents and commands. Recipe state lives in `.bts/`; the Stop hook reads it and refuses a completion marker until the recipe's gates pass. This file is a map. The installed binary is authoritative: `bts help`, `bts <command> --help`, `bts recipe status`, and the rules in a project's `.claude/rules/bts-*.md`.
 
-## Install
-
-```bash
-# Homebrew
-brew tap imtemp-dev/tap && brew install bts
-
-# Or one-line install
-curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-bts/main/install.sh | bash
-
-# Or from source (Go 1.22+)
-git clone https://github.com/imtemp-dev/claude-bts.git && cd claude-bts && make install
-```
-
-## Initialize
+## Install and set up
 
 ```bash
-cd your-project
-bts init .
-claude   # start Claude Code
+brew install imtemp-dev/tap/claude-bts      # or: curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-bts/main/install.sh | bash
+cd your-project && bts init . && claude     # bts init --exclude . for a repository you only visit
 ```
 
-This deploys skills, hooks, and rules to `.claude/` and creates `.bts/` for state management.
+- From source: Go 1.26+, `make install` (copies `bts` to `~/.local/bin`).
+- Needs git; `gh` only for a feature's pull requests; Node.js (`npx`) only for the context7 docs server.
+- A project's templates follow the binary at the next session start with no active recipe, at `bts recipe create`, or with `bts update`.
 
-## Recipes
+## Choosing a recipe
 
-Recipes are structured workflows. Start one inside Claude Code:
+`.claude/rules/bts-recipe-protocol.md` § Choosing a recipe type decides; the first row that fits wins.
 
-```
-/bts-recipe-blueprint add OAuth2 authentication
-/bts-recipe-fix login bcrypt hash comparison fails
-/bts-recipe-debug session drops after 5 minutes
-/bts-recipe-design auth system architecture
-/bts-recipe-analyze existing codebase
-```
+| Type | When | Lifecycle |
+|------|------|-----------|
+| fix | wrong behaviour with a symptom you can reproduce | diagnose → fix-spec → reproduction run → implement → test → interrogate → drive the app → review → `<bts>FIX DONE</bts>` |
+| debug | a bug whose cause one reading does not show | six perspectives → cross-reference → fix-spec → `/bts-implement` |
+| build | a feature or behaviour change built and tested here | intent → scope → research → domain → architect → wireframe → skeleton → falsify → probes → one review → `<bts>DONE</bts>` → implement → test → able to fail → interrogate → drive the app → review → sync → `<bts>IMPLEMENT DONE</bts>` |
+| blueprint | a prose spec someone else builds from, or a subject nothing here can run yet | intent → scope → research → domain → architect → wireframe → draft ⇄ verify and audit (assess, improve, defend, debate) → `<bts>DONE</bts>` → implement → test → interrogate → drive the app → review → sync |
+| design | a design document, no implementation | research → draft ⇄ verify → finalize (Level 2) |
+| analyze | understanding an existing system | research → draft ⇄ verify → finalize (Level 1) |
 
-| Type | Purpose | Lifecycle |
-|------|---------|-----------|
-| blueprint | New feature (full spec → code) | discover → scope → research → wireframe → draft ←→ (assess/improve/verify+audit/defend/debate) → finalize → implement ←→ test → prove (able to fail, interrogate, drive the app) → review → sync → complete |
-| fix | Known bug | diagnose → fix-spec → implement ←→ test → complete |
-| debug | Unknown bug | 6-perspective analysis → cross-reference → fix-spec → implement ←→ test → complete |
-| design | Feature design (spec only) | research → draft ←→ verify → finalize |
-| analyze | System understanding (spec only) | research → draft ←→ verify → finalize |
+**Express** (build only): at most three In Scope items, no new external integration, no migration or irreversible step. It drops the architect's runners and debate, the review round on `final.md` (a `bts verify` check instead) and the second interrogate adversary; research covers only questions that decide an invariant's owner. bts offers it when such a scope is confirmed; `bts recipe mode <id> express` works only before the architect step, and `full` is one way.
 
-## Phases
+## Working inside a recipe
 
-Blueprint phases in order:
-`discovery` → `scoping` → `research` → `wireframe` → `draft` → `assess` → `improve` → `verify` → `debate` → `audit` → `finalize` → `implement` → `test` → `review` → `sync` → `status` → `complete`
+1. Start with `bts recipe status`; resume where the phase says.
+2. Follow the recipe's skill step by step. Each step logs its phase or action with `bts recipe log <id>`; the skill gives the exact flags.
+3. Intent and scope are the user's to confirm: on a review page (`review.surface: artifact`, `/bts-review-page`) or, without the Artifact tool or with `review.surface: ask`, in the chat. Record it with `bts recipe confirm`. A build or blueprint recipe cannot leave discovery before its intent is confirmed.
+4. A question only the user can answer: `bts recipe decision hold <id> --key <key> --question "..."`, then `bts recipe decision resolve <id> <key> --answer "<their words>"`. Never write the user's words yourself; a translation is marked as one.
+5. A question that running something would answer is answered by a run (a probe in the recipe's `probes/`, or `Opens-with:` on a Known Uncertainty), never argued in prose.
+6. Verification and code review run in separate agent contexts. Never review your own output in the same context.
+7. Finish a stage with its marker (`<bts>DONE</bts>`, `<bts>IMPLEMENT DONE</bts>`, `<bts>FIX DONE</bts>`). The Stop hook checks the gates and names what is missing; `bts recipe finish <id>` runs the same check without ending the session. `bts recipe override` records a deliberate exception for a gate that allows one.
+8. A changed document deliberately left unverified for now: `bts recipe leave-unverified <id> --doc <doc> --reason "..."`.
 
-Implementation phases (shared across blueprint, fix, debug):
-`implement` → `test` → `review` → `sync` → `status` → `complete`
+## What the gates check
 
-## File Structure
-
-```
-.bts/
-├── config/              # git tracked — settings, template version
-│   ├── settings.yaml
-│   └── .template-version
-├── specs/               # git tracked — recipe specs, project docs
-│   ├── vision.md
-│   ├── roadmap.md
-│   ├── project-status.md
-│   ├── project-map.md
-│   ├── debates/{id}/        # project-level debates (meta.json + rounds)
-│   └── recipes/{id}/
-│       ├── recipe.json         # recipe state (id, type, topic, phase)
-│       ├── intent.md           # discovery output
-│       ├── scope.md            # scoping output
-│       ├── wireframe.md        # structure design
-│       ├── draft.md            # working spec
-│       ├── final.md            # finalized spec (Level 3)
-│       ├── manifest.json       # document relationships
-│       ├── changelog.jsonl     # action log
-│       ├── verify-log.jsonl    # verification history
-│       ├── tasks.json          # implementation tasks
-│       ├── test-results.json   # test results
-│       ├── deviation.md        # spec-code differences
-│       ├── review.md           # code review findings
-│       ├── diagnosis.md        # fix/debug: root cause
-│       ├── fix-spec.md         # fix/debug: change spec
-│       ├── debates/{id}/       # recipe-level debates
-└── local/               # gitignored — runtime data
-    ├── metrics.jsonl
-    ├── work-state.json
-    └── recipes/{id}/metrics.jsonl
-```
-
-## CLI Reference
-
-```
-bts init [dir]              Initialize project (--force to reinitialize)
-bts doctor [recipe-id]      System and recipe health check (--strict)
-bts validate [recipe-id]    JSON schema compliance check
-bts verify <file>           Document consistency and level assessment (--no-code)
-bts recipe status           Show active recipe
-bts recipe list             List all recipes
-bts recipe create           Create recipe (--type blueprint|fix|debug|design|analyze --topic "...")
-bts recipe log <id>         Record action/phase/iteration (--phase, --action, --output, --force)
-bts recipe cancel           Cancel active recipe
-bts recipe findings list|resolve|dismiss   Cross-round findings ledger (--open)
-bts recipe assess-precheck <id> --doc <doc>   Decide from recorded state (exit 10 = judgement needed; a build recipe reads its DONE gates)
-bts recipe leave-unverified <id> --doc <doc> --reason "..."   Record a changed document left unverified for now (rule 3 lets the turn end)
-bts recipe decision hold|list|resolve|drop    Questions only the user can answer
-bts recipe override         Record a deliberate decision to proceed past a hard gate
-bts feature create|confirm|status|next|context|pr|dispatch   A feature: a confirmed plan of items, each built by one recipe (bts recipe create --feature <f> --item <i>); the Multica manager and worker skills drive it, and every command also runs by hand
-bts multica setup --manager <id> --worker <id>   Install the bts-feature-manager and bts-feature-worker skills on a Multica workspace and record the two agents
-bts stats [recipe-id]       Metrics and cost estimation (--json, --csv)
-bts graph [recipe-id]       Document relationship graph (--all)
-bts sync-check [recipe-id]  Verify documents are in sync
-bts debate list|log|resume|export   Manage debates
-bts update                  Update templates to match binary version
-bts version                 Show versions
-```
-
-## Skills (25)
-
-Inside Claude Code, invoke skills with `/skill-name`:
-
-| Skill | Purpose |
-|-------|---------|
-| /bts-recipe-blueprint | Full spec-to-code lifecycle |
-| /bts-recipe-build | Code-first: a skeleton that compiles and a failing test per invariant, one review, then implement until they pass; an express mode drops the architect's runners and the review round for a small change |
-| /bts-recipe-design | Design spec (Level 2) |
-| /bts-recipe-analyze | Analysis spec (Level 1) |
-| /bts-recipe-fix | Bug fix with diagnosis |
-| /bts-recipe-debug | Multi-perspective debugging |
-| /bts-discover | Intent discovery conversation |
-| /bts-wireframe | Structure design with mermaid diagrams — owns the flow, the decomposition and the File Structure table |
-| /bts-domain-model | Invariants and their owners (`domain.md`) — the blueprint references these, it does not restate them |
-| /bts-architect | Records the decomposition decision as an `<!-- architect-decision -->` block in wireframe.md |
-| /bts-research | Codebase and external research |
-| /bts-verify | Logical verification (fork context) |
-| /bts-cross-check | Internal consistency check (fork context) |
-| /bts-audit | Completeness audit (fork context) |
-| /bts-assess | Level assessment and next-action decision |
-| /bts-sync-check | Document synchronization check (fork context) |
-| /bts-debate | Structured 3-expert debate |
-| /bts-adjudicate | Evaluate debate conclusions |
-| /bts-interrogate | Adversaries try to break the change; only findings a rerun proves survive |
-| /bts-prove | Drive the user journeys a change touches through the real app, with evidence |
-| /bts-verification-skill | Generate the project's verify-<app> skill (launch, drive, evidence, feature map) |
-| /bts-defend | Adversarial defense of a round's open critical/major findings on the ledger (fork context, sonnet) |
-| /bts-implement | Code generation from finalized spec |
-| /bts-test | Test generation and execution |
-| /bts-review | Multi-perspective code review (fork context, 3 parallel agents) |
-| /bts-sync | Sync spec with implementation |
-| /bts-status | Project status aggregation |
-| /bts-comment-apply | Apply review comments back into the spec |
-| /bts-review-page | Review intent and scope on an artifact page: pinned notes in rounds, proposals, Update plan, confirm a fingerprinted version |
-
-## Models
-
-Main session model handles all primary work and core quality gates.
-
-Fork context agents run in separate AI instances (no shared conversation history).
-Core gates use session model for maximum quality. Pattern-based checks use sonnet.
-
-| Agent | Default | Setting |
-|-------|---------|---------|
-| verifier | session model | none: fork, agent file |
-| auditor | session model | none: fork, agent file |
-| adversary | opus | agent file |
-| reviewer_quality | session model | agents.reviewer_quality |
-| reviewer_security | session model | agents.reviewer_security |
-| reviewer_arch | session model | agents.reviewer_arch |
-| reviewer_validator | sonnet | agents.reviewer_validator |
-| reviewer_rebuttal | session model | agents.reviewer_rebuttal |
-| defender | sonnet | none: fork, agent file |
-| diagnosis_validator | session model | agents.diagnosis_validator |
-| diagnosis_rebuttal | session model | agents.diagnosis_rebuttal |
-| architect_runner | opus | agent file only (two run in parallel in /bts-architect) |
-| architect_adjudicator | opus | agent file only (one per adjudication in /bts-architect) |
-
-A setting in `.bts/config/settings.yaml` is advisory: the skill passes it as the spawn's `model`. Fork roles run on their agent file's `model:`, which settings cannot change (`bts update` rewrites agent files). Options: sonnet, opus, haiku.
-
-## Completion Gates
-
-Specs complete when ALL of these hold for the gated document:
-
-- verification.md exists, and the last verify-log entry for that document shows critical=0, major=0, minor[resolvable]=0
-- that entry is not marked `failed` (convergence budget exhausted)
-- `verify.confirm_passes` consecutive clean full passes — every dimension, over one unchanged revision. A verify round is a sample, not a measurement: rounds over byte-identical documents have disagreed by two criticals and nine majors
-- every finding in the ledger is confirmed fixed or explicitly dismissed — an unrepeated finding is not a resolved one
-- every declared `INV-NNN` names a falsifier
-- remaining `MINOR [deferred]` items are declared under `## Known Uncertainties`
-
-Output `<bts>DONE</bts>`. This sets phase to `finalize`.
-
-Implementation completes when: all tasks done, tests pass, a verified interrogate run has nothing open (after a new code file or more than two code files whose code changed since its copies, a scoped round on the change, `bts interrogate prepare --rescope`, up to `interrogate.max_rescope_rounds` scoped rounds; comment-only changes and upstream changes a rebase brought in do not count), every planned journey is driven or deferred, review.md exists, deviation.md exists. Output `<bts>IMPLEMENT DONE</bts>`.
-
-Fix completes when: fix-spec.md exists, tests pass, and the same prove-stage records are clean. Output `<bts>FIX DONE</bts>`.
-
-## Key Rules
-
-1. Every document modification triggers /bts-verify immediately after.
-2. Verification runs in separate agent context (never self-review).
-3. Edit draft.md in place (Edit tool), don't rewrite.
-4. Log every action: `bts recipe log {id} --action [type] --output [path]`.
-5. Every verify round runs both instruments — verify and audit —
-   in one batch, recorded as ONE round with `bts recipe log --merge`. A round's
-   counts are comparable only against rounds of the same measurement class, and a
-   held-back instrument does not find less, it finds the same things later.
-6. Run /bts-adjudicate after every debate.
-7. Run /bts-sync-check before finalizing.
-8. Deviations are reports, not gates — they don't block completion.
-9. Never recommend IMPROVE for elaboration. Criteria are met by adding a missing
-   STRUCTURE, never by adding detail to what is already there.
-
-## Document Levels
-
-A level says what a document is, not how much of it there is. Every criterion is
-structural and **saturates**: once met, more text cannot raise the score.
-`.claude/rules/bts-level-criteria.md` is authoritative.
-
-- Level 1 (Understanding): parts named, relations between them, tech stack evidenced by the kinds of file the spec touches
-- Level 2 (Design): data flow, a named failure AND its disposition, something named at a boundary, a choice recorded as a choice
-- Level 3 (Blueprint): what code cannot cheaply falsify — every `INV-NNN` paired with the file that keeps it, boundary contracts pinned in a table or fence, irreversible order with what undoes it, a named falsifier per invariant, and a `## Known Uncertainties` section
-
-Level 3 does NOT ask for function signatures, type definitions, edge-case tables
-or code scaffolding. A compiler produces them for free and settles them in
-seconds; arguing them in prose costs a verify round each and leaves a claim
-behind that the next round has to re-check.
-
-**Delegation**: a Level 1 or Level 2 criterion whose content has a home upstream
-is satisfied by NAMING that home ("the flow is in `wireframe.md` §3"), not by
-copying it into the draft. Level 3 criteria never delegate.
-
-**Falsifiers, not test scenarios**: a claim about code that does not exist yet
-has no truth value until something executes. Name what would open the box — a
-test, a spec, a probe — and stop. What the assertion should contain is decided
-while writing the test.
+- **Build DONE:** the skeleton builds; each introduced invariant's falsifier is recorded red and each `[carried]` one green; the scope is covered; the one review is clean (express: `bts verify` on `final.md` finds no critical or major).
+- **Blueprint DONE:** the last rounds on the spec are clean (no critical, major or resolvable minor), full passes by verify and audit, `verify.confirm_passes` of them over one unchanged revision; every finding in the ledger is fixed or dismissed; every `INV-NNN` names a falsifier.
+- **IMPLEMENT DONE:** tasks done; tests pass on the current code; for a build, every falsifier green and each introduced one able to fail under a mutation of its guard; interrogate has nothing open; every planned journey driven or deferred; review and sync done.
+- **FIX DONE:** fix-spec, tests passing on the current code, and the same interrogate and journey records.
+- Any open decision blocks completion.
 
 ## Bounds
 
-The loop is bounded on purpose. Never raise a limit to get past it.
+| Setting | Default | At the bound |
+|---------|---------|--------------|
+| `verify.max_rounds` | 6 | the open findings move to `## Known Uncertainties` and implementation starts |
+| `verify.max_iterations` | 3 no-progress rounds | the loop stops and asks the user (`bts recipe decision hold`) |
+| `verify.confirm_passes` | 2 | clean full passes over one revision needed for blueprint DONE |
+| `interrogate.max_rescope_rounds` | 4 | scoped interrogate rounds after code changes, then a notice instead of a block |
 
-| Bound | Setting | Default |
-|-------|---------|---------|
-| Verify rounds per document | `verify.max_rounds` | 6 |
-| Consecutive no-progress rounds | `verify.max_iterations` | 3 |
-| Whole-document lines | `verify.max_document_lines` | 400 |
-| H2 section lines | `verify.max_section_lines` | 300 |
-| Clean full passes required to finish | `verify.confirm_passes` | 2 |
+Never raise a limit to get past it.
 
-Span reports are `major` by default — an oversize document blocks completion.
-Section length and finding count correlate at r=+0.95 (~12.7 findings per 100
-lines), so how long the draft is decides how much the loop will cost before
-anyone reads a word.
+## Commands
 
-Hitting the round cap or the no-progress budget means the remaining questions
-move to `## Known Uncertainties` and implementation starts — a compiler and a
-test settle in seconds what another round would argue about.
+- You or the user: `bts recipe status|list|cancel`, `bts recipe create --type <type> [--express] [--feature <f> --item <i>] [--amends <id>, fix only]`, `bts recipe decision`, `bts recipe mode`, `bts recipe finish`, `bts doctor`, `bts update`, `bts stats`, `bts graph`.
+- The skills: `bts recipe log|confirm|findings|leave-unverified|override|assess-precheck`, `bts check`, `bts falsifier`, `bts interrogate`, `bts prove`, `bts review`, `bts verify`, `bts validate`, `bts sync-check`, `bts task`, `bts test`, `bts debate`, `bts comment`, `bts evidence`.
+- Features: `bts feature` (a confirmed plan of items, one recipe and one stacked draft pull request each) and `bts multica setup` (manager and worker agents on a Multica board).
 
----
-bts version: v0.14.0
+## Settings
+
+`.bts/config/settings.yaml` documents every key. The ones that change how a run behaves: `review.surface`, `implement.require_edit_go` (hold the first product-code edit for the user's go), `implement.setup_cmd` (makes a fresh copy runnable; run in every copy bts makes), `implement.format_cmd`, `statusline`, the `verify.*` bounds above, and `agents.*`.
+
+Models: verifier, auditor and the three code reviewers use the session model; the defender, the review validator, cross-check and sync-check use Sonnet; the architect's runners and adjudicator and the interrogate adversaries use Opus. `agents.*` is passed as the spawn's `model`; fork gates keep their agent file's model.
+
+## Files
+
+```
+.bts/config/settings.yaml
+.bts/specs/                      # tracked, unless bts init --exclude
+  vision.md, roadmap.md, project-status.md
+  recipes/<id>/
+    recipe.json                  # id, type, topic, phase, mode, amends
+    intent.md, scope.md, domain.md, wireframe.md
+    draft.md, verification.md, final.md
+    changelog.jsonl, decisions.jsonl, verify-log.jsonl, findings.jsonl
+    tasks.json, test-results.json, review.md, deviation.md
+    build-evidence.json, probes/, mutations/     # build recipe
+    diagnosis.md, fix-spec.md                    # fix and debug
+.bts/local/                      # gitignored: metrics, work state, evidence cache
+~/.bts/features/                 # feature store ($BTS_FEATURE_STORE)
+```
+
+bts writes the records (changelog, decisions, verify-log, findings, build evidence, and the run fields of test-results.json) through its commands: never hand-edit them, read them through `bts recipe status`, `bts recipe findings list`, `bts recipe decision list` and `bts doctor`, and run `bts validate` after editing any JSON file under `.bts/`.
+
+Phases, in order of use: `discovery`, `scoping`, `research`, `domain-model`, `architect`, `wireframe`; then `skeleton`, `falsify` (build) or `draft`, `assess`, `improve`, `verify`, `debate`, `audit` (blueprint); `finalize`; `implement`, `test`, `review`, `sync`, `status`; `complete` or `cancelled`.
+
+## Document levels
+
+A level says what a document is, not how much of it there is; every criterion is structural and saturates. Level 1 names parts and their relations; Level 2 adds data flow, a failure with its disposition, a boundary and a recorded choice; Level 3 carries what code cannot cheaply falsify: each `INV-NNN` with the file that keeps it and a named falsifier, boundary contracts pinned in a table or fence, irreversible order with what undoes it, and `## Known Uncertainties`. Signatures, types and edge-case tables are left to the compiler. `.claude/rules/bts-level-criteria.md` is authoritative.

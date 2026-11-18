@@ -16,7 +16,7 @@ You already do the right things — reminding AI of the architecture, asking for
 bts makes those habits the default:
 
 - **Direction you confirmed** — intent and scope are confirmed by you before any design work; a build or blueprint recipe cannot leave discovery without that confirmation.
-- **Truth from runs** — the design lands as a skeleton that compiles and one failing test per invariant; implementation is done when those tests pass, and every finding an adversary reports must be reproduced by a run.
+- **Truth from runs** — the design lands as a skeleton that compiles and a test for each new invariant that fails first; implementation is done when those tests pass, and every finding an adversary reports must be reproduced by a run.
 - **Isolated review** — verification and code review run in separate agent contexts that do not share the blind spots of the session that did the work.
 - **State that survives** — findings, decisions and phase history persist across sessions and compactions.
 - **Completion gates** — the Stop hook refuses a completion marker until the recipe's gates pass.
@@ -32,12 +32,13 @@ brew install imtemp-dev/tap/claude-bts
 # Or one-line install (latest release binary)
 curl -fsSL https://raw.githubusercontent.com/imtemp-dev/claude-bts/main/install.sh | bash
 
-# Or build from source (Go 1.26+)
+# Or build from source (Go 1.26+); make install copies bts to ~/.local/bin, which must be on PATH
 git clone https://github.com/imtemp-dev/claude-bts.git && cd claude-bts && make install
 ```
 
 ```bash
-# Update the binary; a project's templates follow at its next session start, or now with `bts update`
+# Update the binary; a project's templates follow at its next session start with no
+# active recipe, at the next `bts recipe create`, or now with `bts update`
 brew upgrade claude-bts
 
 # Uninstall (binary only — .bts/ and .claude/ stay in your project)
@@ -50,12 +51,14 @@ brew uninstall claude-bts
 cd your-project && bts init . && claude
 ```
 
+`bts init` writes `.claude/` (skills, agents, rules, commands, and its hooks in `settings.local.json`), `.bts/`, `.mcp.json` and `.vscode/` snippets. In a repository you only visit, `bts init --exclude .` keeps all of it out of git through the repository's `info/exclude` and changes no tracked file.
+
 Then inside Claude Code:
 
 ```bash
 /bts-recipe-build add OAuth2 login                  # intent → scope → domain → skeleton → falsifiers → implement → prove → complete
-/bts-recipe-fix login bcrypt hash comparison fails  # diagnose → fix-spec → reproduce → implement → complete
-/bts-recipe-debug session drops after 5 minutes     # six perspectives → root cause → fix-spec → implement → complete
+/bts-recipe-fix login bcrypt hash comparison fails  # diagnose → fix-spec → reproduce → implement → test → prove → review
+/bts-recipe-debug session drops after 5 minutes     # six perspectives → root cause → fix-spec → implement → prove → review
 ```
 
 A small build (at most three scope items, no new integration, no migration) runs in **express** mode; bts offers it when you confirm such a scope.
@@ -71,7 +74,7 @@ flowchart LR
     INT["Intent"] --> SC["Scope"] --> RS["Research"] --> DM["Domain model"] --> AR["Architect ↗"] --> WF["Wireframe"]
 ```
 
-You confirm the intent and the scope. By default you review them on a **review page**: Claude publishes the change as a claude.ai artifact, you pin notes on it (typed or spoken) and send them in rounds, Claude answers and proposes edits, and you confirm a fingerprinted version. Set `review.surface: ask` to answer in the chat instead.
+You confirm the intent and the scope. By default you review them on a **review page**: Claude publishes the change as a claude.ai artifact, you pin notes on it (typed or spoken) and send them in rounds, Claude answers and proposes edits, and you confirm a fingerprinted version. Set `review.surface: ask` to answer in the chat instead; a run without the Artifact tool (headless, or a Multica worker) asks in the chat too.
 
 The domain model names each invariant and the one place that enforces it. The architect step has two independent runners propose decompositions, debates them, and has an adjudicator pick one. The wireframe lays out the structure and the files the change touches. **↗ = separate agent context.**
 
@@ -82,7 +85,7 @@ flowchart LR
     SK["Skeleton"] --> FA["Falsifiers"] --> EQ["Probes"] --> RV["One review ↗"] --> FN["Finalize"]
 ```
 
-The design is stated as code: a skeleton that compiles, with bodies that fail loudly, and one test per invariant that fails now for that invariant's own reason. Questions that running something would answer are answered by a throwaway probe, not argued. One review of the build spec (`final.md`) reads what only judgment can see. The Stop hook lets the recipe finalize only when the skeleton builds, every falsifier is recorded red, the scope is covered and the review is clean.
+The design is stated as code: a skeleton that compiles, with bodies that fail loudly, and one test per invariant the change introduces that fails now for that invariant's own reason; an invariant the change only carries keeps its existing, passing test. Questions that running something would answer are answered by a throwaway probe, not argued. One review of the build spec (`final.md`) reads what only judgment can see. The Stop hook lets the recipe finalize only when the skeleton builds, every introduced invariant's falsifier is recorded red and every carried one green, the scope is covered and the review is clean.
 
 ### 3. Implement and prove
 
@@ -97,20 +100,20 @@ Implementation fills the skeleton until the falsifiers pass. Then the change is 
 
 ### Express mode
 
-For a small change, express keeps what makes a build trustworthy — confirmed intent and scope, invariants with one owner each, a skeleton that compiles, a falsifier per invariant, the prove stage, one code review, sync — and drops the architect's runners and debate, the review round on `final.md` and the second adversary. A recipe moves to the full recipe (one way) when it outgrows express.
+For a small change, express keeps what makes a build trustworthy — confirmed intent and scope, invariants with one owner each, a skeleton that compiles, a falsifier per invariant, the prove stage, one code review, sync — and drops the architect's runners and debate, the review round on `final.md` and the second adversary. Research covers only the questions that decide an invariant's owner, other open questions and their probes wait for implementation, and `final.md` keeps only what ships, the invariants, scope coverage and the open questions. A recipe becomes express only before its architect step, and moves to the full recipe (one way) when it outgrows express.
 
 ### Blueprint: when the design must be argued first
 
-`/bts-recipe-blueprint` converges a prose spec before any code: draft → verify ↗ → assess → improve, debate or audit ↗ → verify again. The loop ends at two consecutive clean passes over an unchanged spec, or at a round cap or no-progress budget, which moves the open questions to `## Known Uncertainties` for implementation to settle. It then goes through the same implement and prove stages as the build recipe, without the falsifier steps.
+`/bts-recipe-blueprint` sets direction the same way (intent, scope, research, domain model, architect, wireframe), then converges a prose spec before any code: draft → verify and audit ↗ → assess → improve, defend or debate → verify again. The loop ends at two consecutive clean passes over an unchanged spec. At the round cap (`verify.max_rounds`) the open findings move to `## Known Uncertainties` and implementation settles them; when rounds stop making progress (`verify.max_iterations`), the loop stops and asks you. The recipe then goes through the same implement and prove stages as the build recipe, without the falsifier steps.
 
 ## Recipes
 
 | Recipe | Lifecycle | Output |
 |--------|-----------|--------|
 | `/bts-recipe-build` | intent → scope → research → domain → architect → wireframe → skeleton → falsify → one review → implement → prove → review → sync; `express` drops the architect's runners and the review round | build spec + skeleton → code → tests |
-| `/bts-recipe-blueprint` | intent → scope → wireframe → draft ⇄ verify → finalize → implement → prove → review → sync | Level 3 spec → code → tests |
-| `/bts-recipe-fix` | diagnose → fix-spec (root cause, adversarial validation, reproduction run, expert review) → implement | fix spec → code → tests |
-| `/bts-recipe-debug` | six-perspective analysis → cross-reference → fix-spec → implement | root cause → fix |
+| `/bts-recipe-blueprint` | intent → scope → research → domain → architect → wireframe → draft ⇄ verify and audit → finalize → implement → prove → review → sync | Level 3 spec → code → tests |
+| `/bts-recipe-fix` | diagnose → fix-spec (root cause, adversarial validation, reproduction run, expert review) → implement → test → prove → review | fix spec → code → tests |
+| `/bts-recipe-debug` | six-perspective analysis → cross-reference → fix-spec → implement → prove → review → sync | root cause → fix |
 | `/bts-recipe-design` | research → draft ⇄ verify → finalize | Level 2 design doc |
 | `/bts-recipe-analyze` | research → draft ⇄ verify → finalize | Level 1 analysis doc |
 
@@ -154,7 +157,7 @@ bts update                          Bring the project's templates to the binary'
 bts doctor [recipe-id]              Health check
 bts recipe list|status|cancel       See or stop recipes
 bts recipe decision list|resolve    Questions only you can answer
-bts recipe mode <id> express|full   Switch a build recipe between express and full
+bts recipe mode <id> express|full   Make a build recipe express (before its architect step) or full (one way)
 bts recipe finish <id>              Complete a recipe through the Stop hook's gate, without ending the session
 bts stats [recipe-id]               Metrics and cost (--json, --csv)
 bts graph [recipe-id]               Document relationship graph
@@ -167,7 +170,7 @@ The skills call the rest — `bts recipe log`, `bts recipe confirm`, `bts check`
 
 ## Architecture
 
-**Go binary** — a single statically linked binary with no runtime dependencies. It keeps recipe state, enforces the completion gates, deploys the templates and records metrics.
+**Go binary** — a single statically linked binary that drives `git` for copies, mutations and the feature store. It keeps recipe state, enforces the completion gates, deploys the templates and records metrics.
 
 **Claude Code integration** — 31 skills, 10 lifecycle hooks, 7 rules. Verification and review always run in separate agent contexts.
 
@@ -184,7 +187,10 @@ The skills call the rest — `bts recipe log`, `bts recipe confirm`, `bts check`
 ## Requirements
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+- git
 - macOS, Linux (Windows via WSL)
+- [GitHub CLI](https://cli.github.com) (`gh`) only for a feature's pull requests
+- Node.js (`npx`) only for the context7 documentation server `bts init` configures; without it, research reads official docs directly
 - Go 1.26+ only if building from source ([install](https://go.dev/dl/))
 
 ## Contributing
@@ -192,7 +198,7 @@ The skills call the rest — `bts recipe log`, `bts recipe confirm`, `bts check`
 ```bash
 git clone https://github.com/imtemp-dev/claude-bts.git && cd claude-bts
 make build && make test && make lint     # lint: go vet and golangci-lint (install it first), as CI runs
-go run ./cmd/bts docs check              # after changing README.md, llms.txt or docs/
+go run ./cmd/bts docs check              # after changing README.md, llms.txt, docs/ or the shipped templates
 ```
 
 [Open an issue](https://github.com/imtemp-dev/claude-bts/issues) for bugs or feature requests.

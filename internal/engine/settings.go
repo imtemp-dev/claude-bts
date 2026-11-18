@@ -166,8 +166,11 @@ type VerifySettings struct {
 	// carries only what code cannot cheaply falsify does not approach it.
 	MaxDocumentLines int `yaml:"max_document_lines"`
 	// SectionSpanSeverity classifies both span reports. "major" (default)
-	// makes an oversize document or section a completion blocker; "info"
-	// records without blocking.
+	// or "critical" makes `bts verify` exit non-zero on an oversize
+	// document or section, which blocks an express build's DONE
+	// (build_verify_clean); "minor_resolvable" or "info" reports without
+	// blocking. A span report never enters findings.jsonl or
+	// verify-log.jsonl, so it blocks no other completion gate.
 	//
 	// It defaulted to info while the check was new. Measured afterwards:
 	// 15 of 26 recipes in one project carried an oversize section, the
