@@ -2,12 +2,14 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/imtemp-dev/claude-bts/internal/feature"
+	"github.com/imtemp-dev/claude-bts/internal/review"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 	"github.com/spf13/cobra"
 )
@@ -37,6 +39,8 @@ func init() {
 	featureStatusCmd.Flags().Bool("json", false, "JSON output (derived states, for review pages)")
 	featureNextCmd.Flags().Bool("json", false, "JSON output")
 	featureConfirmCmd.Flags().String("answer", "", "The user's words confirming the intent, contracts and plan")
+	featureConfirmCmd.Flags().String("via", "", "review: the user confirmed on the feature's review page; needs --hash")
+	featureConfirmCmd.Flags().String("hash", "", "With --via review: the fingerprint on the confirm row the user pressed")
 	featureCloseCmd.Flags().String("answer", "", "The user's words")
 	featureCancelCmd.Flags().String("answer", "", "The user's words")
 	featureContextCmd.Flags().String("recipe", "", "Also write the context into this recipe's directory (default: the active recipe bound to the item)")
@@ -457,6 +461,21 @@ var featureConfirmCmd = &cobra.Command{
 			return err
 		}
 		answer, _ := cmd.Flags().GetString("answer")
+		via, _ := cmd.Flags().GetString("via")
+		hash, _ := cmd.Flags().GetString("hash")
+		switch via {
+		case "":
+			if strings.TrimSpace(hash) != "" {
+				return errors.New("--hash goes with --via review")
+			}
+		case "review":
+			cmd.SilenceUsage = true
+			if answer, err = featureReviewAnswer(args[0], hash, answer); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("--via takes review, got %q", via)
+		}
 		n, err := feature.Confirm(dir, answer)
 		if err != nil {
 			cmd.SilenceUsage = true
@@ -465,6 +484,32 @@ var featureConfirmCmd = &cobra.Command{
 		fmt.Printf("Confirmation %d recorded; %s/%s/%d holds what was confirmed.\n", n, dir, feature.ConfirmedDir, n)
 		return nil
 	},
+}
+
+// featureReviewAnswer checks a confirmation made on the feature's review
+// page and returns the answer to record: the fingerprint must be the
+// current one of the intent, contracts and plan together, and the page may
+// hold no open notes or proposals.
+func featureReviewAnswer(ref, hash, answer string) (string, error) {
+	if strings.TrimSpace(answer) == "" {
+		return "", errors.New("--answer is required: the user's words on the confirm row")
+	}
+	sub, err := featureSubject(ref)
+	if err != nil {
+		return "", err
+	}
+	if err := review.ConfirmCheck(sub, sub.Bundle, hash); err != nil {
+		return "", err
+	}
+	s, err := review.Load(sub)
+	if err != nil {
+		return "", err
+	}
+	v := 0
+	if d := s.Docs[sub.Bundle]; d != nil {
+		v = d.Version
+	}
+	return fmt.Sprintf("Confirmed on the review page, feature v%d (%s): %s", v, strings.TrimSpace(hash), strings.TrimSpace(answer)), nil
 }
 
 var featureNextCmd = &cobra.Command{

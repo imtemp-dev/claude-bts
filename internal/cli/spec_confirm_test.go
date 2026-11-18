@@ -136,7 +136,7 @@ func TestReviewPage_SpecPoint(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(dir, "intent.md"), []byte("# Intent\n\n### Status: CONFIRMED\n\nWhy.\n"), 0644)
 	_ = os.WriteFile(filepath.Join(dir, "scope.md"), []byte("# Scope\n\n### Status: CONFIRMED\n\n## In Scope\n\n1. One.\n"), 0644)
 
-	b, err := review.PageBrief(root, id, "spec")
+	b, err := review.PageBrief(review.RecipeSubject(root, id), "spec")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestReviewPage_SpecPoint(t *testing.T) {
 	// drawn as a failing path.
 	fix := "r-spec-page-fix"
 	froot, _ := specFixture(t, fix, "fix", "draft")
-	fb, err := review.PageBrief(froot, fix, "spec")
+	fb, err := review.PageBrief(review.RecipeSubject(froot, fix), "spec")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestReviewPage_SpecPoint(t *testing.T) {
 	if err := state.SaveRecipeState(eroot, r); err != nil {
 		t.Fatal(err)
 	}
-	eb, err := review.PageBrief(eroot, ex, "spec")
+	eb, err := review.PageBrief(review.RecipeSubject(eroot, ex), "spec")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestReviewPage_SpecPoint(t *testing.T) {
 	// No spec yet, no spec page.
 	early := "r-spec-page-early"
 	eroot2 := editGoFixture(t, early, "blueprint", "draft", "")
-	if _, err := review.PageBrief(eroot2, early, "spec"); err == nil || !strings.Contains(err.Error(), "final.md does not exist yet") {
+	if _, err := review.PageBrief(review.RecipeSubject(eroot2, early), "spec"); err == nil || !strings.Contains(err.Error(), "final.md does not exist yet") {
 		t.Errorf("a spec page before final.md exists must be refused, got %v", err)
 	}
 }

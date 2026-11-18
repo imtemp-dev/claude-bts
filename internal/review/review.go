@@ -1,7 +1,8 @@
-// Package review records a recipe's review on an artifact page: the page
-// the user reviews intent, scope and the spec on, the rounds of notes they
-// send from it, the proposals Claude makes from those notes, and the
-// versions of the plan documents the accepted proposals produce.
+// Package review records a review on an artifact page: the page the user
+// reviews a recipe's intent, scope and spec on, or a feature's intent,
+// contracts and plan; the rounds of notes they send from it, the proposals
+// Claude makes from those notes, and the versions of the plan documents the
+// accepted proposals produce.
 //
 // bts cannot read the page's data: only the session's ArtifactData tool can.
 // The session exports the page's collections with ArtifactData's out_dir,
@@ -26,18 +27,41 @@ import (
 
 // KitVersion is the review kit the templates ship.  A page records the kit
 // it was built with, so a later kit change is visible on an old page.
-const KitVersion = "1"
+// Kit 2 adds feature pages (config "feature" in place of "recipe").
+const KitVersion = "2"
 
 // Schema is the version of review.json and the round records.
 const Schema = 1
 
-// Points a page can carry, in the order a recipe reaches them.  spec is the
-// document the implementation is built from (SpecDoc).
+// Points a recipe's page can carry, in the order a recipe reaches them.
+// spec is the document the implementation is built from (SpecDoc).
 var Points = []string{"intent", "scope", "spec"}
 
-// PlanDocs are the documents a review can change and confirm.  A recipe
-// holds at most one of the two spec documents.
+// FeaturePoint is the one point a feature's page carries: the feature's
+// confirmation of its intent, contracts and plan together.
+const FeaturePoint = "feature"
+
+// PlanDocs are the documents a recipe's review can change and confirm.  A
+// recipe holds at most one of the two spec documents.
 var PlanDocs = []string{"intent.md", "scope.md", "final.md", "fix-spec.md"}
+
+// FeatureDocs are the documents a feature's review can change: its intent,
+// its contracts, and its plan (the items as a confirmation covers them,
+// read from feature.json).
+var FeatureDocs = []string{"intent.md", "contracts.md", PlanDoc}
+
+// PlanDoc names a feature's plan among its documents.
+const PlanDoc = "plan"
+
+// FeatureBundle is the confirm row of a feature's page: the intent,
+// contracts and plan confirmed together, as `bts feature confirm` pins them.
+const FeatureBundle = "feature"
+
+// Subject kinds.
+const (
+	KindRecipe  = "recipe"
+	KindFeature = "feature"
+)
 
 // SpecDoc is the document a recipe of this type implements, the one the
 // spec point reviews: fix-spec.md for a fix recipe, final.md otherwise.
@@ -46,6 +70,91 @@ func SpecDoc(recipeType string) string {
 		return "fix-spec.md"
 	}
 	return "final.md"
+}
+
+// Subject is what a review page reviews: a recipe in a project or a
+// feature in the store.  Dir holds the record (review.json, feedback/);
+// Work holds what the session publishes and uploads (page.html, upload/,
+// export/), always inside Root, the session's project, where the Artifact
+// and ArtifactData tools read files and the review kit lives.
+type Subject struct {
+	Kind string
+	ID   string
+	Root string
+	Dir  string
+	Work string
+	// Docs are the plan documents the page can change, in order.
+	Docs []string
+	// Bundle, when set, is the one confirm row that covers every document
+	// together; its fingerprint combines theirs and has its own version.
+	Bundle string
+	// HashDoc fingerprints a document; "" when it does not exist.
+	HashDoc func(doc string) (string, error)
+	// Log records a version change in the subject's changelog; may be nil.
+	Log func(rev Revision)
+}
+
+// RecipeSubject is a recipe's review: its documents and record live in the
+// recipe's directory, its page and uploads in the project's local state.
+func RecipeSubject(root, recipeID string) Subject {
+	dir := state.RecipeDir(root, recipeID)
+	return Subject{
+		Kind: KindRecipe, ID: recipeID, Root: root, Dir: dir,
+		Work: filepath.Join(state.LocalPath(root), "recipes", recipeID, "review"),
+		Docs: PlanDocs,
+		HashDoc: func(doc string) (string, error) {
+			return fileFingerprint(filepath.Join(dir, doc))
+		},
+		Log: func(rev Revision) {
+			_ = state.AppendChangelog(root, recipeID, &state.ChangelogEntry{
+				Action: "review", Output: rev.File, Result: rev.summary(),
+			})
+		},
+	}
+}
+
+// FeatureSubject is a feature's review.  Its record lives in the feature's
+// store directory beside intent.md and contracts.md; its page and uploads
+// in the session's project (root).  plan returns the feature's plan as it
+// stands, in the form its fingerprint is taken of.
+func FeatureSubject(root, dir, featureID string, plan func() (string, error)) Subject {
+	return Subject{
+		Kind: KindFeature, ID: featureID, Root: root, Dir: dir,
+		Work:   filepath.Join(state.LocalPath(root), "features", featureID, "review"),
+		Docs:   FeatureDocs,
+		Bundle: FeatureBundle,
+		HashDoc: func(doc string) (string, error) {
+			if doc == PlanDoc {
+				p, err := plan()
+				if err != nil {
+					return "", err
+				}
+				return Fingerprint(p), nil
+			}
+			return fileFingerprint(filepath.Join(dir, doc))
+		},
+		Log: func(rev Revision) {
+			_ = state.AppendJSONL(filepath.Join(dir, "changelog.jsonl"), map[string]interface{}{
+				"time": now(), "action": "review", "detail": rev.File + " " + rev.summary(),
+			})
+		},
+	}
+}
+
+// Points lists the review points the subject's page can carry.
+func (sub Subject) Points() []string {
+	if sub.Kind == KindFeature {
+		return []string{FeaturePoint}
+	}
+	return Points
+}
+
+// Arg is how a `bts review` command names the subject.
+func (sub Subject) Arg() string {
+	if sub.Kind == KindFeature {
+		return "--feature " + sub.ID
+	}
+	return sub.ID
 }
 
 // Note dispositions.
@@ -90,6 +199,20 @@ type Revision struct {
 	At        string   `json:"at"`
 }
 
+func (rev Revision) summary() string {
+	s := fmt.Sprintf("v%d (%s → %s)", rev.Version, rev.From, rev.To)
+	if len(rev.Proposals) > 0 {
+		s += " from " + strings.Join(rev.Proposals, ", ")
+	}
+	if rev.Round > 0 {
+		s += fmt.Sprintf(", round %d", rev.Round)
+	}
+	if rev.Note != "" {
+		s += ", " + rev.Note
+	}
+	return s
+}
+
 // State is review.json.
 type State struct {
 	Schema    int             `json:"schema"`
@@ -110,7 +233,7 @@ type Item struct {
 	Kind        string   `json:"kind"`
 	Decision    string   `json:"decision,omitempty"` // a Pick: the decision's key
 	Value       string   `json:"value,omitempty"`    // a Pick: the option; a confirm: the fingerprint
-	Doc         string   `json:"doc,omitempty"`      // a confirm: intent, scope, final or fix-spec
+	Doc         string   `json:"doc,omitempty"`      // a confirm: intent, scope, final, fix-spec or feature
 	Disposition string   `json:"disposition,omitempty"`
 	Proposals   []string `json:"proposals,omitempty"`
 	Why         string   `json:"why,omitempty"`
@@ -137,7 +260,8 @@ type Proposal struct {
 
 // Round is one round's record, feedback/round-N.json.
 type Round struct {
-	Schema      int               `json:"schema"`
+	Schema int `json:"schema"`
+	// Recipe is the reviewed subject's id: a recipe's, or a feature's.
 	Recipe      string            `json:"recipe"`
 	Round       int               `json:"round"`
 	Kind        string            `json:"kind"`
@@ -168,10 +292,8 @@ func Fingerprint(content string) string {
 	return hex.EncodeToString(sum[:])[:12]
 }
 
-// FileFingerprint fingerprints a plan document of the recipe; "" when the
-// file does not exist.
-func FileFingerprint(root, recipeID, doc string) (string, error) {
-	data, err := os.ReadFile(filepath.Join(state.RecipeDir(root, recipeID), doc))
+func fileFingerprint(path string) (string, error) {
+	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return "", nil
 	}
@@ -181,28 +303,60 @@ func FileFingerprint(root, recipeID, doc string) (string, error) {
 	return Fingerprint(string(data)), nil
 }
 
-func statePath(root, recipeID string) string {
-	return filepath.Join(state.RecipeDir(root, recipeID), "review.json")
+// FileFingerprint fingerprints a plan document of the recipe; "" when the
+// file does not exist.
+func FileFingerprint(root, recipeID, doc string) (string, error) {
+	return fileFingerprint(filepath.Join(state.RecipeDir(root, recipeID), doc))
+}
+
+// bundleHash fingerprints the subject's documents together: what its one
+// confirm row signs.  "" when the subject has no bundle.
+func bundleHash(sub Subject) (string, error) {
+	if sub.Bundle == "" {
+		return "", nil
+	}
+	var parts []string
+	for _, doc := range sub.Docs {
+		h, err := sub.HashDoc(doc)
+		if err != nil {
+			return "", err
+		}
+		parts = append(parts, doc+":"+h)
+	}
+	return Fingerprint(strings.Join(parts, "\n")), nil
+}
+
+// CurrentHash is a document's fingerprint as it stands, the bundle's
+// included; "" when it does not exist.
+func CurrentHash(sub Subject, doc string) (string, error) {
+	if doc == sub.Bundle && doc != "" {
+		return bundleHash(sub)
+	}
+	return sub.HashDoc(doc)
+}
+
+func statePath(sub Subject) string {
+	return filepath.Join(sub.Dir, "review.json")
 }
 
 // RoundPath is where a round's record lives.
-func RoundPath(root, recipeID string, n int) string {
-	return filepath.Join(state.RecipeDir(root, recipeID), "feedback", fmt.Sprintf("round-%d.json", n))
+func RoundPath(sub Subject, n int) string {
+	return filepath.Join(sub.Dir, "feedback", fmt.Sprintf("round-%d.json", n))
 }
 
 // UploadDir is where bts writes the page documents the session uploads
 // with ArtifactData (file_path), one JSON object per document.
-func UploadDir(root, recipeID string) string {
-	return filepath.Join(state.LocalPath(root), "recipes", recipeID, "review", "upload")
+func UploadDir(sub Subject) string {
+	return filepath.Join(sub.Work, "upload")
 }
 
-// ErrNoPage means the recipe has no review page.
+// ErrNoPage means the subject has no review page.
 var ErrNoPage = errors.New("no review page: run `bts review page` first")
 
 // Load reads review.json; ErrNoPage when there is none.
-func Load(root, recipeID string) (*State, error) {
+func Load(sub Subject) (*State, error) {
 	var s State
-	if err := state.ReadJSON(statePath(root, recipeID), &s); err != nil {
+	if err := state.ReadJSON(statePath(sub), &s); err != nil {
 		if os.IsNotExist(err) || errors.Is(err, os.ErrNotExist) {
 			return nil, ErrNoPage
 		}
@@ -215,33 +369,33 @@ func Load(root, recipeID string) (*State, error) {
 }
 
 // Save writes review.json.
-func Save(root, recipeID string, s *State) error {
+func Save(sub Subject, s *State) error {
 	s.Schema = Schema
 	s.Updated = now()
-	return state.WriteJSON(statePath(root, recipeID), s)
+	return state.WriteJSON(statePath(sub), s)
 }
 
 // LoadRound reads a round's record.
-func LoadRound(root, recipeID string, n int) (*Round, error) {
+func LoadRound(sub Subject, n int) (*Round, error) {
 	var r Round
-	if err := state.ReadJSON(RoundPath(root, recipeID, n), &r); err != nil {
+	if err := state.ReadJSON(RoundPath(sub, n), &r); err != nil {
 		return nil, err
 	}
 	return &r, nil
 }
 
 // SaveRound writes a round's record.
-func SaveRound(root, recipeID string, r *Round) error {
+func SaveRound(sub Subject, r *Round) error {
 	r.Schema = Schema
-	if err := os.MkdirAll(filepath.Dir(RoundPath(root, recipeID, r.Round)), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(RoundPath(sub, r.Round)), 0755); err != nil {
 		return err
 	}
-	return state.WriteJSON(RoundPath(root, recipeID, r.Round), r)
+	return state.WriteJSON(RoundPath(sub, r.Round), r)
 }
 
 // Rounds lists the recorded rounds in order.
-func Rounds(root, recipeID string) ([]*Round, error) {
-	dir := filepath.Join(state.RecipeDir(root, recipeID), "feedback")
+func Rounds(sub Subject) ([]*Round, error) {
+	dir := filepath.Join(sub.Dir, "feedback")
 	entries, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -255,7 +409,7 @@ func Rounds(root, recipeID string) ([]*Round, error) {
 		if _, err := fmt.Sscanf(e.Name(), "round-%d.json", &n); err != nil {
 			continue
 		}
-		r, err := LoadRound(root, recipeID, n)
+		r, err := LoadRound(sub, n)
 		if err != nil {
 			return nil, err
 		}
@@ -270,37 +424,55 @@ func Rounds(root, recipeID string) ([]*Round, error) {
 // changed since its recorded hash without `bts review apply` gets a new
 // version with a note saying so, so an edit made outside a round is
 // visible rather than silent.  It returns the revisions it recorded.
-func Refresh(root, recipeID string, s *State) ([]Revision, error) {
+func Refresh(sub Subject, s *State) ([]Revision, error) {
 	var revs []Revision
-	for _, doc := range PlanDocs {
-		h, err := FileFingerprint(root, recipeID, doc)
+	for _, doc := range sub.Docs {
+		h, err := sub.HashDoc(doc)
 		if err != nil {
 			return nil, err
 		}
-		if h == "" {
-			continue
+		if rev := bump(s, doc, h, Revision{Note: "edited outside a review round"}); rev != nil {
+			revs = append(revs, *rev)
 		}
-		d := s.Docs[doc]
-		if d == nil {
-			s.Docs[doc] = &Doc{Version: 1, Hash: h}
-			continue
+	}
+	if sub.Bundle != "" {
+		h, err := bundleHash(sub)
+		if err != nil {
+			return nil, err
 		}
-		if d.Hash == h {
-			continue
+		if rev := bump(s, sub.Bundle, h, Revision{Note: "edited outside a review round"}); rev != nil {
+			revs = append(revs, *rev)
 		}
-		rev := Revision{File: doc, Version: d.Version + 1, From: d.Hash, To: h,
-			Note: "edited outside a review round", At: now()}
-		d.Version++
-		d.Hash = h
-		d.History = append(d.History, rev)
-		revs = append(revs, rev)
 	}
 	return revs, nil
 }
 
+// bump records hash h as doc's version: version 1 the first time, the
+// next version when it changed (returned, with how from tmpl), nothing
+// when it did not or the document does not exist.
+func bump(s *State, doc, h string, tmpl Revision) *Revision {
+	if h == "" {
+		return nil
+	}
+	d := s.Docs[doc]
+	if d == nil {
+		s.Docs[doc] = &Doc{Version: 1, Hash: h}
+		return nil
+	}
+	if d.Hash == h {
+		return nil
+	}
+	rev := tmpl
+	rev.File, rev.Version, rev.From, rev.To, rev.At = doc, d.Version+1, d.Hash, h, now()
+	d.Version++
+	d.Hash = h
+	d.History = append(d.History, rev)
+	return &rev
+}
+
 // Attach records the page's URL and the review point it now carries.
-func Attach(root, recipeID, url, point string) (*State, error) {
-	s, err := Load(root, recipeID)
+func Attach(sub Subject, url, point string) (*State, error) {
+	s, err := Load(sub)
 	if errors.Is(err, ErrNoPage) {
 		s = &State{Docs: map[string]*Doc{}}
 	} else if err != nil {
@@ -314,10 +486,10 @@ func Attach(root, recipeID, url, point string) (*State, error) {
 	if point != "" && !contains(s.Points, point) {
 		s.Points = append(s.Points, point)
 	}
-	if _, err := Refresh(root, recipeID, s); err != nil {
+	if _, err := Refresh(sub, s); err != nil {
 		return nil, err
 	}
-	return s, Save(root, recipeID, s)
+	return s, Save(sub, s)
 }
 
 func contains(list []string, v string) bool {
@@ -329,10 +501,10 @@ func contains(list []string, v string) bool {
 	return false
 }
 
-func currentHashes(root, recipeID string) (map[string]string, error) {
+func currentHashes(sub Subject) (map[string]string, error) {
 	out := map[string]string{}
-	for _, doc := range PlanDocs {
-		h, err := FileFingerprint(root, recipeID, doc)
+	for _, doc := range sub.Docs {
+		h, err := sub.HashDoc(doc)
 		if err != nil {
 			return nil, err
 		}
@@ -345,9 +517,13 @@ func currentHashes(root, recipeID string) (map[string]string, error) {
 
 // OpenWork lists what still stands between a document and its
 // confirmation: notes without a disposition, proposals not yet decided,
-// and accepted proposals not yet applied.  doc "" means every document.
-func OpenWork(root, recipeID, doc string) ([]string, error) {
-	rounds, err := Rounds(root, recipeID)
+// and accepted proposals not yet applied.  doc "" (or the subject's
+// bundle) means every document.
+func OpenWork(sub Subject, doc string) ([]string, error) {
+	if doc == sub.Bundle {
+		doc = ""
+	}
+	rounds, err := Rounds(sub)
 	if err != nil {
 		return nil, err
 	}

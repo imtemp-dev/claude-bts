@@ -27,8 +27,13 @@ ready or merge a pull request: ready and merge are the user's.
    does not, tell the user to open this session in Orca and stop: Orca wakes
    only the session that started the workers.
 2. `bts feature status <feature>`: the feature is confirmed.  If it has no
-   confirmed plan, settle it with the user first (`bts feature create`,
-   `bts feature item add`, `bts feature confirm --answer "<their words>"`).
+   confirmed plan, settle it with the user first: `bts feature create`,
+   `bts feature item add`, `intent.md` and `contracts.md` written.  With
+   `review.surface: artifact` (the default) the user reviews and confirms
+   it on a page (/bts-review-page § Feature), recorded with
+   `bts feature confirm <feature> --via review --hash <fingerprint>
+   --answer "<their words>"`; otherwise ask, and record
+   `bts feature confirm <feature> --answer "<their words>"`.
 3. `bts feature dispatch <feature> --via orca` shows the workers that would
    start, each on its base branch.  Under `orca.launch: ask` (the default)
    ask the user once whether to run the feature on Orca; on their yes run it

@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"github.com/imtemp-dev/claude-bts/internal/state"
 )
 
 // exportDoc is one document of an ArtifactData out_dir export:
@@ -88,8 +86,8 @@ func strs(m map[string]interface{}, k string) []string {
 // (status submitted or picked), or only round `only` when it is set.  A
 // round imported again keeps the dispositions and proposals already
 // recorded for its notes.
-func Import(root, recipeID, dir string, only int) ([]*Round, error) {
-	s, err := Load(root, recipeID)
+func Import(sub Subject, dir string, only int) ([]*Round, error) {
+	s, err := Load(sub)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +102,7 @@ func Import(root, recipeID, dir string, only int) ([]*Round, error) {
 	if len(rounds) == 0 {
 		return nil, fmt.Errorf("no rounds in %s: export the page's rounds and notes with ArtifactData out_dir first", dir)
 	}
-	before, err := currentHashes(root, recipeID)
+	before, err := currentHashes(sub)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +120,7 @@ func Import(root, recipeID, dir string, only int) ([]*Round, error) {
 		} else if status != "submitted" && status != "picked" {
 			continue
 		}
-		prev, _ := LoadRound(root, recipeID, n)
+		prev, _ := LoadRound(sub, n)
 		if prev != nil && prev.Processed != "" && only == 0 {
 			continue
 		}
@@ -130,7 +128,7 @@ func Import(root, recipeID, dir string, only int) ([]*Round, error) {
 		if kind == "" {
 			kind = KindReview
 		}
-		r := &Round{Recipe: recipeID, Round: n, Kind: kind, Page: str(d.Data, "page"),
+		r := &Round{Recipe: sub.ID, Round: n, Kind: kind, Page: str(d.Data, "page"),
 			Submitted: str(d.Data, "submitted"), Imported: now(), FilesBefore: before}
 		if prev != nil {
 			r.FilesBefore = prev.FilesBefore
@@ -170,7 +168,7 @@ func Import(root, recipeID, dir string, only int) ([]*Round, error) {
 				return nil, fmt.Errorf("round %d names notes the export lacks: %s (export the notes collection too)", n, strings.Join(missing, ", "))
 			}
 		}
-		if err := SaveRound(root, recipeID, r); err != nil {
+		if err := SaveRound(sub, r); err != nil {
 			return nil, err
 		}
 		if n > s.LastRound {
@@ -180,7 +178,7 @@ func Import(root, recipeID, dir string, only int) ([]*Round, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Round < out[j].Round })
 	if len(out) > 0 {
-		if err := Save(root, recipeID, s); err != nil {
+		if err := Save(sub, s); err != nil {
 			return nil, err
 		}
 	}
@@ -198,7 +196,7 @@ func findItem(r *Round, note string) *Item {
 
 // Dispose records what was done with a note: answered, page or declined.
 // A change request gets its disposition from Propose.
-func Dispose(root, recipeID string, n int, note, disposition, why string) error {
+func Dispose(sub Subject, n int, note, disposition, why string) error {
 	switch disposition {
 	case Answered, PageOnly, Declined:
 	case Proposed:
@@ -209,7 +207,7 @@ func Dispose(root, recipeID string, n int, note, disposition, why string) error 
 	if disposition == Declined && strings.TrimSpace(why) == "" {
 		return errors.New("--why is required for declined: the reason the user reads")
 	}
-	r, err := LoadRound(root, recipeID, n)
+	r, err := LoadRound(sub, n)
 	if err != nil {
 		return fmt.Errorf("round %d is not imported: %w", n, err)
 	}
@@ -218,11 +216,11 @@ func Dispose(root, recipeID string, n int, note, disposition, why string) error 
 		return fmt.Errorf("round %d has no note %s", n, note)
 	}
 	it.Disposition, it.Why = disposition, strings.TrimSpace(why)
-	return SaveRound(root, recipeID, r)
+	return SaveRound(sub, r)
 }
 
-func writeUpload(root, recipeID, collection, id string, doc map[string]interface{}) (string, error) {
-	dir := filepath.Join(UploadDir(root, recipeID), collection)
+func writeUpload(sub Subject, collection, id string, doc map[string]interface{}) (string, error) {
+	dir := filepath.Join(UploadDir(sub), collection)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
 	}
@@ -237,14 +235,14 @@ func writeUpload(root, recipeID, collection, id string, doc map[string]interface
 // Propose records a proposal made from a note and writes the page
 // document for it.  It returns the proposal and the file to upload to the
 // page's `proposals` collection (ArtifactData set, file_path).
-func Propose(root, recipeID string, n int, p Proposal) (*Proposal, string, error) {
-	if !contains(PlanDocs, p.Target) {
-		return nil, "", fmt.Errorf("--target takes %s, got %q", strings.Join(PlanDocs, " or "), p.Target)
+func Propose(sub Subject, n int, p Proposal) (*Proposal, string, error) {
+	if !contains(sub.Docs, p.Target) {
+		return nil, "", fmt.Errorf("--target takes %s, got %q", strings.Join(sub.Docs, " or "), p.Target)
 	}
 	if strings.TrimSpace(p.Summary) == "" {
 		return nil, "", errors.New("--summary is required: what changes, in a sentence the user reads")
 	}
-	r, err := LoadRound(root, recipeID, n)
+	r, err := LoadRound(sub, n)
 	if err != nil {
 		return nil, "", fmt.Errorf("round %d is not imported: %w", n, err)
 	}
@@ -263,7 +261,7 @@ func Propose(root, recipeID string, n int, p Proposal) (*Proposal, string, error
 	r.Proposals = append(r.Proposals, p)
 	it.Disposition = Proposed
 	it.Proposals = append(it.Proposals, p.ID)
-	if err := SaveRound(root, recipeID, r); err != nil {
+	if err := SaveRound(sub, r); err != nil {
 		return nil, "", err
 	}
 	doc := map[string]interface{}{
@@ -275,7 +273,7 @@ func Propose(root, recipeID string, n int, p Proposal) (*Proposal, string, error
 			doc[k] = v
 		}
 	}
-	path, err := writeUpload(root, recipeID, "proposals", p.ID, doc)
+	path, err := writeUpload(sub, "proposals", p.ID, doc)
 	return &p, path, err
 }
 
@@ -296,19 +294,19 @@ func findProposal(rounds []*Round, id string) (*Round, int) {
 // whose hash must differ from the last recorded one, accepted proposals
 // become applied and rejected ones rejected.  It returns the revisions and
 // the page documents to upload (proposals collection, ArtifactData update).
-func Apply(root, recipeID string, n int) ([]Revision, []string, error) {
-	s, err := Load(root, recipeID)
+func Apply(sub Subject, n int) ([]Revision, []string, error) {
+	s, err := Load(sub)
 	if err != nil {
 		return nil, nil, err
 	}
-	r, err := LoadRound(root, recipeID, n)
+	r, err := LoadRound(sub, n)
 	if err != nil {
 		return nil, nil, fmt.Errorf("round %d is not imported: %w", n, err)
 	}
 	if r.Kind != KindApply {
 		return nil, nil, fmt.Errorf("round %d is a %s round, not an apply round", n, r.Kind)
 	}
-	rounds, err := Rounds(root, recipeID)
+	rounds, err := Rounds(sub)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -327,7 +325,7 @@ func Apply(root, recipeID string, n int) ([]Revision, []string, error) {
 	}
 	sort.Strings(targets)
 	for _, t := range targets {
-		h, err := FileFingerprint(root, recipeID, t)
+		h, err := sub.HashDoc(t)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -344,6 +342,17 @@ func Apply(root, recipeID string, n int) ([]Revision, []string, error) {
 		d.History = append(d.History, rev)
 		revs = append(revs, rev)
 	}
+	// The bundle the page confirms moves with its documents: one new
+	// version for the round, naming every proposal it applied.
+	if sub.Bundle != "" && len(revs) > 0 {
+		h, err := bundleHash(sub)
+		if err != nil {
+			return nil, nil, err
+		}
+		if rev := bump(s, sub.Bundle, h, Revision{Round: n, Proposals: r.Accepted}); rev != nil {
+			revs = append(revs, *rev)
+		}
+	}
 	var uploads []string
 	mark := func(id, status string) error {
 		origin, i := findProposal(rounds, id)
@@ -356,15 +365,15 @@ func Apply(root, recipeID string, n int) ([]Revision, []string, error) {
 			origin.Proposals[i].Applied = now()
 			upd["applied"] = origin.Proposals[i].Applied
 			for _, rev := range revs {
-				if rev.File == origin.Proposals[i].Target {
+				if rev.File == origin.Proposals[i].Target && rev.File != sub.Bundle {
 					upd["applied_in"] = fmt.Sprintf("%s v%d (%s)", rev.File, rev.Version, rev.To)
 				}
 			}
 		}
-		if err := SaveRound(root, recipeID, origin); err != nil {
+		if err := SaveRound(sub, origin); err != nil {
 			return err
 		}
-		path, err := writeUpload(root, recipeID, "proposals", id, upd)
+		path, err := writeUpload(sub, "proposals", id, upd)
 		if err == nil {
 			uploads = append(uploads, path)
 		}
@@ -382,26 +391,24 @@ func Apply(root, recipeID string, n int) ([]Revision, []string, error) {
 	}
 	// The apply round itself may have been rewritten by mark (it holds no
 	// proposals, so it was not); reload before recording the revisions.
-	r, err = LoadRound(root, recipeID, n)
+	r, err = LoadRound(sub, n)
 	if err != nil {
 		return nil, nil, err
 	}
 	r.Revisions = revs
-	if r.FilesAfter, err = currentHashes(root, recipeID); err != nil {
+	if r.FilesAfter, err = currentHashes(sub); err != nil {
 		return nil, nil, err
 	}
-	if err := SaveRound(root, recipeID, r); err != nil {
+	if err := SaveRound(sub, r); err != nil {
 		return nil, nil, err
 	}
-	if err := Save(root, recipeID, s); err != nil {
+	if err := Save(sub, s); err != nil {
 		return nil, nil, err
 	}
-	for _, rev := range revs {
-		_ = state.AppendChangelog(root, recipeID, &state.ChangelogEntry{
-			Action: "review",
-			Output: rev.File,
-			Result: fmt.Sprintf("v%d (%s → %s) from %s, round %d", rev.Version, rev.From, rev.To, strings.Join(rev.Proposals, ", "), n),
-		})
+	if sub.Log != nil {
+		for _, rev := range revs {
+			sub.Log(rev)
+		}
 	}
 	return revs, uploads, nil
 }
@@ -410,8 +417,8 @@ func Apply(root, recipeID string, n int) ([]Revision, []string, error) {
 // disposition, and an apply round with accepted proposals has its
 // revisions.  It returns the page document to upload (rounds collection,
 // ArtifactData update).
-func Done(root, recipeID string, n int) (string, error) {
-	r, err := LoadRound(root, recipeID, n)
+func Done(sub Subject, n int) (string, error) {
+	r, err := LoadRound(sub, n)
 	if err != nil {
 		return "", fmt.Errorf("round %d is not imported: %w", n, err)
 	}
@@ -429,14 +436,14 @@ func Done(root, recipeID string, n int) (string, error) {
 	}
 	r.Processed = now()
 	if r.FilesAfter == nil {
-		if r.FilesAfter, err = currentHashes(root, recipeID); err != nil {
+		if r.FilesAfter, err = currentHashes(sub); err != nil {
 			return "", err
 		}
 	}
-	if err := SaveRound(root, recipeID, r); err != nil {
+	if err := SaveRound(sub, r); err != nil {
 		return "", err
 	}
-	return writeUpload(root, recipeID, "rounds", fmt.Sprintf("r-%d", n), map[string]interface{}{
+	return writeUpload(sub, "rounds", fmt.Sprintf("r-%d", n), map[string]interface{}{
 		"status": "processed", "processed": r.Processed,
 	})
 }

@@ -27,7 +27,7 @@ func TestUserPromptSubmit_RemindsOfAReviewPageInProgress(t *testing.T) {
 	if got := reviewReminder(root, recipe); got != "" {
 		t.Errorf("no page, no reminder; got %q", got)
 	}
-	if _, err := review.Attach(root, "r-001-test", "https://claude.ai/artifact/x", "intent"); err != nil {
+	if _, err := review.Attach(review.RecipeSubject(root, "r-001-test"), "https://claude.ai/artifact/x", "intent"); err != nil {
 		t.Fatal(err)
 	}
 	got := reviewReminder(root, recipe)

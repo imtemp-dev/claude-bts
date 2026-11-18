@@ -1,4 +1,4 @@
-/* bts review kit v1.
+/* bts review kit v2.
  *
  * Everything a bts review page needs that is the same on every page: note
  * mode, the note editor with dictation, pins, the Review tray, rounds sent
@@ -8,9 +8,11 @@
  *
  * The page provides:
  *   <script type="application/json" id="bts-review-config">
- *     {"recipe": "r-001-x", "kit": "1", "docs": {"intent": {"ver": "v1", "hash": "…"}, …},
+ *     {"recipe": "r-001-x", "kit": "2", "docs": {"intent": {"ver": "v1", "hash": "…"}, …},
  *      "confirm": ["intent", "scope"], "page": "page v1", "lang": "ko"}
  *   </script>
+ *   A feature's page names "feature": "f-005-x" in place of "recipe"; its
+ *   one confirm row is the "feature" doc, whose "file" names what it covers.
  *   [data-note="<section> › <part>"] on every reviewable element,
  *   [data-bts-decision="<key>"] containing [data-bts-option="<value>"] cards,
  *   optionally [data-bts-proposals-slot] and [data-bts-confirm-slot].
@@ -28,6 +30,9 @@
   const DOCS = CFG.docs || {};
   const PAGE = [CFG.page].concat(Object.keys(DOCS).map((k) => k + ' ' + DOCS[k].ver)).filter(Boolean).join(' · ');
   const RECIPE = CFG.recipe || '';
+  const FEATURE = CFG.feature || '';
+  const SUBJECT = FEATURE ? 'feature ' + FEATURE : 'recipe ' + RECIPE;
+  const CONFIRM_CMD = FEATURE ? 'bts feature confirm --via review' : 'bts recipe confirm --via review';
   const STATUS = { draft: 'Draft', submitted: 'Sent', applied: 'Applied', declined: 'Declined', answered: 'Answered', proposed: 'Change proposed', page: 'Page fixed' };
   const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const S = { noting: false, comments: null, dict: null, dictOff: false, perms: null, db: null, local: false, dbReady: false, can: 'unknown',
@@ -114,7 +119,7 @@
     row.dataset.note = 'Confirm › ' + k + ' ' + d.ver;
     row.dataset.doc = k; row.dataset.ver = d.ver; row.dataset.hash = d.hash;
     const what = el('div', 'btsr-what');
-    what.append(el('b', '', k.charAt(0).toUpperCase() + k.slice(1) + ' ' + d.ver), el('span', 'btsr-muted', k + '.md · fingerprint ' + d.hash), el('span', 'btsr-cstate'));
+    what.append(el('b', '', k.charAt(0).toUpperCase() + k.slice(1) + ' ' + d.ver), el('span', 'btsr-muted', (d.file || k + '.md') + ' · fingerprint ' + d.hash), el('span', 'btsr-cstate'));
     const b = el('button', 'btsr-btn btsr-primary', 'Confirm ' + k); b.type = 'button'; b.dataset.k = 'confirm';
     row.append(what, b);
     confirmSec.append(row);
@@ -161,7 +166,7 @@
   function scrollTo(e) { if (e) e.scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' }); }
 
   /* ---------- store: page data when available, this browser otherwise ---------- */
-  const LKEY = 'bts-review:' + RECIPE;
+  const LKEY = 'bts-review:' + (FEATURE || RECIPE);
   function localLoad() { try { S.notes = new Map(Object.entries(JSON.parse(localStorage.getItem(LKEY) || '{}'))); } catch (e) { S.notes = new Map(); } }
   function localFlush() { try { localStorage.setItem(LKEY, JSON.stringify(Object.fromEntries(S.notes))); } catch (e) {} }
   const store = {
@@ -295,7 +300,7 @@
     S.busy = true; saveBtn.disabled = true; setStatus('Sending…');
     const round = nextRound();
     try {
-      await post(ed.el, 'Confirmation · round ' + round + ' · recipe ' + RECIPE + ' · ' + PAGE + '\n' + body + '\nFor the working session: check the fingerprint against the file and record the confirmation (bts recipe confirm --via review).' + FOOT);
+      await post(ed.el, 'Confirmation · round ' + round + ' · ' + SUBJECT + ' · ' + PAGE + '\n' + body + '\nFor the working session: check the fingerprint against the file and record the confirmation (' + CONFIRM_CMD + ').' + FOOT);
     } catch (e) { const r = explain(e && e.code); setStatus(r[0], true); allowBtn.hidden = !r[1]; S.busy = false; saveBtn.disabled = false; return; }
     const id = newId(), at = iso();
     try {
@@ -312,7 +317,7 @@
     if (S.busy) return;
     S.busy = true; render();
     const round = nextRound(), ids = list.map(([id]) => id);
-    const head = 'Review round ' + round + ' submitted · ' + list.length + ' note' + (list.length > 1 ? 's' : '') + ' · recipe ' + RECIPE + ' · ' + PAGE;
+    const head = 'Review round ' + round + ' submitted · ' + list.length + ' note' + (list.length > 1 ? 's' : '') + ' · ' + SUBJECT + ' · ' + PAGE;
     const body = S.local
       ? '\n' + list.map(([, n], i) => (i + 1) + '. [' + n.label + '] ' + n.text.replace(/\s+/g, ' ').slice(0, 1200)).join('\n')
       : '\nFor the working session: read the notes from this page\'s data (collection "notes", ids ' + ids.join(', ') + ').';
@@ -336,7 +341,7 @@
     S.busy = true; render();
     const round = nextRound();
     try {
-      await post(props, 'Plan update requested · round ' + round + ' · recipe ' + RECIPE + ' · ' + acc.length + ' accepted, ' + rej.length + ' rejected · ' + PAGE +
+      await post(props, 'Plan update requested · round ' + round + ' · ' + SUBJECT + ' · ' + acc.length + ' accepted, ' + rej.length + ' rejected · ' + PAGE +
         '\nFor the working session: apply the accepted proposals (' + acc.join(', ') + '), record the rejected ones (' + (rej.join(', ') || 'none') + '), publish the new version.' + FOOT);
       await store.round('r-' + round, { round, kind: 'apply', ids: acc, rejected: rej, count: acc.length, submitted: iso(), status: 'submitted', page: PAGE });
       toast('Plan update sent as round ' + round + '. Claude applies the accepted changes and publishes the new version.');

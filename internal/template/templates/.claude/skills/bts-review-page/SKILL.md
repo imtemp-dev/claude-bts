@@ -1,16 +1,17 @@
 ---
 name: bts-review-page
 description: >
-  Run a recipe's user review on an artifact page instead of AskUserQuestion:
-  draw the change, publish it with the review kit, let the user pin notes
-  (typed or spoken) and send them in rounds, answer each round from this
-  session, turn change requests into proposals the user accepts or
-  rejects, apply them as a new document version, and record the
-  confirmation of a fingerprinted version.  Used by intent, scope and
-  spec confirmation when review.surface is artifact.
+  Run a recipe's or a feature's user review on an artifact page instead of
+  AskUserQuestion: draw the change, publish it with the review kit, let the
+  user pin notes (typed or spoken) and send them in rounds, answer each
+  round from this session, turn change requests into proposals the user
+  accepts or rejects, apply them as a new document version, and record the
+  confirmation of a fingerprinted version.  Used by intent, scope and spec
+  confirmation, and by a feature's confirmation of its intent, contracts
+  and plan, when review.surface is artifact.
 user-invocable: true
 allowed-tools: Read Write Edit Grep Glob Bash Artifact ArtifactData ArtifactComments AskUserQuestion
-argument-hint: "<recipe-id> <intent|scope|spec>"
+argument-hint: "<recipe-id> <intent|scope|spec>  |  --feature <feature-id>"
 effort: high
 ---
 
@@ -28,7 +29,8 @@ Use it when the calling skill reaches intent, scope or spec confirmation
 and `review.surface` in `.bts/config/settings.yaml` is `artifact` (the
 default).  The spec is the document the code is built from: final.md, or
 fix-spec.md in a fix recipe; `/bts-implement` and `/bts-recipe-fix`
-review it before the first product code.  Use AskUserQuestion as the calling skill says when the
+review it before the first product code.  A feature's plan is reviewed
+the same way before its items start (§ Feature).  Use AskUserQuestion as the calling skill says when the
 Artifact tool is not available here (a headless run, Multica), when
 `bts review page` refuses, or when the user says they would rather answer
 in the terminal.  Words the user types in the terminal always count, page
@@ -182,6 +184,38 @@ user pressed) and the user's words.
    words.  Mark the round processed and resolve the thread.
 4. Tell the user in the terminal, then continue the calling skill from its
    confirmation step (log the phase, move on).
+
+## Feature
+
+A feature's intent, contracts and plan are confirmed together (`bts feature
+confirm` pins all three), so its page carries one point, `feature`, and one
+confirm row covering the three.  Whoever settles the feature (a
+coordinator, /bts-feature-orca) runs it from the bts project it works in;
+every `bts review` command takes `--feature {f}` in place of the recipe id,
+and everything above applies with these differences:
+
+- `bts review page --feature {f}` prints the sections, the versions of
+  intent.md, contracts.md, the plan and the bundle (`feature`), and where to
+  write the page: `.bts/local/features/{f}/review/page.html`.  Draw the
+  mechanism: what the feature delivers today and after, the items as a
+  dependency graph (each box an item with its type and mode, an arrow per
+  depends-on, the order the workers start in), each item's slice, and each
+  contract on the edge it governs, naming the item that provides it and
+  the items that rely on it.  Give every item, edge and contract a
+  `data-note`, so a note can say "split this item" or "this contract is
+  missing a field".
+- `bts review attach --feature {f} --url <link>`.
+- Export rounds and notes to `.bts/local/features/{f}/review/export`.  A
+  proposal targets `intent.md`, `contracts.md` or `plan`.  On Update plan, a
+  `plan` proposal is applied by changing the items with
+  `bts feature item add`, `edit` or `remove` (never feature.json by hand),
+  then `bts review apply --feature {f} --round M` records the plan's and the
+  bundle's new versions.
+- A confirm note's `doc` is `feature`:
+  `bts feature confirm {f} --via review --hash <value> --answer "<the
+  user's words>"`.  bts refuses when the fingerprint is not the current one
+  of the three together, or the page still has open notes or proposals.
+  Then continue the calling skill (a coordinator dispatches the items).
 
 ## Rules
 

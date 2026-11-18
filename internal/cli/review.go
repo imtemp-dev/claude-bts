@@ -10,25 +10,28 @@ import (
 	"time"
 
 	"github.com/imtemp-dev/claude-bts/internal/engine"
+	"github.com/imtemp-dev/claude-bts/internal/feature"
 	"github.com/imtemp-dev/claude-bts/internal/orca"
 	"github.com/imtemp-dev/claude-bts/internal/review"
 	"github.com/spf13/cobra"
 )
 
-// `bts review` keeps the record of a recipe's review page: the page the
-// user reviews intent, scope and the spec on (/bts-review-page).  bts cannot read the
-// page's data; the session exports it with ArtifactData and these commands
-// record what it holds and what was done with it.
+// `bts review` keeps the record of a review page: the page the user
+// reviews a recipe's intent, scope and spec on, or a feature's intent,
+// contracts and plan (/bts-review-page).  bts cannot read the page's data;
+// the session exports it with ArtifactData and these commands record what
+// it holds and what was done with it.
 
 func init() {
 	rootCmd.AddCommand(reviewCmd)
 	reviewCmd.AddCommand(reviewPageCmd, reviewAttachCmd, reviewImportCmd, reviewDisposeCmd,
 		reviewProposeCmd, reviewApplyCmd, reviewDoneCmd, reviewStatusCmd)
 
-	reviewPageCmd.Flags().String("point", "", "Review point the page now carries: intent, scope or spec (final.md, or a fix recipe's fix-spec.md)")
+	reviewCmd.PersistentFlags().String("feature", "", "Review a feature's intent, contracts and plan instead of a recipe (run inside the session's bts project)")
+	reviewPageCmd.Flags().String("point", "", "Review point the page now carries: intent, scope or spec (final.md, or a fix recipe's fix-spec.md); a feature's page carries feature")
 	reviewPageCmd.Flags().Bool("json", false, "Emit the brief as JSON")
 	reviewAttachCmd.Flags().String("url", "", "The page's claude.ai link")
-	reviewAttachCmd.Flags().String("point", "", "Review point the published page carries: intent, scope or spec")
+	reviewAttachCmd.Flags().String("point", "", "Review point the published page carries: intent, scope, spec, or feature")
 	reviewImportCmd.Flags().String("dir", "", "ArtifactData out_dir holding the page's rounds/ and notes/ exports")
 	reviewImportCmd.Flags().Int("round", 0, "Import only this round (default: every round still waiting)")
 	reviewDisposeCmd.Flags().Int("round", 0, "Round the note belongs to")
@@ -37,7 +40,7 @@ func init() {
 	reviewDisposeCmd.Flags().String("why", "", "One line on what was done; required for declined")
 	reviewProposeCmd.Flags().Int("round", 0, "Round the note belongs to")
 	reviewProposeCmd.Flags().String("note", "", "Note id the proposal comes from")
-	reviewProposeCmd.Flags().String("target", "", "Plan document it changes: intent.md or scope.md")
+	reviewProposeCmd.Flags().String("target", "", "Plan document it changes: intent.md, scope.md or the spec; for a feature intent.md, contracts.md or plan")
 	reviewProposeCmd.Flags().String("kind", "edit", "edit, add, remove or move (a move draws the item in another lane)")
 	reviewProposeCmd.Flags().String("summary", "", "What changes, in one sentence the user reads")
 	reviewProposeCmd.Flags().String("before", "", "The text as it stands")
@@ -51,13 +54,45 @@ func init() {
 
 var reviewCmd = &cobra.Command{
 	Use:   "review",
-	Short: "Record a recipe's review page: rounds of notes, proposals, document versions",
-	Long: `A review page is an artifact the user reviews intent, scope and the spec
-(final.md, or a fix recipe's fix-spec.md) on: they pin
-notes on what they read, send them in rounds, accept or reject the proposals
-Claude makes, update the plan and confirm a fingerprinted version
-(/bts-review-page).  These commands keep the record in the recipe:
-review.json and feedback/round-N.json.`,
+	Short: "Record a review page: rounds of notes, proposals, document versions",
+	Long: `A review page is an artifact the user reviews a recipe's intent, scope and
+spec (final.md, or a fix recipe's fix-spec.md) on, or with --feature a
+feature's intent, contracts and plan: they pin notes on what they read, send
+them in rounds, accept or reject the proposals Claude makes, update the plan
+and confirm a fingerprinted version (/bts-review-page).  These commands keep
+the record: review.json and feedback/round-N.json, in the recipe's directory
+or the feature's.`,
+}
+
+// resolveSubject is the review a command works on: the feature --feature
+// names, else the recipe (the argument, or the active recipe).
+func resolveSubject(cmd *cobra.Command, args []string) (review.Subject, error) {
+	if ref, _ := cmd.Flags().GetString("feature"); strings.TrimSpace(ref) != "" {
+		if len(args) > 0 {
+			return review.Subject{}, errors.New("--feature names the review; drop the recipe id")
+		}
+		return featureSubject(strings.TrimSpace(ref))
+	}
+	id, _, root, err := resolveRecipe(args)
+	if err != nil {
+		return review.Subject{}, err
+	}
+	return review.RecipeSubject(root, id), nil
+}
+
+// featureSubject is a feature's review, run from the bts project the
+// session works in: the page, its uploads and the review kit live there,
+// the record beside the feature's documents in the store.
+func featureSubject(ref string) (review.Subject, error) {
+	dir, err := feature.Find(ref)
+	if err != nil {
+		return review.Subject{}, err
+	}
+	root := cwdRoot()
+	if root == "" {
+		return review.Subject{}, errors.New("run this inside the bts project the session works in: a feature's review page and the review kit live there")
+	}
+	return feature.ReviewSubject(root, dir)
 }
 
 func intFlag(cmd *cobra.Command, name string) (int, error) {
@@ -69,16 +104,16 @@ func intFlag(cmd *cobra.Command, name string) (int, error) {
 }
 
 var reviewPageCmd = &cobra.Command{
-	Use:          "page [recipe-id] --point intent|scope|spec",
+	Use:          "page [recipe-id] --point intent|scope|spec  |  page --feature <feature>",
 	Short:        "Print what the review page must show, with the kit, capabilities and document versions",
 	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, _, root, err := resolveRecipe(args)
+		sub, err := resolveSubject(cmd, args)
 		if err != nil {
 			return err
 		}
-		set, err := engine.LoadSettings(root)
+		set, err := engine.LoadSettings(sub.Root)
 		if err != nil {
 			return err
 		}
@@ -86,7 +121,7 @@ var reviewPageCmd = &cobra.Command{
 			return errors.New("review.surface is \"ask\" in .bts/config/settings.yaml: review with AskUserQuestion instead")
 		}
 		point, _ := cmd.Flags().GetString("point")
-		b, err := review.PageBrief(root, id, point)
+		b, err := review.PageBrief(sub, point)
 		if err != nil {
 			return err
 		}
@@ -101,12 +136,13 @@ var reviewPageCmd = &cobra.Command{
 }
 
 func printBrief(b *review.Brief) {
-	fmt.Printf("[bts] review page for %s, point: %s\n", b.Recipe, b.Point)
+	fmt.Printf("[bts] review page for %s %s, point: %s\n", b.Kind, b.Recipe, b.Point)
 	if b.URL != "" {
 		fmt.Printf("Page: %s (republish to this URL)\n", b.URL)
 	} else {
 		fmt.Println("Page: not published yet")
 	}
+	fmt.Printf("Write the page to: %s\n", b.Page)
 	fmt.Println("Documents (show these versions and fingerprints on the confirm rows):")
 	for _, d := range b.Docs {
 		fmt.Printf("  %s %s %s\n", d.File, d.Version, d.Hash)
@@ -126,35 +162,38 @@ func printBrief(b *review.Brief) {
 	fmt.Printf("Capabilities (pass exactly): %s\n", caps)
 	cfg, _ := json.Marshal(b.Config)
 	fmt.Printf("Config block (in the page, read by the kit):\n  <script type=\"application/json\" id=\"bts-review-config\">%s</script>\n", cfg)
-	fmt.Printf("Next: build and publish the page (/bts-review-page), then `bts review attach %s --url <link> --point %s`.\n", b.Recipe, b.Point)
+	fmt.Printf("Next: build and publish the page (/bts-review-page), then `bts review attach %s --url <link> --point %s`.\n", b.Arg, b.Point)
 }
 
 var reviewAttachCmd = &cobra.Command{
-	Use:          "attach [recipe-id] --url <link> --point intent|scope|spec",
+	Use:          "attach [recipe-id] --url <link> --point intent|scope|spec  |  attach --feature <feature> --url <link>",
 	Short:        "Record the published review page's link and the point it carries",
 	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, _, root, err := resolveRecipe(args)
+		sub, err := resolveSubject(cmd, args)
 		if err != nil {
 			return err
 		}
 		url, _ := cmd.Flags().GetString("url")
 		point, _ := cmd.Flags().GetString("point")
-		if point != "" && !containsStr(review.Points, point) {
-			return fmt.Errorf("--point takes %s, got %q", strings.Join(review.Points, " or "), point)
+		if point == "" && sub.Kind == review.KindFeature {
+			point = review.FeaturePoint
+		}
+		if point != "" && !containsStr(sub.Points(), point) {
+			return fmt.Errorf("--point takes %s, got %q", strings.Join(sub.Points(), " or "), point)
 		}
 		prev := ""
-		if old, err := review.Load(root, id); err == nil {
+		if old, err := review.Load(sub); err == nil {
 			prev = old.URL
 		}
-		s, err := review.Attach(root, id, url, point)
+		s, err := review.Attach(sub, url, point)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("[bts] review page for %s: %s (points: %s)\n", id, s.URL, strings.Join(s.Points, ", "))
+		fmt.Printf("[bts] review page for %s %s: %s (points: %s)\n", sub.Kind, sub.ID, s.URL, strings.Join(s.Points, ", "))
 		if s.URL != prev {
-			openReviewInOrca(root, s.URL)
+			openReviewInOrca(sub.Root, s.URL)
 		}
 		return nil
 	},
@@ -191,13 +230,22 @@ func containsStr(list []string, v string) bool {
 	return false
 }
 
+// confirmNext is the command that records a confirmation the user made on
+// the page.
+func confirmNext(sub review.Subject, it review.Item) string {
+	if sub.Kind == review.KindFeature {
+		return fmt.Sprintf("bts feature confirm %s --via review --hash %s --answer \"<the user's words>\"", sub.ID, it.Value)
+	}
+	return fmt.Sprintf("bts recipe confirm %s %s --via review --hash %s --answer \"<the user's words>\"", sub.ID, it.Doc, it.Value)
+}
+
 var reviewImportCmd = &cobra.Command{
 	Use:          "import [recipe-id] --dir <out_dir> [--round N]",
 	Short:        "Record the rounds a review page holds, from an ArtifactData export of rounds and notes",
 	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, _, root, err := resolveRecipe(args)
+		sub, err := resolveSubject(cmd, args)
 		if err != nil {
 			return err
 		}
@@ -206,7 +254,7 @@ var reviewImportCmd = &cobra.Command{
 			return errors.New("--dir is required: the ArtifactData out_dir the page's rounds and notes were exported to")
 		}
 		only, _ := cmd.Flags().GetInt("round")
-		rounds, err := review.Import(root, id, dir, only)
+		rounds, err := review.Import(sub, dir, only)
 		if err != nil {
 			return err
 		}
@@ -219,11 +267,11 @@ var reviewImportCmd = &cobra.Command{
 			if r.Page != "" {
 				label += ", " + r.Page
 			}
-			fmt.Printf("[bts] round %d (%s) recorded: %s\n", r.Round, label, review.RoundPath(root, id, r.Round))
+			fmt.Printf("[bts] round %d (%s) recorded: %s\n", r.Round, label, review.RoundPath(sub, r.Round))
 			switch r.Kind {
 			case review.KindApply:
 				fmt.Printf("  accepted: %s; rejected: %s\n", joinOr(r.Accepted), joinOr(r.Rejected))
-				fmt.Printf("  next: edit the plan files for the accepted proposals, then `bts review apply %s --round %d`\n", id, r.Round)
+				fmt.Printf("  next: edit the plan for the accepted proposals, then `bts review apply %s --round %d`\n", sub.Arg(), r.Round)
 			default:
 				for _, it := range r.Items {
 					d := it.Disposition
@@ -242,12 +290,12 @@ var reviewImportCmd = &cobra.Command{
 				if r.Kind == review.KindConfirm {
 					for _, it := range r.Items {
 						if it.Kind == review.KindConfirm {
-							fmt.Printf("  next: `bts recipe confirm %s %s --via review --hash %s --answer \"<the user's words>\"`; then `bts review done %s --round %d`\n", id, it.Doc, it.Value, id, r.Round)
+							fmt.Printf("  next: `%s`; then `bts review done %s --round %d`\n", confirmNext(sub, it), sub.Arg(), r.Round)
 						}
 					}
 					continue
 				}
-				fmt.Printf("  next: per note, `bts review dispose` (answered, page, declined) or `bts review propose`; then `bts review done %s --round %d`\n", id, r.Round)
+				fmt.Printf("  next: per note, `bts review dispose` (answered, page, declined) or `bts review propose`; then `bts review done %s --round %d`\n", sub.Arg(), r.Round)
 			}
 		}
 		return nil
@@ -267,7 +315,7 @@ var reviewDisposeCmd = &cobra.Command{
 	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, _, root, err := resolveRecipe(args)
+		sub, err := resolveSubject(cmd, args)
 		if err != nil {
 			return err
 		}
@@ -278,7 +326,7 @@ var reviewDisposeCmd = &cobra.Command{
 		note, _ := cmd.Flags().GetString("note")
 		as, _ := cmd.Flags().GetString("as")
 		why, _ := cmd.Flags().GetString("why")
-		if err := review.Dispose(root, id, n, note, as, why); err != nil {
+		if err := review.Dispose(sub, n, note, as, why); err != nil {
 			return err
 		}
 		fmt.Printf("[bts] round %d note %s: %s\n", n, note, as)
@@ -292,7 +340,7 @@ var reviewProposeCmd = &cobra.Command{
 	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, _, root, err := resolveRecipe(args)
+		sub, err := resolveSubject(cmd, args)
 		if err != nil {
 			return err
 		}
@@ -301,7 +349,7 @@ var reviewProposeCmd = &cobra.Command{
 			return err
 		}
 		get := func(k string) string { v, _ := cmd.Flags().GetString(k); return strings.TrimSpace(v) }
-		p, path, err := review.Propose(root, id, n, review.Proposal{
+		p, path, err := review.Propose(sub, n, review.Proposal{
 			Note: get("note"), Target: get("target"), Kind: get("kind"), Summary: get("summary"),
 			Before: get("before"), After: get("after"), Why: get("why"), ToLane: get("to-lane"), ToLabel: get("to-label"),
 		})
@@ -316,11 +364,11 @@ var reviewProposeCmd = &cobra.Command{
 
 var reviewApplyCmd = &cobra.Command{
 	Use:          "apply [recipe-id] --round N",
-	Short:        "Record the new document versions an apply round produced, once the files are edited",
+	Short:        "Record the new document versions an apply round produced, once the plan is edited",
 	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, _, root, err := resolveRecipe(args)
+		sub, err := resolveSubject(cmd, args)
 		if err != nil {
 			return err
 		}
@@ -328,7 +376,7 @@ var reviewApplyCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		revs, uploads, err := review.Apply(root, id, n)
+		revs, uploads, err := review.Apply(sub, n)
 		if err != nil {
 			return err
 		}
@@ -341,7 +389,11 @@ var reviewApplyCmd = &cobra.Command{
 		for _, u := range uploads {
 			fmt.Printf("  upload: ArtifactData update, collection proposals, file_path %s\n", u)
 		}
-		fmt.Printf("  next: show the new versions on the page (`bts review page %s --point <point>` prints them), republish, then `bts review done %s --round %d`\n", id, id, n)
+		point := "<point>"
+		if sub.Kind == review.KindFeature {
+			point = review.FeaturePoint
+		}
+		fmt.Printf("  next: show the new versions on the page (`bts review page %s --point %s` prints them), republish, then `bts review done %s --round %d`\n", sub.Arg(), point, sub.Arg(), n)
 		return nil
 	},
 }
@@ -352,7 +404,7 @@ var reviewDoneCmd = &cobra.Command{
 	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, _, root, err := resolveRecipe(args)
+		sub, err := resolveSubject(cmd, args)
 		if err != nil {
 			return err
 		}
@@ -360,7 +412,7 @@ var reviewDoneCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		path, err := review.Done(root, id, n)
+		path, err := review.Done(sub, n)
 		if err != nil {
 			return err
 		}
@@ -376,11 +428,11 @@ var reviewStatusCmd = &cobra.Command{
 	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, _, root, err := resolveRecipe(args)
+		sub, err := resolveSubject(cmd, args)
 		if err != nil {
 			return err
 		}
-		s, err := review.Load(root, id)
+		s, err := review.Load(sub)
 		if err != nil {
 			return err
 		}
@@ -389,17 +441,21 @@ var reviewStatusCmd = &cobra.Command{
 			url = "not published"
 		}
 		fmt.Printf("Review page: %s (kit v%s, points: %s)\n", url, s.Kit, joinOr(s.Points))
-		for _, doc := range review.PlanDocs {
+		docs := sub.Docs
+		if sub.Bundle != "" {
+			docs = append(append([]string{}, docs...), sub.Bundle)
+		}
+		for _, doc := range docs {
 			if d := s.Docs[doc]; d != nil {
-				cur, _ := review.FileFingerprint(root, id, doc)
+				cur, _ := review.CurrentHash(sub, doc)
 				drift := ""
 				if cur != d.Hash {
-					drift = fmt.Sprintf(" (file now %s: run `bts review page`)", cur)
+					drift = fmt.Sprintf(" (now %s: run `bts review page`)", cur)
 				}
 				fmt.Printf("  %s v%d %s%s\n", doc, d.Version, d.Hash, drift)
 			}
 		}
-		rounds, err := review.Rounds(root, id)
+		rounds, err := review.Rounds(sub)
 		if err != nil {
 			return err
 		}
@@ -410,7 +466,7 @@ var reviewStatusCmd = &cobra.Command{
 			}
 			fmt.Printf("  round %d %s, %s: %d notes, %d proposals, %d revisions\n", r.Round, r.Kind, st, len(r.Items), len(r.Proposals), len(r.Revisions))
 		}
-		open, err := review.OpenWork(root, id, "")
+		open, err := review.OpenWork(sub, "")
 		if err != nil {
 			return err
 		}

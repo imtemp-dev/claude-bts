@@ -69,10 +69,11 @@ func reviewConfirmAnswer(root, recipeID, doc, by, hash, answer string) (string, 
 	if strings.TrimSpace(answer) == "" {
 		return "", errors.New("--answer is required: the user's words on the confirm row")
 	}
-	if err := review.ConfirmCheck(root, recipeID, doc, hash); err != nil {
+	sub := review.RecipeSubject(root, recipeID)
+	if err := review.ConfirmCheck(sub, doc, hash); err != nil {
 		return "", err
 	}
-	s, err := review.Load(root, recipeID)
+	s, err := review.Load(sub)
 	if err != nil {
 		return "", err
 	}

@@ -2,7 +2,10 @@ package hook
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 
+	"github.com/imtemp-dev/claude-bts/internal/feature"
 	"github.com/imtemp-dev/claude-bts/internal/review"
 	"github.com/imtemp-dev/claude-bts/internal/state"
 )
@@ -28,29 +31,74 @@ func (h *userPromptSubmitHandler) Handle(input *HookInput) (*HookOutput, error) 
 	if err != nil {
 		return &HookOutput{}, nil
 	}
+	var lines []string
 	recipe, err := state.GetActiveRecipe(root)
-	if err != nil || recipe == nil || isObserver(recipe, input.SessionID) {
-		return &HookOutput{}, nil
+	if err == nil && recipe != nil && !isObserver(recipe, input.SessionID) {
+		if ctx := reviewReminder(root, recipe); ctx != "" {
+			lines = append(lines, ctx)
+		}
 	}
-	ctx := reviewReminder(root, recipe)
-	if ctx == "" {
+	// A coordinator settles a feature with no recipe of its own.
+	lines = append(lines, featureReviewReminders(root)...)
+	if len(lines) == 0 {
 		return &HookOutput{}, nil
 	}
 	return &HookOutput{HookSpecificOutput: &HookSpecificOutput{
 		HookEventName:     "UserPromptSubmit",
-		AdditionalContext: ctx,
+		AdditionalContext: strings.Join(lines, "\n"),
 	}}, nil
+}
+
+// featureReviewReminders are the lines for the feature review pages this
+// project published (`.bts/local/features/<id>/review/`) while the
+// feature still waits for the user's confirmation or its page holds open
+// work.
+func featureReviewReminders(root string) []string {
+	dirs, _ := filepath.Glob(filepath.Join(state.LocalPath(root), "features", "*", "review"))
+	var out []string
+	for _, d := range dirs {
+		id := filepath.Base(filepath.Dir(d))
+		fdir, err := feature.Find(id)
+		if err != nil {
+			continue
+		}
+		f, err := feature.Load(fdir)
+		if err != nil || f.Closed != nil {
+			continue
+		}
+		sub, err := feature.ReviewSubject(root, fdir)
+		if err != nil {
+			continue
+		}
+		s, err := review.Load(sub)
+		if err != nil || s.URL == "" {
+			continue
+		}
+		open, err := review.OpenWork(sub, "")
+		if err != nil || (!feature.NeedsConfirmation(fdir, f) && len(open) == 0) {
+			continue
+		}
+		msg := fmt.Sprintf("[bts] Feature %s has a review page: %s. If the user sent notes, pressed Update plan "+
+			"or confirmed there, read the page's rounds whose status is submitted (ArtifactData query) and follow "+
+			"/bts-review-page § Feature before answering.", f.ID, s.URL)
+		if len(open) > 0 {
+			msg += fmt.Sprintf(" %d item(s) are open on the page; `bts review status --feature %s` lists them.", len(open), f.ID)
+		}
+		out = append(out, msg)
+	}
+	return out
 }
 
 // reviewReminder is the line added to the prompt while a review is under
 // way on a page: the recipe is still in discovery or scoping, or the page
 // holds open work.  "" when there is nothing to remind of.
 func reviewReminder(root string, recipe *state.RecipeState) string {
-	s, err := review.Load(root, recipe.ID)
+	sub := review.RecipeSubject(root, recipe.ID)
+	s, err := review.Load(sub)
 	if err != nil || s.URL == "" {
 		return ""
 	}
-	open, err := review.OpenWork(root, recipe.ID, "")
+	open, err := review.OpenWork(sub, "")
 	if err != nil {
 		return ""
 	}

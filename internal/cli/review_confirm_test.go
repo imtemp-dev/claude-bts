@@ -24,7 +24,7 @@ func TestReviewConfirm_RecordsTheFingerprintedVersion(t *testing.T) {
 		_ = os.MkdirAll(filepath.Dir(p), 0755)
 		_ = os.WriteFile(p, []byte("/* kit */"), 0644)
 	}
-	b, err := review.PageBrief(root, "r-rv1", "scope")
+	b, err := review.PageBrief(review.RecipeSubject(root, "r-rv1"), "scope")
 	if err != nil {
 		t.Fatal(err)
 	}

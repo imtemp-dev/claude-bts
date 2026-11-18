@@ -57,6 +57,16 @@ var sections = map[string][]string{
 		"The regression test: what it drives and why it fails today",
 		"Risks and Known Uncertainties: what the fix could break and what is not yet known",
 	},
+	// A feature's intent, contracts and plan, confirmed together.
+	"feature": {
+		"What the feature delivers: today and after, drawn side by side (a mock of the output when there is one)",
+		"The items as a dependency graph: each item a box with its type and mode, an arrow for each depends-on, and the order the workers start in",
+		"Each item's slice: what it delivers, and what it leaves for the items after it",
+		"The contracts between items, each drawn on the edge it governs: what crosses it, which item provides it and which rely on it",
+		"Key decisions: what was chosen and what was rejected",
+		"Assumptions and open questions the items will settle",
+		"A confirm row for the feature: intent.md, contracts.md and the plan together",
+	},
 }
 
 // specShape picks the spec sections for a recipe.
@@ -80,7 +90,11 @@ type DocBrief struct {
 // Brief is what `bts review page` hands the session: what to build, with
 // which kit, declaring which capabilities, showing which versions.
 type Brief struct {
+	Kind string `json:"kind"`
+	// Recipe is the reviewed subject's id: a recipe's, or a feature's.
 	Recipe       string                 `json:"recipe"`
+	Arg          string                 `json:"arg"`
+	Page         string                 `json:"page"`
 	Point        string                 `json:"point"`
 	URL          string                 `json:"url,omitempty"`
 	Sections     []string               `json:"sections"`
@@ -107,14 +121,18 @@ func Capabilities() map[string]interface{} {
 }
 
 // PageBrief refreshes the document versions and returns the brief for a
-// review point.  It refuses a point it does not know and a recipe whose
-// documents for that point do not exist yet.
-func PageBrief(root, recipeID, point string) (*Brief, error) {
+// review point.  It refuses a point it does not know and a subject whose
+// documents for that point do not exist yet.  A feature's page carries the
+// one point "feature" (point "" means it).
+func PageBrief(sub Subject, point string) (*Brief, error) {
 	point = strings.ToLower(strings.TrimSpace(point))
-	if !contains(Points, point) {
-		return nil, fmt.Errorf("--point takes %s, got %q", strings.Join(Points, ", "), point)
+	if point == "" && sub.Kind == KindFeature {
+		point = FeaturePoint
 	}
-	s, err := Load(root, recipeID)
+	if !contains(sub.Points(), point) {
+		return nil, fmt.Errorf("--point takes %s, got %q", strings.Join(sub.Points(), ", "), point)
+	}
+	s, err := Load(sub)
 	if errors.Is(err, ErrNoPage) {
 		s = &State{Docs: map[string]*Doc{}, Kit: KitVersion}
 	} else if err != nil {
@@ -122,27 +140,36 @@ func PageBrief(root, recipeID, point string) (*Brief, error) {
 	}
 	need := point + ".md"
 	var recipe *state.RecipeState
-	if point == "spec" {
-		if recipe, err = state.LoadRecipeState(root, recipeID); err != nil {
+	switch point {
+	case "spec":
+		if recipe, err = state.LoadRecipeState(sub.Root, sub.ID); err != nil {
 			return nil, err
 		}
 		need = SpecDoc(recipe.Type)
+	case FeaturePoint:
+		need = "intent.md"
 	}
-	if h, err := FileFingerprint(root, recipeID, need); err != nil {
+	if h, err := sub.HashDoc(need); err != nil {
 		return nil, err
 	} else if h == "" {
 		return nil, fmt.Errorf("%s does not exist yet: write it before building its page", need)
 	}
-	revs, err := Refresh(root, recipeID, s)
+	revs, err := Refresh(sub, s)
 	if err != nil {
 		return nil, err
 	}
-	if err := Save(root, recipeID, s); err != nil {
+	if err := Save(sub, s); err != nil {
 		return nil, err
 	}
-	b := &Brief{Recipe: recipeID, Point: point, URL: s.URL, KitVersion: KitVersion,
+	if err := os.MkdirAll(sub.Work, 0755); err != nil {
+		return nil, err
+	}
+	b := &Brief{Kind: sub.Kind, Recipe: sub.ID, Arg: sub.Arg(), Page: filepath.Join(sub.Work, "page.html"),
+		Point: point, URL: s.URL, KitVersion: KitVersion,
 		Capabilities: Capabilities(), Revisions: revs, Kit: map[string]string{}}
 	switch point {
+	case FeaturePoint:
+		b.Sections = append(b.Sections, sections["feature"]...)
 	case "intent":
 		b.Sections = append(b.Sections, sections["intent"]...)
 	case "scope":
@@ -159,40 +186,56 @@ func PageBrief(root, recipeID, point string) (*Brief, error) {
 		b.Sections = append(b.Sections, "A confirm row for "+need)
 	}
 	docsCfg := map[string]interface{}{}
-	for _, doc := range PlanDocs {
+	docs := sub.Docs
+	if sub.Bundle != "" {
+		docs = append(append([]string{}, docs...), sub.Bundle)
+	}
+	for _, doc := range docs {
 		d := s.Docs[doc]
 		if d == nil {
 			continue
 		}
 		v := fmt.Sprintf("v%d", d.Version)
 		b.Docs = append(b.Docs, DocBrief{File: doc, Version: v, Hash: d.Hash})
-		docsCfg[strings.TrimSuffix(doc, ".md")] = map[string]interface{}{"ver": v, "hash": d.Hash}
+		entry := map[string]interface{}{"ver": v, "hash": d.Hash}
+		if doc == sub.Bundle {
+			entry["file"] = strings.Join(sub.Docs, " + ")
+		} else if !strings.HasSuffix(doc, ".md") {
+			entry["file"] = doc
+		}
+		docsCfg[strings.TrimSuffix(doc, ".md")] = entry
 	}
 	for _, rel := range KitFiles {
-		abs := filepath.Join(root, rel)
+		abs := filepath.Join(sub.Root, rel)
 		if _, err := os.Stat(abs); err != nil {
 			return nil, fmt.Errorf("the review kit is missing (%s): run `bts update`", rel)
 		}
 		b.Kit[filepath.Base(rel)] = abs
 	}
-	b.Config = map[string]interface{}{"recipe": recipeID, "kit": KitVersion, "docs": docsCfg}
-	if point == "spec" {
+	b.Config = map[string]interface{}{sub.Kind: sub.ID, "kit": KitVersion, "docs": docsCfg}
+	switch point {
+	case "spec":
 		// Intent and scope were confirmed at their own points; a second
 		// row for them here would ask for a sign-off nobody needs.
 		b.Config["confirm"] = []string{strings.TrimSuffix(need, ".md")}
+	case FeaturePoint:
+		// `bts feature confirm` pins the three together, so the page
+		// signs them together.
+		b.Config["confirm"] = []string{sub.Bundle}
 	}
 	return b, nil
 }
 
-// ConfirmCheck is the gate on `bts recipe confirm --via review`: the
-// fingerprint the user confirmed must be the document's current one, and
-// nothing may stand open on the page for that document.
-func ConfirmCheck(root, recipeID, doc, hash string) error {
-	s, err := Load(root, recipeID)
+// ConfirmCheck is the gate on a confirmation made on the page (`bts recipe
+// confirm --via review`, `bts feature confirm --via review`): the
+// fingerprint the user confirmed must be the document's current one (for
+// a feature, its bundle's), and nothing may stand open on the page for it.
+func ConfirmCheck(sub Subject, doc, hash string) error {
+	s, err := Load(sub)
 	if err != nil {
 		return err
 	}
-	cur, err := FileFingerprint(root, recipeID, doc)
+	cur, err := CurrentHash(sub, doc)
 	if err != nil {
 		return err
 	}
@@ -213,7 +256,7 @@ func ConfirmCheck(root, recipeID, doc, hash string) error {
 	if d := s.Docs[doc]; d != nil && d.Hash != cur {
 		return fmt.Errorf("%s changed since the page's v%d (%s): run `bts review page` and republish before confirming", doc, d.Version, d.Hash)
 	}
-	open, err := OpenWork(root, recipeID, doc)
+	open, err := OpenWork(sub, doc)
 	if err != nil {
 		return err
 	}

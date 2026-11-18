@@ -72,10 +72,10 @@ func TestPageBrief_RecordsVersionOneAndNeedsTheDocument(t *testing.T) {
 	if err := os.Remove(filepath.Join(state.RecipeDir(root, rid), "scope.md")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := PageBrief(root, rid, "scope"); err == nil || !strings.Contains(err.Error(), "scope.md does not exist") {
+	if _, err := PageBrief(RecipeSubject(root, rid), "scope"); err == nil || !strings.Contains(err.Error(), "scope.md does not exist") {
 		t.Fatalf("a scope page needs scope.md, got %v", err)
 	}
-	b, err := PageBrief(root, rid, "intent")
+	b, err := PageBrief(RecipeSubject(root, rid), "intent")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,23 +85,23 @@ func TestPageBrief_RecordsVersionOneAndNeedsTheDocument(t *testing.T) {
 	if len(b.Kit) != 2 || b.Capabilities["db"] == nil || b.Config["recipe"] != rid {
 		t.Errorf("the brief names the kit, the capabilities and the config, got %+v", b)
 	}
-	if _, err := PageBrief(root, rid, "final"); err == nil {
+	if _, err := PageBrief(RecipeSubject(root, rid), "final"); err == nil {
 		t.Error("an unknown point is refused")
 	}
 	// The kit missing from the project is refused with the way out.
 	_ = os.Remove(filepath.Join(root, KitFiles[0]))
-	if _, err := PageBrief(root, rid, "intent"); err == nil || !strings.Contains(err.Error(), "bts update") {
+	if _, err := PageBrief(RecipeSubject(root, rid), "intent"); err == nil || !strings.Contains(err.Error(), "bts update") {
 		t.Errorf("a missing kit is refused, got %v", err)
 	}
 }
 
 func TestPageBrief_AnEditOutsideARoundIsAVisibleVersion(t *testing.T) {
 	root := fixture(t)
-	if _, err := PageBrief(root, rid, "scope"); err != nil {
+	if _, err := PageBrief(RecipeSubject(root, rid), "scope"); err != nil {
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(state.RecipeDir(root, rid), "scope.md"), "## Scope\n\n### In Scope\n\n- Contract v4, edited.\n\n### Status: DRAFT\n")
-	b, err := PageBrief(root, rid, "scope")
+	b, err := PageBrief(RecipeSubject(root, rid), "scope")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,10 +114,10 @@ func TestPageBrief_AnEditOutsideARoundIsAVisibleVersion(t *testing.T) {
 // proposal, the apply round, then the confirmation gate.
 func TestRoundLoop_NoteToProposalToVersionToConfirm(t *testing.T) {
 	root := fixture(t)
-	if _, err := PageBrief(root, rid, "scope"); err != nil {
+	if _, err := PageBrief(RecipeSubject(root, rid), "scope"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Attach(root, rid, "https://claude.ai/artifact/x", "scope"); err != nil {
+	if _, err := Attach(RecipeSubject(root, rid), "https://claude.ai/artifact/x", "scope"); err != nil {
 		t.Fatal(err)
 	}
 	ex := filepath.Join(t.TempDir(), "export")
@@ -129,7 +129,7 @@ func TestRoundLoop_NoteToProposalToVersionToConfirm(t *testing.T) {
 			"n-a": {"label": "Lane › PR 3", "anchor": "Lane › PR 3", "text": "what is this?", "kind": "note"},
 			"n-b": {"anchor": "PR 4 › file claims", "text": "move the file-claim rule to PR 3", "kind": "note"},
 		})
-	rounds, err := Import(root, rid, ex, 0)
+	rounds, err := Import(RecipeSubject(root, rid), ex, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,19 +140,19 @@ func TestRoundLoop_NoteToProposalToVersionToConfirm(t *testing.T) {
 		t.Error("the round records the documents' fingerprints before")
 	}
 
-	if _, err := Done(root, rid, 1); err == nil {
+	if _, err := Done(RecipeSubject(root, rid), 1); err == nil {
 		t.Error("a round with undisposed notes cannot be marked processed")
 	}
-	if err := Dispose(root, rid, 1, "n-a", Declined, ""); err == nil {
+	if err := Dispose(RecipeSubject(root, rid), 1, "n-a", Declined, ""); err == nil {
 		t.Error("declining needs the reason")
 	}
-	if err := Dispose(root, rid, 1, "n-a", Proposed, ""); err == nil {
+	if err := Dispose(RecipeSubject(root, rid), 1, "n-a", Proposed, ""); err == nil {
 		t.Error("a change request is disposed by propose, not dispose")
 	}
-	if err := Dispose(root, rid, 1, "n-a", Answered, "explained the lane"); err != nil {
+	if err := Dispose(RecipeSubject(root, rid), 1, "n-a", Answered, "explained the lane"); err != nil {
 		t.Fatal(err)
 	}
-	p, path, err := Propose(root, rid, 1, Proposal{Note: "n-b", Target: "scope.md", Kind: "move",
+	p, path, err := Propose(RecipeSubject(root, rid), 1, Proposal{Note: "n-b", Target: "scope.md", Kind: "move",
 		Summary: "The file-claim rule moves into PR 3.", ToLane: "Lane › PR 3", ToLabel: "PR 3"})
 	if err != nil {
 		t.Fatal(err)
@@ -166,14 +166,14 @@ func TestRoundLoop_NoteToProposalToVersionToConfirm(t *testing.T) {
 	if up["status"] != "proposed" || up["to_lane"] != "Lane › PR 3" {
 		t.Errorf("the upload document carries what the page draws, got %v", up)
 	}
-	if _, err := Done(root, rid, 1); err != nil {
+	if _, err := Done(RecipeSubject(root, rid), 1); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := Propose(root, rid, 1, Proposal{Note: "n-b", Target: "wireframe.md", Summary: "x"}); err == nil {
+	if _, _, err := Propose(RecipeSubject(root, rid), 1, Proposal{Note: "n-b", Target: "wireframe.md", Summary: "x"}); err == nil {
 		t.Error("a proposal targets intent.md or scope.md only")
 	}
 
-	if err := ConfirmCheck(root, rid, "scope.md", rounds[0].FilesBefore["scope.md"]); err == nil || !strings.Contains(err.Error(), "not decided") {
+	if err := ConfirmCheck(RecipeSubject(root, rid), "scope.md", rounds[0].FilesBefore["scope.md"]); err == nil || !strings.Contains(err.Error(), "not decided") {
 		t.Fatalf("an undecided proposal blocks the confirmation, got %v", err)
 	}
 
@@ -182,79 +182,79 @@ func TestRoundLoop_NoteToProposalToVersionToConfirm(t *testing.T) {
 		"r-1": {"round": 1, "kind": "review", "status": "processed", "ids": []string{"n-a", "n-b"}},
 		"r-2": {"round": 2, "kind": "apply", "status": "submitted", "ids": []string{"p-1-1"}, "rejected": []string{}},
 	}, nil)
-	if _, err := Import(root, rid, ex, 0); err != nil {
+	if _, err := Import(RecipeSubject(root, rid), ex, 0); err != nil {
 		t.Fatal(err)
 	}
-	if err := ConfirmCheck(root, rid, "scope.md", rounds[0].FilesBefore["scope.md"]); err == nil || !strings.Contains(err.Error(), "not applied") {
+	if err := ConfirmCheck(RecipeSubject(root, rid), "scope.md", rounds[0].FilesBefore["scope.md"]); err == nil || !strings.Contains(err.Error(), "not applied") {
 		t.Fatalf("an accepted proposal not yet applied blocks the confirmation, got %v", err)
 	}
-	if _, _, err := Apply(root, rid, 2); err == nil || !strings.Contains(err.Error(), "unchanged") {
+	if _, _, err := Apply(RecipeSubject(root, rid), 2); err == nil || !strings.Contains(err.Error(), "unchanged") {
 		t.Fatalf("applying without editing the document is refused, got %v", err)
 	}
 	scope := filepath.Join(state.RecipeDir(root, rid), "scope.md")
 	write(t, scope, "## Scope\n\n### In Scope\n\n- Contract v4, with the file-claim rule.\n\n### Out of Scope\n\n- Declined outcomes.\n\n### Status: DRAFT\n")
-	revs, uploads, err := Apply(root, rid, 2)
+	revs, uploads, err := Apply(RecipeSubject(root, rid), 2)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(revs) != 1 || revs[0].Version != 2 || revs[0].Proposals[0] != "p-1-1" || len(uploads) != 1 {
 		t.Fatalf("scope.md becomes v2 from p-1-1, got %+v %v", revs, uploads)
 	}
-	if _, err := Done(root, rid, 2); err != nil {
+	if _, err := Done(RecipeSubject(root, rid), 2); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := ConfirmCheck(root, rid, "scope.md", rounds[0].FilesBefore["scope.md"]); err == nil || !strings.Contains(err.Error(), "is now") {
+	if err := ConfirmCheck(RecipeSubject(root, rid), "scope.md", rounds[0].FilesBefore["scope.md"]); err == nil || !strings.Contains(err.Error(), "is now") {
 		t.Fatalf("confirming the old fingerprint is refused, got %v", err)
 	}
-	if err := ConfirmCheck(root, rid, "scope.md", revs[0].To); err != nil {
+	if err := ConfirmCheck(RecipeSubject(root, rid), "scope.md", revs[0].To); err != nil {
 		t.Fatalf("the current version with nothing open confirms, got %v", err)
 	}
-	if err := ConfirmCheck(root, rid, "scope.md", ""); err == nil {
+	if err := ConfirmCheck(RecipeSubject(root, rid), "scope.md", ""); err == nil {
 		t.Error("--via review needs the fingerprint")
 	}
 	// A change after the page's version needs republishing first.
 	write(t, scope, "## Scope\n\n### In Scope\n\n- Something else.\n\n### Status: DRAFT\n")
-	if err := ConfirmCheck(root, rid, "scope.md", revs[0].To); err == nil {
+	if err := ConfirmCheck(RecipeSubject(root, rid), "scope.md", revs[0].To); err == nil {
 		t.Error("a document changed after the page's version is refused")
 	}
 }
 
 func TestImport_KeepsDispositionsAndNamesMissingNotes(t *testing.T) {
 	root := fixture(t)
-	if _, err := PageBrief(root, rid, "intent"); err != nil {
+	if _, err := PageBrief(RecipeSubject(root, rid), "intent"); err != nil {
 		t.Fatal(err)
 	}
 	ex := filepath.Join(t.TempDir(), "export")
 	export(t, ex,
 		map[string]map[string]interface{}{"r-1": {"round": 1, "status": "picked", "ids": []string{"n-a"}}},
 		map[string]map[string]interface{}{"n-a": {"anchor": "Header", "text": "hello", "kind": "note"}})
-	if _, err := Import(root, rid, ex, 0); err != nil {
+	if _, err := Import(RecipeSubject(root, rid), ex, 0); err != nil {
 		t.Fatal(err)
 	}
-	if err := Dispose(root, rid, 1, "n-a", Answered, "said hello"); err != nil {
+	if err := Dispose(RecipeSubject(root, rid), 1, "n-a", Answered, "said hello"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Import(root, rid, ex, 1); err != nil {
+	if _, err := Import(RecipeSubject(root, rid), ex, 1); err != nil {
 		t.Fatal(err)
 	}
-	r, _ := LoadRound(root, rid, 1)
+	r, _ := LoadRound(RecipeSubject(root, rid), 1)
 	if r.Items[0].Disposition != Answered || r.Kind != KindReview {
 		t.Errorf("a re-import keeps the disposition and defaults the kind to review, got %+v", r)
 	}
 
 	export(t, ex, map[string]map[string]interface{}{"r-2": {"round": 2, "status": "submitted", "ids": []string{"n-gone"}}}, nil)
-	if _, err := Import(root, rid, ex, 2); err == nil || !strings.Contains(err.Error(), "n-gone") {
+	if _, err := Import(RecipeSubject(root, rid), ex, 2); err == nil || !strings.Contains(err.Error(), "n-gone") {
 		t.Errorf("a round naming a note the export lacks is refused by name, got %v", err)
 	}
-	if _, err := Import(root, rid, t.TempDir(), 0); err == nil {
+	if _, err := Import(RecipeSubject(root, rid), t.TempDir(), 0); err == nil {
 		t.Error("an empty export is refused")
 	}
 }
 
 func TestConfirmCheck_NoPage(t *testing.T) {
 	root := fixture(t)
-	if err := ConfirmCheck(root, rid, "intent.md", "abcdef123456"); err != ErrNoPage {
+	if err := ConfirmCheck(RecipeSubject(root, rid), "intent.md", "abcdef123456"); err != ErrNoPage {
 		t.Errorf("--via review without a page is refused, got %v", err)
 	}
 }
