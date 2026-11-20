@@ -57,8 +57,17 @@ type MulticaConfig struct {
 	BranchPrefix string `json:"branch_prefix,omitempty"`
 }
 
-// MaxStack is how many unmerged items deep a stack may go.
-const MaxStack = 2
+// DefaultMaxStack is how many unmerged items deep a stack may go in a
+// feature that sets no depth of its own (bts feature stack-depth).
+const DefaultMaxStack = 2
+
+// StackLimit is how many unmerged items deep the feature's stacks may go.
+func (f *Feature) StackLimit() int {
+	if f.MaxStack > 0 {
+		return f.MaxStack
+	}
+	return DefaultMaxStack
+}
 
 const multicaConfigFile = "multica.json"
 
@@ -203,8 +212,9 @@ type Action struct {
 // chooseBase decides where a ready item starts: the feature's base branch
 // when every dependency was skipped or reached it; the branch of its one
 // unmerged dependency, stacked, when that dependency has a draft pull
-// request and the stack stays within MaxStack; otherwise it waits, and wait
-// says why.  A dependency that merged into some other branch waits too.
+// request and the stack stays within the feature's StackLimit; otherwise it
+// waits, and wait says why.  A dependency that merged into some other branch
+// waits too.
 func chooseBase(dir string, f *Feature, p PlanItem, s *Status) (base, baseItem, wait string) {
 	var unmerged []string
 	for _, d := range p.DependsOn {
@@ -235,8 +245,8 @@ func chooseBase(dir string, f *Feature, p PlanItem, s *Status) (base, baseItem, 
 	if pr == nil {
 		return "", "", d + " has no draft pull request yet"
 	}
-	if depth := stackDepth(f, d) + 1; depth > MaxStack {
-		return "", "", fmt.Sprintf("stacking on %s would make %d unmerged levels (at most %d); waits for a merge", d, depth, MaxStack)
+	if limit, depth := f.StackLimit(), stackDepth(f, d)+1; depth > limit {
+		return "", "", fmt.Sprintf("stacking on %s would make %d unmerged levels (at most %d); waits for a merge", d, depth, limit)
 	}
 	return pr.Branch, d, ""
 }

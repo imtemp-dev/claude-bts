@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/imtemp-dev/claude-bts/internal/feature"
@@ -57,7 +58,7 @@ func init() {
 	featureItemCmd.AddCommand(featureItemAddCmd, featureItemEditCmd, featureItemRemoveCmd, featureItemSkipCmd, featureItemDeferCmd, featureItemReleaseCmd, featureItemRestoreCmd)
 	featureCmd.AddCommand(featureCreateCmd, featureListCmd, featureStatusCmd, featurePathCmd, featureItemCmd,
 		featureConfirmCmd, featureNextCmd, featureContextCmd, featureHarvestCmd, featureReconcileCmd,
-		featureCloseCmd, featureCancelCmd, featureSetupCmd)
+		featureCloseCmd, featureCancelCmd, featureSetupCmd, featureStackDepthCmd)
 	featureSetupCmd.Flags().Bool("clear", false, "Remove the feature's setup")
 }
 
@@ -217,6 +218,9 @@ var featureStatusCmd = &cobra.Command{
 		}
 		fmt.Printf("%s: %s\n", s.ID, s.Title)
 		fmt.Printf("  State: %s   Confirmation: %d   Base: %s   Repo: %s\n", s.State, s.Confirmation, s.BaseBranch, s.Repo.Key)
+		if s.MaxStack != feature.DefaultMaxStack {
+			fmt.Printf("  Stack depth: at most %d unmerged levels (default %d)\n", s.MaxStack, feature.DefaultMaxStack)
+		}
 		if len(s.Pending) > 0 {
 			fmt.Printf("  Pending (not confirmed): %s\n", strings.Join(s.Pending, ", "))
 		}
@@ -309,6 +313,40 @@ implement.setup_cmd or a --setup flag says otherwise.  With no command it prints
 			}
 		}
 		return feature.SetSetup(dir, setup)
+	},
+}
+
+var featureStackDepthCmd = &cobra.Command{
+	Use:   "stack-depth <feature> [depth]",
+	Short: "Print or set how many unmerged items deep the feature's stacked pull requests may go",
+	Long: fmt.Sprintf(`An item whose one dependency has not merged starts on that dependency's draft pull
+request branch, stacked.  Dispatch starts it only while the stack stays within this many
+unmerged levels; past that it waits for a merge.  The default is %d, and setting %d returns
+the feature to the default.  The depth is a setting, not part of the plan: changing it needs
+no new confirmation, and the next dispatch uses it.  With no depth it prints the depth.`, feature.DefaultMaxStack, feature.DefaultMaxStack),
+	Args: cobra.RangeArgs(1, 2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dir, err := feature.Find(args[0])
+		if err != nil {
+			return err
+		}
+		if len(args) == 1 {
+			f, err := feature.Load(dir)
+			if err != nil {
+				return err
+			}
+			fmt.Println(f.StackLimit())
+			return nil
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(args[1]))
+		if err != nil || n < 1 {
+			return fmt.Errorf("the stack depth must be a whole number of at least 1, not %q", args[1])
+		}
+		if err := feature.SetMaxStack(dir, n); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "[bts] %s: stacks may go %d unmerged levels deep (default %d)\n", args[0], n, feature.DefaultMaxStack)
+		return nil
 	},
 }
 

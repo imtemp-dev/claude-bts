@@ -249,6 +249,7 @@ type Status struct {
 	Dir          string        `json:"dir"`
 	Repo         Repo          `json:"repo"`
 	BaseBranch   string        `json:"base_branch"`
+	MaxStack     int           `json:"max_stack"` // the feature's StackLimit
 	State        string        `json:"state"`
 	Confirmation int           `json:"confirmation"`
 	Pending      []string      `json:"pending,omitempty"`
@@ -274,7 +275,7 @@ func Derive(dir string, f *Feature) (*Status, error) {
 		st = map[string]int{}
 	}
 	s := &Status{
-		ID: f.ID, Title: f.Title, Ticket: f.Ticket, Dir: dir, Repo: f.Repo, BaseBranch: f.BaseBranch,
+		ID: f.ID, Title: f.Title, Ticket: f.Ticket, Dir: dir, Repo: f.Repo, BaseBranch: f.BaseBranch, MaxStack: f.StackLimit(),
 		Confirmation: n, Pending: Pending(dir, f), Rev: f.Rev, Multica: f.Multica, Orca: f.Orca,
 	}
 	// The working items, then any confirmed item the working plan dropped:

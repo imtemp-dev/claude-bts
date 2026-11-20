@@ -342,6 +342,107 @@ func TestStackLimitMergeAndRestackRequest(t *testing.T) {
 	}
 }
 
+// The stack depth is the feature's: the default holds a third unmerged
+// level, and a feature set to 3 stacks it and holds a fourth.  Setting it on
+// a confirmed feature leaves nothing pending.
+func TestStackDepthIsTheFeatures(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		set    int // 0 sets nothing
+		levels int // unmerged levels dispatch stacks before an item waits
+	}{{"default", 0, 2}, {"three", 3, 3}} {
+		t.Run(tc.name, func(t *testing.T) {
+			fm := newFakeMultica(t)
+			dir, _ := newFeature(t)
+			ids := make([]string, tc.levels+1) // a chain i1 ← i2 ← …
+			for k := range ids {
+				spec := ItemSpec{Title: ptr(fmt.Sprintf("item %d", k+1)), Type: ptr("build")}
+				if k > 0 {
+					spec.DependsOn = &[]string{ids[k-1]}
+				}
+				ids[k], _ = AddItem(dir, spec)
+			}
+			if _, err := Confirm(dir, "go"); err != nil {
+				t.Fatal(err)
+			}
+			if tc.set != 0 {
+				if err := SetMaxStack(dir, tc.set); err != nil {
+					t.Fatal(err)
+				}
+			}
+			f, _ := Load(dir)
+			if p := Pending(dir, f); len(p) != 0 || f.StackLimit() != tc.levels {
+				t.Fatalf("the depth is a setting, not the plan: pending %v, limit %d", p, f.StackLimit())
+			}
+			if s, _ := Derive(dir, f); s.MaxStack != tc.levels {
+				t.Fatalf("status carries the depth: %d", s.MaxStack)
+			}
+			if _, _, err := Publish(dir, "mgr", "wrk"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Dispatch(dir); err != nil {
+				t.Fatal(err)
+			}
+			base := "main"
+			for k := 0; k < tc.levels; k++ {
+				writeAttempt(t, dir, ids[k], 1, "complete", "done", "gate")
+				branch := fmt.Sprintf("b%d", k+1)
+				writePR(t, dir, ids[k], 1, branch, base)
+				base = branch
+				acts, err := Dispatch(dir)
+				if err != nil {
+					t.Fatal(err)
+				}
+				next := fm.byItem(ids[k+1])
+				if k+1 < tc.levels {
+					if next.Status != "todo" || !strings.Contains(next.Description, "--ref "+branch) {
+						t.Fatalf("%s stacks on %s, level %d of %d: %s\n%s", ids[k+1], branch, k+2, tc.levels, next.Status, notes(acts))
+					}
+					continue
+				}
+				want := fmt.Sprintf("%s: waits: stacking on %s would make %d unmerged levels (at most %d)", ids[k+1], ids[k], tc.levels+1, tc.levels)
+				if next.Status != "backlog" || !strings.Contains(notes(acts), want) {
+					t.Fatalf("%s must wait at level %d (want %q): %s\n%s", ids[k+1], tc.levels+1, want, next.Status, notes(acts))
+				}
+			}
+		})
+	}
+}
+
+// A stack depth below 1 is refused and changes nothing; setting the default
+// clears the feature's own depth.
+func TestSetMaxStackRefusesBelowOne(t *testing.T) {
+	dir, _ := newFeature(t)
+	for _, n := range []int{0, -1} {
+		if err := SetMaxStack(dir, n); err == nil || !strings.Contains(err.Error(), "at least 1") {
+			t.Fatalf("SetMaxStack(%d) must be refused: %v", n, err)
+		}
+	}
+	if f, _ := Load(dir); f.Rev != 0 || f.MaxStack != 0 || f.StackLimit() != DefaultMaxStack {
+		t.Fatalf("a refused depth writes nothing: rev %d, max_stack %d", f.Rev, f.MaxStack)
+	}
+	if err := SetMaxStack(dir, 3); err != nil {
+		t.Fatal(err)
+	}
+	if f, _ := Load(dir); f.MaxStack != 3 || f.StackLimit() != 3 {
+		t.Fatalf("set to 3: max_stack %d, limit %d", f.MaxStack, f.StackLimit())
+	}
+	if err := SetMaxStack(dir, DefaultMaxStack); err != nil {
+		t.Fatal(err)
+	}
+	f, _ := Load(dir)
+	if f.MaxStack != 0 || f.StackLimit() != DefaultMaxStack {
+		t.Fatalf("setting the default clears the depth: max_stack %d, limit %d", f.MaxStack, f.StackLimit())
+	}
+	rev := f.Rev
+	if err := SetMaxStack(dir, DefaultMaxStack); err != nil {
+		t.Fatal(err)
+	}
+	if f, _ := Load(dir); f.Rev != rev {
+		t.Fatalf("an unchanged depth leaves feature.json alone: rev %d → %d", rev, f.Rev)
+	}
+}
+
 func TestDispatchFindsSubIssuesNotRecorded(t *testing.T) {
 	fm := newFakeMultica(t)
 	dir, _ := newFeature(t)

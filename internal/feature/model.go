@@ -48,7 +48,8 @@ type Feature struct {
 	Ticket        string          `json:"ticket,omitempty"`
 	Repo          Repo            `json:"repo"`
 	BaseBranch    string          `json:"base_branch"`
-	Setup         string          `json:"setup,omitempty"` // makes a fresh checkout runnable; see SetupFor
+	Setup         string          `json:"setup,omitempty"`     // makes a fresh checkout runnable; see SetupFor
+	MaxStack      int             `json:"max_stack,omitempty"` // unmerged levels a stack may reach; 0 is DefaultMaxStack (see StackLimit)
 	CreatedAt     string          `json:"created_at"`
 	Items         []Item          `json:"items"`
 	Confirmations []Confirmation  `json:"confirmations,omitempty"`
@@ -252,6 +253,31 @@ func SetSetup(dir, setup string) error {
 			return "setup cleared", nil
 		}
 		return "setup: " + setup, nil
+	})
+	return err
+}
+
+// SetMaxStack records how many unmerged items deep the feature's stacks may
+// go.  It is a setting, not part of the plan, so a confirmed feature changes
+// it without a new confirmation.  DefaultMaxStack clears it: the feature
+// follows the default again.
+func SetMaxStack(dir string, n int) error {
+	if n < 1 {
+		return fmt.Errorf("the stack depth must be at least 1, not %d", n)
+	}
+	stored := n
+	if n == DefaultMaxStack {
+		stored = 0
+	}
+	_, err := Mutate(dir, "max-stack", func(f *Feature) (string, error) {
+		if f.MaxStack == stored {
+			return "", ErrNoChange
+		}
+		f.MaxStack = stored
+		if stored == 0 {
+			return fmt.Sprintf("max stack: default (%d)", DefaultMaxStack), nil
+		}
+		return fmt.Sprintf("max stack: %d", n), nil
 	})
 	return err
 }
