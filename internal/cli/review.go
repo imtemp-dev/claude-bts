@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -38,6 +39,9 @@ func init() {
 	reviewDisposeCmd.Flags().String("note", "", "Note id")
 	reviewDisposeCmd.Flags().String("as", "", "answered, page (the page's wording changed, not the plan) or declined")
 	reviewDisposeCmd.Flags().String("why", "", "One line on what was done; required for declined")
+	reviewDisposeCmd.Flags().String("reply", "", "The answer shown on the note's pin, one or two sentences in the user's language")
+	reviewProposeCmd.Flags().String("reply", "", "What the pin says about the proposal, in the user's language")
+	reviewDoneCmd.Flags().String("summary", "", "One line under the round on the page, in the user's language")
 	reviewProposeCmd.Flags().Int("round", 0, "Round the note belongs to")
 	reviewProposeCmd.Flags().String("note", "", "Note id the proposal comes from")
 	reviewProposeCmd.Flags().String("target", "", "Plan document it changes: intent.md, scope.md or the spec; for a feature intent.md, contracts.md or plan")
@@ -125,21 +129,30 @@ var reviewPageCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		local := set.Review.Surface == engine.ReviewSurfaceLocal
+		if local {
+			b.Capabilities = nil
+		}
 		if asJSON, _ := cmd.Flags().GetBool("json"); asJSON {
 			out, _ := json.MarshalIndent(b, "", "  ")
 			fmt.Println(string(out))
 			return nil
 		}
-		printBrief(b)
+		printBrief(b, local)
 		return nil
 	},
 }
 
-func printBrief(b *review.Brief) {
+func printBrief(b *review.Brief, local bool) {
 	fmt.Printf("[bts] review page for %s %s, point: %s\n", b.Kind, b.Recipe, b.Point)
-	if b.URL != "" {
+	switch {
+	case local && b.URL != "":
+		fmt.Printf("Page: %s (served from this machine; rewrite page.html and it reloads)\n", b.URL)
+	case local:
+		fmt.Println("Page: not served yet (review.surface: local)")
+	case b.URL != "":
 		fmt.Printf("Page: %s (republish to this URL)\n", b.URL)
-	} else {
+	default:
 		fmt.Println("Page: not published yet")
 	}
 	fmt.Printf("Write the page to: %s\n", b.Page)
@@ -154,13 +167,19 @@ func printBrief(b *review.Brief) {
 	for _, s := range b.Sections {
 		fmt.Printf("  - %s\n", s)
 	}
+	cfg, _ := json.Marshal(b.Config)
+	if local {
+		fmt.Printf("Kit v%s: link it from the page by base name (<link rel=\"stylesheet\" href=\"bts-review-kit.css\">, <script src=\"bts-review-kit.js\"></script>); the server serves it\n", b.KitVersion)
+		fmt.Printf("Config block (in the page, read by the kit; the server adds the local transport):\n  <script type=\"application/json\" id=\"bts-review-config\">%s</script>\n", cfg)
+		fmt.Printf("Next: write the page, then `bts review open %s --point %s`.\n", b.Arg, b.Point)
+		return
+	}
 	fmt.Printf("Kit v%s: publish these beside the page under their base names (Artifact files):\n", b.KitVersion)
 	for name, path := range b.Kit {
 		fmt.Printf("  %s  %s\n", name, path)
 	}
 	caps, _ := json.Marshal(b.Capabilities)
 	fmt.Printf("Capabilities (pass exactly): %s\n", caps)
-	cfg, _ := json.Marshal(b.Config)
 	fmt.Printf("Config block (in the page, read by the kit):\n  <script type=\"application/json\" id=\"bts-review-config\">%s</script>\n", cfg)
 	fmt.Printf("Next: build and publish the page (/bts-review-page), then `bts review attach %s --url <link> --point %s`.\n", b.Arg, b.Point)
 }
@@ -209,16 +228,24 @@ func openReviewInOrca(root, url string) {
 	if !orca.InOrca() {
 		return
 	}
+	openInOrcaTab(root, url, "[bts] opened in Orca's browser beside this terminal (sign in to claude.ai there once if it asks)")
+}
+
+// openInOrcaTab opens url in a tab of Orca's browser unless the project
+// turned orca.launch off, printing done on success.  It reports whether
+// the tab opened.
+func openInOrcaTab(root, url, done string) bool {
 	if s, err := engine.LoadSettings(root); err == nil && s.Orca.LaunchPolicy() == engine.OrcaLaunchOff {
-		return
+		return false
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	if err := orca.OpenTab(ctx, root, url); err != nil {
 		fmt.Fprintf(os.Stderr, "[bts] could not open the page in Orca's browser: %v\n", err)
-		return
+		return false
 	}
-	fmt.Println("[bts] opened in Orca's browser beside this terminal (sign in to claude.ai there once if it asks)")
+	fmt.Println(done)
+	return true
 }
 
 func containsStr(list []string, v string) bool {
@@ -249,10 +276,8 @@ var reviewImportCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		// A local page needs no --dir: Import reads its data directly.
 		dir, _ := cmd.Flags().GetString("dir")
-		if strings.TrimSpace(dir) == "" {
-			return errors.New("--dir is required: the ArtifactData out_dir the page's rounds and notes were exported to")
-		}
 		only, _ := cmd.Flags().GetInt("round")
 		rounds, err := review.Import(sub, dir, only)
 		if err != nil {
@@ -326,10 +351,21 @@ var reviewDisposeCmd = &cobra.Command{
 		note, _ := cmd.Flags().GetString("note")
 		as, _ := cmd.Flags().GetString("as")
 		why, _ := cmd.Flags().GetString("why")
+		reply, _ := cmd.Flags().GetString("reply")
 		if err := review.Dispose(sub, n, note, as, why); err != nil {
 			return err
 		}
 		fmt.Printf("[bts] round %d note %s: %s\n", n, note, as)
+		if strings.TrimSpace(reply) != "" || review.IsLocal(sub) {
+			if strings.TrimSpace(reply) == "" && as == review.Declined {
+				reply = why
+			}
+			path, err := review.ReplyNote(sub, note, as, reply)
+			if err != nil {
+				return err
+			}
+			printNoteWrite(sub, note, path)
+		}
 		return nil
 	},
 }
@@ -357,7 +393,18 @@ var reviewProposeCmd = &cobra.Command{
 			return err
 		}
 		fmt.Printf("[bts] proposal %s on %s recorded\n", p.ID, p.Target)
-		fmt.Printf("  upload: ArtifactData set, collection proposals, doc_id %s, file_path %s\n", p.ID, path)
+		if review.IsLocal(sub) {
+			fmt.Printf("  on the page: proposal %s, waiting for Accept or Reject\n", p.ID)
+		} else {
+			fmt.Printf("  upload: ArtifactData set, collection proposals, doc_id %s, file_path %s\n", p.ID, path)
+		}
+		if reply := get("reply"); reply != "" || review.IsLocal(sub) {
+			npath, err := review.ReplyNote(sub, p.Note, review.Proposed, reply)
+			if err != nil {
+				return err
+			}
+			printNoteWrite(sub, p.Note, npath)
+		}
 		return nil
 	},
 }
@@ -386,14 +433,23 @@ var reviewApplyCmd = &cobra.Command{
 		if len(revs) == 0 {
 			fmt.Println("[bts] nothing accepted: no document changed")
 		}
+		local := review.IsLocal(sub)
 		for _, u := range uploads {
-			fmt.Printf("  upload: ArtifactData update, collection proposals, file_path %s\n", u)
+			if local {
+				fmt.Printf("  on the page: %s\n", strings.TrimSuffix(filepath.Base(u), ".json"))
+			} else {
+				fmt.Printf("  upload: ArtifactData update, collection proposals, file_path %s\n", u)
+			}
 		}
 		point := "<point>"
 		if sub.Kind == review.KindFeature {
 			point = review.FeaturePoint
 		}
-		fmt.Printf("  next: show the new versions on the page (`bts review page %s --point %s` prints them), republish, then `bts review done %s --round %d`\n", sub.Arg(), point, sub.Arg(), n)
+		again := "republish"
+		if local {
+			again = "rewrite page.html"
+		}
+		fmt.Printf("  next: show the new versions on the page (`bts review page %s --point %s` prints them), %s, then `bts review done %s --round %d`\n", sub.Arg(), point, again, sub.Arg(), n)
 		return nil
 	},
 }
@@ -412,12 +468,18 @@ var reviewDoneCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		path, err := review.Done(sub, n)
+		summary, _ := cmd.Flags().GetString("summary")
+		path, err := review.DoneWith(sub, n, summary)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("[bts] round %d processed\n", n)
-		fmt.Printf("  upload: ArtifactData update, collection rounds, doc_id r-%d, file_path %s\n", n, path)
+		if review.IsLocal(sub) {
+			fmt.Printf("  on the page: round %d marked answered\n", n)
+			fmt.Printf("  next: run `bts review wait %s` in the background again for the next round\n", sub.Arg())
+		} else {
+			fmt.Printf("  upload: ArtifactData update, collection rounds, doc_id r-%d, file_path %s\n", n, path)
+		}
 		return nil
 	},
 }

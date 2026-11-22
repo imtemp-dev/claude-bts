@@ -1353,7 +1353,7 @@ var settingsInsertions = []settingsInsertion{
 		Parent:  "review",
 		Key:     "surface",
 		Value:   "artifact",
-		Comment: "Where the user reviews intent, scope and the spec: artifact (a review page, /bts-review-page) or ask (AskUserQuestion).",
+		Comment: "Where the user reviews intent, scope and the spec: artifact (a review page on claude.ai, /bts-review-page), local (the same page served by bts on this machine) or ask (AskUserQuestion).",
 		Since:   "v0.24.0",
 	},
 	{

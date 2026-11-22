@@ -74,8 +74,8 @@ func TestFeatureBrief_OnePointOneConfirmRowCoveringEverything(t *testing.T) {
 	if f := docs["plan"].(map[string]interface{})["file"]; f != "plan" {
 		t.Errorf("a document that is not a file names itself, got %v", f)
 	}
-	if b.Config["kit"] != KitVersion || KitVersion != "2" {
-		t.Errorf("a feature page needs kit 2, got %v", b.Config["kit"])
+	if b.Config["kit"] != KitVersion || KitVersion < "2" {
+		t.Errorf("a feature page needs kit 2 or later, got %v", b.Config["kit"])
 	}
 
 	// No intent yet: nothing to build a page on.

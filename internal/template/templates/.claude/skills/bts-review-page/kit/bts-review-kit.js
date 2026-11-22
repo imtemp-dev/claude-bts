@@ -1,4 +1,10 @@
-/* bts review kit v2.
+/* bts review kit v3.
+ *
+ * Two transports behind one UI: a claude.ai artifact (window.claude.use:
+ * db, comments, dictation, permissions), or a page `bts review serve`
+ * serves from the project (config "transport": "local", which the server
+ * adds): page data over the server's JSON API and event stream, a round
+ * sent by writing it, dictation through the browser's speech recognition.
  *
  * Everything a bts review page needs that is the same on every page: note
  * mode, the note editor with dictation, pins, the Review tray, rounds sent
@@ -33,9 +39,11 @@
   const FEATURE = CFG.feature || '';
   const SUBJECT = FEATURE ? 'feature ' + FEATURE : 'recipe ' + RECIPE;
   const CONFIRM_CMD = FEATURE ? 'bts feature confirm --via review' : 'bts recipe confirm --via review';
+  const LOCAL = CFG.transport === 'local';
+  const API = typeof CFG.api === 'string' ? CFG.api : '';
   const STATUS = { draft: 'Draft', submitted: 'Sent', applied: 'Applied', declined: 'Declined', answered: 'Answered', proposed: 'Change proposed', page: 'Page fixed' };
   const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const S = { noting: false, comments: null, dict: null, dictOff: false, perms: null, db: null, local: false, dbReady: false, can: 'unknown',
+  const S = { noting: false, comments: null, dict: null, dictOff: false, perms: null, db: null, local: false, dbReady: false, can: 'unknown', waiting: false, reloadPending: false,
     notes: new Map(), rounds: new Map(), proposals: new Map(), roundSeen: new Map(), ed: null, anchor: null, busy: false, hot: null, lang: CFG.lang || '' };
 
   /* ---------- UI scaffold ---------- */
@@ -200,11 +208,16 @@
 
   /* ---------- connection and consent ---------- */
   const conn = $('.btsr-conn', bar);
-  const CONN = { available: 'Claude is listening', no_session: 'No Claude session is watching', writers_only: 'Only editors can send to Claude',
-    off: 'Sending to Claude is off in this view', none: 'Comments are unavailable in this view', unknown: 'Checking whether Claude is listening…' };
+  const CONN = LOCAL
+    ? { available: 'A Claude session is waiting', no_session: 'No session is waiting: rounds are kept until one checks', off: 'The review server is not answering', none: 'The review server is not answering', unknown: 'Connecting to the review server…' }
+    : { available: 'Claude is listening', no_session: 'No Claude session is watching', writers_only: 'Only editors can send to Claude',
+      off: 'Sending to Claude is off in this view', none: 'Comments are unavailable in this view', unknown: 'Checking whether Claude is listening…' };
   function setConn(v) { S.can = v; conn.dataset.can = v; conn.textContent = CONN[v] || CONN.off; render(); }
   async function refreshCan() { const c = S.comments; if (!c) { setConn('none'); return; } try { setConn(await c.canSendToClaude()); } catch (e) { setConn('off'); } }
   function explain(code) {
+    if (LOCAL) return code === 'forbidden'
+      ? ['The review server refused this page. Open the link `bts review open` printed.', false]
+      : ['The review server did not answer. Check it is running (`bts review open` restarts it), then send again. Your notes are kept.', false];
     if (code === 'consent_required') return ['This page may not comment for you yet. Press Allow below, then send again. Your notes are kept.', true];
     if (code === 'claude_unavailable') { setConn('off'); return ['Claude cannot take notes from this view right now. Send again to post them as a plain comment.', false]; }
     if (code === 'forbidden') return ['Commenting from this page is off for you here. Use claude.ai\'s own comment mode instead.', false];
@@ -273,7 +286,14 @@
     note.hidden = false;
     if (!readOnly) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
   }
-  function closeEditor() { if (S.dict && S.dict.active()) S.dict.stop().catch(() => {}); note.hidden = true; S.ed = null; }
+  function closeEditor() {
+    if (S.dict && S.dict.active()) S.dict.stop().catch(() => {});
+    note.hidden = true; S.ed = null;
+    if (S.reloadPending) location.reload();
+  }
+  // A local page reloads when the session rewrote page.html; never under an
+  // open editor, where the text being typed would be lost.
+  function reloadPage() { if (!note.hidden) { S.reloadPending = true; toast('The page has a new version. It reloads when you close this note.'); return; } location.reload(); }
 
   async function saveNote() {
     if (S.busy || !S.ed) return;
@@ -321,7 +341,7 @@
     const body = S.local
       ? '\n' + list.map(([, n], i) => (i + 1) + '. [' + n.label + '] ' + n.text.replace(/\s+/g, ' ').slice(0, 1200)).join('\n')
       : '\nFor the working session: read the notes from this page\'s data (collection "notes", ids ' + ids.join(', ') + ').';
-    sayTray(S.can === 'available' ? 'Sending…' : 'Posting…');
+    sayTray(LOCAL || S.can === 'available' ? 'Sending…' : 'Posting…');
     try { await post(bar, head + body + FOOT); }
     catch (e) { const r = explain(e && e.code); openTray(true); sayTray(r[0], true); trayAllow.hidden = !r[1]; S.busy = false; render(); return; }
     const at = iso();
@@ -331,7 +351,9 @@
       sayTray('');
     } catch (e) { sayTray('Sent, but the notes could not be marked as sent here. Claude still has them.', true); }
     S.busy = false; render();
-    toast(S.can === 'available' ? 'Sent ' + ids.length + ' note' + (ids.length > 1 ? 's' : '') + ' to Claude as round ' + round + '.' : 'Posted round ' + round + ' as a comment. Send it to Claude from its thread once a session is watching.');
+    const sent = 'Sent ' + ids.length + ' note' + (ids.length > 1 ? 's' : '') + ' as round ' + round + '.';
+    if (LOCAL) toast(S.can === 'available' ? sent + ' The waiting session takes it now.' : sent + ' Claude takes it when a session checks the page.');
+    else toast(S.can === 'available' ? 'Sent ' + ids.length + ' note' + (ids.length > 1 ? 's' : '') + ' to Claude as round ' + round + '.' : 'Posted round ' + round + ' as a comment. Send it to Claude from its thread once a session is watching.');
   }
   async function applyPlan() {
     const acc = [...S.proposals].filter(([, p]) => p.status === 'accepted').map(([id]) => id);
@@ -373,7 +395,7 @@
   function render() {
     const list = sorted(), d = drafts().length;
     $('.btsr-count', bar).textContent = d ? String(d) : '';
-    $$('.btsr-send').forEach((b) => { b.hidden = !d; b.disabled = S.busy; b.textContent = (S.can === 'available' || !S.comments ? 'Send ' : 'Post ') + d + ' note' + (d > 1 ? 's' : '') + (S.can === 'available' ? ' to Claude' : ''); });
+    $$('.btsr-send').forEach((b) => { b.hidden = !d; b.disabled = S.busy; b.textContent = (LOCAL || S.can === 'available' || !S.comments ? 'Send ' : 'Post ') + d + ' note' + (d > 1 ? 's' : '') + (S.can === 'available' ? ' to Claude' : ''); });
     $$('[data-bts-decision]').forEach((dec) => {
       const v = chosen(dec.dataset.btsDecision);
       $$('[data-bts-option]', dec).forEach((o) => o.classList.toggle('btsr-chosen', !!v && o.dataset.btsOption === v));
@@ -491,7 +513,8 @@
     if (!r || r === 'stopped' || r === 'viewer_stopped') return;
     const M = {
       not_granted: 'Dictation is off for this page. Type instead, or allow it from the artifact\'s Permissions menu.',
-      unavailable: S.lang ? 'Dictation in this language is not served here. Pick Auto and press Speak again.' : 'Dictation is not available in this view. Type instead.',
+      unavailable: S.lang ? 'Dictation in this language is not served here. Pick Auto and press Speak again.'
+        : LOCAL ? 'Speech recognition is not available in this browser. Type, or use macOS dictation (press Fn twice).' : 'Dictation is not available in this view. Type instead.',
       no_gesture: 'Press Speak again to start.', hidden: 'Dictation stopped when the page was hidden. Press Speak to continue.',
       rate_limited: 'Too many dictations at once. Try again in a moment.', upstream_error: 'The microphone or speech service failed. Try again, or type.',
       invalid_argument: 'That language setting was refused. Pick Auto.'
@@ -584,10 +607,100 @@
     if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); setNoting(!S.noting); }
   });
 
+  /* ---------- local transport (bts review serve) ---------- */
+  // The same shapes the claude.ai capabilities give, so everything above
+  // runs unchanged: a db whose collections take set/update/delete and
+  // onSnapshot, and a comments object whose "send" is a no-op because
+  // writing the round is what the session waits for.
+  function localTransport() {
+    const subs = { notes: [], rounds: [], proposals: [] };
+    let last = null;
+    async function call(method, path, body) {
+      const r = await fetch(API + path, { method, credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+      if (!r.ok) { const e = new Error('HTTP ' + r.status); e.code = r.status === 403 ? 'forbidden' : 'upstream_error'; throw e; }
+      return r.json();
+    }
+    const snap = (docs) => ({ docs: Object.keys(docs || {}).map((id) => ({ id, exists: true, data: () => docs[id] })) });
+    function deliver(st) {
+      last = st; S.waiting = !!st.waiting;
+      Object.keys(subs).forEach((c) => subs[c].forEach(([ok]) => { try { ok(snap(st[c])); } catch (e) {} }));
+      refreshCan();
+    }
+    async function refresh() { try { deliver(await call('GET', 'state')); } catch (e) { setConn('off'); } }
+    const write = (p) => p.then((v) => { refresh(); return v; });
+    const db = {
+      collection(name) {
+        return {
+          doc(id) {
+            const p = 'doc/' + name + '/' + encodeURIComponent(id);
+            return { set: (d) => write(call('PUT', p, d)), update: (d) => write(call('PATCH', p, d)), delete: () => write(call('DELETE', p)) };
+          },
+          onSnapshot(ok, bad) { (subs[name] || []).push([ok, bad]); if (last) ok(snap(last[name])); return () => {}; }
+        };
+      }
+    };
+    const comments = {
+      canSendToClaude: async () => (last ? (S.waiting ? 'available' : 'no_session') : 'unknown'),
+      anchorFor: async (target) => (target && target.dataset && target.dataset.note) || '',
+      sendToClaude: async () => ({ ok: true }),
+      create: async () => ({ ok: true })
+    };
+    let es = null;
+    try {
+      es = new EventSource(API + 'events');
+      es.addEventListener('state', (ev) => { try { deliver(JSON.parse(ev.data)); } catch (e) {} });
+      es.addEventListener('reload', () => reloadPage());
+      es.onerror = () => { if (es.readyState === EventSource.CLOSED) { setConn('off'); setTimeout(refresh, 2000); } };
+    } catch (e) { setInterval(refresh, 2000); }
+    refresh();
+    return { db, comments };
+  }
+  function localDictation() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return null;
+    let rec = null, on = false;
+    const h = { partial: [], final: [], state: [] };
+    const emit = (k, v) => h[k].forEach((f) => { try { f(v); } catch (e) {} });
+    const reasonOf = (err) => (err === 'not-allowed' || err === 'service-not-allowed') ? 'not_granted' : err === 'no-speech' || err === 'aborted' ? 'stopped' : err === 'network' || err === 'language-not-supported' ? 'unavailable' : 'upstream_error';
+    return {
+      onPartial: (f) => h.partial.push(f), onFinal: (f) => h.final.push(f), onState: (f) => h.state.push(f),
+      active: () => on,
+      start: (o) => new Promise((resolve, reject) => {
+        try {
+          rec = new SR(); rec.continuous = true; rec.interimResults = true;
+          rec.lang = (o && o.language) || document.documentElement.lang || navigator.language || '';
+          rec.onstart = () => { on = true; emit('state', { state: 'listening' }); resolve(); };
+          rec.onresult = (ev) => {
+            let interim = '';
+            for (let i = ev.resultIndex; i < ev.results.length; i++) { const r = ev.results[i]; if (r.isFinal) emit('final', { text: r[0].transcript }); else interim += r[0].transcript; }
+            emit('partial', { text: interim });
+          };
+          rec.onerror = (ev) => { const reason = reasonOf(ev.error); const was = on; on = false; emit('state', { state: 'idle', reason }); if (!was) reject({ code: reason }); };
+          rec.onend = () => { if (on) { on = false; emit('state', { state: 'idle', reason: 'stopped' }); } };
+          emit('state', { state: 'starting' }); rec.start();
+        } catch (e) { emit('state', { state: 'idle', reason: 'unavailable' }); reject({ code: 'unavailable' }); }
+      }),
+      stop: () => new Promise((resolve) => {
+        if (!rec || !on) { resolve(); return; }
+        emit('state', { state: 'finishing' });
+        rec.onend = () => { on = false; emit('state', { state: 'idle', reason: 'stopped' }); resolve(); };
+        try { rec.stop(); } catch (e) { on = false; resolve(); }
+      })
+    };
+  }
+
   /* ---------- capabilities ---------- */
   render();
   const C = window.claude;
-  if (C && typeof C.use === 'function') {
+  if (LOCAL) {
+    const t = localTransport();
+    S.comments = t.comments;
+    attachDb(t.db);
+    const d = localDictation();
+    if (d) setupDict(d);
+    else ta.placeholder = 'What should change here? Type, or dictate with macOS (press Fn twice).';
+    setInterval(() => { if (!note.hidden || document.hidden) return; refreshCan(); }, 10000);
+  } else if (C && typeof C.use === 'function') {
     C.use('comments').then((c) => { S.comments = c; refreshCan(); }).catch(() => setConn('none'));
     C.use('dictation').then((d) => { if (d) setupDict(d); }).catch(() => {});
     C.use('permissions').then((p) => { S.perms = p; }).catch(() => {});

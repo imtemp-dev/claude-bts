@@ -91,6 +91,15 @@ func Import(sub Subject, dir string, only int) ([]*Round, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A local page's data is already on disk: no export, and the rounds
+	// taken are marked picked on the page as ArtifactData's update did.
+	local := s.Surface == SurfaceLocal
+	if local && strings.TrimSpace(dir) == "" {
+		dir = DataPath(sub)
+	}
+	if strings.TrimSpace(dir) == "" {
+		return nil, errors.New("--dir is required: the ArtifactData out_dir the page's rounds and notes were exported to")
+	}
 	rounds, err := readExport(dir, "rounds")
 	if err != nil {
 		return nil, err
@@ -171,6 +180,11 @@ func Import(sub Subject, dir string, only int) ([]*Round, error) {
 		if err := SaveRound(sub, r); err != nil {
 			return nil, err
 		}
+		if local && status == "submitted" {
+			if err := MergeDoc(sub, "rounds", d.ID, map[string]interface{}{"status": "picked", "picked": now()}); err != nil {
+				return nil, err
+			}
+		}
 		if n > s.LastRound {
 			s.LastRound = n
 		}
@@ -219,7 +233,22 @@ func Dispose(sub Subject, n int, note, disposition, why string) error {
 	return SaveRound(sub, r)
 }
 
-func writeUpload(sub Subject, collection, id string, doc map[string]interface{}) (string, error) {
+// writeUpload writes a page document a session's command produces.  On a
+// local page it goes straight into the page data, whole when replace is
+// set and merged into what is there otherwise; on a claude.ai page it is a
+// file the session uploads with ArtifactData (set when replace, update
+// otherwise).  It returns where the document went.
+func writeUpload(sub Subject, collection, id string, doc map[string]interface{}, replace bool) (string, error) {
+	if IsLocal(sub) {
+		path, err := docPath(sub, collection, id)
+		if err != nil {
+			return "", err
+		}
+		if replace {
+			return path, PutDoc(sub, collection, id, doc)
+		}
+		return path, MergeDoc(sub, collection, id, doc)
+	}
 	dir := filepath.Join(UploadDir(sub), collection)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
@@ -273,7 +302,7 @@ func Propose(sub Subject, n int, p Proposal) (*Proposal, string, error) {
 			doc[k] = v
 		}
 	}
-	path, err := writeUpload(sub, "proposals", p.ID, doc)
+	path, err := writeUpload(sub, "proposals", p.ID, doc, true)
 	return &p, path, err
 }
 
@@ -373,7 +402,7 @@ func Apply(sub Subject, n int) ([]Revision, []string, error) {
 		if err := SaveRound(sub, origin); err != nil {
 			return err
 		}
-		path, err := writeUpload(sub, "proposals", id, upd)
+		path, err := writeUpload(sub, "proposals", id, upd, false)
 		if err == nil {
 			uploads = append(uploads, path)
 		}
@@ -416,8 +445,14 @@ func Apply(sub Subject, n int) ([]Revision, []string, error) {
 // Done marks a round processed: every note of a review round has a
 // disposition, and an apply round with accepted proposals has its
 // revisions.  It returns the page document to upload (rounds collection,
-// ArtifactData update).
+// ArtifactData update), or on a local page where it was written.
 func Done(sub Subject, n int) (string, error) {
+	return DoneWith(sub, n, "")
+}
+
+// DoneWith is Done with the one-line summary the page shows under the
+// round.
+func DoneWith(sub Subject, n int, summary string) (string, error) {
 	r, err := LoadRound(sub, n)
 	if err != nil {
 		return "", fmt.Errorf("round %d is not imported: %w", n, err)
@@ -443,7 +478,31 @@ func Done(sub Subject, n int) (string, error) {
 	if err := SaveRound(sub, r); err != nil {
 		return "", err
 	}
-	return writeUpload(sub, "rounds", fmt.Sprintf("r-%d", n), map[string]interface{}{
-		"status": "processed", "processed": r.Processed,
-	})
+	upd := map[string]interface{}{"status": "processed", "processed": r.Processed}
+	if s := strings.TrimSpace(summary); s != "" {
+		upd["summary"] = s
+	}
+	return writeUpload(sub, "rounds", fmt.Sprintf("r-%d", n), upd, false)
+}
+
+// Note statuses the page shows on a pin once the session has answered it.
+var noteStatuses = []string{Answered, Proposed, PageOnly, Declined, "applied"}
+
+// ReplyNote writes the session's answer onto a note: its status (answered,
+// proposed, page or declined for a review note; applied or declined for a
+// confirmation) and a reply of a sentence or two in the user's language.
+// On a local page it lands in the page data; on a claude.ai page it is a
+// file to upload (notes collection, ArtifactData update).
+func ReplyNote(sub Subject, note, status, reply string) (string, error) {
+	if !contains(noteStatuses, status) {
+		return "", fmt.Errorf("a note's status is %s, got %q", strings.Join(noteStatuses, ", "), status)
+	}
+	if !ValidDocID(note) {
+		return "", fmt.Errorf("bad note id %q", note)
+	}
+	upd := map[string]interface{}{"status": status, "processed": now()}
+	if r := strings.TrimSpace(reply); r != "" {
+		upd["reply"] = r
+	}
+	return writeUpload(sub, "notes", note, upd, false)
 }

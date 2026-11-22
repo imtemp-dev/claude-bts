@@ -1,14 +1,15 @@
 ---
 name: bts-review-page
 description: >
-  Run a recipe's or a feature's user review on an artifact page instead of
-  AskUserQuestion: draw the change, publish it with the review kit, let the
-  user pin notes (typed or spoken) and send them in rounds, answer each
-  round from this session, turn change requests into proposals the user
-  accepts or rejects, apply them as a new document version, and record the
-  confirmation of a fingerprinted version.  Used by intent, scope and spec
-  confirmation, and by a feature's confirmation of its intent, contracts
-  and plan, when review.surface is artifact.
+  Run a recipe's or a feature's user review on a review page instead of
+  AskUserQuestion: draw the change, publish it with the review kit as a
+  claude.ai artifact or serve it from this machine, let the user pin notes
+  (typed or spoken) and send them in rounds, answer each round from this
+  session, turn change requests into proposals the user accepts or rejects,
+  apply them as a new document version, and record the confirmation of a
+  fingerprinted version.  Used by intent, scope and spec confirmation, and
+  by a feature's confirmation of its intent, contracts and plan, when
+  review.surface is artifact or local.
 user-invocable: true
 allowed-tools: Read Write Edit Grep Glob Bash Artifact ArtifactData ArtifactComments AskUserQuestion
 argument-hint: "<recipe-id> <intent|scope|spec>  |  --feature <feature-id>"
@@ -27,7 +28,8 @@ confirmed.
 
 Use it when the calling skill reaches intent, scope or spec confirmation
 and `review.surface` in `.bts/config/settings.yaml` is `artifact` (the
-default).  The spec is the document the code is built from: final.md, or
+default) or `local` (§ Local page: the same page, served by bts on this
+machine instead of published on claude.ai).  The spec is the document the code is built from: final.md, or
 fix-spec.md in a fix recipe; `/bts-implement` and `/bts-recipe-fix`
 review it before the first product code.  A feature's plan is reviewed
 the same way before its items start (§ Feature).  Use AskUserQuestion as the calling skill says when the
@@ -94,6 +96,52 @@ or not.
    click to pin a note, speak or type, Send when done; Pick on a decision;
    Confirm when it reads right; or answer here.  The first send asks them
    to let the page comment and keep data.  Then end the turn and wait.
+
+## Local page
+
+With `review.surface: local` bts serves the page from this machine.  It
+belongs to no claude.ai account, so a session on another account, or a new
+session, takes its rounds.  Everything in this skill holds, with these
+differences:
+
+- **Build** (step 2): link `bts-review-kit.css` in the head and load
+  `bts-review-kit.js` last in the body, by base name; put the config block
+  in as the brief prints it.  The server serves the kit and adds the local
+  transport.  There are no capabilities.
+- **Show it** (steps 3 and 4): `bts review open {id} --point <point>` in
+  place of publishing and attach.  It starts or reuses the project's
+  server, records the local link in review.json, and opens the page in
+  Orca's browser beside the terminal or in the system browser.  To show a
+  new version, rewrite page.html; the page reloads, after the user closes
+  any note they have open.
+- **Wait** (step 5): tell the user the link and how to use the page; there
+  is no sign-in and nothing to allow.  Then run `bts review wait {id}` with
+  `run_in_background` and end the turn.  It returns when the user sends a
+  round, which wakes you, or after 100 minutes with "no round yet", when you
+  run it again.  The page shows whether a session is waiting; a round sent
+  while none waits is kept until one checks.
+- **Round** steps 1 and 2 are one command: `bts review import {id}` reads
+  the page's data and marks the rounds it takes picked.  No ArtifactData.
+- **Round** steps 3 and 4: `bts review dispose ... --reply "<one or two
+  sentences, in the user's language>"` and `bts review propose ... --reply
+  "..."` write the note's outcome on the page, and propose writes the
+  proposal there too.  Nothing to upload.
+- **Round** step 5: `bts review done {id} --round N --summary "<one line,
+  in the user's language>"`, and rewrite page.html if you fixed the page.
+  Step 6 has no thread to resolve.  After step 7, run `bts review wait {id}`
+  in the background again.
+- **Update plan**: `bts review apply` writes the proposals' outcomes to the
+  page itself; step 4 rewrites page.html instead of republishing.
+- **Confirm** step 3: `bts review reply {id} --note <id> --status applied
+  --reply "..."`, or `--status declined` with bts's reason, then `done`.
+- **A feature's page** takes `--feature {f}` on `open`, `wait`, `import` and
+  the rest, as in § Feature.
+- **Moving a review from claude.ai**: `bts review open` takes the versions
+  and rounds from bts's records.  Notes the user never sent stay on the
+  claude.ai page, unless you first export them with ArtifactData into
+  `.bts/local/recipes/{id}/review/data/notes/`.
+- `bts review serve --stop` stops the project's server.  It also stops
+  after 12 idle hours, and `bts review open` starts it again.
 
 ## Round
 

@@ -27,8 +27,10 @@ import (
 
 // KitVersion is the review kit the templates ship.  A page records the kit
 // it was built with, so a later kit change is visible on an old page.
-// Kit 2 adds feature pages (config "feature" in place of "recipe").
-const KitVersion = "2"
+// Kit 2 adds feature pages (config "feature" in place of "recipe").  Kit 3
+// adds the local transport (config "transport": "local"), for a page
+// `bts review serve` serves.
+const KitVersion = "3"
 
 // Schema is the version of review.json and the round records.
 const Schema = 1
@@ -215,8 +217,11 @@ func (rev Revision) summary() string {
 
 // State is review.json.
 type State struct {
-	Schema    int             `json:"schema"`
-	URL       string          `json:"url,omitempty"`
+	Schema int    `json:"schema"`
+	URL    string `json:"url,omitempty"`
+	// Surface is "local" for a page bts serves itself (`bts review open`);
+	// empty for a claude.ai artifact.
+	Surface   string          `json:"surface,omitempty"`
 	Kit       string          `json:"kit"`
 	Points    []string        `json:"points,omitempty"`
 	Docs      map[string]*Doc `json:"docs"`
@@ -472,6 +477,16 @@ func bump(s *State, doc, h string, tmpl Revision) *Revision {
 
 // Attach records the page's URL and the review point it now carries.
 func Attach(sub Subject, url, point string) (*State, error) {
+	return attach(sub, url, point, "")
+}
+
+// AttachLocal records a page bts serves itself: url is the local server's
+// link, and the page's data lives in DataPath rather than on claude.ai.
+func AttachLocal(sub Subject, url, point string) (*State, error) {
+	return attach(sub, url, point, SurfaceLocal)
+}
+
+func attach(sub Subject, url, point, surface string) (*State, error) {
 	s, err := Load(sub)
 	if errors.Is(err, ErrNoPage) {
 		s = &State{Docs: map[string]*Doc{}}
@@ -482,6 +497,7 @@ func Attach(sub Subject, url, point string) (*State, error) {
 		return nil, errors.New("--url is required: the page's claude.ai link")
 	}
 	s.URL = strings.TrimSpace(url)
+	s.Surface = surface
 	s.Kit = KitVersion
 	if point != "" && !contains(s.Points, point) {
 		s.Points = append(s.Points, point)

@@ -71,15 +71,19 @@ type InterrogateSettings struct {
 }
 
 // ReviewSettings: `surface` is "artifact" (a review page with pinned
-// notes, /bts-review-page) or "ask" (AskUserQuestion).  `bts review page`
-// refuses when it is "ask".
+// notes published as a claude.ai artifact, /bts-review-page), "local" (the
+// same page served by bts on this machine, tied to no claude.ai account) or
+// "ask" (AskUserQuestion).  `bts review page` refuses when it is "ask".
 type ReviewSettings struct {
 	Surface string `yaml:"surface"`
 }
 
-// ReviewSurfaceArtifact and ReviewSurfaceAsk are the values of review.surface.
+// ReviewSurfaceArtifact, ReviewSurfaceLocal and ReviewSurfaceAsk are the
+// values of review.surface: a claude.ai artifact, a page bts serves on this
+// machine (`bts review open`), or AskUserQuestion.
 const (
 	ReviewSurfaceArtifact = "artifact"
+	ReviewSurfaceLocal    = "local"
 	ReviewSurfaceAsk      = "ask"
 )
 
@@ -308,6 +312,8 @@ func LoadSettings(root string) (*Settings, error) {
 	switch strings.ToLower(strings.TrimSpace(s.Review.Surface)) {
 	case ReviewSurfaceAsk:
 		s.Review.Surface = ReviewSurfaceAsk
+	case ReviewSurfaceLocal:
+		s.Review.Surface = ReviewSurfaceLocal
 	default:
 		s.Review.Surface = def.Review.Surface
 	}
