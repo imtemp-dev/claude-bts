@@ -303,8 +303,8 @@ The `--phase implement` log in Step 7 is refused until the user has
 confirmed fix-spec.md (a resolved `spec-confirm` decision).  Put it in
 front of them now:
 
-- When `review.surface` in `.bts/config/settings.yaml` is `artifact` (the
-  default) and the Artifact tool is available, or `local`: `/bts-review-page {id}
+- When `review.surface` in `.bts/config/settings.yaml` is `local` (the
+  default), or `artifact` with the Artifact tool available: `/bts-review-page {id}
   spec` draws the failing path today and after the fix, the changes and
   the regression test, and runs the rounds; its Confirm step records the
   confirmation.  A change the user accepts edits fix-spec.md and is

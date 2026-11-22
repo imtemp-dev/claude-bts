@@ -374,8 +374,8 @@ bts recipe log {id} --phase scoping
    survives compaction or session breaks.
 
 **5. Confirm scope.**  When `review.surface` in `.bts/config/settings.yaml`
-   is `artifact` (the default) and the Artifact tool is available here, or
-   `local`, run it on the recipe's review page: `/bts-review-page {id} scope` extends the
+   is `local` (the default), or `artifact` with the Artifact tool available
+   here, run it on the recipe's review page: `/bts-review-page {id} scope` extends the
    page, turns the user's notes into proposals, applies the accepted ones
    (Update plan) and records the confirmation with
    `bts recipe confirm {id} scope --via review`; then go to step 7.

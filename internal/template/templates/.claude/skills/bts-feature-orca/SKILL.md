@@ -29,7 +29,7 @@ ready or merge a pull request: ready and merge are the user's.
 2. `bts feature status <feature>`: the feature is confirmed.  If it has no
    confirmed plan, settle it with the user first: `bts feature create`,
    `bts feature item add`, `intent.md` and `contracts.md` written.  With
-   `review.surface: artifact` (the default) or `local` the user reviews and
+   `review.surface: local` (the default) or `artifact` the user reviews and
    confirms it on a page (/bts-review-page § Feature), recorded with
    `bts feature confirm <feature> --via review --hash <fingerprint>
    --answer "<their words>"`; otherwise ask, and record

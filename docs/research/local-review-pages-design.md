@@ -1,6 +1,6 @@
 # Local review pages (`review.surface: local`)
 
-Status: approved 2026-11-22 with D1–D3 as recommended; built the same day (§ As built).  Extends [review-pages-design.md](review-pages-design.md); everything not named here stays as that note and the shipped code have it.
+Status: approved 2026-11-22 with D1–D3 as recommended; built the same day (§ As built).  Later that day the user made `local` the default at once and had bts enforce it (§ Enforcement).  Extends [review-pages-design.md](review-pages-design.md); everything not named here stays as that note and the shipped code have it.
 
 ## Why
 
@@ -107,7 +107,7 @@ About one and a half to two days.  V1–V3 come first, about an hour.
 
 ## Decisions for the user
 
-- **D1:** default surface `local` after its first real run, with `artifact` kept for sharing.  Recommended.
+- **D1:** default surface `local` after its first real run, with `artifact` kept for sharing.  Recommended.  Taken early (§ Enforcement).
 - **D2:** in Orca, wake by orchestration message as well as `bts review wait`, if V2 holds.  Recommended.
 - **D3:** one server per project root, stopping after 12 idle hours.  Recommended.
 
@@ -120,6 +120,15 @@ About one and a half to two days.  V1–V3 come first, about an hour.
 - **V3 holds.** This environment's background commands wake the session when they exit; every watcher in the trial watch ran that way.
 - **V1 is pending.** It needs the user to speak into the page in Orca's browser and in Chrome.
 - A CLI smoke on a scratch project ran: review, proposal, apply (intent.md v2) and confirm (`bts recipe confirm --via review --hash`) end to end over the server, plus token, Host and Origin refusals and an SSE push after a CLI write.
+
+## Enforcement (2026-11-22)
+
+A session asked for "an artifact" of an intent, scope or final.md still reached for the Artifact tool, because skills and CLAUDE.md text only suggest.  The user chose to have bts refuse it, since the rule concerns bts's own review documents only.  D1 is taken without waiting for a first real run.
+
+- **Default `local`.**  An unset or unknown `review.surface` reads as `local`; an explicit `artifact` or `ask` stays.  The settings template, `bts migrate`, README, llms.txt and the calling skills say so.
+- **PreToolUse deny.**  Under `local`, an Artifact publish (no `action`, or `publish`) whose `file_path`, `file_paths` or `files` names a file under `.bts/local/{recipes,features}/<id>/review/`, or the review kit, is denied, and the reason names `bts review open <id> --point <p>` (or `--feature <f>`).  Reads, lists and every other artifact pass (`internal/hook/review_surface.go`).
+- **`bts review attach` refused** under `local`, with the same pointer, before anything is written.
+- **UserPromptSubmit reminder.**  A prompt that asks for an artifact or a review page, in English or Korean, while a recipe is active or a feature review exists, gets one line saying the surface is local and how to open the page.  The review reminder tells a local page's session to run `bts review import`, not to query ArtifactData.  The hook input gained `prompt`, with a captured payload as its contract fixture.
 
 ## Later
 

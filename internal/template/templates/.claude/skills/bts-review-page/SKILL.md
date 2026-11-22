@@ -27,15 +27,17 @@ proposal, which proposal to which version, which version the user
 confirmed.
 
 Use it when the calling skill reaches intent, scope or spec confirmation
-and `review.surface` in `.bts/config/settings.yaml` is `artifact` (the
-default) or `local` (§ Local page: the same page, served by bts on this
-machine instead of published on claude.ai).  The spec is the document the code is built from: final.md, or
+and `review.surface` in `.bts/config/settings.yaml` is `local` (the
+default, § Local page: bts serves the page on this machine) or `artifact`
+(the page published on claude.ai).  With `local` the PreToolUse hook
+refuses to publish a review page with the Artifact tool.  The spec is the document the code is built from: final.md, or
 fix-spec.md in a fix recipe; `/bts-implement` and `/bts-recipe-fix`
 review it before the first product code.  A feature's plan is reviewed
-the same way before its items start (§ Feature).  Use AskUserQuestion as the calling skill says when the
-Artifact tool is not available here (a headless run, Multica), when
-`bts review page` refuses, or when the user says they would rather answer
-in the terminal.  Words the user types in the terminal always count, page
+the same way before its items start (§ Feature).  Use AskUserQuestion as the calling skill says when no
+user sits at this machine to open the page (a headless run, Multica),
+under `artifact` when the Artifact tool is not available here, when `bts
+review page` refuses, or when the user says they would rather answer in
+the terminal.  Words the user types in the terminal always count, page
 or not.
 
 ## Build or extend the page

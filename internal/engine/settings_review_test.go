@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-// review.surface takes artifact, local or ask; anything else is the
-// default, artifact.
+// review.surface takes local, artifact or ask; anything else is the
+// default, local.  An explicit artifact stays artifact.
 func TestSettings_ReviewSurface(t *testing.T) {
 	load := func(yaml string) string {
 		t.Helper()
@@ -25,11 +25,12 @@ func TestSettings_ReviewSurface(t *testing.T) {
 		return s.Review.Surface
 	}
 	for yaml, want := range map[string]string{
-		"":                            ReviewSurfaceArtifact,
-		"review:\n  surface: local\n": ReviewSurfaceLocal,
-		"review:\n  surface: Local\n": ReviewSurfaceLocal,
-		"review:\n  surface: ask\n":   ReviewSurfaceAsk,
-		"review:\n  surface: page\n":  ReviewSurfaceArtifact,
+		"":                               ReviewSurfaceLocal,
+		"review:\n  surface: local\n":    ReviewSurfaceLocal,
+		"review:\n  surface: Local\n":    ReviewSurfaceLocal,
+		"review:\n  surface: artifact\n": ReviewSurfaceArtifact,
+		"review:\n  surface: ask\n":      ReviewSurfaceAsk,
+		"review:\n  surface: page\n":     ReviewSurfaceLocal,
 	} {
 		if got := load(yaml); got != want {
 			t.Errorf("%q → %q, want %q", yaml, got, want)

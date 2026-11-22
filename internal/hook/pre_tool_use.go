@@ -28,6 +28,18 @@ func (h *preToolUseHandler) Handle(input *HookInput) (*HookOutput, error) {
 		return &HookOutput{}, nil
 	}
 
+	// A review page under review.surface local is served by bts, never
+	// published on claude.ai, whichever session tries.
+	if reason := localReviewPublishDenial(root, input); reason != "" {
+		return &HookOutput{
+			HookSpecificOutput: &HookSpecificOutput{
+				HookEventName:            "PreToolUse",
+				PermissionDecision:       "deny",
+				PermissionDecisionReason: reason,
+			},
+		}, nil
+	}
+
 	// Another session in the project gets nothing from the recipe: no
 	// breadcrumbs in its recovery trail, no budget, no phase warnings.
 	// Only a write to one of the recipe's own files is called out.

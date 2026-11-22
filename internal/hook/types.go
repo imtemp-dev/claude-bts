@@ -41,6 +41,9 @@ type HookInput struct {
 	// Session source (if Claude Code sends it)
 	Source string `json:"source,omitempty"` // "startup", "resume", "clear", "compact"
 
+	// UserPromptSubmit: the text the user sent.
+	Prompt string `json:"prompt,omitempty"`
+
 	// Stop hook fields. Claude Code sends the turn's final assistant text as
 	// last_assistant_message; "content" is kept only as a fallback for
 	// callers that pipe a payload by hand. Read both through StopText.

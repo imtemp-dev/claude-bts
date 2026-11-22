@@ -99,8 +99,8 @@ complex ones may take 10+.
 When you believe you have enough understanding:
 1. Present a summary of the intent to the user
 2. Ask for confirmation.  When `review.surface` in `.bts/config/settings.yaml`
-   is `artifact` (the default) and the Artifact tool is available here, or
-   `local`, the review runs on a page: `/bts-review-page {id} intent` draws
+   is `local` (the default), or `artifact` with the Artifact tool available
+   here, the review runs on a page: `/bts-review-page {id} intent` draws
    the intent, publishes or serves it, answers the notes the user pins on it and records the
    confirmation with `bts recipe confirm {id} intent --via review`; skip
    step 3 then.  Otherwise ask using AskUserQuestion:

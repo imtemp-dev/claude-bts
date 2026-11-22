@@ -40,6 +40,9 @@ func (h *userPromptSubmitHandler) Handle(input *HookInput) (*HookOutput, error) 
 	}
 	// A coordinator settles a feature with no recipe of its own.
 	lines = append(lines, featureReviewReminders(root)...)
+	if ctx := localSurfaceReminder(root, input.Prompt); ctx != "" {
+		lines = append(lines, ctx)
+	}
 	if len(lines) == 0 {
 		return &HookOutput{}, nil
 	}
@@ -79,8 +82,8 @@ func featureReviewReminders(root string) []string {
 			continue
 		}
 		msg := fmt.Sprintf("[bts] Feature %s has a review page: %s. If the user sent notes, pressed Update plan "+
-			"or confirmed there, read the page's rounds whose status is submitted (ArtifactData query) and follow "+
-			"/bts-review-page § Feature before answering.", f.ID, s.URL)
+			"or confirmed there, %s and follow /bts-review-page § Feature before answering.", f.ID, s.URL,
+			readRounds(s, "--feature "+f.ID))
 		if len(open) > 0 {
 			msg += fmt.Sprintf(" %d item(s) are open on the page; `bts review status --feature %s` lists them.", len(open), f.ID)
 		}
@@ -106,10 +109,19 @@ func reviewReminder(root string, recipe *state.RecipeState) string {
 		return ""
 	}
 	msg := fmt.Sprintf("[bts] Recipe %s has a review page: %s. If the user sent notes, pressed Update plan "+
-		"or confirmed there, read the page's rounds whose status is submitted (ArtifactData query) and follow "+
-		"/bts-review-page § Round before answering.", recipe.ID, s.URL)
+		"or confirmed there, %s and follow /bts-review-page § Round before answering.", recipe.ID, s.URL,
+		readRounds(s, recipe.ID))
 	if len(open) > 0 {
 		msg += fmt.Sprintf(" %d item(s) are open on the page; `bts review status %s` lists them.", len(open), recipe.ID)
 	}
 	return msg
+}
+
+// readRounds says how the session reads the rounds the user sent: a local
+// page's data is on disk, a claude.ai page's is read with ArtifactData.
+func readRounds(s *review.State, arg string) string {
+	if s.Surface == review.SurfaceLocal {
+		return fmt.Sprintf("run `bts review import %s`", arg)
+	}
+	return "read the page's rounds whose status is submitted (ArtifactData query)"
 }

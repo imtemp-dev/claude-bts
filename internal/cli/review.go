@@ -202,6 +202,17 @@ var reviewAttachCmd = &cobra.Command{
 		if point != "" && !containsStr(sub.Points(), point) {
 			return fmt.Errorf("--point takes %s, got %q", strings.Join(sub.Points(), " or "), point)
 		}
+		if set, err := engine.LoadSettings(sub.Root); err == nil && set.Review.Surface == engine.ReviewSurfaceLocal {
+			p := point
+			if p == "" {
+				p = "<point>"
+			}
+			open := sub.Arg() + " --point " + p
+			if sub.Kind == review.KindFeature {
+				open = sub.Arg()
+			}
+			return fmt.Errorf("review.surface is local in .bts/config/settings.yaml: the review page is served by bts, not attached as a claude.ai link; run `bts review open %s`", open)
+		}
 		prev := ""
 		if old, err := review.Load(sub); err == nil {
 			prev = old.URL

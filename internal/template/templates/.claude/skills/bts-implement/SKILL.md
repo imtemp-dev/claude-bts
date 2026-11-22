@@ -56,9 +56,9 @@ Use settings values if present, otherwise use defaults noted in each step.
    decision (`bts recipe decision list {id}`).  When the phase is
    `finalize` and there is none, put final.md in front of the user now,
    before any task is decomposed from it:
-   - When `review.surface` in `.bts/config/settings.yaml` is `artifact`
-     (the default) and the Artifact tool is available, or `local`, review
-     it on the recipe's review page: `/bts-review-page {id} spec` adds the spec to
+   - When `review.surface` in `.bts/config/settings.yaml` is `local` (the
+     default), or `artifact` with the Artifact tool available, review it on
+     the recipe's review page: `/bts-review-page {id} spec` adds the spec to
      the page (an express build's page is one drawing) and runs the
      rounds; its Confirm step records the confirmation.  Answer each
      round, and when an accepted proposal changes final.md, review the

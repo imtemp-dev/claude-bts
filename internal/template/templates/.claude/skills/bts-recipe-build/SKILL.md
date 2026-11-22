@@ -72,8 +72,8 @@ decision hold`).
    `--express` for a small change (§ Express mode).
 2. **Intent and scope.** Follow `.claude/skills/bts-recipe-blueprint/SKILL.md`
    § Intent Check, § Vision & Roadmap Check and § Scoping exactly; with
-   `review.surface: artifact` or `local` both reviews run on the recipe's
-   review page (`/bts-review-page`), in express mode too. Scope
+   `review.surface: local` (the default) or `artifact` both reviews run on
+   the recipe's review page (`/bts-review-page`), in express mode too. Scope
    ends CONFIRMED through `bts recipe confirm {id} scope --answer "..."`
    (`--via review --hash` from the page),
    and a scope revised later (after research) is confirmed again the same
@@ -158,8 +158,8 @@ decision hold`).
     carried ones green), `scope_coverage` and `build_review_clean`, and
     moves the recipe to `finalize`.
 14. **Implement.** `/bts-implement {id}`. It starts with the user's
-    review of `final.md` (on the review page with `review.surface:
-    artifact` or `local`), and the move into implement waits for that
+    review of `final.md` (on the review page with `review.surface: local`
+    or `artifact`), and the move into implement waits for that
     confirmation.
     In an Orca terminal, `bts orca continue {id}` can start it in a fresh
     session instead: ask the user first (unless `orca.launch` is `auto`),

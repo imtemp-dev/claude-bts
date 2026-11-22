@@ -70,10 +70,11 @@ type InterrogateSettings struct {
 	MaxRescopeRounds int `yaml:"max_rescope_rounds"`
 }
 
-// ReviewSettings: `surface` is "artifact" (a review page with pinned
-// notes published as a claude.ai artifact, /bts-review-page), "local" (the
-// same page served by bts on this machine, tied to no claude.ai account) or
-// "ask" (AskUserQuestion).  `bts review page` refuses when it is "ask".
+// ReviewSettings: `surface` is "local" (the default: a review page with
+// pinned notes, /bts-review-page, served by bts on this machine and tied
+// to no claude.ai account), "artifact" (the same page published as a
+// claude.ai artifact) or "ask" (AskUserQuestion).  `bts review page`
+// refuses when it is "ask".
 type ReviewSettings struct {
 	Surface string `yaml:"surface"`
 }
@@ -251,7 +252,7 @@ func DefaultSettings() *Settings {
 			MaxDocumentLines:    400,
 			SectionSpanSeverity: SeverityMajor,
 		},
-		Review:      ReviewSettings{Surface: ReviewSurfaceArtifact},
+		Review:      ReviewSettings{Surface: ReviewSurfaceLocal},
 		Interrogate: InterrogateSettings{MaxRescopeRounds: 4},
 		Orca:        OrcaSettings{Launch: OrcaLaunchAsk},
 	}
@@ -314,6 +315,8 @@ func LoadSettings(root string) (*Settings, error) {
 		s.Review.Surface = ReviewSurfaceAsk
 	case ReviewSurfaceLocal:
 		s.Review.Surface = ReviewSurfaceLocal
+	case ReviewSurfaceArtifact:
+		s.Review.Surface = ReviewSurfaceArtifact
 	default:
 		s.Review.Surface = def.Review.Surface
 	}

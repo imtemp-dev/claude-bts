@@ -74,7 +74,7 @@ flowchart LR
     INT["Intent"] --> SC["Scope"] --> RS["Research"] --> DM["Domain model"] --> AR["Architect ↗"] --> WF["Wireframe"]
 ```
 
-You confirm the intent, the scope and, before implementation, the spec. By default you review them on a **review page**: Claude publishes the change as a claude.ai artifact, drawn rather than retold (the spec as its parts and files, each invariant on the part that owns it with its test; a fix as the failing path today and after), you pin notes on it (typed or spoken) and send them in rounds, Claude answers and proposes edits, and you confirm a fingerprinted version. Implementation does not start until the spec is confirmed. A feature split into several recipes gets a page too: its items as a dependency graph with the contracts between them, confirmed as one version before any item starts. Set `review.surface: local` to have bts serve the same page from your machine instead of claude.ai: it belongs to no claude.ai account, so switching accounts or sessions mid-review keeps the page and its rounds. Set `review.surface: ask` to answer in the chat instead; a run without the Artifact tool (headless, or a Multica worker) asks in the chat too.
+You confirm the intent, the scope and, before implementation, the spec. By default you review them on a **review page**: bts serves the change from your machine and opens it in your browser (or Orca's), drawn rather than retold (the spec as its parts and files, each invariant on the part that owns it with its test; a fix as the failing path today and after), you pin notes on it (typed or spoken) and send them in rounds, Claude answers and proposes edits, and you confirm a fingerprinted version. Implementation does not start until the spec is confirmed. A feature split into several recipes gets a page too: its items as a dependency graph with the contracts between them, confirmed as one version before any item starts. The page belongs to no claude.ai account, so switching accounts or sessions mid-review keeps it and its rounds, and the hooks refuse to publish it as an artifact. Set `review.surface: artifact` to publish it on claude.ai instead, or `ask` to answer in the chat; a run no one sits at (headless, or a Multica worker) asks in the chat too.
 
 The domain model names each invariant and the one place that enforces it. The architect step has two independent runners propose decompositions, debates them, and has an adjudicator pick one. The wireframe lays out the structure and the files the change touches. **↗ = separate agent context.**
 
@@ -127,7 +127,7 @@ A change too large for one recipe becomes a **feature**: a plan of items you con
 
 | Setting | Default | What it does |
 |---------|---------|--------------|
-| `review.surface` | `artifact` | Where you review intent, scope and the spec: a review page on claude.ai, `local` for the same page served from your machine, or `ask` for the chat |
+| `review.surface` | `local` | Where you review intent, scope and the spec: a review page served from your machine, `artifact` for the same page on claude.ai, or `ask` for the chat |
 | `orca.launch` | `ask` | Whether `bts orca continue` launches only after you agree (`ask`), at once (`auto`), or never (`off`) |
 | `implement.require_edit_go` | `false` | Hold the first product-code edit until you say go |
 | `implement.setup_cmd` | — | Command that makes a fresh copy of the project runnable, run in every copy bts makes (adversaries, reruns, mutations) |
