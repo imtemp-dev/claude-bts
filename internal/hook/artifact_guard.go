@@ -147,11 +147,14 @@ func guardReason(in map[string]interface{}) string {
 		"are updated as before, with a publish that names their url.", cmd)
 }
 
+// shellSafe says whether r needs no quoting in a POSIX shell word.
+func shellSafe(r rune) bool {
+	return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("-_./=:@+,%", r)
+}
+
 // shellQuote quotes s for a POSIX shell when it needs it.
 func shellQuote(s string) string {
-	if s != "" && strings.IndexFunc(s, func(r rune) bool {
-		return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("-_./=:@+,%", r))
-	}) < 0 {
+	if s != "" && strings.IndexFunc(s, func(r rune) bool { return !shellSafe(r) }) < 0 {
 		return s
 	}
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"

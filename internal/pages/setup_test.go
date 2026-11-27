@@ -62,7 +62,7 @@ func TestEditGuard_AddsOnceKeepsEverythingElseAndRemovesCleanly(t *testing.T) {
 	// Order kept: model, permissions, hooks, statusLine; and the Bash
 	// guard stays ahead of ours.
 	idx := func(sub string) int { return strings.Index(s, sub) }
-	if !(idx(`"model"`) < idx(`"permissions"`) && idx(`"permissions"`) < idx(`"hooks"`) && idx(`"hooks"`) < idx(`"statusLine"`)) {
+	if idx(`"model"`) >= idx(`"permissions"`) || idx(`"permissions"`) >= idx(`"hooks"`) || idx(`"hooks"`) >= idx(`"statusLine"`) {
 		t.Errorf("key order changed:\n%s", s)
 	}
 	if idx(`"matcher": "Bash"`) > idx(`"matcher": "Artifact"`) {
