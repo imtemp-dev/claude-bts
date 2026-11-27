@@ -2,18 +2,19 @@ package review
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
+
+	"github.com/imtemp-dev/claude-bts/internal/state"
 )
 
 // localPage is the fixture with a local page attached for the intent
@@ -27,7 +28,7 @@ func localPage(t *testing.T) (string, Subject) {
 	}
 	write(t, filepath.Join(sub.Work, "page.html"),
 		`<html><head><script type="application/json" id="bts-review-config">{"recipe":"`+rid+`","kit":"3"}</script></head><body data-note="x">page</body></html>`)
-	if _, err := AttachLocal(sub, "http://127.0.0.1:1/p/"+rid+"/?t=x", "intent"); err != nil {
+	if _, err := AttachLocal(sub, "http://127.0.0.1:1/r/p-000000/"+rid+"/", "intent"); err != nil {
 		t.Fatal(err)
 	}
 	return root, sub
@@ -145,57 +146,44 @@ func TestArtifactPage_StillWritesUploadFiles(t *testing.T) {
 
 func TestInjectConfig_AddsTheLocalTransport(t *testing.T) {
 	page := []byte(`<script type="application/json" id="bts-review-config">{"recipe":"r-1","note":"</b>"}</script>`)
-	out := string(injectConfig(page, "r-1"))
-	if !strings.Contains(out, `"transport":"local"`) || !strings.Contains(out, `"api":"/api/r-1/"`) {
+	out := string(injectConfig(page, "/r/p-1/r-1/api/"))
+	if !strings.Contains(out, `"transport":"local"`) || !strings.Contains(out, `"api":"/r/p-1/r-1/api/"`) {
 		t.Errorf("config not injected: %s", out)
 	}
 	if strings.Contains(out, `"</b>"`) {
 		t.Errorf("a </ in the config can close the script element: %s", out)
 	}
+	if got := string(SetPageConfig([]byte("<p>no config</p>"), map[string]interface{}{"transport": "static"})); got != "<p>no config</p>" {
+		t.Errorf("a page without a config changed: %s", got)
+	}
 }
 
-// startServer runs Serve on a free port for the test.
-func startServer(t *testing.T, root string, sub Subject) ServerInfo {
+const subjectBase = "/r/p-1/" + rid + "/"
+
+// subjectServer serves one subject under subjectBase, as the user's page
+// server hands it over once the host, token and origin passed.
+func subjectServer(t *testing.T, sub Subject) *httptest.Server {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
-	ready := make(chan ServerInfo, 1)
-	done := make(chan error, 1)
-	go func() {
-		done <- Serve(ctx, ServeOptions{
-			Root: root, Version: "test", Poll: 50 * time.Millisecond,
-			Kit: fstest.MapFS{"bts-review-kit.js": {Data: []byte("/* kit */")}, "bts-review-kit.css": {Data: []byte("/* css */")}},
-			Resolve: func(key string) (Subject, error) {
-				if key != SubjectKey(sub) {
-					return Subject{}, fmt.Errorf("no review %q", key)
-				}
-				return sub, nil
-			},
-			Ready: func(info ServerInfo) { ready <- info },
-		})
-	}()
-	var info ServerInfo
-	select {
-	case info = <-ready:
-	case err := <-done:
-		t.Fatalf("server exited: %v", err)
-	case <-time.After(5 * time.Second):
-		t.Fatal("server did not start")
+	opts := SubjectOptions{
+		Base: subjectBase, Poll: 50 * time.Millisecond,
+		Kit: fstest.MapFS{"bts-review-kit.js": {Data: []byte("/* kit */")}, "bts-review-kit.css": {Data: []byte("/* css */")}},
 	}
-	t.Cleanup(func() {
-		cancel()
-		<-done
-	})
-	return info
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rest, ok := strings.CutPrefix(r.URL.Path, subjectBase)
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		ServeSubject(w, r, sub, rest, opts)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
 }
 
 func do(t *testing.T, method, rawURL string, body string, hdr map[string]string) (int, string) {
 	t.Helper()
 	req, _ := http.NewRequest(method, rawURL, strings.NewReader(body))
 	for k, v := range hdr {
-		if strings.EqualFold(k, "Host") {
-			req.Host = v
-			continue
-		}
 		req.Header.Set(k, v)
 	}
 	resp, err := http.DefaultClient.Do(req)
@@ -207,74 +195,53 @@ func do(t *testing.T, method, rawURL string, body string, hdr map[string]string)
 	return resp.StatusCode, string(b)
 }
 
-func TestServer_RefusesWithoutTokenHostOrOrigin(t *testing.T) {
-	root, sub := localPage(t)
-	info := startServer(t, root, sub)
-	base := fmt.Sprintf("http://127.0.0.1:%d", info.Port)
-	page := base + "/p/" + url.PathEscape(rid) + "/"
-	if code, _ := do(t, "GET", page, "", nil); code != http.StatusForbidden {
-		t.Errorf("no token: %d", code)
-	}
-	if code, _ := do(t, "GET", page+"?t=wrong", "", nil); code != http.StatusForbidden {
-		t.Errorf("wrong token: %d", code)
-	}
-	if code, _ := do(t, "GET", page+"?t="+info.Token, "", map[string]string{"Host": "evil.example:80"}); code != http.StatusForbidden {
-		t.Errorf("rebound host: %d", code)
-	}
-	doc := base + "/api/" + url.PathEscape(rid) + "/doc/notes/n-1?t=" + info.Token
-	if code, _ := do(t, "PUT", doc, `{"text":"x"}`, map[string]string{"Origin": "http://evil.example"}); code != http.StatusForbidden {
-		t.Errorf("cross-origin write: %d", code)
-	}
-	if d, _ := ReadDoc(sub, "notes", "n-1"); d != nil {
-		t.Error("a refused write reached the page data")
-	}
-	if code, _ := do(t, "GET", base+"/p/r-999/?t="+info.Token, "", nil); code != http.StatusNotFound {
-		t.Errorf("unknown subject: %d", code)
-	}
-}
-
-func TestServer_PageKitAndDocumentRoundTrip(t *testing.T) {
-	root, sub := localPage(t)
-	info := startServer(t, root, sub)
-	base := fmt.Sprintf("http://127.0.0.1:%d", info.Port)
-	key := url.PathEscape(rid)
-	code, body := do(t, "GET", base+"/p/"+key+"/?t="+info.Token, "", nil)
-	if code != http.StatusOK || !strings.Contains(body, `"transport":"local"`) {
+func TestServeSubject_PageKitAndDocumentRoundTrip(t *testing.T) {
+	_, sub := localPage(t)
+	srv := subjectServer(t, sub)
+	base := srv.URL + subjectBase
+	code, body := do(t, "GET", base, "", nil)
+	if code != http.StatusOK || !strings.Contains(body, `"transport":"local"`) || !strings.Contains(body, `"api":"`+subjectBase+`api/"`) {
 		t.Fatalf("page %d: %s", code, body)
 	}
-	if code, body := do(t, "GET", base+"/p/"+key+"/bts-review-kit.js?t="+info.Token, "", nil); code != http.StatusOK || body != "/* kit */" {
+	if code, body := do(t, "GET", base+"bts-review-kit.js", "", nil); code != http.StatusOK || body != "/* kit */" {
 		t.Errorf("kit %d: %s", code, body)
 	}
-	if code, _ := do(t, "GET", base+"/p/"+key+"/data?t="+info.Token, "", nil); code != http.StatusNotFound {
+	if code, _ := do(t, "GET", base+"data", "", nil); code != http.StatusNotFound {
 		t.Errorf("the page data directory is served: %d", code)
 	}
-	origin := map[string]string{"Origin": base, "Content-Type": "application/json"}
-	doc := base + "/api/" + key + "/doc/notes/n-1?t=" + info.Token
-	if code, body := do(t, "PUT", doc, `{"text":"hello","status":"draft"}`, origin); code != http.StatusOK {
+	if code, _ := do(t, "POST", base, "", nil); code != http.StatusMethodNotAllowed {
+		t.Errorf("a write to the page: %d", code)
+	}
+	ctype := map[string]string{"Content-Type": "application/json"}
+	doc := base + "api/doc/notes/n-1"
+	if code, body := do(t, "PUT", doc, `{"text":"hello","status":"draft"}`, ctype); code != http.StatusOK {
 		t.Fatalf("put %d: %s", code, body)
 	}
-	if code, _ := do(t, "PATCH", doc, `{"status":"submitted"}`, origin); code != http.StatusOK {
+	if code, _ := do(t, "PATCH", doc, `{"status":"submitted"}`, ctype); code != http.StatusOK {
 		t.Fatalf("patch %d", code)
 	}
-	_, st := do(t, "GET", base+"/api/"+key+"/state?t="+info.Token, "", nil)
-	var state map[string]interface{}
-	if err := json.Unmarshal([]byte(st), &state); err != nil {
+	_, st := do(t, "GET", base+"api/state", "", nil)
+	var got map[string]interface{}
+	if err := json.Unmarshal([]byte(st), &got); err != nil {
 		t.Fatal(err)
 	}
-	notes, _ := state["notes"].(map[string]interface{})
+	notes, _ := got["notes"].(map[string]interface{})
 	n, _ := notes["n-1"].(map[string]interface{})
 	if n["text"] != "hello" || n["status"] != "submitted" {
 		t.Errorf("state %s", st)
 	}
-	if code, _ := do(t, "PUT", doc, strings.Repeat("x", maxBody+10), origin); code != http.StatusRequestEntityTooLarge && code != http.StatusBadRequest {
+	if code, _ := do(t, "PUT", doc, strings.Repeat("x", maxBody+10), ctype); code != http.StatusRequestEntityTooLarge && code != http.StatusBadRequest {
 		t.Errorf("an oversized body: %d", code)
+	}
+	if code, _ := do(t, "PUT", base+"api/doc/secrets/x", `{}`, ctype); code != http.StatusBadRequest {
+		t.Errorf("an unknown collection: %d", code)
 	}
 }
 
-func TestServer_EventStreamPushesACommandsWrite(t *testing.T) {
-	root, sub := localPage(t)
-	info := startServer(t, root, sub)
-	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/api/%s/events?t=%s", info.Port, url.PathEscape(rid), info.Token))
+func TestServeSubject_EventStreamPushesACommandsWrite(t *testing.T) {
+	_, sub := localPage(t)
+	srv := subjectServer(t, sub)
+	resp, err := http.Get(srv.URL + subjectBase + "api/events")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,15 +292,22 @@ func TestServer_EventStreamPushesACommandsWrite(t *testing.T) {
 	}
 }
 
-func TestServer_IdleExitRemovesItsRecord(t *testing.T) {
-	root, sub := localPage(t)
-	info := startServer(t, root, sub)
-	got, err := ReadServerInfo(root)
-	if err != nil || got == nil || got.Port != info.Port || got.Token != info.Token {
-		t.Fatalf("record %+v, %v", got, err)
+// A legacy per-project server record whose pid does not answer with its
+// token is never signalled (the system may have reused the pid), and the
+// record goes.
+func TestStopLegacyServer_SignalsOnlyAServerThatAnswers(t *testing.T) {
+	root := fixture(t)
+	rec := filepath.Join(state.LocalPath(root), "review-server.json")
+	write(t, rec, fmt.Sprintf(`{"pid": %d, "port": 1, "token": "x"}`, os.Getpid()))
+	running, err := StopLegacyServer(root)
+	if err != nil || running {
+		t.Fatalf("stopped %v, %v: this test process was taken for the old server", running, err)
 	}
-	if !got.Healthy() {
-		t.Error("a running server reads as unhealthy")
+	if _, err := os.Stat(rec); err == nil {
+		t.Error("the legacy record is still there")
+	}
+	if running, err := StopLegacyServer(root); err != nil || running {
+		t.Errorf("no record: %v, %v", running, err)
 	}
 }
 

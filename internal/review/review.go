@@ -28,8 +28,8 @@ import (
 // KitVersion is the review kit the templates ship.  A page records the kit
 // it was built with, so a later kit change is visible on an old page.
 // Kit 2 adds feature pages (config "feature" in place of "recipe").  Kit 3
-// adds the local transport (config "transport": "local"), for a page
-// `bts review serve` serves.
+// adds the local transport (config "transport": "local"), for a page the
+// user's page server (`bts pages serve`) serves.
 const KitVersion = "3"
 
 // Schema is the version of review.json and the round records.

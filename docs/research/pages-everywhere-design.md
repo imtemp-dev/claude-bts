@@ -1,6 +1,6 @@
 # bts pages everywhere
 
-Status: draft 2026-11-27, waiting for the owner's confirmation (Pika item 42).  Extends [local-review-pages-design.md](local-review-pages-design.md): review pages keep their loop, records and gates; this note moves their server, adds general pages beside them, opens both to the owner's phone over the tailnet, and adds a file export for teammates.
+Status: confirmed by the owner 2026-11-27 with D1 and D2 as recommended ("The direction is right, go ahead", through Pika item 42); built the same day on `bts-pages-everywhere` (§ As built), not yet released.  Extends [local-review-pages-design.md](local-review-pages-design.md): review pages keep their loop, records and gates; this note moves their server, adds general pages beside them, opens both to the owner's phone over the tailnet, and adds a file export for teammates.
 
 ## Why
 
@@ -131,3 +131,25 @@ About two to two and a half days; V1–V4 first, about an hour, V2 with the owne
 
 - **D1:** A page that needs claude.ai itself (a typed artifact such as Docs or Slides, or a page declaring runtime `capabilities`): the guard lets it through to claude.ai, with a note that it stays on the current account (recommended: bts serves static pages only, and such a page cannot work there).  Or the guard denies it too, and the session makes a static page or tells the owner.
 - **D2:** A LaunchAgent keeps the page server running, so a link opens on the phone whenever the Mac is awake (recommended).  Or the server starts on demand and exits after 12 idle hours, as today, so a link fails until a session starts it again.
+
+## As built (2026-11-27)
+
+- `internal/pages`: config, token, page store with versions, project registry, the server (`/`, `/p/`, `/r/`), `Ensure` (start, reuse, or replace the server), the LaunchAgent, setup (guard, tailnet) and the exporter.  `internal/review/serve.go` keeps a subject's page, kit and API handlers, which the page server calls under `/r/<project>/<subject>/`; the per-project server is gone.
+- CLI: `bts page publish|list|open|read|export|delete`, `bts pages serve|status|stop|open|setup|teardown|token --rotate`, `bts review export`.  `bts review serve` is removed; `bts review open` registers the project, uses the page server, and the first time stops the project's old server.  `bts hook artifact-guard` is the user-level guard.
+- Changes from the design:
+  - **No Kit 4.**  `bts review export` drops the kit's script, inlines its stylesheet and sets the config's transport to `static`: the same read-only snapshot with no kit change.
+  - **The cookie is `SameSite=Lax`, kept for a year, `Secure` under the tailnet name, and the token leaves the address bar.**  A page load with `?t=` sets the cookie and redirects (303) to the same path without it, so the token stays out of history, bookmarks and screenshots.  `Strict` would drop the cookie on a link opened from a chat app, which is a cross-site navigation that the redirect keeps cross-site.  Writes stay guarded by the origin check and are never GETs.
+  - **The token lives in its own file (`token`, 0600); `server.json` holds none.**  Comparisons are constant time.
+  - **The tailnet name is accepted with its port only** (`<name>:7337`), since the mapping is on that port.
+  - **An old per-project server is stopped only if it answers with its own token**, so a pid the system reused is never signalled.  Old servers of other projects exit after their 12 idle hours.
+  - **`Ensure` holds a lock**, so two sessions publishing while the server is down start one server, not two.
+  - **The guard adds a hint for a `.md` file**: bts serves HTML pages only.
+  - **Export reports missing files and does not fail**: the file is written and lists what it lacks.
+  - `golang.org/x/net/html` (its tokenizer) is a new dependency, for the exporter.
+- Verified:
+  - `go vet ./...`, `go test ./...` and `bts docs check` pass.
+  - **V1 holds** on this Mac (Tailscale 1.104.7).  A throwaway server behind a temporary `tailscale serve --bg --https=7337` received `Host: <name>.ts.net:7337`, `X-Forwarded-Proto: https` and the `?t=` query unchanged.  Server-sent events arrived one second apart, unbuffered.  The mapping was removed afterwards.
+  - **V3 holds** with a scratch LaunchAgent (label `dev.imtemp.bts.pages.v3test`, scratch store, port 17337).  launchd restarted the server about two seconds after a SIGTERM, `kickstart -k` replaced it, and `bootout` stopped it.  A start at login was not tried; it is the same `RunAtLoad`.
+  - A real-file check: adding the guard to `~/.claude/settings.json` and removing it again, in memory, gives back the file byte for byte.  That check found and fixed Go's HTML escaping of other hooks' `>` and `&`.
+  - A CLI smoke on a scratch store and port with a dev build covered three paths.  Pages: publish with a stylesheet and an image, the token redirect and cookie, the host refusal, the index, an update with a carried-over image, and export.  A review in a scratch bts project: `review open`, a note and round written through the API, a cross-origin write refused, `review wait`, `import`, `reply`, and `review export` (kit script dropped, transport `static`, no notes).  Setup: `bts pages setup --dry-run`, which changed neither the settings file (same hash) nor tailscale, and which refuses port 443, already mapped.
+- **Not yet verified, waiting on the owner's go to install:** V2 (the owner's phone over the tailnet) and V4 (the guard in a Carepatron-App session).  Both need `bts pages setup` on this Mac, which edits `~/.claude/settings.json`, maps tailnet port 7337 and installs the LaunchAgent.

@@ -111,12 +111,15 @@ differences:
   in as the brief prints it.  The server serves the kit and adds the local
   transport.  There are no capabilities.
 - **Show it** (steps 3 and 4): `bts review open {id} --point <point>` in
-  place of publishing and attach.  It starts or reuses the project's
-  server, records the local link in review.json, and opens the page in
-  Orca's browser beside the terminal or in the system browser.  To show a
-  new version, rewrite page.html; the page reloads, after the user closes
-  any note they have open.
-- **Wait** (step 5): tell the user the link and how to use the page; there
+  place of publishing and attach.  It starts the user's page server (one
+  per machine, for every project) when it is down, registers this project
+  with it, records the local link in review.json, prints the page's links
+  (this Mac, and the tailnet once `bts pages setup` mapped it), and opens
+  the page in Orca's browser beside the terminal or in the system browser.
+  To show a new version, rewrite page.html; the page reloads, after the
+  user closes any note they have open.
+- **Wait** (step 5): tell the user the link and how to use the page (the
+  tailnet link when they are away from this Mac, on their phone); there
   is no sign-in and nothing to allow.  Then run `bts review wait {id}` with
   `run_in_background` and end the turn.  It returns when the user sends a
   round, which wakes you, or after 100 minutes with "no round yet", when you
@@ -142,8 +145,12 @@ differences:
   and rounds from bts's records.  Notes the user never sent stay on the
   claude.ai page, unless you first export them with ArtifactData into
   `.bts/local/recipes/{id}/review/data/notes/`.
-- `bts review serve --stop` stops the project's server.  It also stops
-  after 12 idle hours, and `bts review open` starts it again.
+- **Sharing** with someone outside the owner's tailnet: `bts review export
+  {id}` writes the page as one read-only HTML file, without the notes.
+  Sending it is a separate step the user asks for.
+- `bts pages status` shows the server; `bts pages stop` stops it for every
+  project.  Without the LaunchAgent it also stops after 12 idle hours, and
+  `bts review open` starts it again.
 
 ## Round
 

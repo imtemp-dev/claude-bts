@@ -45,6 +45,9 @@ func runHook(cmd *cobra.Command, args []string) error {
 		hook.NewSubagentStartHandler(),
 		hook.NewSubagentStopHandler(),
 		hook.NewUserPromptSubmitHandler(),
+		// User-level (`bts pages setup`): runs in every session, bts
+		// project or not.
+		hook.NewArtifactGuardHandler(),
 	)
 
 	output, err := registry.Dispatch(input)

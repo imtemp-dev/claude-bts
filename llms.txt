@@ -66,6 +66,7 @@ Never raise a limit to get past it.
 - The skills: `bts recipe log|confirm|findings|leave-unverified|override|assess-precheck`, `bts check`, `bts falsifier`, `bts interrogate`, `bts prove`, `bts review`, `bts verify`, `bts validate`, `bts sync-check`, `bts task`, `bts test`, `bts debate`, `bts comment`, `bts evidence`.
 - Features: `bts feature` (a confirmed plan of items, one recipe and one stacked draft pull request each) and `bts multica setup` (manager and worker agents on a Multica board).
 - Orca: `bts orca continue [id]` launches a fresh Claude Code session in an Orca terminal that claims the recipe and runs the skill its phase calls for; the launch goes to the changelog. `bts feature dispatch <f> --via orca`, run from the user's session in Orca (coordinated with `/bts-feature-orca`), starts each ready item as an Orca orchestration worker in its own child worktree; workers ask the coordinator for scope and spec confirmations and report `worker_done` after `bts feature pr`. In an Orca terminal, `bts review attach` opens a new review page in Orca's browser beside the terminal.
+- Pages: one server per machine (`bts pages serve`, `127.0.0.1:7337`, started on demand or kept up by the LaunchAgent `bts pages setup` installs) serves every review page and every general page. A new page is published with `bts page publish <page.html> [--file published=source] [--page <id>]`, not with the Artifact tool: `bts pages setup` adds a user-level PreToolUse hook (`bts hook artifact-guard`) that denies a new claude.ai page in every session, while updates to existing artifacts, typed artifacts and pages declaring runtime capabilities pass. Commands print a link for this machine and one for the tailnet (`tailscale serve`, set up by `bts pages setup`); give the user those. `bts page export <id>` and `bts review export <id>` write one self-contained HTML file for people outside the tailnet.
 
 ## Settings
 
@@ -89,6 +90,7 @@ Models: verifier, auditor and the three code reviewers use the session model; th
     diagnosis.md, fix-spec.md                    # fix and debug
 .bts/local/                      # gitignored: metrics, work state, evidence cache
 ~/.bts/features/                 # feature store ($BTS_FEATURE_STORE)
+~/.bts/pages/                    # page store and server state ($BTS_PAGES_HOME)
 ```
 
 bts writes the records (changelog, decisions, verify-log, findings, build evidence, and the run fields of test-results.json) through its commands: never hand-edit them, read them through `bts recipe status`, `bts recipe findings list`, `bts recipe decision list` and `bts doctor`, and run `bts validate` after editing any JSON file under `.bts/`.

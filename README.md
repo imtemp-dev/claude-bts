@@ -121,6 +121,10 @@ For a small change, express keeps what makes a build trustworthy — confirmed i
 
 A change too large for one recipe becomes a **feature**: a plan of items you confirm once, each worked as its own recipe in its own worktree, with its own draft pull request stacked on the item it depends on. `bts feature` keeps the plan, the confirmed intent and contracts, and each item's attempts in a store outside the worktrees (`~/.bts/features/`, or `$BTS_FEATURE_STORE`). `bts multica setup` connects features to a Multica board, where a manager agent dispatches ready items to worker agents.
 
+## Pages
+
+Any page a Claude session makes on your machine can be served by bts instead of published as a claude.ai artifact, which belongs to whichever claude.ai account published it. Review pages already work this way; explainers, PR briefs and architecture notes can too. `bts page publish <page.html>` keeps the page, with every version, in `~/.bts/pages/`, and serves it from one server on `127.0.0.1:7337`. Publishing the same file again, or passing `--page <id>`, adds a version. `bts pages setup` makes this the rule on the machine and opens the pages to your phone. It adds a user-level hook that sends every session's new Artifact publish to `bts page publish`, while updates to existing artifacts still go to claude.ai. It maps the port on your tailnet with `tailscale serve` (HTTPS, tailnet only), and it installs a LaunchAgent that keeps the server running. `bts pages open` prints the index of every page. For someone outside your tailnet, `bts page export <id>` (or `bts review export <recipe>`) writes the page as one HTML file that opens anywhere.
+
 ## Settings
 
 `.bts/config/settings.yaml` holds the project's choices, each documented in the file. Among them:
@@ -166,6 +170,8 @@ bts feature create|confirm|status|next|pr   A feature: a confirmed plan of items
 bts multica setup                   Run features on a Multica board
 bts orca status|continue [id]       Hand a recipe to a fresh Claude Code session in an Orca terminal
 bts feature dispatch <f> --via orca Run a feature's items as Orca workers (coordinate with /bts-feature-orca)
+bts page publish|list|open|export   Pages bts serves in place of claude.ai artifacts
+bts pages setup|status|open         The page server: Artifact guard, tailnet mapping, LaunchAgent
 bts version                         Show versions
 ```
 
